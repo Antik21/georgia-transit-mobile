@@ -40,7 +40,7 @@ direct `embedAndSignAppleFrameworkForXcode` host.
 Prerequisites:
 
 - JDK 17.
-- Android SDK platform 37 and build tools 37.0.0. Set `ANDROID_HOME` to the SDK root, or put the local SDK path in an uncommitted `local.properties` file such as `sdk.dir=/absolute/path/to/android-sdk`.
+- Android SDK platform 37.0 and build tools 37.0.0. Set `ANDROID_HOME` to the SDK root, or put the local SDK path in an uncommitted `local.properties` file such as `sdk.dir=/absolute/path/to/android-sdk`.
 - For Apple targets, macOS with Xcode and an installed iOS Simulator runtime on Apple Silicon. The shared `iosSimulatorArm64` target needs an `arm64` host; `iosX64` is available only on Intel macOS.
 
 `local.properties`, `ANDROID_HOME` values, signing material, and provider configuration are local-only. Do not commit them. This shell does not require secrets or signing to run its quality gates.
@@ -56,7 +56,7 @@ xcodebuild -project iosApp/iosApp.xcodeproj -scheme iosApp -sdk iphonesimulator 
 git diff --check
 ```
 
-The final two commands require macOS, Xcode, and a simulator runtime. The iOS test task's supported `--device` option binds it to the selected simulator UDID; CI creates, boots, and deletes that temporary device for runtime tests. The unsigned Xcode compile/link gate uses Xcode's supported generic iOS Simulator destination. On Windows, Android work is available but cannot provide iOS simulator evidence.
+The two iOS commands require macOS, Xcode, and a simulator runtime. The iOS test task's supported `--device` option binds it to the selected simulator UDID; CI creates, boots, and deletes that temporary device for runtime tests. The unsigned Xcode compile/link gate uses Xcode's supported generic iOS Simulator destination. On Windows, Android work is available but cannot provide iOS simulator evidence.
 
 Formatting is enforced with the Apache-2.0, no-cost Spotless Gradle plugin (`8.10.2`), which is a build-only dependency. To avoid unrelated rewrapping/import churn in the existing Kotlin baseline, its current rule set checks trailing whitespace in Kotlin and Gradle Kotlin files, and trailing whitespace plus one final newline in `README.md`, `.gitignore`, and GitHub Actions YAML. It does not apply a Kotlin style formatter or change runtime dependencies.
 
