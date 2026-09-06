@@ -28,5 +28,4 @@ The cross-platform stable-ID scenario is in ui-tests/maestro/flows/shell-smoke.y
 
 ## Documentation
 
-Start with [AGENTS.md](AGENTS.md), the [toolchain](.agents/docs/01-stack-toolchain.md), [architecture boundaries](.agents/docs/02-architecture-boundaries.md), and [ADR 0001](docs/adr/0001-kmp-shell.md).
-
+Start with [AGENTS.md](AGENTS.md), the [toolchain](.agents/docs/01-stack-toolchain.md), [architecture boundaries](.agents/docs/02-architecture-boundaries.md), and [ADR 0001](docs/adr/0001-kmp-shell.md), the accepted inventory and extension rules for this shell.
