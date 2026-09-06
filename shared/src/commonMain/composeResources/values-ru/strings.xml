@@ -1,0 +1,22 @@
+<resources>
+    <string name="app_name">Транспорт Грузии</string>
+    <string name="city_title">Выберите город</string>
+    <string name="city_subtitle">Доступность транспорта определяется возможностями каждого города.</string>
+    <string name="city_experimental">Экспериментальные данные</string>
+    <string name="city_unavailable">Будет позже</string>
+    <string name="continue_action">Продолжить</string>
+    <string name="map_title">Карта транспорта</string>
+    <string name="map_preview_note">Заглушка адаптера карт</string>
+    <string name="map_nearby_stops">Остановки рядом</string>
+    <string name="map_stop_one">Площадь Свободы · 2 мин пешком</string>
+    <string name="map_stop_two">Проспект Руставели · 6 мин пешком</string>
+    <string name="map_routes_action">Выбрать маршруты</string>
+    <string name="map_change_city_action">Сменить город</string>
+    <string name="map_selected_routes">Маршруты: %1$s</string>
+    <string name="routes_title">Маршруты</string>
+    <string name="routes_subtitle">Выберите несколько маршрутов, чтобы показать их вместе на карте.</string>
+    <string name="routes_confirm_action">Показать на карте</string>
+    <string name="routes_empty">Для этого города каталог маршрутов пока недоступен.</string>
+    <string name="loading">Загружаем транспортные данные…</string>
+</resources>
+
