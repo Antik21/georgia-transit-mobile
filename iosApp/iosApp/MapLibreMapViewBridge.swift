@@ -10,19 +10,41 @@ enum MapLibreMapViewBridge {
         return LocalMapLibreView(styleURL: styleURL)
     }
 
-    static func update(view: UIView, latitude: Double, longitude: Double, zoom: Double) {
-        (view as? LocalMapLibreView)?.update(latitude: latitude, longitude: longitude, zoom: zoom)
+    static func update(
+        view: UIView,
+        latitude: Double,
+        longitude: Double,
+        zoom: Double,
+        contentLatitude: Double,
+        contentLongitude: Double,
+        userLatitude: Double?,
+        userLongitude: Double?,
+        accuracy: Double?,
+        isPrecise: Bool
+    ) {
+        (view as? LocalMapLibreView)?.update(
+            latitude: latitude,
+            longitude: longitude,
+            zoom: zoom,
+            contentLatitude: contentLatitude,
+            contentLongitude: contentLongitude,
+            userLatitude: userLatitude,
+            userLongitude: userLongitude,
+            accuracy: accuracy,
+            isPrecise: isPrecise
+        )
     }
 }
 
 /**
  * Swift owns every MapLibre Native and Core Location type. The embedded style, GeoJSON, and
- * geometry are synthetic and local; no provider URL, key, or user location is configured here.
+ * geometry are synthetic and local; no provider URL or key is configured here. An already
+ * validated one-shot user fix is injected through the narrow update boundary.
  */
 private final class LocalMapLibreView: UIView, MLNMapViewDelegate {
     private let mapView: MLNMapView
-    private var pendingViewport: MapViewport?
-    private var renderedViewport: MapViewport?
+    private var pendingState: MapState?
+    private var renderedState: MapState?
 
     init(styleURL: URL) {
         mapView = MLNMapView(frame: .zero, styleURL: styleURL)
@@ -52,30 +74,132 @@ private final class LocalMapLibreView: UIView, MLNMapViewDelegate {
         mapView.disableLocationManager()
     }
 
-    func update(latitude: Double, longitude: Double, zoom: Double) {
-        let viewport = MapViewport(latitude: latitude, longitude: longitude, zoom: zoom)
-        pendingViewport = viewport
-        renderIfReady(viewport)
+    func update(
+        latitude: Double,
+        longitude: Double,
+        zoom: Double,
+        contentLatitude: Double,
+        contentLongitude: Double,
+        userLatitude: Double?,
+        userLongitude: Double?,
+        accuracy: Double?,
+        isPrecise: Bool
+    ) {
+        let state = MapState(
+            viewport: MapViewport(
+                latitude: latitude,
+                longitude: longitude,
+                zoom: zoom,
+                contentLatitude: contentLatitude,
+                contentLongitude: contentLongitude
+            ),
+            userLocation: userLatitude.flatMap { latitude in
+                userLongitude.flatMap { longitude in
+                    accuracy.map {
+                        UserLocation(
+                            latitude: latitude,
+                            longitude: longitude,
+                            accuracy: $0,
+                            isPrecise: isPrecise
+                        )
+                    }
+                }
+            }
+        )
+        pendingState = state
+        renderIfReady(state)
     }
 
     func mapView(_ mapView: MLNMapView, didFinishLoading style: MLNStyle) {
-        if let viewport = pendingViewport, viewport != renderedViewport {
-            renderIfReady(viewport)
+        if let state = pendingState, state != renderedState {
+            renderIfReady(state)
         }
     }
 
-    private func renderIfReady(_ viewport: MapViewport) {
+    private func renderIfReady(_ state: MapState) {
+        let viewport = state.viewport
         let center = CLLocationCoordinate2D(latitude: viewport.latitude, longitude: viewport.longitude)
         mapView.setCenter(center, zoomLevel: viewport.zoom, animated: false)
 
-        guard mapView.style != nil, viewport != renderedViewport else { return }
-        renderedViewport = viewport
-        mapView.styleJSON = Self.localStyleJSON(center: center)
+        guard mapView.style != nil, state != renderedState else { return }
+        renderedState = state
+        let contentCenter = CLLocationCoordinate2D(
+            latitude: viewport.contentLatitude,
+            longitude: viewport.contentLongitude
+        )
+        mapView.styleJSON = Self.localStyleJSON(center: contentCenter, userLocation: state.userLocation)
     }
 
-    private static func localStyleJSON(center: CLLocationCoordinate2D) -> String {
+    private static func localStyleJSON(center: CLLocationCoordinate2D, userLocation: UserLocation?) -> String {
         let start = CLLocationCoordinate2D(latitude: center.latitude - 0.010, longitude: center.longitude - 0.015)
         let end = CLLocationCoordinate2D(latitude: center.latitude + 0.008, longitude: center.longitude + 0.020)
+        let userSources = userLocation.map {
+            let ring = accuracyRing(for: $0)
+                .map { "[\($0.longitude), \($0.latitude)]" }
+                .joined(separator: ",")
+            let preciseSource = $0.isPrecise ?
+                """
+                ,
+                "user-location": {
+                  "type": "geojson",
+                  "data": {
+                    "type": "Feature",
+                    "geometry": { "type": "Point", "coordinates": [\($0.longitude), \($0.latitude)] }
+                  }
+                }
+                """ : ""
+            return """
+            ,
+            "user-location-accuracy": {
+              "type": "geojson",
+              "data": {
+                "type": "Feature",
+                "geometry": { "type": "Polygon", "coordinates": [[\(ring)]] }
+              }
+            }
+            \(preciseSource)
+            """
+        } ?? ""
+        let userLayers = userLocation.map {
+            let preciseLayer = $0.isPrecise ?
+                """
+                ,
+                {
+                  "id": "user-location-layer",
+                  "type": "circle",
+                  "source": "user-location",
+                  "paint": {
+                    "circle-color": "#1565C0",
+                    "circle-radius": 7,
+                    "circle-stroke-color": "#FFFFFF",
+                    "circle-stroke-width": 3
+                  }
+                }
+                """ : ""
+            return """
+            ,
+            {
+              "id": "user-location-accuracy-fill-layer",
+              "type": "fill",
+              "source": "user-location-accuracy",
+              "paint": {
+                "fill-color": "#1976D2",
+                "fill-opacity": 0.18
+              }
+            },
+            {
+              "id": "user-location-accuracy-stroke-layer",
+              "type": "line",
+              "source": "user-location-accuracy",
+              "paint": {
+                "line-color": "#0D47A1",
+                "line-opacity": 0.75,
+                "line-width": 2
+              }
+            }
+            \(preciseLayer)
+            """
+        } ?? ""
         return """
         {
           "version": 8,
@@ -101,7 +225,7 @@ private final class LocalMapLibreView: UIView, MLNMapViewDelegate {
                   ]
                 }
               }
-            }
+            }\(userSources)
           },
           "layers": [
             {
@@ -125,10 +249,34 @@ private final class LocalMapLibreView: UIView, MLNMapViewDelegate {
                 "circle-stroke-color": "#264653",
                 "circle-stroke-width": 2
               }
-            }
+            }\(userLayers)
           ]
         }
         """
+    }
+
+    private static func accuracyRing(for location: UserLocation) -> [CLLocationCoordinate2D] {
+        let latitude = location.latitude * .pi / 180.0
+        let longitude = location.longitude * .pi / 180.0
+        let angularDistance = location.accuracy / 6_371_008.8
+        var ring = (0..<64).map { index in
+            let bearing = 2.0 * .pi * Double(index) / 64.0
+            let destinationLatitude = asin(
+                sin(latitude) * cos(angularDistance) +
+                    cos(latitude) * sin(angularDistance) * cos(bearing)
+            )
+            let destinationLongitude = longitude + atan2(
+                sin(bearing) * sin(angularDistance) * cos(latitude),
+                cos(angularDistance) - sin(latitude) * sin(destinationLatitude)
+            )
+            let longitudeDegrees = destinationLongitude * 180.0 / .pi
+            return CLLocationCoordinate2D(
+                latitude: destinationLatitude * 180.0 / .pi,
+                longitude: ((longitudeDegrees + 540.0).truncatingRemainder(dividingBy: 360.0)) - 180.0
+            )
+        }
+        ring.append(ring[0])
+        return ring
     }
 }
 
@@ -149,4 +297,18 @@ private struct MapViewport: Equatable {
     let latitude: Double
     let longitude: Double
     let zoom: Double
+    let contentLatitude: Double
+    let contentLongitude: Double
+}
+
+private struct UserLocation: Equatable {
+    let latitude: Double
+    let longitude: Double
+    let accuracy: Double
+    let isPrecise: Bool
+}
+
+private struct MapState: Equatable {
+    let viewport: MapViewport
+    let userLocation: UserLocation?
 }

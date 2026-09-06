@@ -20,6 +20,8 @@
     <string>$(CURRENT_PROJECT_VERSION)</string>
     <key>CADisableMinimumFrameDurationOnPhone</key>
     <true/>
+    <key>NSLocationWhenInUseUsageDescription</key>
+    <string>Georgia Transit uses your location to center the map and show nearby transit stops.</string>
     <key>UILaunchScreen</key>
     <dict />
 </dict>
