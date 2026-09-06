@@ -11,16 +11,42 @@ import kotlin.test.assertTrue
 
 class RuntimeTransitSessionTest {
     @Test
-    fun changingCityClearsSelectedRoutes() {
+    fun changingCityMakesTheNewCityAuthoritativeAndClearsSelectedRoutes() {
         val session = RuntimeTransitSession()
         val tbilisi = city("tbilisi")
         val batumi = city("batumi")
+        val selectedRoutes = setOf(RouteId("tbilisi:preview:route:301"))
 
         session.selectCity(tbilisi)
-        session.selectRoutes(setOf(RouteId("tbilisi:preview:route:301")))
+        session.selectRoutes(selectedRoutes)
         session.selectCity(batumi)
 
         assertEquals(batumi, session.selectedCity.value)
+        assertTrue(session.selectedRouteIds.value.isEmpty())
+    }
+
+    @Test
+    fun selectingSameCityIdPreservesRoutesWhileRefreshingTheSelectedCity() {
+        val session = RuntimeTransitSession()
+        val originalTbilisi = city("tbilisi")
+        val refreshedTbilisi = originalTbilisi.copy(name = "Tbilisi refreshed")
+        val selectedRoutes = setOf(RouteId("tbilisi:preview:route:301"))
+
+        session.selectCity(originalTbilisi)
+        session.selectRoutes(selectedRoutes)
+        session.selectCity(refreshedTbilisi)
+
+        assertEquals(refreshedTbilisi, session.selectedCity.value)
+        assertEquals(selectedRoutes, session.selectedRouteIds.value)
+    }
+
+    @Test
+    fun selectingRoutesWithoutCityKeepsRouteSelectionEmpty() {
+        val session = RuntimeTransitSession()
+
+        session.selectRoutes(setOf(RouteId("tbilisi:preview:route:301")))
+
+        assertEquals(null, session.selectedCity.value)
         assertTrue(session.selectedRouteIds.value.isEmpty())
     }
 
@@ -31,4 +57,3 @@ class RuntimeTransitSessionTest {
         capabilities = CityCapabilities(true, true, true, true, true),
     )
 }
-

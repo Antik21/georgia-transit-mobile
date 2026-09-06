@@ -9,6 +9,7 @@ object AutomationId {
     const val MapRoutes = "map.routes"
     const val MapChangeCity = "map.change-city"
     const val RoutesScreen = "routes.screen"
+    const val RoutesOption = "routes.option"
+    const val RoutesBack = "routes.back"
     const val RoutesConfirm = "routes.confirm"
 }
-

@@ -55,12 +55,15 @@ class RuntimeTransitSession : TransitSession {
     override val selectedRouteIds: StateFlow<Set<RouteId>> = mutableRoutes.asStateFlow()
 
     override fun selectCity(city: TransitCity) {
-        if (mutableCity.value?.id != city.id) mutableRoutes.value = emptySet()
+        if (mutableCity.value?.id != city.id) clearRouteSelection()
         mutableCity.value = city
     }
 
     override fun selectRoutes(routeIds: Set<RouteId>) {
-        mutableRoutes.value = routeIds
+        mutableRoutes.value = if (mutableCity.value == null) emptySet() else routeIds.toSet()
+    }
+
+    private fun clearRouteSelection() {
+        mutableRoutes.value = emptySet()
     }
 }
-

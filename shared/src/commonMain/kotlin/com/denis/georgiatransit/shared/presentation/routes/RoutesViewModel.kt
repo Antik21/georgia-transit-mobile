@@ -32,6 +32,7 @@ class RoutesViewModel(
     fun dispatchAction(action: Action) {
         when (action) {
             is Action.RouteToggled -> onRouteToggled(action.routeId)
+            Action.BackClicked -> onBackClicked()
             Action.ConfirmClicked -> onConfirmClicked()
         }
     }
@@ -48,5 +49,8 @@ class RoutesViewModel(
         session.selectRoutes(state.selectedIds)
         postSideEffect(NavigationEffect.BackToMap)
     }
-}
 
+    private fun onBackClicked() = intent {
+        postSideEffect(NavigationEffect.BackToMap)
+    }
+}
