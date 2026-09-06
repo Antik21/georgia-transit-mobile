@@ -4,7 +4,7 @@ import Shared
 @main
 struct GeorgiaTransitApp: App {
     init() {
-        GeorgiaTransitKoinKt.initGeorgiaTransitKoin()
+        GeorgiaTransitKoinKt.doInitGeorgiaTransitKoin()
     }
 
     var body: some Scene {
