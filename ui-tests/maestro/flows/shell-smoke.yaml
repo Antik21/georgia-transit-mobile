@@ -1,0 +1,24 @@
+appId: com.denis.georgiatransit
+---
+- launchApp:
+    clearState: true
+- assertVisible:
+    id: city-selection.screen
+- tapOn:
+    id: city-selection.tbilisi
+- tapOn:
+    id: city-selection.continue
+- assertVisible:
+    id: map.screen
+- tapOn:
+    id: map.routes
+- assertVisible:
+    id: routes.screen
+- tapOn:
+    id: routes.301
+- tapOn:
+    id: routes.337
+- tapOn:
+    id: routes.confirm
+- assertVisible:
+    id: map.screen

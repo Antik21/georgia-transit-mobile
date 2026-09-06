@@ -1,0 +1,21 @@
+<resources>
+    <string name="app_name">Georgia Transit</string>
+    <string name="city_title">Choose a city</string>
+    <string name="city_subtitle">Transit availability is controlled by each city’s capabilities.</string>
+    <string name="city_experimental">Experimental data</string>
+    <string name="city_unavailable">Coming later</string>
+    <string name="continue_action">Continue</string>
+    <string name="map_title">Transit map</string>
+    <string name="map_preview_note">Map renderer adapter placeholder</string>
+    <string name="map_nearby_stops">Nearby stops</string>
+    <string name="map_stop_one">Freedom Square · 2 min walk</string>
+    <string name="map_stop_two">Rustaveli Avenue · 6 min walk</string>
+    <string name="map_routes_action">Choose routes</string>
+    <string name="map_change_city_action">Change city</string>
+    <string name="routes_title">Routes</string>
+    <string name="routes_subtitle">Select several routes to show them together on the map.</string>
+    <string name="routes_confirm_action">Show on map</string>
+    <string name="routes_empty">No route catalogue is available for this city yet.</string>
+    <string name="loading">Loading transit data…</string>
+</resources>
+

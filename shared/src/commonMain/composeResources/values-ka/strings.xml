@@ -1,0 +1,20 @@
+<resources>
+    <string name="app_name">საქართველოს ტრანსპორტი</string>
+    <string name="city_title">აირჩიეთ ქალაქი</string>
+    <string name="city_subtitle">ტრანსპორტის ხელმისაწვდომობა ქალაქის შესაძლებლობებით განისაზღვრება.</string>
+    <string name="city_experimental">ექსპერიმენტული მონაცემები</string>
+    <string name="city_unavailable">მოგვიანებით</string>
+    <string name="continue_action">გაგრძელება</string>
+    <string name="map_title">ტრანსპორტის რუკა</string>
+    <string name="map_preview_note">რუკის ადაპტერის დროებითი ეკრანი</string>
+    <string name="map_nearby_stops">ახლომდებარე გაჩერებები</string>
+    <string name="map_stop_one">თავისუფლების მოედანი · 2 წუთი ფეხით</string>
+    <string name="map_stop_two">რუსთაველის გამზირი · 6 წუთი ფეხით</string>
+    <string name="map_routes_action">მარშრუტების არჩევა</string>
+    <string name="map_change_city_action">ქალაქის შეცვლა</string>
+    <string name="routes_title">მარშრუტები</string>
+    <string name="routes_subtitle">აირჩიეთ რამდენიმე მარშრუტი რუკაზე ერთად საჩვენებლად.</string>
+    <string name="routes_confirm_action">რუკაზე ჩვენება</string>
+    <string name="routes_empty">ამ ქალაქისთვის მარშრუტების კატალოგი ჯერ მიუწვდომელია.</string>
+    <string name="loading">ტრანსპორტის მონაცემები იტვირთება…</string>
+</resources>
