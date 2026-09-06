@@ -12,6 +12,7 @@
     <string name="map_stop_two">Проспект Руставели · 6 мин пешком</string>
     <string name="map_routes_action">Выбрать маршруты</string>
     <string name="map_change_city_action">Сменить город</string>
+    <string name="map_selected_routes">Маршруты: %1$s</string>
     <string name="routes_title">Маршруты</string>
     <string name="routes_subtitle">Выберите несколько маршрутов, чтобы показать их вместе на карте.</string>
     <string name="routes_confirm_action">Показать на карте</string>

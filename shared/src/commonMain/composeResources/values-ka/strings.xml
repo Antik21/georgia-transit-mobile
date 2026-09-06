@@ -12,6 +12,7 @@
     <string name="map_stop_two">რუსთაველის გამზირი · 6 წუთი ფეხით</string>
     <string name="map_routes_action">მარშრუტების არჩევა</string>
     <string name="map_change_city_action">ქალაქის შეცვლა</string>
+    <string name="map_selected_routes">მარშრუტები: %1$s</string>
     <string name="routes_title">მარშრუტები</string>
     <string name="routes_subtitle">აირჩიეთ რამდენიმე მარშრუტი რუკაზე ერთად საჩვენებლად.</string>
     <string name="routes_confirm_action">რუკაზე ჩვენება</string>

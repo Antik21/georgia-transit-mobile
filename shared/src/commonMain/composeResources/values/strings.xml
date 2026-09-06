@@ -12,6 +12,7 @@
     <string name="map_stop_two">Rustaveli Avenue · 6 min walk</string>
     <string name="map_routes_action">Choose routes</string>
     <string name="map_change_city_action">Change city</string>
+    <string name="map_selected_routes">Routes: %1$s</string>
     <string name="routes_title">Routes</string>
     <string name="routes_subtitle">Select several routes to show them together on the map.</string>
     <string name="routes_confirm_action">Show on map</string>

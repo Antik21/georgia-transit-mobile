@@ -37,6 +37,7 @@ import georgiatransit.shared.generated.resources.map_change_city_action
 import georgiatransit.shared.generated.resources.map_nearby_stops
 import georgiatransit.shared.generated.resources.map_preview_note
 import georgiatransit.shared.generated.resources.map_routes_action
+import georgiatransit.shared.generated.resources.map_selected_routes
 import georgiatransit.shared.generated.resources.map_stop_one
 import georgiatransit.shared.generated.resources.map_stop_two
 import georgiatransit.shared.generated.resources.map_title
@@ -70,7 +71,10 @@ private fun Content(state: ViewState, onAction: (Action) -> Unit) {
             StopCard(stringResource(Res.string.map_stop_one), "301 · 337")
             StopCard(stringResource(Res.string.map_stop_two), "301 · 395")
             if (state.selectedRouteNames.isNotEmpty()) {
-                Text(state.selectedRouteNames.joinToString(prefix = "Routes: "), style = MaterialTheme.typography.labelLarge)
+                Text(
+                    stringResource(Res.string.map_selected_routes, state.selectedRouteNames.joinToString()),
+                    style = MaterialTheme.typography.labelLarge,
+                )
             }
             Row(horizontalArrangement = Arrangement.spacedBy(TransitSpacing.Small)) {
                 OutlinedButton(
