@@ -1,0 +1,134 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality:
+    name: Quality
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out source
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - name: Set up JDK 17
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5.7.0
+        with:
+          distribution: temurin
+          java-version: "17"
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@da187c8e6ffbd3802e00f2477aa5a822b25f2dda # v4.4.4
+        with:
+          cache-read-only: ${{ github.event_name == 'pull_request' || github.ref != 'refs/heads/main' }}
+          cache-cleanup: on-success
+          gradle-home-cache-excludes: caches/build-cache-1
+      - name: Check formatting
+        run: ./gradlew --no-daemon --no-build-cache --stacktrace spotlessCheck
+
+  android:
+    name: Android
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out source
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - name: Set up JDK 17
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5.7.0
+        with:
+          distribution: temurin
+          java-version: "17"
+      - name: Install Android SDK 37
+        shell: bash
+        run: |
+          set -euo pipefail
+          : "${ANDROID_HOME:?The hosted runner must provide ANDROID_HOME}"
+          # Ignore yes(1)'s expected SIGPIPE after sdkmanager accepts all licenses.
+          set +o pipefail
+          yes | sdkmanager --sdk_root="$ANDROID_HOME" --licenses >/dev/null
+          set -o pipefail
+          sdkmanager --sdk_root="$ANDROID_HOME" "platforms;android-37" "build-tools;37.0.0"
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@da187c8e6ffbd3802e00f2477aa5a822b25f2dda # v4.4.4
+        with:
+          cache-read-only: ${{ github.event_name == 'pull_request' || github.ref != 'refs/heads/main' }}
+          cache-cleanup: on-success
+          gradle-home-cache-excludes: caches/build-cache-1
+      - name: Run Android quality gates
+        run: >-
+          ./gradlew --no-daemon --no-build-cache --stacktrace
+          :shared:testAndroidHostTest
+          :shared:checkKotlinGradlePluginConfigurationErrors
+          :androidApp:lintDebug
+          :androidApp:assembleDebug
+
+  ios:
+    name: iOS
+    runs-on: macos-15
+    steps:
+      - name: Check out source
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - name: Validate Apple Silicon runner
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(uname -m)" = "arm64"
+          xcodebuild -version
+      - name: Set up JDK 17
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5.7.0
+        with:
+          distribution: temurin
+          java-version: "17"
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@da187c8e6ffbd3802e00f2477aa5a822b25f2dda # v4.4.4
+        with:
+          cache-read-only: ${{ github.event_name == 'pull_request' || github.ref != 'refs/heads/main' }}
+          cache-cleanup: on-success
+          gradle-home-cache-excludes: caches/build-cache-1
+      - name: Create an explicit iOS simulator destination
+        id: simulator
+        shell: bash
+        run: |
+          set -euo pipefail
+          runtime="$(xcrun simctl list runtimes -j | jq -r '.runtimes | map(select(.isAvailable and (.identifier | startswith("com.apple.CoreSimulator.SimRuntime.iOS-")))) | sort_by(.version | split(".") | map(tonumber)) | last.identifier')"
+          device_type="$(xcrun simctl list devicetypes -j | jq -r '.devicetypes | map(select(.name | startswith("iPhone"))) | first.identifier')"
+          test -n "$runtime" && test "$runtime" != "null"
+          test -n "$device_type" && test "$device_type" != "null"
+          simulator_udid="$(xcrun simctl create "Georgia Transit CI" "$device_type" "$runtime")"
+          xcrun simctl boot "$simulator_udid"
+          xcrun simctl bootstatus "$simulator_udid" -b
+          echo "runtime=$runtime" >> "$GITHUB_OUTPUT"
+          echo "udid=$simulator_udid" >> "$GITHUB_OUTPUT"
+      - name: Run iOS simulator tests and configuration checks
+        run: >-
+          ./gradlew --no-daemon --no-build-cache --stacktrace
+          :shared:iosSimulatorArm64Test
+          --device "${{ steps.simulator.outputs.udid }}"
+          :shared:checkXcodeProjectConfiguration
+      - name: Build the iOS simulator app without signing
+        run: >-
+          xcodebuild
+          -project iosApp/iosApp.xcodeproj
+          -scheme iosApp
+          -sdk iphonesimulator
+          -configuration Debug
+          -destination "generic/platform=iOS Simulator"
+          CODE_SIGNING_ALLOWED=NO
+          build
+      - name: Delete CI simulator
+        if: ${{ always() && steps.simulator.outputs.udid != '' }}
+        shell: bash
+        run: xcrun simctl delete "${{ steps.simulator.outputs.udid }}"
