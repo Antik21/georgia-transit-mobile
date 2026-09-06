@@ -1,5 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+    <!-- MapLibre and the future Transit BFF require network access. The local prototype makes no requests. -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Do not inherit MapLibre's optional location permissions: this app has no location feature. -->
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" tools:node="remove" />
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" tools:node="remove" />
     <application
         android:name=".GeorgiaTransitApplication"
         android:allowBackup="false"
@@ -15,4 +22,3 @@
         </activity>
     </application>
 </manifest>
-
