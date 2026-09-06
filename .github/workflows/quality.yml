@@ -100,6 +100,19 @@ jobs:
           cache-read-only: ${{ github.event_name == 'pull_request' || github.ref != 'refs/heads/main' }}
           cache-cleanup: on-success
           gradle-home-cache-excludes: caches/build-cache-1
+      - name: Provision the Gradle wrapper with retries
+        shell: bash
+        run: |
+          set -euo pipefail
+          for attempt in 1 2 3; do
+            if ./gradlew --no-daemon --version; then
+              exit 0
+            fi
+            if [ "$attempt" -eq 3 ]; then
+              exit 1
+            fi
+            sleep "$((attempt * 10))"
+          done
       - name: Create an explicit iOS simulator destination
         id: simulator
         shell: bash
