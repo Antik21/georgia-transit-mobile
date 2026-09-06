@@ -20,6 +20,7 @@ data class RouteItemUiModel(
 
 sealed interface Action {
     data class RouteToggled(val routeId: RouteId) : Action
+    data object BackClicked : Action
     data object ConfirmClicked : Action
 }
 
@@ -28,4 +29,3 @@ sealed interface SideEffect
 sealed interface NavigationEffect : SideEffect {
     data object BackToMap : NavigationEffect
 }
-

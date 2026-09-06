@@ -3,7 +3,7 @@ import Shared
 
 struct ContentView: View {
     var body: some View {
-        ComposeViewController().ignoresSafeArea(.all)
+        ComposeViewController()
     }
 }
 

@@ -15,6 +15,7 @@
     <string name="map_selected_routes">Routes: %1$s</string>
     <string name="routes_title">Routes</string>
     <string name="routes_subtitle">Select several routes to show them together on the map.</string>
+    <string name="routes_back_action">Back</string>
     <string name="routes_confirm_action">Show on map</string>
     <string name="routes_empty">No route catalogue is available for this city yet.</string>
     <string name="loading">Loading transit data…</string>

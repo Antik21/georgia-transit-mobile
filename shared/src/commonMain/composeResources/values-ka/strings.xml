@@ -15,6 +15,7 @@
     <string name="map_selected_routes">მარშრუტები: %1$s</string>
     <string name="routes_title">მარშრუტები</string>
     <string name="routes_subtitle">აირჩიეთ რამდენიმე მარშრუტი რუკაზე ერთად საჩვენებლად.</string>
+    <string name="routes_back_action">უკან</string>
     <string name="routes_confirm_action">რუკაზე ჩვენება</string>
     <string name="routes_empty">ამ ქალაქისთვის მარშრუტების კატალოგი ჯერ მიუწვდომელია.</string>
     <string name="loading">ტრანსპორტის მონაცემები იტვირთება…</string>

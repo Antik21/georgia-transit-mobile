@@ -9,8 +9,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.MaterialTheme
@@ -27,6 +25,7 @@ import androidx.compose.ui.unit.dp
 import com.denis.georgiatransit.shared.presentation.ui.automation.AutomationId
 import com.denis.georgiatransit.shared.presentation.ui.theme.GeorgiaTransitTheme
 import com.denis.georgiatransit.shared.presentation.ui.theme.TransitColors
+import com.denis.georgiatransit.shared.presentation.ui.theme.TransitShapes
 import com.denis.georgiatransit.shared.presentation.ui.theme.TransitSpacing
 import georgiatransit.shared.generated.resources.Res
 import georgiatransit.shared.generated.resources.map_change_city_action
@@ -92,7 +91,7 @@ private fun Content(state: ViewState, onAction: (Action) -> Unit) {
 private fun MapPreview(viewport: MapViewport, modifier: Modifier = Modifier) {
     Box(modifier = modifier.background(TransitColors.MapLand), contentAlignment = Alignment.Center) {
         PlatformMap(viewport = viewport, modifier = Modifier.fillMaxSize())
-        Surface(color = MaterialTheme.colorScheme.surface.copy(alpha = .9f), shape = RoundedCornerShape(TransitSpacing.Small)) {
+        Surface(color = MaterialTheme.colorScheme.surface.copy(alpha = .9f), shape = TransitShapes.Small) {
             Text(stringResource(Res.string.map_preview_note), modifier = Modifier.padding(TransitSpacing.Small), style = MaterialTheme.typography.labelLarge)
         }
     }
@@ -106,7 +105,7 @@ private fun StopCard(title: String, routes: String) {
             horizontalArrangement = Arrangement.spacedBy(TransitSpacing.Small),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Box(Modifier.height(12.dp).fillMaxWidth(.03f).background(TransitColors.Brand, CircleShape))
+            Box(Modifier.height(12.dp).fillMaxWidth(.03f).background(TransitColors.Brand, TransitShapes.Full))
             Column { Text(title); Text(routes, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant) }
         }
     }

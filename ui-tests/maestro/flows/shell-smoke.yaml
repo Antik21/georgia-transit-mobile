@@ -15,10 +15,30 @@ appId: com.denis.georgiatransit
 - assertVisible:
     id: routes.screen
 - tapOn:
-    id: routes.301
+    id: routes.option
+    index: 0
 - tapOn:
-    id: routes.337
+    id: routes.option
+    index: 1
 - tapOn:
     id: routes.confirm
+- assertVisible:
+    id: map.screen
+- tapOn:
+    id: map.routes
+- assertVisible:
+    id: routes.screen
+- tapOn:
+    id: routes.back
+- assertVisible:
+    id: map.screen
+- tapOn:
+    id: map.change-city
+- assertVisible:
+    id: city-selection.screen
+- tapOn:
+    id: city-selection.batumi
+- tapOn:
+    id: city-selection.continue
 - assertVisible:
     id: map.screen

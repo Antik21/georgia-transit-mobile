@@ -1,7 +1,11 @@
 package com.denis.georgiatransit.shared.presentation.ui.theme
 
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Shapes
+import androidx.compose.material3.Typography
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
@@ -28,13 +32,37 @@ object TransitSpacing {
     val ExtraLarge = 32.dp
 }
 
-private val TransitTypography = androidx.compose.material3.Typography(
-    headlineSmall = TextStyle(fontSize = 24.sp, lineHeight = 30.sp, fontWeight = FontWeight.SemiBold),
-    titleLarge = TextStyle(fontSize = 22.sp, lineHeight = 28.sp, fontWeight = FontWeight.SemiBold),
-    titleMedium = TextStyle(fontSize = 16.sp, lineHeight = 22.sp, fontWeight = FontWeight.SemiBold),
-    bodyLarge = TextStyle(fontSize = 16.sp, lineHeight = 24.sp),
-    bodyMedium = TextStyle(fontSize = 14.sp, lineHeight = 20.sp),
-    labelLarge = TextStyle(fontSize = 14.sp, lineHeight = 20.sp, fontWeight = FontWeight.SemiBold),
+object TransitTypography {
+    val HeadlineSmall = TextStyle(fontSize = 24.sp, lineHeight = 30.sp, fontWeight = FontWeight.SemiBold)
+    val TitleLarge = TextStyle(fontSize = 22.sp, lineHeight = 28.sp, fontWeight = FontWeight.SemiBold)
+    val TitleMedium = TextStyle(fontSize = 16.sp, lineHeight = 22.sp, fontWeight = FontWeight.SemiBold)
+    val BodyLarge = TextStyle(fontSize = 16.sp, lineHeight = 24.sp)
+    val BodyMedium = TextStyle(fontSize = 14.sp, lineHeight = 20.sp)
+    val LabelLarge = TextStyle(fontSize = 14.sp, lineHeight = 20.sp, fontWeight = FontWeight.SemiBold)
+}
+
+object TransitShapes {
+    val ExtraSmall = RoundedCornerShape(4.dp)
+    val Small = RoundedCornerShape(8.dp)
+    val Medium = RoundedCornerShape(12.dp)
+    val Large = RoundedCornerShape(16.dp)
+    val Full = CircleShape
+}
+
+private val TransitMaterialTypography = Typography(
+    headlineSmall = TransitTypography.HeadlineSmall,
+    titleLarge = TransitTypography.TitleLarge,
+    titleMedium = TransitTypography.TitleMedium,
+    bodyLarge = TransitTypography.BodyLarge,
+    bodyMedium = TransitTypography.BodyMedium,
+    labelLarge = TransitTypography.LabelLarge,
+)
+
+private val TransitMaterialShapes = Shapes(
+    extraSmall = TransitShapes.ExtraSmall,
+    small = TransitShapes.Small,
+    medium = TransitShapes.Medium,
+    large = TransitShapes.Large,
 )
 
 private val LightColors = lightColorScheme(
@@ -58,8 +86,8 @@ private val DarkColors = darkColorScheme(
 fun GeorgiaTransitTheme(content: @Composable () -> Unit) {
     MaterialTheme(
         colorScheme = if (isSystemInDarkTheme()) DarkColors else LightColors,
-        typography = TransitTypography,
+        typography = TransitMaterialTypography,
+        shapes = TransitMaterialShapes,
         content = content,
     )
 }
-
