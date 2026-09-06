@@ -9,14 +9,30 @@
 /* Begin PBXBuildFile section */
 		0A0000010000000000000001 /* GeorgiaTransitApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A0000110000000000000001 /* GeorgiaTransitApp.swift */; };
 		0A0000010000000000000002 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A0000110000000000000002 /* ContentView.swift */; };
+		0A0000010000000000000003 /* MapLibreMapViewBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A0000110000000000000004 /* MapLibreMapViewBridge.swift */; };
+		0A0000010000000000000004 /* MapLibrePrototypeStyle.json in Resources */ = {isa = PBXBuildFile; fileRef = 0A0000110000000000000005 /* MapLibrePrototypeStyle.json */; };
+		0A0000010000000000000005 /* MapLibre in Frameworks */ = {isa = PBXBuildFile; productRef = 0A0000910000000000000001 /* MapLibre */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
 		0A0000110000000000000001 /* GeorgiaTransitApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GeorgiaTransitApp.swift; sourceTree = "<group>"; };
 		0A0000110000000000000002 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		0A0000110000000000000003 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		0A0000110000000000000004 /* MapLibreMapViewBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MapLibreMapViewBridge.swift; sourceTree = "<group>"; };
+		0A0000110000000000000005 /* MapLibrePrototypeStyle.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = MapLibrePrototypeStyle.json; sourceTree = "<group>"; };
 		0A0000120000000000000001 /* iosApp.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = iosApp.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		0A0000530000000000000001 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				0A0000010000000000000005 /* MapLibre in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
 		0A0000210000000000000001 = {
@@ -32,6 +48,8 @@
 			children = (
 				0A0000110000000000000001 /* GeorgiaTransitApp.swift */,
 				0A0000110000000000000002 /* ContentView.swift */,
+				0A0000110000000000000004 /* MapLibreMapViewBridge.swift */,
+				0A0000110000000000000005 /* MapLibrePrototypeStyle.json */,
 				0A0000110000000000000003 /* Info.plist */,
 			);
 			path = iosApp;
@@ -54,12 +72,17 @@
 			buildPhases = (
 				0A0000510000000000000001 /* Compile Kotlin Framework */,
 				0A0000520000000000000001 /* Sources */,
+				0A0000530000000000000001 /* Frameworks */,
+				0A0000540000000000000001 /* Resources */,
 			);
 			buildRules = (
 			);
 			dependencies = (
 			);
 			name = iosApp;
+			packageProductDependencies = (
+				0A0000910000000000000001 /* MapLibre */,
+			);
 			productName = iosApp;
 			productReference = 0A0000120000000000000001 /* iosApp.app */;
 			productType = "com.apple.product-type.application";
@@ -88,6 +111,9 @@
 				Base,
 			);
 			mainGroup = 0A0000210000000000000001;
+			packageReferences = (
+				0A0000810000000000000001 /* XCRemoteSwiftPackageReference "maplibre-gl-native-distribution" */,
+			);
 			productRefGroup = 0A0000210000000000000003 /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
@@ -96,6 +122,17 @@
 			);
 		};
 /* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		0A0000540000000000000001 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				0A0000010000000000000004 /* MapLibrePrototypeStyle.json in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
 
 /* Begin PBXShellScriptBuildPhase section */
 		0A0000510000000000000001 /* Compile Kotlin Framework */ = {
@@ -125,6 +162,7 @@
 			files = (
 				0A0000010000000000000001 /* GeorgiaTransitApp.swift in Sources */,
 				0A0000010000000000000002 /* ContentView.swift in Sources */,
+				0A0000010000000000000003 /* MapLibreMapViewBridge.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -230,6 +268,25 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		0A0000810000000000000001 /* XCRemoteSwiftPackageReference "maplibre-gl-native-distribution" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/maplibre/maplibre-gl-native-distribution";
+			requirement = {
+				kind = exactVersion;
+				version = 6.29.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		0A0000910000000000000001 /* MapLibre */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 0A0000810000000000000001 /* XCRemoteSwiftPackageReference "maplibre-gl-native-distribution" */;
+			productName = MapLibre;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 0A0000610000000000000001 /* Project object */;
 }

@@ -6,7 +6,7 @@
     <string name="city_unavailable">Coming later</string>
     <string name="continue_action">Continue</string>
     <string name="map_title">Transit map</string>
-    <string name="map_preview_note">Map renderer adapter placeholder</string>
+    <string name="map_preview_note">Local MapLibre prototype — no production basemap or transit data</string>
     <string name="map_nearby_stops">Nearby stops</string>
     <string name="map_stop_one">Freedom Square · 2 min walk</string>
     <string name="map_stop_two">Rustaveli Avenue · 6 min walk</string>
@@ -19,4 +19,3 @@
     <string name="routes_empty">No route catalogue is available for this city yet.</string>
     <string name="loading">Loading transit data…</string>
 </resources>
-

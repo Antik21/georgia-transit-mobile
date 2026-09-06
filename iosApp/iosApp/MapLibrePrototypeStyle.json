@@ -1,0 +1,12 @@
+{
+  "version": 8,
+  "name": "Georgia Transit local prototype",
+  "sources": {},
+  "layers": [
+    {
+      "id": "local-background",
+      "type": "background",
+      "paint": { "background-color": "#E7F1EB" }
+    }
+  ]
+}

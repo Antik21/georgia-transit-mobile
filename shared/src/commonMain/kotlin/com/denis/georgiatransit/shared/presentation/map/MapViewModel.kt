@@ -20,7 +20,11 @@ class MapViewModel(
                 val routeNames = city?.let { selectedCity ->
                     repository.routes(selectedCity.id).filter { it.id in selectedIds }.map { it.shortName }
                 }.orEmpty()
-                ViewState(cityName = city?.name.orEmpty(), selectedRouteNames = routeNames)
+                ViewState(
+                    cityName = city?.name.orEmpty(),
+                    viewport = city?.let { MapViewport(center = it.center) },
+                    selectedRouteNames = routeNames,
+                )
             }.collect { newState -> reduce { newState } }
         },
     )
@@ -32,4 +36,3 @@ class MapViewModel(
         }
     }
 }
-

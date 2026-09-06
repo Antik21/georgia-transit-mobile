@@ -59,7 +59,10 @@ kotlin {
             implementation(libs.ktor.client.content.negotiation)
             implementation(libs.ktor.serialization.json)
         }
-        androidMain.dependencies { implementation(libs.ktor.client.okhttp) }
+        androidMain.dependencies {
+            implementation(libs.ktor.client.okhttp)
+            implementation(libs.maplibre.android)
+        }
         iosMain.dependencies { implementation(libs.ktor.client.darwin) }
         commonTest.dependencies {
             implementation(kotlin("test"))
@@ -69,4 +72,3 @@ kotlin {
         }
     }
 }
-

@@ -6,7 +6,7 @@
     <string name="city_unavailable">Будет позже</string>
     <string name="continue_action">Продолжить</string>
     <string name="map_title">Карта транспорта</string>
-    <string name="map_preview_note">Заглушка адаптера карт</string>
+    <string name="map_preview_note">Локальный прототип MapLibre — без производственной базовой карты и данных транспорта</string>
     <string name="map_nearby_stops">Остановки рядом</string>
     <string name="map_stop_one">Площадь Свободы · 2 мин пешком</string>
     <string name="map_stop_two">Проспект Руставели · 6 мин пешком</string>
@@ -19,4 +19,3 @@
     <string name="routes_empty">Для этого города каталог маршрутов пока недоступен.</string>
     <string name="loading">Загружаем транспортные данные…</string>
 </resources>
-

@@ -6,7 +6,7 @@
     <string name="city_unavailable">მოგვიანებით</string>
     <string name="continue_action">გაგრძელება</string>
     <string name="map_title">ტრანსპორტის რუკა</string>
-    <string name="map_preview_note">რუკის ადაპტერის დროებითი ეკრანი</string>
+    <string name="map_preview_note">MapLibre-ის ლოკალური პროტოტიპი — საწარმოო საბაზო რუკისა და ტრანსპორტის მონაცემების გარეშე</string>
     <string name="map_nearby_stops">ახლომდებარე გაჩერებები</string>
     <string name="map_stop_one">თავისუფლების მოედანი · 2 წუთი ფეხით</string>
     <string name="map_stop_two">რუსთაველის გამზირი · 6 წუთი ფეხით</string>
