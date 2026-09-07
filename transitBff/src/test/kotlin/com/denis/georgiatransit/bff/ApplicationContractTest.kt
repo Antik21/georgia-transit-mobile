@@ -1,6 +1,10 @@
 package com.denis.georgiatransit.bff
 
 import com.denis.georgiatransit.bff.config.BffConfig
+import java.io.ByteArrayOutputStream
+import java.io.PrintStream
+import java.nio.charset.StandardCharsets
+import java.util.concurrent.LinkedBlockingQueue
 import io.ktor.client.request.get
 import io.ktor.client.request.header
 import io.ktor.client.statement.HttpResponse
@@ -9,6 +13,8 @@ import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.testing.ApplicationTestBuilder
 import io.ktor.server.testing.testApplication
+import io.ktor.server.routing.get
+import io.ktor.server.routing.routing
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
@@ -21,6 +27,9 @@ import kotlin.test.assertFalse
 import kotlin.test.assertNotEquals
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
+import org.slf4j.event.Level
+import org.slf4j.event.SubstituteLoggingEvent
+import org.slf4j.helpers.SubstituteLogger
 
 private val json = Json { ignoreUnknownKeys = false }
 
@@ -168,6 +177,63 @@ class ApplicationContractTest {
     }
 
     @Test
+    fun `unexpected throwable returns and logs only fixed redacted data`() {
+        val events = LinkedBlockingQueue<SubstituteLoggingEvent>()
+        val logger = SubstituteLogger("redaction-test", events, false)
+        val stderr = ByteArrayOutputStream()
+        val originalStderr = System.err
+        try {
+            System.setErr(PrintStream(stderr, true, StandardCharsets.UTF_8))
+            testApplication {
+                environment { log = logger }
+                application {
+                    transitBffModule(
+                        BffConfig.fromEnvironment(mapOf("BFF_FIXTURES_ENABLED" to "true")),
+                    )
+                    routing {
+                        get("/_test/unexpected") {
+                            throwRedactionProbe()
+                        }
+                    }
+                }
+                val response = client.get("/_test/unexpected?token=query-probe-secret") {
+                    header(HttpHeaders.XRequestId, "internal-500")
+                    header("X-Probe", "header-probe-secret")
+                }
+
+                assertEquals(HttpStatusCode.InternalServerError, response.status)
+                assertEquals(listOf("internal-500"), response.headers.getAll(HttpHeaders.XRequestId))
+                assertEquals(null, response.headers[HttpHeaders.RetryAfter])
+                val error = response.objectBody().getValue("error").jsonObject
+                assertEquals(setOf("code", "message", "requestId"), error.keys)
+                assertEquals("INTERNAL_ERROR", error.getValue("code").jsonPrimitive.content)
+                assertEquals("The service encountered an internal error", error.getValue("message").jsonPrimitive.content)
+                assertEquals("internal-500", error.getValue("requestId").jsonPrimitive.content)
+            }
+        } finally {
+            System.setErr(originalStderr)
+        }
+
+        val errorEvents = events.filter { it.level == Level.ERROR }
+        assertEquals(1, errorEvents.size)
+        assertEquals(
+            "request_failure classification=internal status=500 requestId=internal-500",
+            errorEvents.single().message,
+        )
+        assertEquals(null, errorEvents.single().throwable)
+        val captured = events.joinToString("\n") { event ->
+            listOfNotNull(event.message, event.arguments?.joinToString(), event.throwable?.stackTraceToString()).joinToString()
+        } + stderr.toString(StandardCharsets.UTF_8)
+        listOf(
+            "throwable-probe-secret",
+            RedactionProbeException::class.java.name,
+            "throwRedactionProbe",
+            "query-probe-secret",
+            "header-probe-secret",
+        ).forEach { secret -> assertFalse(captured.contains(secret), secret) }
+    }
+
+    @Test
     fun `ETag handles exact weak list and wildcard matches and varies by representation`() = testApplication {
         installBff()
         val all = client.get("/v1/cities/demo/routes")
@@ -224,6 +290,10 @@ class ApplicationContractTest {
         }
     }
 }
+
+private class RedactionProbeException(message: String) : RuntimeException(message)
+
+private fun throwRedactionProbe(): Nothing = throw RedactionProbeException("throwable-probe-secret")
 
 private fun ApplicationTestBuilder.installBff(fixtures: Boolean = true) {
     application {

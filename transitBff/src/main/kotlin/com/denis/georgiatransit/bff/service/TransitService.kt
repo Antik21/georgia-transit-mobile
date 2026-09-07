@@ -40,6 +40,7 @@ import kotlinx.serialization.json.Json
 import kotlin.time.Duration.Companion.seconds
 
 private const val MaximumDirectoryCacheKeys = 256
+private const val MaximumRetryAfterSeconds = 86_400
 private val routeListJson = Json {
     encodeDefaults = true
     explicitNulls = false
@@ -231,18 +232,27 @@ class TransitService(
 
     private fun ProviderFailure.toServiceFailure(): ServiceFailure =
         when (this) {
-            is ProviderInvalidArgument -> com.denis.georgiatransit.bff.api.InvalidArgument(safeMessage())
-            is ProviderRouteNotFound -> RouteNotFound(safeMessage())
-            is ProviderStopNotFound -> StopNotFound(safeMessage())
-            is ProviderConflict -> com.denis.georgiatransit.bff.api.StateConflict(safeMessage())
-            is ProviderRateLimited -> com.denis.georgiatransit.bff.api.RequestRateLimited(safeMessage(), retryAfterSeconds)
-            is ProviderCapabilityUnavailable -> CapabilityNotAvailable(safeMessage())
+            is ProviderInvalidArgument -> com.denis.georgiatransit.bff.api.InvalidArgument(
+                "The transit provider rejected the request",
+            )
+            is ProviderRouteNotFound -> RouteNotFound("The requested route was not found")
+            is ProviderStopNotFound -> StopNotFound("The requested stop was not found")
+            is ProviderConflict -> com.denis.georgiatransit.bff.api.StateConflict("The provider ID changed")
+            is ProviderRateLimited -> com.denis.georgiatransit.bff.api.RequestRateLimited(
+                "The transit provider is rate limited",
+                retryAfterSeconds.validatedRetryAfterSeconds(),
+            )
+            is ProviderCapabilityUnavailable -> CapabilityNotAvailable("The requested capability is not available")
             is ProviderBadGateway -> com.denis.georgiatransit.bff.api.UpstreamBadGateway(
                 "The provider returned an invalid response",
             )
-            is ProviderUnavailable -> com.denis.georgiatransit.bff.api.UpstreamUnavailable(safeMessage(), retryAfterSeconds)
-            is ProviderTimeout -> UpstreamTimeout(safeMessage())
+            is ProviderUnavailable -> com.denis.georgiatransit.bff.api.UpstreamUnavailable(
+                "The transit provider is unavailable",
+                retryAfterSeconds.validatedRetryAfterSeconds(),
+            )
+            is ProviderTimeout -> UpstreamTimeout("The transit provider did not respond in time")
         }
 
-    private fun ProviderFailure.safeMessage(): String = message ?: "The transit provider failed"
+    private fun Int?.validatedRetryAfterSeconds(): Int? =
+        takeIf { it in 1..MaximumRetryAfterSeconds }
 }

@@ -15,6 +15,7 @@ import kotlinx.coroutines.withTimeout
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
+import kotlin.test.assertNotNull
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
 
@@ -23,17 +24,19 @@ class SingleFlightTest {
     fun `concurrent callers for one key share work`() = runTest {
         SingleFlight<String, Int>(1.seconds).use { singleFlight ->
             val release = CompletableDeferred<Unit>()
+            val started = CompletableDeferred<Unit>()
             val loads = AtomicInteger()
             val results = List(25) {
                 async {
                     singleFlight.get("same") {
                         loads.incrementAndGet()
+                        started.complete(Unit)
                         release.await()
                         7
                     }
                 }
             }
-            while (loads.get() == 0) delay(1)
+            started.await()
             release.complete(Unit)
             assertEquals(List(25) { 7 }, results.awaitAll())
             assertEquals(1, loads.get())
@@ -58,6 +61,31 @@ class SingleFlightTest {
             assertEquals(2, singleFlight.get("success") { ++loads })
             assertFailsWith<IllegalStateException> { singleFlight.get("failure") { error("boom") } }
             assertEquals(3, singleFlight.get("failure") { ++loads })
+        }
+    }
+
+    @Test
+    fun `completed load immediately frees same key and capacity for a fresh load`() = runTest {
+        SingleFlight<String, Int>(1.seconds, maximumEntries = 1).use { singleFlight ->
+            val loads = AtomicInteger()
+
+            assertEquals(1, singleFlight.get("same") { loads.incrementAndGet() })
+            assertEquals(2, singleFlight.get("same") { loads.incrementAndGet() })
+            assertEquals(3, singleFlight.get("other") { loads.incrementAndGet() })
+            assertEquals(3, loads.get())
+        }
+    }
+
+    @Test
+    fun `completed handoff generation remains shareable until worker cleanup`() = runTest {
+        SingleFlight<String, Int>(1.seconds).use { singleFlight ->
+            val completedGeneration = CompletableDeferred(11)
+            val inFlight = singleFlight.inFlightForTest()
+            inFlight["handoff"] = completedGeneration
+            val replacementLoads = AtomicInteger()
+
+            assertEquals(11, singleFlight.get("handoff") { replacementLoads.incrementAndGet(); 22 })
+            assertEquals(0, replacementLoads.get())
         }
     }
 
@@ -97,9 +125,16 @@ class SingleFlightTest {
     @Test
     fun `capacity is bounded and released after completion`() = runTest {
         SingleFlight<String, Int>(1.seconds, maximumEntries = 1).use { singleFlight ->
+            val started = CompletableDeferred<Unit>()
             val release = CompletableDeferred<Unit>()
-            val first = async { singleFlight.get("one") { release.await(); 1 } }
-            delay(10)
+            val first = async {
+                singleFlight.get("one") {
+                    started.complete(Unit)
+                    release.await()
+                    1
+                }
+            }
+            started.await()
             assertFailsWith<SingleFlightCapacityExceeded> { singleFlight.get("two") { 2 } }
             release.complete(Unit)
             assertEquals(1, first.await())
@@ -126,4 +161,11 @@ class SingleFlightTest {
 
         assertFailsWith<CancellationException> { caller.await() }
     }
+}
+
+@Suppress("UNCHECKED_CAST")
+private fun <K, V> SingleFlight<K, V>.inFlightForTest(): MutableMap<K, kotlinx.coroutines.Deferred<V>> {
+    val field = SingleFlight::class.java.getDeclaredField("inFlight")
+    field.isAccessible = true
+    return assertNotNull(field.get(this) as? MutableMap<K, kotlinx.coroutines.Deferred<V>>)
 }

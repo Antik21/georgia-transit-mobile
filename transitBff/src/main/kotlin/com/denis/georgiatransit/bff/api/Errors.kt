@@ -25,7 +25,7 @@ class StopNotFound(message: String) :
 class StateConflict(message: String) :
     ServiceFailure(HttpStatusCode.Conflict, "PROVIDER_ID_CHANGED", message)
 
-class RequestRateLimited(message: String, retryAfterSeconds: Int) :
+class RequestRateLimited(message: String, retryAfterSeconds: Int? = null) :
     ServiceFailure(HttpStatusCode.TooManyRequests, "RATE_LIMITED", message, retryAfterSeconds)
 
 class CapabilityNotAvailable(message: String) :
@@ -39,6 +39,13 @@ open class UpstreamUnavailable(message: String, retryAfterSeconds: Int? = null) 
 
 class UpstreamTimeout(message: String) :
     ServiceFailure(HttpStatusCode.GatewayTimeout, "UPSTREAM_TIMEOUT", message)
+
+class InternalServerError :
+    ServiceFailure(
+        HttpStatusCode.InternalServerError,
+        "INTERNAL_ERROR",
+        "The service encountered an internal error",
+    )
 
 class SingleFlightCapacityExceeded :
     UpstreamUnavailable("The real-time request queue is at capacity", retryAfterSeconds = 1)

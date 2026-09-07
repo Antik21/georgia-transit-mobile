@@ -4,6 +4,7 @@ import com.denis.georgiatransit.bff.api.ApiError
 import com.denis.georgiatransit.bff.api.ErrorEnvelope
 import com.denis.georgiatransit.bff.api.GeoPoint
 import com.denis.georgiatransit.bff.api.HealthResponse
+import com.denis.georgiatransit.bff.api.InternalServerError
 import com.denis.georgiatransit.bff.api.ServiceFailure
 import com.denis.georgiatransit.bff.api.locale
 import com.denis.georgiatransit.bff.api.mode
@@ -107,14 +108,11 @@ fun Application.transitBffModule(config: BffConfig = BffConfig.fromEnvironment()
     install(StatusPages) {
         exception<ServiceFailure> { call, failure -> call.respondFailure(failure) }
         exception<CancellationException> { _, exception -> throw exception }
-        exception<Throwable> { call, exception ->
-            this@transitBffModule.environment.log.error("Unhandled BFF request failure", exception)
-            call.respondFailure(
-                com.denis.georgiatransit.bff.api.UpstreamUnavailable(
-                    "The service is temporarily unavailable",
-                    retryAfterSeconds = 1,
-                ),
+        exception<Throwable> { call, _ ->
+            this@transitBffModule.environment.log.error(
+                "request_failure classification=internal status=500 requestId=${call.requestId()}",
             )
+            call.respondFailure(InternalServerError())
         }
     }
     monitor.subscribe(ApplicationStopped) { service.close() }

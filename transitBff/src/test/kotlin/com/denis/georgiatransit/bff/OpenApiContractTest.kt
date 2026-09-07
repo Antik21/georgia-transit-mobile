@@ -38,6 +38,11 @@ class OpenApiContractTest {
                 success.map("headers").map("X-Request-ID")["\$ref"],
                 path,
             )
+            assertEquals(
+                "#/components/responses/InternalError",
+                get.map("responses").map("500")["\$ref"],
+                path,
+            )
         }
     }
 
@@ -60,6 +65,7 @@ class OpenApiContractTest {
                 "STOP_NOT_FOUND",
                 "PROVIDER_ID_CHANGED",
                 "RATE_LIMITED",
+                "INTERNAL_ERROR",
                 "CAPABILITY_NOT_AVAILABLE",
                 "UPSTREAM_BAD_RESPONSE",
                 "UPSTREAM_UNAVAILABLE",
@@ -79,6 +85,7 @@ class OpenApiContractTest {
             "Error404Stop",
             "Error409",
             "Error429",
+            "Error500",
             "Error501",
             "Error502",
             "Error503",

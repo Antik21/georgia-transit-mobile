@@ -23,6 +23,7 @@ paths:
           description: No adapter is ready; this health body intentionally remains safe for probes.
           headers: {X-Request-ID: {$ref: '#/components/headers/RequestId'}}
           content: {application/json: {schema: {$ref: '#/components/schemas/HealthResponse'}, example: {status: not_ready, mode: development}}}
+        '500': {$ref: '#/components/responses/InternalError'}
   /v1/cities:
     get:
       operationId: listCities
@@ -39,6 +40,7 @@ paths:
                   center: {latitude: 41.715137, longitude: 44.827096}
                   defaultZoom: 13
                   capabilities: {routes: true, stops: true, routeGeometry: true, vehiclePositions: true, officialArrivals: true, tripPlanning: true}
+        '500': {$ref: '#/components/responses/InternalError'}
   /v1/cities/{cityId}/routes:
     get:
       operationId: listRoutes
@@ -65,6 +67,7 @@ paths:
         '502': {$ref: '#/components/responses/UpstreamBadResponse'}
         '503': {$ref: '#/components/responses/UpstreamUnavailable'}
         '504': {$ref: '#/components/responses/UpstreamTimeout'}
+        '500': {$ref: '#/components/responses/InternalError'}
   /v1/cities/{cityId}/routes/{routeId}:
     get:
       operationId: getRoute
@@ -83,6 +86,7 @@ paths:
         '502': {$ref: '#/components/responses/UpstreamBadResponse'}
         '503': {$ref: '#/components/responses/UpstreamUnavailable'}
         '504': {$ref: '#/components/responses/UpstreamTimeout'}
+        '500': {$ref: '#/components/responses/InternalError'}
   /v1/cities/{cityId}/routes/{routeId}/directions/{directionId}/stops:
     get:
       operationId: listDirectionStops
@@ -102,6 +106,7 @@ paths:
         '502': {$ref: '#/components/responses/UpstreamBadResponse'}
         '503': {$ref: '#/components/responses/UpstreamUnavailable'}
         '504': {$ref: '#/components/responses/UpstreamTimeout'}
+        '500': {$ref: '#/components/responses/InternalError'}
   /v1/cities/{cityId}/routes/{routeId}/directions/{directionId}/shape:
     get:
       operationId: getDirectionShape
@@ -120,6 +125,7 @@ paths:
         '502': {$ref: '#/components/responses/UpstreamBadResponse'}
         '503': {$ref: '#/components/responses/UpstreamUnavailable'}
         '504': {$ref: '#/components/responses/UpstreamTimeout'}
+        '500': {$ref: '#/components/responses/InternalError'}
   /v1/cities/{cityId}/vehicles:
     get:
       operationId: listVehicles
@@ -140,6 +146,7 @@ paths:
         '502': {$ref: '#/components/responses/UpstreamBadResponse'}
         '503': {$ref: '#/components/responses/UpstreamUnavailable'}
         '504': {$ref: '#/components/responses/UpstreamTimeout'}
+        '500': {$ref: '#/components/responses/InternalError'}
   /v1/cities/{cityId}/stops/nearby:
     get:
       operationId: nearbyStops
@@ -162,6 +169,7 @@ paths:
         '502': {$ref: '#/components/responses/UpstreamBadResponse'}
         '503': {$ref: '#/components/responses/UpstreamUnavailable'}
         '504': {$ref: '#/components/responses/UpstreamTimeout'}
+        '500': {$ref: '#/components/responses/InternalError'}
   /v1/cities/{cityId}/stops/{stopId}/arrivals:
     get:
       operationId: listArrivals
@@ -183,6 +191,7 @@ paths:
         '502': {$ref: '#/components/responses/UpstreamBadResponse'}
         '503': {$ref: '#/components/responses/UpstreamUnavailable'}
         '504': {$ref: '#/components/responses/UpstreamTimeout'}
+        '500': {$ref: '#/components/responses/InternalError'}
   /v1/cities/{cityId}/journeys:
     get:
       operationId: planJourney
@@ -208,6 +217,7 @@ paths:
         '502': {$ref: '#/components/responses/UpstreamBadResponse'}
         '503': {$ref: '#/components/responses/UpstreamUnavailable'}
         '504': {$ref: '#/components/responses/UpstreamTimeout'}
+        '500': {$ref: '#/components/responses/InternalError'}
 components:
   headers:
     RequestId:
@@ -247,15 +257,17 @@ components:
     UpstreamBadResponse: {$ref: '#/components/responses/Error502'}
     UpstreamUnavailable: {$ref: '#/components/responses/Error503'}
     UpstreamTimeout: {$ref: '#/components/responses/Error504'}
+    InternalError: {$ref: '#/components/responses/Error500'}
     Error400: {description: Invalid or missing parameter., headers: {X-Request-ID: {$ref: '#/components/headers/RequestId'}}, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorEnvelope'}, example: {error: {code: INVALID_ARGUMENT, message: latitude is invalid, requestId: req-123}}}}}
     Error404City: {description: Configured city was not found., headers: {X-Request-ID: {$ref: '#/components/headers/RequestId'}}, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorEnvelope'}, example: {error: {code: CITY_NOT_FOUND, message: City was not found, requestId: req-123}}}}}
     Error404Route: {description: Route or direction was not found., headers: {X-Request-ID: {$ref: '#/components/headers/RequestId'}}, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorEnvelope'}, example: {error: {code: ROUTE_NOT_FOUND, message: Route was not found, requestId: req-123}}}}}
     Error404Stop: {description: Stop was not found., headers: {X-Request-ID: {$ref: '#/components/headers/RequestId'}}, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorEnvelope'}, example: {error: {code: STOP_NOT_FOUND, message: Stop was not found, requestId: req-123}}}}}
     Error409: {description: Provider public ID changed., headers: {X-Request-ID: {$ref: '#/components/headers/RequestId'}}, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorEnvelope'}}}}
-    Error429: {description: Rate limited., headers: {X-Request-ID: {$ref: '#/components/headers/RequestId'}, Retry-After: {schema: {type: integer, minimum: 1}}}, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorEnvelope'}}}}
+    Error429: {description: Rate limited. Retry-After is included only when the provider supplied a valid bounded value., headers: {X-Request-ID: {$ref: '#/components/headers/RequestId'}, Retry-After: {schema: {type: integer, minimum: 1, maximum: 86400}}}, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorEnvelope'}}}}
+    Error500: {description: Unexpected internal BFF failure. The response omits internals and has no Retry-After header., headers: {X-Request-ID: {$ref: '#/components/headers/RequestId'}}, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorEnvelope'}, example: {error: {code: INTERNAL_ERROR, message: The service encountered an internal error, requestId: req-123}}}}}
     Error501: {description: City capability is unavailable., headers: {X-Request-ID: {$ref: '#/components/headers/RequestId'}}, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorEnvelope'}}}}
     Error502: {description: Provider returned an invalid response., headers: {X-Request-ID: {$ref: '#/components/headers/RequestId'}}, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorEnvelope'}}}}
-    Error503: {description: BFF or provider is unavailable., headers: {X-Request-ID: {$ref: '#/components/headers/RequestId'}}, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorEnvelope'}}}}
+    Error503: {description: BFF or provider is unavailable. Retry-After is included only when the provider supplied a valid bounded value., headers: {X-Request-ID: {$ref: '#/components/headers/RequestId'}, Retry-After: {schema: {type: integer, minimum: 1, maximum: 86400}}}, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorEnvelope'}}}}
     Error504: {description: Provider request timed out., headers: {X-Request-ID: {$ref: '#/components/headers/RequestId'}}, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorEnvelope'}}}}
   schemas:
     RequestId: {type: string, maxLength: 128, pattern: '^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$'}
@@ -421,8 +433,8 @@ components:
           type: object
           required: [code, message, requestId]
           properties:
-            code: {type: string, enum: [INVALID_ARGUMENT, CITY_NOT_FOUND, ROUTE_NOT_FOUND, STOP_NOT_FOUND, PROVIDER_ID_CHANGED, RATE_LIMITED, CAPABILITY_NOT_AVAILABLE, UPSTREAM_BAD_RESPONSE, UPSTREAM_UNAVAILABLE, UPSTREAM_TIMEOUT]}
+            code: {type: string, enum: [INVALID_ARGUMENT, CITY_NOT_FOUND, ROUTE_NOT_FOUND, STOP_NOT_FOUND, PROVIDER_ID_CHANGED, RATE_LIMITED, INTERNAL_ERROR, CAPABILITY_NOT_AVAILABLE, UPSTREAM_BAD_RESPONSE, UPSTREAM_UNAVAILABLE, UPSTREAM_TIMEOUT]}
             message: {type: string}
-            retryAfterSeconds: {type: integer, minimum: 1}
+            retryAfterSeconds: {type: integer, minimum: 1, maximum: 86400}
             requestId: {$ref: '#/components/schemas/RequestId'}
     UtcTimestamp: {type: string, format: date-time, pattern: 'Z$', description: ISO-8601 UTC timestamp.}

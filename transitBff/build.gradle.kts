@@ -30,6 +30,7 @@ dependencies {
     implementation(libs.ktor.server.netty)
     implementation(libs.ktor.server.status.pages)
     implementation(libs.ktor.serialization.json)
+    runtimeOnly(libs.slf4j.simple)
 
     testImplementation(kotlin("test"))
     testImplementation(libs.kotlinx.coroutines.test)

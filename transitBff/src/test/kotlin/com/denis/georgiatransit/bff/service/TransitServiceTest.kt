@@ -151,18 +151,20 @@ class TransitServiceTest {
 
     @Test
     fun `same key callers coalesce through the service cache`() = runTest {
+        val started = CompletableDeferred<Unit>()
         val release = CompletableDeferred<Unit>()
         val loads = AtomicInteger()
         val adapter = FakeAdapter().apply {
             routesResult = {
                 loads.incrementAndGet()
+                started.complete(Unit)
                 release.await()
                 listOf(route)
             }
         }
         service(adapter).use { transit ->
             val calls = List(20) { async { transit.routes("test", "same", null) } }
-            while (loads.get() == 0) delay(1)
+            started.await()
             release.complete(Unit)
 
             assertEquals(List(20) { listOf(route) }, calls.awaitAll())

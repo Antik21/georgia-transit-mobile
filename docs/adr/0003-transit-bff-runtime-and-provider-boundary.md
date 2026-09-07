@@ -20,10 +20,13 @@ request-coalescing behaviour alongside a clear normalized public contract.
 
 Create a separate Java 17 Kotlin/JVM `:transitBff` Gradle application module.
 It uses Kotlin 2.4.10, Ktor 3.3.3 Netty, and kotlinx serialization, all under
-their Apache-2.0 licenses with no mandatory production API fee. Versions and
-aliases remain centralized in `gradle/libs.versions.toml`. The module is not a
-dependency of `shared`, Android, or iOS and introduces no mobile DI, network,
-serialization, state, or persistence stack.
+their Apache-2.0 licenses with no mandatory production API fee. It packages
+SLF4J Simple 2.0.17 as the sole runtime logging provider; it is MIT-licensed
+and has no production fee. Call logging emits only method, path, status, and
+request ID, never query strings or request headers. Versions and aliases remain
+centralized in `gradle/libs.versions.toml`. The module is not a dependency of
+`shared`, Android, or iOS and introduces no mobile DI, network, serialization,
+state, or persistence stack.
 
 The public contract is versioned under `/v1` and documented in
 [`docs/openapi/transit-bff-v1.yaml`](../openapi/transit-bff-v1.yaml). It carries
@@ -93,7 +96,11 @@ readiness and runtime mode, never URLs, credentials, or provider diagnostics.
 ```text
 ./gradlew :transitBff:compileKotlin
 ./gradlew spotlessCheck :transitBff:check :transitBff:installDist
+
+# terminal 1: keep the server running
 BFF_MODE=development BFF_FIXTURES_ENABLED=true ./gradlew :transitBff:run
+
+# terminal 2: after the server reports that it has started
 curl -i http://127.0.0.1:8080/healthz
 curl -i 'http://127.0.0.1:8080/v1/cities/demo/routes?locale=en'
 ```

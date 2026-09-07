@@ -98,10 +98,14 @@ rejected and startup fails closed because this repository does not yet contain
 a reviewed real provider adapter.
 
 Start the development fixture without storing any environment file in the
-repository:
+repository. Leave the server process running in one terminal, then use a
+second terminal for requests:
 
 ```text
+# terminal 1
 BFF_MODE=development BFF_FIXTURES_ENABLED=true ./gradlew :transitBff:run
+
+# terminal 2, after the server reports that it has started
 curl -i http://127.0.0.1:8080/healthz
 curl -i 'http://127.0.0.1:8080/v1/cities/demo/routes?locale=en'
 ```
