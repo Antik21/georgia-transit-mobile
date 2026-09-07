@@ -66,6 +66,51 @@ class BffConfigTest {
     }
 
     @Test
+    fun `capability control requires a complete nonblank path pair and bounded settings`() {
+        val valid = BffConfig.fromEnvironment(
+            mapOf(
+                "BFF_CAPABILITY_CONTROL_PATH" to "/private/control.json",
+                "BFF_CAPABILITY_CONTROL_STATE_DIR" to "/private/state",
+                "BFF_CAPABILITY_CONTROL_POLL_SECONDS" to "5",
+                "BFF_CAPABILITY_CONTROL_HISTORY_LIMIT" to "50",
+            ),
+        )
+        assertEquals(5, valid.capabilityControlPollSeconds)
+        assertEquals(50, valid.capabilityControlHistoryLimit)
+
+        val invalid = listOf(
+            mapOf("BFF_CAPABILITY_CONTROL_PATH" to "/private/control.json"),
+            mapOf("BFF_CAPABILITY_CONTROL_STATE_DIR" to "/private/state"),
+            mapOf("BFF_CAPABILITY_CONTROL_PATH" to " ", "BFF_CAPABILITY_CONTROL_STATE_DIR" to "/private/state"),
+            mapOf("BFF_CAPABILITY_CONTROL_PATH" to "/private/control.json", "BFF_CAPABILITY_CONTROL_STATE_DIR" to " "),
+            mapOf("BFF_CAPABILITY_CONTROL_PATH" to "\u0000", "BFF_CAPABILITY_CONTROL_STATE_DIR" to "/private/state"),
+            mapOf(
+                "BFF_CAPABILITY_CONTROL_PATH" to "/private/control.json",
+                "BFF_CAPABILITY_CONTROL_STATE_DIR" to "/private/state",
+                "BFF_CAPABILITY_CONTROL_POLL_SECONDS" to "4",
+            ),
+            mapOf(
+                "BFF_CAPABILITY_CONTROL_PATH" to "/private/control.json",
+                "BFF_CAPABILITY_CONTROL_STATE_DIR" to "/private/state",
+                "BFF_CAPABILITY_CONTROL_POLL_SECONDS" to "301",
+            ),
+            mapOf(
+                "BFF_CAPABILITY_CONTROL_PATH" to "/private/control.json",
+                "BFF_CAPABILITY_CONTROL_STATE_DIR" to "/private/state",
+                "BFF_CAPABILITY_CONTROL_HISTORY_LIMIT" to "1",
+            ),
+            mapOf(
+                "BFF_CAPABILITY_CONTROL_PATH" to "/private/control.json",
+                "BFF_CAPABILITY_CONTROL_STATE_DIR" to "/private/state",
+                "BFF_CAPABILITY_CONTROL_HISTORY_LIMIT" to "51",
+            ),
+        )
+        invalid.forEach { environment ->
+            assertFailsWith<BffConfigurationException> { BffConfig.fromEnvironment(environment) }
+        }
+    }
+
+    @Test
     fun `production startup fails closed without a production adapter`() = testApplication {
         application {
             assertFailsWith<BffConfigurationException> {

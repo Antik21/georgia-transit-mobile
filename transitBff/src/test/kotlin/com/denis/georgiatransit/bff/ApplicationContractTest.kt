@@ -84,7 +84,14 @@ class ApplicationContractTest {
         }
 
         val city = client.get("/v1/cities").arrayBody().single().jsonObject
-        assertEquals(setOf("id", "name", "center", "defaultZoom", "capabilities"), city.keys)
+        assertEquals(setOf("id", "name", "center", "defaultZoom", "capabilities", "availability"), city.keys)
+        assertEquals(
+            setOf("routes", "stops", "routeGeometry", "vehiclePositions", "officialArrivals", "tripPlanning"),
+            city.getValue("capabilities").jsonObject.keys,
+        )
+        assertEquals(setOf("readiness", "source"), city.getValue("availability").jsonObject.keys)
+        assertEquals("DEVELOPMENT_FIXTURE", city.getValue("availability").jsonObject.getValue("readiness").jsonPrimitive.content)
+        assertEquals("FIXTURE", city.getValue("availability").jsonObject.getValue("source").jsonPrimitive.content)
         val route = client.get("/v1/cities/demo/routes").arrayBody().single().jsonObject
         assertEquals(setOf("id", "providerId", "shortName", "longName", "color", "textColor", "mode", "directions"), route.keys)
         val stop = client.get(

@@ -1,8 +1,12 @@
 package com.denis.georgiatransit.bff.config
 
+import java.nio.file.Path
+
 private const val DefaultDirectoryCacheTtlSeconds = 14_400L
 private const val DefaultShapeCacheTtlSeconds = 86_400L
 private const val DefaultRealtimeSingleFlightSeconds = 15L
+private const val DefaultCapabilityControlPollSeconds = 30L
+private const val DefaultCapabilityControlHistoryLimit = 20
 
 enum class RuntimeMode {
     DEVELOPMENT,
@@ -19,6 +23,10 @@ data class BffConfig(
     val shapeCacheTtlSeconds: Long,
     val realtimeSingleFlightSeconds: Long,
     val fixturesEnabled: Boolean,
+    val capabilityControlPath: Path?,
+    val capabilityControlStateDirectory: Path?,
+    val capabilityControlPollSeconds: Long,
+    val capabilityControlHistoryLimit: Int,
 ) {
     init {
         require(host.isNotBlank()) { "BFF_HOST must not be blank" }
@@ -34,6 +42,15 @@ data class BffConfig(
         }
         require(mode != RuntimeMode.PRODUCTION || !fixturesEnabled) {
             "BFF_FIXTURES_ENABLED must be false in production"
+        }
+        require((capabilityControlPath == null) == (capabilityControlStateDirectory == null)) {
+            "BFF_CAPABILITY_CONTROL_PATH and BFF_CAPABILITY_CONTROL_STATE_DIR must be set together"
+        }
+        require(capabilityControlPollSeconds in 5L..300L) {
+            "BFF_CAPABILITY_CONTROL_POLL_SECONDS must be between 5 and 300"
+        }
+        require(capabilityControlHistoryLimit in 2..50) {
+            "BFF_CAPABILITY_CONTROL_HISTORY_LIMIT must be between 2 and 50"
         }
     }
 
@@ -60,6 +77,23 @@ data class BffConfig(
                         DefaultRealtimeSingleFlightSeconds,
                     ),
                     fixturesEnabled = parseBoolean(environment, "BFF_FIXTURES_ENABLED", false),
+                    capabilityControlPath = parseOptionalPath(environment, "BFF_CAPABILITY_CONTROL_PATH"),
+                    capabilityControlStateDirectory = parseOptionalPath(
+                        environment,
+                        "BFF_CAPABILITY_CONTROL_STATE_DIR",
+                    ),
+                    capabilityControlPollSeconds = parseLong(
+                        environment,
+                        "BFF_CAPABILITY_CONTROL_POLL_SECONDS",
+                        DefaultCapabilityControlPollSeconds,
+                    ),
+                    capabilityControlHistoryLimit = parseInt(
+                        environment,
+                        "BFF_CAPABILITY_CONTROL_HISTORY_LIMIT",
+                        DefaultCapabilityControlHistoryLimit,
+                        2,
+                        50,
+                    ),
                 )
             } catch (exception: IllegalArgumentException) {
                 throw BffConfigurationException(exception.message ?: "Invalid BFF configuration")
@@ -104,6 +138,16 @@ data class BffConfig(
                 "true" -> true
                 "false" -> false
                 else -> throw BffConfigurationException("$name must be true or false")
+            }
+        }
+
+        private fun parseOptionalPath(environment: Map<String, String>, name: String): Path? {
+            val rawValue = environment[name] ?: return null
+            if (rawValue.isBlank()) throw BffConfigurationException("$name must not be blank")
+            return try {
+                Path.of(rawValue).toAbsolutePath().normalize()
+            } catch (_: IllegalArgumentException) {
+                throw BffConfigurationException("$name is invalid")
             }
         }
     }

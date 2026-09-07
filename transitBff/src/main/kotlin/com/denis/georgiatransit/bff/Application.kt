@@ -17,6 +17,7 @@ import com.denis.georgiatransit.bff.api.requiredQueryPublicId
 import com.denis.georgiatransit.bff.config.BffConfig
 import com.denis.georgiatransit.bff.config.BffConfigurationException
 import com.denis.georgiatransit.bff.config.RuntimeMode
+import com.denis.georgiatransit.bff.control.RuntimeCapabilityControl
 import com.denis.georgiatransit.bff.provider.DemoFixtureTransitProviderAdapter
 import com.denis.georgiatransit.bff.provider.JourneyQuery
 import com.denis.georgiatransit.bff.provider.ProviderRegistry
@@ -79,8 +80,13 @@ fun Application.transitBffModule(config: BffConfig = BffConfig.fromEnvironment()
             "No production provider adapters are configured; production startup fails closed",
         )
     }
-    val service = TransitService(
+    val capabilityControl = RuntimeCapabilityControl(
+        config = config,
         registry = registry,
+        audit = environment.log::info,
+    ).also(RuntimeCapabilityControl::start)
+    val service = TransitService(
+        capabilitySnapshots = capabilityControl,
         directoryCacheTtlSeconds = config.directoryCacheTtlSeconds,
         shapeCacheTtlSeconds = config.shapeCacheTtlSeconds,
         realtimeSingleFlightSeconds = config.realtimeSingleFlightSeconds,
@@ -115,7 +121,10 @@ fun Application.transitBffModule(config: BffConfig = BffConfig.fromEnvironment()
             call.respondFailure(InternalServerError())
         }
     }
-    monitor.subscribe(ApplicationStopped) { service.close() }
+    monitor.subscribe(ApplicationStopped) {
+        capabilityControl.close()
+        service.close()
+    }
 
     routing {
         get("/healthz") {
