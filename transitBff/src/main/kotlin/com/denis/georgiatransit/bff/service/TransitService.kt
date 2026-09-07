@@ -193,7 +193,7 @@ class TransitService(
     suspend fun arrivals(cityId: String, stopId: String, limit: Int, locale: String): ArrivalPage {
         val snapshot = snapshot()
         val effectiveCity = snapshot.city(cityId)
-        requireCapability(cityId, effectiveCity.city.capabilities.officialArrivals, "Official arrivals")
+        requireCapability(cityId, effectiveCity.city.capabilities.arrivals, "Arrivals")
         return realtime(snapshot, "arrival|$cityId|$stopId|$limit|$locale") {
             providerCall(
                 loader = {
@@ -217,7 +217,17 @@ class TransitService(
                 "${query.departureAt}|${query.locale}|${query.maxTransfers}",
         ) {
             providerCall(
-                loader = { JourneyPage(effectiveCity.adapter.journeys(query), Instant.now().toString()) },
+                loader = {
+                    effectiveCity.adapter.journeyPage(query).let {
+                        JourneyPage(
+                            items = it.items,
+                            observedAt = it.observedAt.toString(),
+                            source = it.source,
+                            realtime = it.realtime,
+                            stale = it.stale,
+                        )
+                    }
+                },
                 validator = { NormalizedResponseValidator.journeyPage(cityId, it) },
             )
         }

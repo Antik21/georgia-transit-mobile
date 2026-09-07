@@ -5,6 +5,8 @@ import com.denis.georgiatransit.shared.data.repository.RuntimeTransitSession
 import com.denis.georgiatransit.shared.domain.model.CityCapabilities
 import com.denis.georgiatransit.shared.domain.model.CityId
 import com.denis.georgiatransit.shared.domain.model.GeoPoint
+import com.denis.georgiatransit.shared.domain.model.LocalizedText
+import com.denis.georgiatransit.shared.domain.model.TransitAttribution
 import com.denis.georgiatransit.shared.domain.model.TransitCity
 import com.denis.georgiatransit.shared.domain.model.TransitRoute
 import com.denis.georgiatransit.shared.domain.repository.TransitFailure
@@ -35,6 +37,55 @@ import kotlin.test.assertTrue
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class CitySelectionViewModelTest {
+    @Test
+    fun disabledTbilisiKeepsItsPublicAttributionVisibleWithoutBecomingSelectable() = runTest {
+        val attribution = listOf(
+            TransitAttribution(
+                id = "transitous",
+                label = LocalizedText(ru = "Источники Transitous", en = "Transitous sources", ka = "Transitous-ის წყაროები"),
+                url = "https://transitous.org/sources/",
+            ),
+            TransitAttribution(
+                id = "openstreetmap",
+                label = LocalizedText(
+                    ru = "© участники OpenStreetMap (ODbL)",
+                    en = "© OpenStreetMap contributors (ODbL)",
+                    ka = "© OpenStreetMap-ის მონაწილეები (ODbL)",
+                ),
+                url = "https://www.openstreetmap.org/copyright",
+            ),
+        )
+        val disabledTbilisi = tbilisi.copy(
+            capabilities = tbilisi.capabilities.copy(stops = false),
+            attribution = attribution,
+        )
+        val viewModel = CitySelectionViewModel(
+            CatalogRepository(results = mutableListOf(TransitLoadResult.Data(listOf(disabledTbilisi), TransitFreshness.Network))),
+            RuntimeTransitSession(),
+            testLocationSession(),
+        )
+
+        viewModel.test(this) {
+            runOnCreate()
+            this@runTest.runCurrent()
+
+            val item = viewModel.container.stateFlow.value.cities.single()
+            assertEquals(disabledTbilisi.id, item.id)
+            assertFalse(item.isEnabled)
+            assertEquals(attribution, item.attribution)
+            assertEquals(
+                listOf("https://transitous.org/sources/", "https://www.openstreetmap.org/copyright"),
+                item.attribution.map(TransitAttribution::url),
+            )
+
+            viewModel.dispatchAction(Action.CityClicked(disabledTbilisi.id))
+            this@runTest.runCurrent()
+            assertNull(viewModel.container.stateFlow.value.selectedCityId)
+            assertFalse(viewModel.container.stateFlow.value.canContinue)
+            cancelAndIgnoreRemainingItems()
+        }
+    }
+
     @Test
     fun remoteSnapshotControlsWhichCitiesAreVisibleAndSelectable() = runTest {
         val repository = CatalogRepository(

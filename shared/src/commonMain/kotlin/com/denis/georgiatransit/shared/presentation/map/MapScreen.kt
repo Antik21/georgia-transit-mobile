@@ -23,8 +23,14 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.text.LinkAnnotation
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.intl.Locale
+import androidx.compose.ui.text.withLink
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import com.denis.georgiatransit.shared.domain.model.LocalizedText
+import com.denis.georgiatransit.shared.domain.model.TransitAttribution
 import com.denis.georgiatransit.shared.presentation.ui.automation.AutomationId
 import com.denis.georgiatransit.shared.presentation.location.LocationFailure
 import com.denis.georgiatransit.shared.presentation.location.LocationPermissionState
@@ -36,6 +42,7 @@ import com.denis.georgiatransit.shared.presentation.ui.theme.TransitColors
 import com.denis.georgiatransit.shared.presentation.ui.theme.TransitShapes
 import com.denis.georgiatransit.shared.presentation.ui.theme.TransitSpacing
 import georgiatransit.shared.generated.resources.Res
+import georgiatransit.shared.generated.resources.map_attribution_title
 import georgiatransit.shared.generated.resources.map_change_city_action
 import georgiatransit.shared.generated.resources.map_nearby_stops
 import georgiatransit.shared.generated.resources.map_preview_note
@@ -134,9 +141,44 @@ private fun Content(state: ViewState, onAction: (Action) -> Unit) {
                     modifier = Modifier.weight(1f).testTag(AutomationId.MapRoutes),
                 ) { Text(stringResource(Res.string.map_routes_action)) }
             }
+            CityAttribution(state.attribution)
         }
     }
 }
+
+/** Link annotations retain accessible link semantics on Android and iOS Compose hosts. */
+@Composable
+private fun CityAttribution(attribution: List<TransitAttribution>) {
+    if (attribution.isEmpty()) return
+    Column(
+        modifier = Modifier.fillMaxWidth().testTag(AutomationId.MapAttribution),
+        verticalArrangement = Arrangement.spacedBy(TransitSpacing.ExtraSmall),
+    ) {
+        Text(
+            stringResource(Res.string.map_attribution_title),
+            style = MaterialTheme.typography.labelLarge,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        attribution.forEach { item ->
+            Text(
+                text = buildAnnotatedString {
+                    withLink(LinkAnnotation.Url(item.url)) {
+                        append(item.label.mapAttributionDisplayName(Locale.current.language))
+                    }
+                },
+                modifier = Modifier.testTag(AutomationId.mapAttributionLink(item.id)),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.primary,
+            )
+        }
+    }
+}
+
+private fun LocalizedText.mapAttributionDisplayName(languageTag: String): String = when (languageTag) {
+    "ka" -> ka
+    "ru" -> ru
+    else -> en
+}.ifBlank { en.ifBlank { ru.ifBlank { ka } } }
 
 @Composable
 private fun MapPreview(

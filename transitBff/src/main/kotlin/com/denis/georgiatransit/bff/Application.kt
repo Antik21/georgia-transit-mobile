@@ -21,6 +21,7 @@ import com.denis.georgiatransit.bff.control.RuntimeCapabilityControl
 import com.denis.georgiatransit.bff.provider.DemoFixtureTransitProviderAdapter
 import com.denis.georgiatransit.bff.provider.JourneyQuery
 import com.denis.georgiatransit.bff.provider.ProviderRegistry
+import com.denis.georgiatransit.bff.provider.TransitousTransitProviderAdapter
 import com.denis.georgiatransit.bff.service.TransitService
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
@@ -69,10 +70,15 @@ fun main() {
 }
 
 fun Application.transitBffModule(config: BffConfig = BffConfig.fromEnvironment()) {
-    val adapters = if (config.mode == RuntimeMode.DEVELOPMENT && config.fixturesEnabled) {
-        listOf(DemoFixtureTransitProviderAdapter())
-    } else {
-        emptyList()
+    val adapters = buildList {
+        if (config.mode == RuntimeMode.DEVELOPMENT && config.fixturesEnabled) {
+            add(DemoFixtureTransitProviderAdapter())
+        }
+        // Construction is the final activation gate: no Transitous HTTP client exists before the
+        // explicit policy/contact prerequisites pass. It performs no startup probe.
+        if (config.transitous.isActivated) {
+            add(TransitousTransitProviderAdapter(config.transitous))
+        }
     }
     val registry = ProviderRegistry(adapters)
     if (config.mode == RuntimeMode.PRODUCTION && !registry.isReady) {
@@ -124,6 +130,7 @@ fun Application.transitBffModule(config: BffConfig = BffConfig.fromEnvironment()
     monitor.subscribe(ApplicationStopped) {
         capabilityControl.close()
         service.close()
+        adapters.filterIsInstance<AutoCloseable>().forEach(AutoCloseable::close)
     }
 
     routing {

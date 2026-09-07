@@ -36,6 +36,7 @@ class MapViewModel(
                         )
                     },
                     selectedRouteNames = routeNames,
+                    attribution = city?.attribution.orEmpty(),
                     location = location,
                 )
             }.collect { newState -> reduce { newState } }

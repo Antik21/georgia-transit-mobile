@@ -89,7 +89,16 @@ internal fun capabilities(
     vehiclePositions: Boolean = true,
     officialArrivals: Boolean = true,
     tripPlanning: Boolean = true,
-) = CityCapabilities(routes, stops, routeGeometry, vehiclePositions, officialArrivals, tripPlanning)
+    arrivals: Boolean = officialArrivals,
+) = CityCapabilities(
+    routes = routes,
+    stops = stops,
+    routeGeometry = routeGeometry,
+    vehiclePositions = vehiclePositions,
+    officialArrivals = officialArrivals,
+    tripPlanning = tripPlanning,
+    arrivals = arrivals,
+)
 
 internal open class FakeAdapter(
     override val city: City = City("test", text, GeoPoint(41.7, 44.8), 13.0, capabilities()),

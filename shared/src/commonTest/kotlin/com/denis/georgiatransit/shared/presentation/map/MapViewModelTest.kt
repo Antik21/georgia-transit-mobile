@@ -5,6 +5,8 @@ import com.denis.georgiatransit.shared.data.repository.RuntimeTransitSession
 import com.denis.georgiatransit.shared.domain.model.CityCapabilities
 import com.denis.georgiatransit.shared.domain.model.CityId
 import com.denis.georgiatransit.shared.domain.model.GeoPoint
+import com.denis.georgiatransit.shared.domain.model.LocalizedText
+import com.denis.georgiatransit.shared.domain.model.TransitAttribution
 import com.denis.georgiatransit.shared.domain.model.TransitCity
 import com.denis.georgiatransit.shared.domain.model.TransitRoute
 import com.denis.georgiatransit.shared.domain.repository.TransitRepository
@@ -15,6 +17,7 @@ import com.denis.georgiatransit.shared.presentation.location.LocationPlatformCom
 import com.denis.georgiatransit.shared.presentation.location.LocationPlatformEvent
 import com.denis.georgiatransit.shared.presentation.location.LocationPrecision
 import com.denis.georgiatransit.shared.presentation.location.RuntimeLocationSession
+import com.denis.georgiatransit.shared.presentation.ui.automation.AutomationId
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.runCurrent
@@ -30,6 +33,33 @@ import kotlin.test.assertTrue
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class MapViewModelTest {
+    @Test
+    fun selectedCityAttributionIsExposedToCommonMapStateWithStableAutomationSelectors() = runTest {
+        val attribution = TransitAttribution(
+            id = "transitous",
+            label = LocalizedText(ru = "Источники", en = "Sources", ka = "წყაროები"),
+            url = "https://transitous.org/sources/",
+        )
+        val selectedCity = city("tbilisi", defaultZoom = 12.5).copy(attribution = listOf(attribution))
+        val session = RuntimeTransitSession().also { it.selectCity(selectedCity) }
+
+        MapViewModel(MapRepository(), session, testLocationSession()).test(this) {
+            runOnCreate()
+            this@runTest.runCurrent()
+
+            expectState(
+                ViewState(
+                    cityName = selectedCity.name,
+                    viewport = MapViewport(center = selectedCity.center, zoom = selectedCity.defaultZoom),
+                    attribution = listOf(attribution),
+                ),
+            )
+            assertEquals("map.attribution", AutomationId.MapAttribution)
+            assertEquals("map.attribution.link.transitous", AutomationId.mapAttributionLink(attribution.id))
+            cancelAndIgnoreRemainingItems()
+        }
+    }
+
     @Test
     fun noFixViewportUsesEachSelectedCityNonDefaultBffZoom() = runTest {
         val tbilisi = city("tbilisi", defaultZoom = 13.5)

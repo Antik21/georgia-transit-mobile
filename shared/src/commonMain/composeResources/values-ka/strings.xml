@@ -16,6 +16,7 @@
     <string name="city_catalog_offline">ოფლაინ რეჟიმში ნაჩვენებია ქალაქების ბოლოს ხელმისაწვდომი კატალოგი.</string>
     <string name="city_experimental">ექსპერიმენტული მონაცემები</string>
     <string name="city_unavailable">მოგვიანებით</string>
+    <string name="city_attribution_title">მონაცემთა წყაროები და ატრიბუცია</string>
     <string name="continue_action">გაგრძელება</string>
     <string name="location_title">თქვენი მდებარეობის გამოყენება</string>
     <string name="location_body">რუკის ცენტრირება და ახლომდებარე გაჩერებების ჩვენება. ქალაქის არჩევა მდებარეობის გარეშეც მუშაობს.</string>
@@ -46,6 +47,7 @@
     <string name="map_change_city_action">ქალაქის შეცვლა</string>
     <string name="map_my_location_action">ჩემი მდებარეობა</string>
     <string name="map_selected_routes">მარშრუტები: %1$s</string>
+    <string name="map_attribution_title">მონაცემთა წყაროები და ატრიბუცია</string>
     <string name="routes_title">მარშრუტები</string>
     <string name="routes_subtitle">აირჩიეთ რამდენიმე მარშრუტი რუკაზე ერთად საჩვენებლად.</string>
     <string name="routes_back_action">უკან</string>

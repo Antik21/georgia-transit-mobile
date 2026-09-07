@@ -3,13 +3,17 @@ package com.denis.georgiatransit.bff.provider
 import com.denis.georgiatransit.bff.api.Arrival
 import com.denis.georgiatransit.bff.api.ArrivalPage
 import com.denis.georgiatransit.bff.api.ArrivalSource
+import com.denis.georgiatransit.bff.api.AttributionLink
 import com.denis.georgiatransit.bff.api.City
 import com.denis.georgiatransit.bff.api.CityReadiness
 import com.denis.georgiatransit.bff.api.CitySource
 import com.denis.georgiatransit.bff.api.Direction
 import com.denis.georgiatransit.bff.api.GeoPoint
 import com.denis.georgiatransit.bff.api.Journey
+import com.denis.georgiatransit.bff.api.JourneyLeg
 import com.denis.georgiatransit.bff.api.JourneyPage
+import com.denis.georgiatransit.bff.api.JourneySegment
+import com.denis.georgiatransit.bff.api.JourneySegmentMode
 import com.denis.georgiatransit.bff.api.LocalizedText
 import com.denis.georgiatransit.bff.api.PositionKind
 import com.denis.georgiatransit.bff.api.Route
@@ -18,8 +22,10 @@ import com.denis.georgiatransit.bff.api.Stop
 import com.denis.georgiatransit.bff.api.Vehicle
 import com.denis.georgiatransit.bff.api.VehiclePage
 import java.time.Instant
+import java.net.URI
 
 private const val MaximumOpaqueValueLength = 256
+private const val MaximumAttributionUrlLength = 2_048
 private const val MaximumRealtimeAgeSeconds = 86_400
 private val cityIdPattern = Regex("[a-z][a-z0-9-]{1,31}")
 private val publicIdPattern = Regex("([^:\\s]+):([^:\\s]+):([^:\\s]+):([^:\\s]+)")
@@ -36,6 +42,9 @@ object NormalizedResponseValidator {
         localized(city.name)
         point(city.center)
         finiteBetween(city.defaultZoom, 0.0, 22.0)
+        if (city.capabilities.officialArrivals && !city.capabilities.arrivals) invalid()
+        city.attribution.forEach(::attribution)
+        if (city.attribution.map(AttributionLink::id).distinct().size != city.attribution.size) invalid()
         when (city.availability.readiness) {
             CityReadiness.DEVELOPMENT_FIXTURE -> {
                 if (city.availability.source != CitySource.FIXTURE) invalid()
@@ -113,7 +122,21 @@ object NormalizedResponseValidator {
 
     fun journeyPage(cityId: String, page: JourneyPage) {
         timestamp(page.observedAt)
+        if (page.source !in setOf(ArrivalSource.AGGREGATOR_REALTIME, ArrivalSource.SCHEDULE)) invalid()
+        if ((page.source == ArrivalSource.AGGREGATOR_REALTIME) != page.realtime) invalid()
         page.items.forEach { journey(cityId, it) }
+    }
+
+    private fun attribution(link: AttributionLink) {
+        if (!Regex("[a-z][a-z0-9-]{0,31}").matches(link.id)) invalid()
+        localized(link.label)
+        if (link.url.length > MaximumAttributionUrlLength) invalid()
+        val uri = try {
+            URI(link.url)
+        } catch (_: Exception) {
+            invalid()
+        }
+        if (uri.scheme != "https" || uri.host.isNullOrBlank() || uri.userInfo != null || uri.fragment != null) invalid()
     }
 
     private fun stop(cityId: String, stop: Stop, requiredRouteId: String? = null, provider: String? = null) {
@@ -172,20 +195,88 @@ object NormalizedResponseValidator {
         val journeyId = entityId(journey.id, cityId, "journey")
         val departure = timestamp(journey.departureAt)
         val arrival = timestamp(journey.arrivalAt)
-        if (journey.transfers !in 0..6 || arrival.isBefore(departure) || journey.legs.isEmpty()) invalid()
-        journey.legs.forEach { leg ->
-            val route = entityId(leg.routeId, cityId, "route")
-            if (route.provider != journeyId.provider) invalid()
-            direction(cityId, route.provider, leg.directionId)
-            if (entityId(leg.fromStopId, cityId, "stop").provider != route.provider ||
-                entityId(leg.toStopId, cityId, "stop").provider != route.provider
+        if (journey.transfers !in 0..6 || arrival.isBefore(departure)) invalid()
+        if (journey.segments.isEmpty() && journey.legs.isEmpty()) invalid()
+        var previousArrival = departure
+        if (journey.segments.isEmpty()) {
+            journey.legs.forEach { leg ->
+                val (legDeparture, legArrival) = legacyJourneyLeg(cityId, journeyId.provider, leg)
+                validateJourneyItemTimes(legDeparture, legArrival, departure, arrival, previousArrival)
+                previousArrival = legArrival
+            }
+        } else {
+            journey.segments.forEach { segment ->
+                val (segmentDeparture, segmentArrival) = journeySegment(cityId, journeyId.provider, segment)
+                validateJourneyItemTimes(segmentDeparture, segmentArrival, departure, arrival, previousArrival)
+                previousArrival = segmentArrival
+            }
+            val expectedLegacyLegs = journey.segments
+                .filter { it.mode == JourneySegmentMode.TRANSIT }
+                .map { it.toLegacyLeg() }
+            if (journey.legs != expectedLegacyLegs) invalid()
+        }
+    }
+
+    private fun validateJourneyItemTimes(
+        itemDeparture: Instant,
+        itemArrival: Instant,
+        journeyDeparture: Instant,
+        journeyArrival: Instant,
+        previousArrival: Instant,
+    ) {
+        if (
+            itemArrival.isBefore(itemDeparture) || itemDeparture.isBefore(journeyDeparture) ||
+            itemArrival.isAfter(journeyArrival) || itemDeparture.isBefore(previousArrival)
+        ) {
+            invalid()
+        }
+    }
+
+    private fun legacyJourneyLeg(cityId: String, provider: String, leg: JourneyLeg): Pair<Instant, Instant> {
+        val route = entityId(leg.routeId, cityId, "route")
+        if (route.provider != provider) invalid()
+        direction(cityId, route.provider, leg.directionId)
+        if (
+            entityId(leg.fromStopId, cityId, "stop").provider != route.provider ||
+            entityId(leg.toStopId, cityId, "stop").provider != route.provider
+        ) {
+            invalid()
+        }
+        return timestamp(leg.departureAt) to timestamp(leg.arrivalAt)
+    }
+
+    private fun journeySegment(cityId: String, provider: String, segment: JourneySegment): Pair<Instant, Instant> {
+        if ((segment.routeId == null) != (segment.directionId == null)) invalid()
+        segment.fromPosition?.let(::point)
+        segment.toPosition?.let(::point)
+        if (segment.mode == JourneySegmentMode.TRANSIT) {
+            val route = entityId(segment.routeId ?: invalid(), cityId, "route")
+            if (route.provider != provider) invalid()
+            direction(cityId, route.provider, segment.directionId ?: invalid())
+            if (
+                entityId(segment.fromStopId ?: invalid(), cityId, "stop").provider != route.provider ||
+                entityId(segment.toStopId ?: invalid(), cityId, "stop").provider != route.provider
             ) {
                 invalid()
             }
-            val legDeparture = timestamp(leg.departureAt)
-            val legArrival = timestamp(leg.arrivalAt)
-            if (legArrival.isBefore(legDeparture) || legDeparture.isBefore(departure) || legArrival.isAfter(arrival)) invalid()
+        } else {
+            if (segment.routeId != null || segment.directionId != null) invalid()
+            segment.fromStopId?.let { if (entityId(it, cityId, "stop").provider != provider) invalid() }
+            segment.toStopId?.let { if (entityId(it, cityId, "stop").provider != provider) invalid() }
         }
+        return timestamp(segment.departureAt) to timestamp(segment.arrivalAt)
+    }
+
+    private fun JourneySegment.toLegacyLeg(): JourneyLeg {
+        if (mode != JourneySegmentMode.TRANSIT) invalid()
+        return JourneyLeg(
+            routeId = routeId ?: invalid(),
+            directionId = directionId ?: invalid(),
+            fromStopId = fromStopId ?: invalid(),
+            toStopId = toStopId ?: invalid(),
+            departureAt = departureAt,
+            arrivalAt = arrivalAt,
+        )
     }
 
     private fun direction(cityId: String, provider: String, direction: Direction) {

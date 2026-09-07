@@ -16,6 +16,7 @@
     <string name="city_catalog_offline">Showing the last available city catalogue while offline.</string>
     <string name="city_experimental">Experimental data</string>
     <string name="city_unavailable">Coming later</string>
+    <string name="city_attribution_title">Data sources and attribution</string>
     <string name="continue_action">Continue</string>
     <string name="location_title">Use your location</string>
     <string name="location_body">Center the map and show nearby transit stops. City selection still works without location.</string>
@@ -46,6 +47,7 @@
     <string name="map_change_city_action">Change city</string>
     <string name="map_my_location_action">My location</string>
     <string name="map_selected_routes">Routes: %1$s</string>
+    <string name="map_attribution_title">Data sources and attribution</string>
     <string name="routes_title">Routes</string>
     <string name="routes_subtitle">Select several routes to show them together on the map.</string>
     <string name="routes_back_action">Back</string>

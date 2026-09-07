@@ -3,6 +3,7 @@ package com.denis.georgiatransit.shared.presentation.cityselection
 import androidx.compose.runtime.Immutable
 import com.denis.georgiatransit.shared.domain.model.CityId
 import com.denis.georgiatransit.shared.domain.model.LocalizedText
+import com.denis.georgiatransit.shared.domain.model.TransitAttribution
 import com.denis.georgiatransit.shared.domain.repository.TransitFailure
 import com.denis.georgiatransit.shared.domain.repository.TransitFreshness
 import com.denis.georgiatransit.shared.presentation.location.LocationPlatformCommand
@@ -54,6 +55,8 @@ data class CityItemUiModel(
     val isExperimental: Boolean,
     /** BFF-provided display values; no city names are supplied by the client. */
     val localizedName: LocalizedText = LocalizedText.fromLegacy(name),
+    /** Normalized public credits stay visible even when the city cannot yet be selected. */
+    val attribution: List<TransitAttribution> = emptyList(),
 )
 
 sealed interface Action {

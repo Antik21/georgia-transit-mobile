@@ -76,15 +76,15 @@ class OpenApiContractTest {
     }
 
     @Test
-    fun `OpenAPI city metadata requires normalized availability and exactly six capabilities`() {
+    fun `OpenAPI city metadata carries seven capabilities and additive attribution`() {
         val schemas = loadOpenApi().map("components").map("schemas")
         val capabilities = schemas.map("CityCapabilities")
         assertEquals(
-            listOf("routes", "stops", "routeGeometry", "vehiclePositions", "officialArrivals", "tripPlanning"),
+            listOf("routes", "stops", "routeGeometry", "vehiclePositions", "officialArrivals", "tripPlanning", "arrivals"),
             capabilities["required"],
         )
         assertEquals(
-            setOf("routes", "stops", "routeGeometry", "vehiclePositions", "officialArrivals", "tripPlanning"),
+            setOf("routes", "stops", "routeGeometry", "vehiclePositions", "officialArrivals", "tripPlanning", "arrivals"),
             capabilities.map("properties").keys,
         )
         assertEquals(
@@ -93,6 +93,28 @@ class OpenApiContractTest {
         )
         assertEquals(listOf("readiness", "source"), schemas.map("CityAvailability")["required"])
         assertEquals("#/components/schemas/CityAvailability", schemas.map("City").map("properties").map("availability")["\$ref"])
+        assertEquals("#/components/schemas/AttributionLink", schemas.map("City").map("properties").map("attribution").map("items")["\$ref"])
+        assertEquals(listOf("id", "label", "url"), schemas.map("AttributionLink")["required"])
+        assertEquals("^https://", schemas.map("AttributionLink").map("properties").map("url")["pattern"])
+    }
+
+    @Test
+    fun `OpenAPI keeps legacy journey legs required while adding complete typed segments and page provenance`() {
+        val schemas = loadOpenApi().map("components").map("schemas")
+        val journey = schemas.map("Journey")
+        val page = schemas.map("JourneyPage")
+
+        assertEquals(listOf("id", "departureAt", "arrivalAt", "transfers", "legs"), journey["required"])
+        assertTrue(journey.map("properties").containsKey("segments"))
+        assertEquals(
+            listOf("departureAt", "arrivalAt", "mode"),
+            schemas.map("JourneySegment")["required"],
+        )
+        assertEquals(
+            listOf("TRANSIT", "WALK", "BICYCLE", "CAR", "OTHER"),
+            schemas.map("JourneySegmentMode")["enum"],
+        )
+        assertEquals(listOf("items", "observedAt", "source", "realtime", "stale"), page["required"])
     }
 
     @Test

@@ -16,6 +16,7 @@
     <string name="city_catalog_offline">В офлайн-режиме показан последний доступный каталог городов.</string>
     <string name="city_experimental">Экспериментальные данные</string>
     <string name="city_unavailable">Будет позже</string>
+    <string name="city_attribution_title">Источники данных и атрибуция</string>
     <string name="continue_action">Продолжить</string>
     <string name="location_title">Использовать геопозицию</string>
     <string name="location_body">Центрировать карту и показать остановки рядом. Город можно выбрать и без геопозиции.</string>
@@ -46,6 +47,7 @@
     <string name="map_change_city_action">Сменить город</string>
     <string name="map_my_location_action">Моя геопозиция</string>
     <string name="map_selected_routes">Маршруты: %1$s</string>
+    <string name="map_attribution_title">Источники данных и атрибуция</string>
     <string name="routes_title">Маршруты</string>
     <string name="routes_subtitle">Выберите несколько маршрутов, чтобы показать их вместе на карте.</string>
     <string name="routes_back_action">Назад</string>

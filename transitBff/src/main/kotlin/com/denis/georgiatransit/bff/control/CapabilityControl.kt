@@ -344,7 +344,8 @@ private fun validateNoCapabilityExpansion(requested: CityCapabilities, intrinsic
         (requested.routeGeometry && !intrinsic.routeGeometry) ||
         (requested.vehiclePositions && !intrinsic.vehiclePositions) ||
         (requested.officialArrivals && !intrinsic.officialArrivals) ||
-        (requested.tripPlanning && !intrinsic.tripPlanning)
+        (requested.tripPlanning && !intrinsic.tripPlanning) ||
+        (requested.arrivals && !intrinsic.arrivals)
     ) {
         invalidControlDocument()
     }
@@ -357,6 +358,7 @@ private fun CityCapabilities.intersect(other: CityCapabilities): CityCapabilitie
     vehiclePositions = vehiclePositions && other.vehiclePositions,
     officialArrivals = officialArrivals && other.officialArrivals,
     tripPlanning = tripPlanning && other.tripPlanning,
+    arrivals = arrivals && other.arrivals,
 )
 
 private fun readControlDocument(path: Path): String =

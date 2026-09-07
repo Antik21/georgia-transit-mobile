@@ -21,7 +21,7 @@ Keep the control plane inside `:transitBff`. A configured operator-owned JSON
 document is polled at a bounded 5–300 second interval and decoded with strict
 unknown-key, duplicate-key, type, revision, city, source/readiness, and
 intrinsic-capability validation. The document has only normalized city IDs,
-enablement, availability metadata, and the six booleans. It never accepts a
+enablement, availability metadata, and the seven booleans. It never accepts a
 provider URL, provider DTO, credential, secret, or arbitrary metadata.
 
 An adapter defines an intrinsic `City` capability ceiling and normalized
@@ -128,7 +128,7 @@ curl -i http://127.0.0.1:8080/v1/cities
 ```
 
 Before enabling a future reviewed adapter, verify an atomic enable/disable,
-each of the six feature gates, unknown/malformed/duplicate documents,
+each of the seven feature gates, unknown/malformed/duplicate documents,
 unchanged-revision rejection, exact historical rollback, restart restoration,
 cache invalidation, cancellation/shutdown, audit redaction, and Android/iOS
 consumer behavior separately.

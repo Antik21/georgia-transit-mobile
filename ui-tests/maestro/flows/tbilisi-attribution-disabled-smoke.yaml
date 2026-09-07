@@ -1,0 +1,47 @@
+appId: com.denis.georgiatransit
+---
+# Precondition: the Debug app is configured with a BFF catalog where Tbilisi has stops=false
+# and the reviewed Transitous/OpenStreetMap attribution links. This flow intentionally never
+# selects Tbilisi for navigation: it verifies credits remain discoverable beside its disabled selector.
+- launchApp:
+    clearState: true
+- assertVisible:
+    id: city-selection.screen
+- assertVisible:
+    id: city-selection.tbilisi
+- assertVisible:
+    id: city-selection.continue
+- assertNotVisible:
+    id: city-selection.continue
+    enabled: true
+- tapOn:
+    id: city-selection.tbilisi
+- assertVisible:
+    id: city-selection.screen
+- assertNotVisible:
+    id: city-selection.continue
+    enabled: true
+- assertVisible:
+    id: city-selection.attribution.tbilisi
+- assertVisible:
+    id: city-selection.attribution.tbilisi.link.transitous
+- assertVisible:
+    id: city-selection.attribution.tbilisi.link.openstreetmap
+- tapOn:
+    id: city-selection.attribution.tbilisi.link.transitous
+- extendedWaitUntil:
+    notVisible:
+        id: city-selection.screen
+    timeout: 10000
+- launchApp:
+    clearState: true
+- assertVisible:
+    id: city-selection.screen
+- assertVisible:
+    id: city-selection.attribution.tbilisi.link.openstreetmap
+- tapOn:
+    id: city-selection.attribution.tbilisi.link.openstreetmap
+- extendedWaitUntil:
+    notVisible:
+        id: city-selection.screen
+    timeout: 10000

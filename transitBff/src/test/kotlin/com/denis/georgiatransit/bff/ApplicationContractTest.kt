@@ -18,6 +18,7 @@ import io.ktor.server.routing.routing
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.boolean
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
@@ -68,7 +69,8 @@ class ApplicationContractTest {
             "/v1/cities/demo/stops/demo:fixture:stop:center/arrivals?limit=10" to
                 setOf("items", "source", "observedAt", "stale"),
             "/v1/cities/demo/journeys?fromLat=41.715&fromLon=44.827&toLat=41.718&toLon=44.833&" +
-                "departureAt=2030-01-01T00%3A00%3A00Z&maxTransfers=0" to setOf("items", "observedAt"),
+                "departureAt=2030-01-01T00%3A00%3A00Z&maxTransfers=0" to
+                setOf("items", "observedAt", "source", "realtime", "stale"),
         )
 
         endpoints.forEach { (path, expectedKeys) ->
@@ -84,9 +86,9 @@ class ApplicationContractTest {
         }
 
         val city = client.get("/v1/cities").arrayBody().single().jsonObject
-        assertEquals(setOf("id", "name", "center", "defaultZoom", "capabilities", "availability"), city.keys)
+        assertEquals(setOf("id", "name", "center", "defaultZoom", "capabilities", "availability", "attribution"), city.keys)
         assertEquals(
-            setOf("routes", "stops", "routeGeometry", "vehiclePositions", "officialArrivals", "tripPlanning"),
+            setOf("routes", "stops", "routeGeometry", "vehiclePositions", "officialArrivals", "tripPlanning", "arrivals"),
             city.getValue("capabilities").jsonObject.keys,
         )
         assertEquals(setOf("readiness", "source"), city.getValue("availability").jsonObject.keys)
@@ -145,6 +147,9 @@ class ApplicationContractTest {
             "/v1/cities/demo/journeys?fromLat=41.715&fromLon=44.827&toLat=41.718&toLon=44.833&" +
                 "departureAt=2030-01-01T00%3A00%3A00Z&maxTransfers=0",
         ).objectBody()
+        assertEquals("SCHEDULE", journeyPage.getValue("source").jsonPrimitive.content)
+        assertFalse(journeyPage.getValue("realtime").jsonPrimitive.boolean)
+        assertFalse(journeyPage.getValue("stale").jsonPrimitive.boolean)
         val journey = journeyPage.getValue("items").jsonArray.single().jsonObject
         assertEquals(setOf("id", "departureAt", "arrivalAt", "transfers", "legs"), journey.keys)
         assertEquals(

@@ -29,9 +29,14 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.LinkAnnotation
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.intl.Locale
+import androidx.compose.ui.text.withLink
 import androidx.compose.ui.tooling.preview.Preview
 import com.denis.georgiatransit.shared.domain.model.CityId
+import com.denis.georgiatransit.shared.domain.model.LocalizedText
+import com.denis.georgiatransit.shared.domain.model.TransitAttribution
 import com.denis.georgiatransit.shared.presentation.location.LocationPermissionState
 import com.denis.georgiatransit.shared.presentation.location.LocationFailure
 import com.denis.georgiatransit.shared.presentation.location.LocationPlatformCommand
@@ -51,6 +56,7 @@ import georgiatransit.shared.generated.resources.city_catalog_loading
 import georgiatransit.shared.generated.resources.city_catalog_offline
 import georgiatransit.shared.generated.resources.city_catalog_retry
 import georgiatransit.shared.generated.resources.city_experimental
+import georgiatransit.shared.generated.resources.city_attribution_title
 import georgiatransit.shared.generated.resources.city_subtitle
 import georgiatransit.shared.generated.resources.city_title
 import georgiatransit.shared.generated.resources.city_unavailable
@@ -243,32 +249,71 @@ private fun CityRow(city: CityItemUiModel, selected: Boolean, onClick: () -> Uni
     val modifier = city.id.citySelectionAutomationId()?.let { Modifier.testTag(it) } ?: Modifier
     Card(
         modifier = modifier
-            .fillMaxWidth()
-            .selectable(
-                selected = selected,
-                enabled = city.isEnabled,
-                role = Role.RadioButton,
-                onClick = onClick,
-            ),
+            .fillMaxWidth(),
         colors = CardDefaults.cardColors(
             containerColor = if (selected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainer,
         ),
     ) {
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(TransitSpacing.Medium),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            RadioButton(selected = selected, enabled = city.isEnabled, onClick = null)
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = city.localizedName.citySelectionDisplayName(Locale.current.language, city.name),
-                    style = MaterialTheme.typography.titleMedium,
-                )
-                if (city.isExperimental) {
-                    Text(stringResource(Res.string.city_experimental), style = MaterialTheme.typography.bodyMedium)
+        Column(modifier = Modifier.fillMaxWidth()) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .selectable(
+                        selected = selected,
+                        enabled = city.isEnabled,
+                        role = Role.RadioButton,
+                        onClick = onClick,
+                    )
+                    .padding(TransitSpacing.Medium),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                RadioButton(selected = selected, enabled = city.isEnabled, onClick = null)
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = city.localizedName.citySelectionDisplayName(Locale.current.language, city.name),
+                        style = MaterialTheme.typography.titleMedium,
+                    )
+                    if (city.isExperimental) {
+                        Text(stringResource(Res.string.city_experimental), style = MaterialTheme.typography.bodyMedium)
+                    }
                 }
+                if (!city.isEnabled) Text(stringResource(Res.string.city_unavailable), style = MaterialTheme.typography.labelLarge)
             }
-            if (!city.isEnabled) Text(stringResource(Res.string.city_unavailable), style = MaterialTheme.typography.labelLarge)
+            CityAttribution(city)
+        }
+    }
+}
+
+/** Credits are not nested in the disabled city selector, so their links remain available. */
+@Composable
+private fun CityAttribution(city: CityItemUiModel) {
+    if (city.attribution.isEmpty()) return
+    val modifier = city.id.cityAttributionAutomationId()?.let(Modifier::testTag) ?: Modifier
+    Column(
+        modifier = modifier.fillMaxWidth().padding(
+            start = TransitSpacing.Medium,
+            end = TransitSpacing.Medium,
+            bottom = TransitSpacing.Medium,
+        ),
+        verticalArrangement = Arrangement.spacedBy(TransitSpacing.ExtraSmall),
+    ) {
+        Text(
+            stringResource(Res.string.city_attribution_title),
+            style = MaterialTheme.typography.labelLarge,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        city.attribution.forEach { item ->
+            val linkModifier = city.id.cityAttributionLinkAutomationId(item.id)?.let(Modifier::testTag) ?: Modifier
+            Text(
+                text = buildAnnotatedString {
+                    withLink(LinkAnnotation.Url(item.url)) {
+                        append(item.label.cityAttributionDisplayName(Locale.current.language))
+                    }
+                },
+                modifier = linkModifier,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.primary,
+            )
         }
     }
 }
@@ -280,11 +325,28 @@ private fun Preview() {
         Content(
             state = ViewState(
                 cities = listOf(
-                    CityItemUiModel(CityId("tbilisi"), "Tbilisi", true, false),
+                    CityItemUiModel(CityId("demo"), "Demo", true, false),
+                    CityItemUiModel(
+                        id = CityId("tbilisi"),
+                        name = "Tbilisi",
+                        isEnabled = false,
+                        isExperimental = false,
+                        attribution = listOf(
+                            TransitAttribution(
+                                id = "transitous",
+                                label = LocalizedText.fromLegacy("Transitous sources"),
+                                url = "https://transitous.org/sources/",
+                            ),
+                            TransitAttribution(
+                                id = "openstreetmap",
+                                label = LocalizedText.fromLegacy("© OpenStreetMap contributors (ODbL)"),
+                                url = "https://www.openstreetmap.org/copyright",
+                            ),
+                        ),
+                    ),
                     CityItemUiModel(CityId("batumi"), "Batumi", true, true),
-                    CityItemUiModel(CityId("kutaisi"), "Kutaisi", false, true),
                 ),
-                selectedCityId = CityId("tbilisi"),
+                selectedCityId = CityId("demo"),
             ),
             onAction = {},
         )

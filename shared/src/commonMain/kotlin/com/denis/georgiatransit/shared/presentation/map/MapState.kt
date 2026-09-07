@@ -1,6 +1,7 @@
 package com.denis.georgiatransit.shared.presentation.map
 
 import androidx.compose.runtime.Immutable
+import com.denis.georgiatransit.shared.domain.model.TransitAttribution
 import com.denis.georgiatransit.shared.presentation.location.LocationPlatformCommand
 import com.denis.georgiatransit.shared.presentation.location.LocationPlatformEvent
 import com.denis.georgiatransit.shared.presentation.location.LocationState
@@ -10,6 +11,7 @@ data class ViewState(
     val cityName: String = "",
     val viewport: MapViewport? = null,
     val selectedRouteNames: List<String> = emptyList(),
+    val attribution: List<TransitAttribution> = emptyList(),
     val location: LocationState = LocationState(),
 )
 

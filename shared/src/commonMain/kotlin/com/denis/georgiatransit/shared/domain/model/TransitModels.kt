@@ -50,12 +50,21 @@ data class CityCapabilities(
     val journeyPlanning: Boolean,
     val experimental: Boolean = false,
     val routes: Boolean = true,
+    /** True only when arrivals come from a city's official provider. */
+    val officialArrivals: Boolean = arrivals,
 ) {
     val routeGeometry: Boolean get() = routeShapes
     val vehiclePositions: Boolean get() = vehicles
-    val officialArrivals: Boolean get() = arrivals
     val tripPlanning: Boolean get() = journeyPlanning
 }
+
+/** A normalized attribution link shown by common UI without provider-specific types. */
+@Serializable
+data class TransitAttribution(
+    val id: String,
+    val label: LocalizedText,
+    val url: String,
+)
 
 /** [name] remains the shell display adapter; normalized values are retained alongside it. */
 @Serializable
@@ -68,6 +77,7 @@ data class TransitCity(
     val localizedName: LocalizedText = LocalizedText.fromLegacy(name),
     val defaultZoom: Double = 13.0,
     val availability: CityAvailability = CityAvailability(CityReadiness.Unreviewed, CitySource.UnreviewedAdapter),
+    val attribution: List<TransitAttribution> = emptyList(),
 )
 
 @Serializable
@@ -141,6 +151,30 @@ data class TransitJourneyLeg(
     val arrivalAt: Instant,
 )
 
+/** App-owned category for an ordered journey segment; never exposes a provider mode. */
+@Serializable
+enum class JourneySegmentMode {
+    Transit,
+    Walk,
+    Bicycle,
+    Car,
+    Other,
+}
+
+/** Full ordered itinerary; route/direction are absent when the segment is non-transit. */
+@Serializable
+data class TransitJourneySegment(
+    val departureAt: Instant,
+    val arrivalAt: Instant,
+    val mode: JourneySegmentMode,
+    val routeId: RouteId? = null,
+    val directionId: DirectionId? = null,
+    val fromStopId: StopId? = null,
+    val toStopId: StopId? = null,
+    val fromPosition: GeoPoint? = null,
+    val toPosition: GeoPoint? = null,
+)
+
 @Serializable
 data class TransitJourney(
     val id: JourneyId,
@@ -148,8 +182,16 @@ data class TransitJourney(
     val arrivalAt: Instant,
     val transfers: Int,
     val legs: List<TransitJourneyLeg>,
+    val segments: List<TransitJourneySegment> = emptyList(),
 )
 
 @Serializable data class VehiclePage(val items: List<TransitVehicle>, val observedAt: Instant, val maxAgeSeconds: Int, val stale: Boolean)
 @Serializable data class ArrivalPage(val items: List<TransitArrival>, val source: ArrivalSource, val observedAt: Instant, val stale: Boolean)
-@Serializable data class JourneyPage(val items: List<TransitJourney>, val observedAt: Instant)
+@Serializable
+data class JourneyPage(
+    val items: List<TransitJourney>,
+    val observedAt: Instant,
+    val source: ArrivalSource = ArrivalSource.Schedule,
+    val realtime: Boolean = false,
+    val stale: Boolean = false,
+)

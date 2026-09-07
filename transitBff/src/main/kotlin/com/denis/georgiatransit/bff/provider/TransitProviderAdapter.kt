@@ -34,6 +34,15 @@ interface CityTransitProviderAdapter {
     suspend fun arrivals(stopId: String, limit: Int, locale: String): RealtimeArrivals
 
     suspend fun journeys(query: JourneyQuery): List<Journey>
+
+    /** Additive realtime metadata seam; older adapters retain schedule-only journey behavior. */
+    suspend fun journeyPage(query: JourneyQuery): RealtimeJourneys = RealtimeJourneys(
+        items = journeys(query),
+        source = ArrivalSource.SCHEDULE,
+        realtime = false,
+        observedAt = Instant.now(),
+        stale = false,
+    )
 }
 
 data class RealtimeVehicles(
@@ -46,6 +55,14 @@ data class RealtimeVehicles(
 data class RealtimeArrivals(
     val items: List<Arrival>,
     val source: ArrivalSource,
+    val observedAt: Instant,
+    val stale: Boolean,
+)
+
+data class RealtimeJourneys(
+    val items: List<Journey>,
+    val source: ArrivalSource,
+    val realtime: Boolean,
     val observedAt: Instant,
     val stale: Boolean,
 )

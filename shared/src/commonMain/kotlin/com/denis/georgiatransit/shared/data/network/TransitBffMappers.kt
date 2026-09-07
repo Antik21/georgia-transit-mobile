@@ -11,15 +11,18 @@ import com.denis.georgiatransit.shared.domain.model.DirectionId
 import com.denis.georgiatransit.shared.domain.model.GeoPoint
 import com.denis.georgiatransit.shared.domain.model.JourneyId
 import com.denis.georgiatransit.shared.domain.model.JourneyPage
+import com.denis.georgiatransit.shared.domain.model.JourneySegmentMode
 import com.denis.georgiatransit.shared.domain.model.LocalizedText
 import com.denis.georgiatransit.shared.domain.model.ProviderId
 import com.denis.georgiatransit.shared.domain.model.RouteId
 import com.denis.georgiatransit.shared.domain.model.StopId
 import com.denis.georgiatransit.shared.domain.model.TransitArrival
+import com.denis.georgiatransit.shared.domain.model.TransitAttribution
 import com.denis.georgiatransit.shared.domain.model.TransitCity
 import com.denis.georgiatransit.shared.domain.model.TransitDirection
 import com.denis.georgiatransit.shared.domain.model.TransitJourney
 import com.denis.georgiatransit.shared.domain.model.TransitJourneyLeg
+import com.denis.georgiatransit.shared.domain.model.TransitJourneySegment
 import com.denis.georgiatransit.shared.domain.model.TransitMode
 import com.denis.georgiatransit.shared.domain.model.TransitRoute
 import com.denis.georgiatransit.shared.domain.model.TransitShape
@@ -32,22 +35,29 @@ import com.denis.georgiatransit.shared.domain.model.VehiclePositionKind
 import kotlin.time.Instant
 
 /** Mapping failures are converted into typed [TransitFailure.Serialization] at the client edge. */
-internal fun CityDto.toDomain(): TransitCity = TransitCity(
-    id = CityId(id.requireCityId()),
-    name = name.en,
-    center = center.toDomain(),
-    capabilities = CityCapabilities(
-        stops = capabilities.stops,
-        vehicles = capabilities.vehiclePositions,
-        arrivals = capabilities.officialArrivals,
-        routeShapes = capabilities.routeGeometry,
-        journeyPlanning = capabilities.tripPlanning,
-        routes = capabilities.routes,
-    ),
-    localizedName = name.toDomain(),
-    defaultZoom = defaultZoom.requireFinite("defaultZoom"),
-    availability = availability.toDomain(),
-)
+internal fun CityDto.toDomain(): TransitCity {
+    require(!capabilities.officialArrivals || capabilities.arrivals) {
+        "officialArrivals requires generic arrivals"
+    }
+    return TransitCity(
+        id = CityId(id.requireCityId()),
+        name = name.en,
+        center = center.toDomain(),
+        capabilities = CityCapabilities(
+            stops = capabilities.stops,
+            vehicles = capabilities.vehiclePositions,
+            arrivals = capabilities.arrivals,
+            routeShapes = capabilities.routeGeometry,
+            journeyPlanning = capabilities.tripPlanning,
+            routes = capabilities.routes,
+            officialArrivals = capabilities.officialArrivals,
+        ),
+        localizedName = name.toDomain(),
+        defaultZoom = defaultZoom.requireFinite("defaultZoom"),
+        availability = availability.toDomain(),
+        attribution = attribution.map(AttributionLinkDto::toDomain),
+    )
+}
 
 internal fun RouteDto.toDomain(cityId: CityId): TransitRoute = TransitRoute(
     id = RouteId(id.requirePublicId("route id")),
@@ -123,16 +133,54 @@ internal fun ArrivalDto.toDomain() = TransitArrival(
     source = source.toDomain(),
 )
 
-internal fun JourneyPageDto.toDomain() = JourneyPage(items.map { it.toDomain() }, observedAt.toUtcInstant("journey page observedAt"))
-internal fun JourneyDto.toDomain() = TransitJourney(
-    id = JourneyId(id.requirePublicId("journey id")),
-    departureAt = departureAt.toUtcInstant("journey departureAt"),
-    arrivalAt = arrivalAt.toUtcInstant("journey arrivalAt"),
-    transfers = transfers.also { require(it in 0..6) { "transfers is invalid" } },
-    legs = legs.map { it.toDomain() },
-)
+internal fun JourneyPageDto.toDomain(): JourneyPage {
+    require(source == ArrivalSourceDto.AggregatorRealtime || source == ArrivalSourceDto.Schedule) {
+        "journey page source is invalid"
+    }
+    require((source == ArrivalSourceDto.AggregatorRealtime) == realtime) {
+        "journey page realtime metadata is inconsistent"
+    }
+    return JourneyPage(
+        items = items.map { it.toDomain() },
+        observedAt = observedAt.toUtcInstant("journey page observedAt"),
+        source = source.toDomain(),
+        realtime = realtime,
+        stale = stale,
+    )
+}
+internal fun JourneyDto.toDomain(): TransitJourney {
+    val journeyDeparture = departureAt.toUtcInstant("journey departureAt")
+    val journeyArrival = arrivalAt.toUtcInstant("journey arrivalAt")
+    require(journeyArrival >= journeyDeparture) { "journey times are invalid" }
+    val mappedLegs = legs.map(JourneyLegDto::toDomain)
+    val mappedSegments = segments.map(JourneySegmentDto::toDomain)
+    require(mappedLegs.isNotEmpty() || mappedSegments.isNotEmpty()) { "journey has no legs or segments" }
+    val orderedSegments = mappedSegments.ifEmpty { mappedLegs.map(TransitJourneyLeg::toTransitSegment) }
+    var previousArrival = journeyDeparture
+    orderedSegments.forEach { segment ->
+        require(segment.departureAt >= journeyDeparture && segment.arrivalAt <= journeyArrival) {
+            "journey segment is outside journey bounds"
+        }
+        require(segment.arrivalAt >= segment.departureAt) { "journey segment times are invalid" }
+        require(segment.departureAt >= previousArrival) { "journey segments are not continuous" }
+        previousArrival = segment.arrivalAt
+    }
+    if (mappedSegments.isNotEmpty()) {
+        require(mappedLegs == mappedSegments.filter { it.mode == JourneySegmentMode.Transit }.map { it.toLegacyLeg() }) {
+            "legacy journey legs do not match transit segments"
+        }
+    }
+    return TransitJourney(
+        id = JourneyId(id.requirePublicId("journey id")),
+        departureAt = journeyDeparture,
+        arrivalAt = journeyArrival,
+        transfers = transfers.also { require(it in 0..6) { "transfers is invalid" } },
+        legs = mappedLegs,
+        segments = orderedSegments,
+    )
+}
 
-internal fun JourneyLegDto.toDomain() = TransitJourneyLeg(
+internal fun JourneyLegDto.toDomain(): TransitJourneyLeg = TransitJourneyLeg(
     routeId = RouteId(routeId.requirePublicId("route id")),
     directionId = DirectionId(directionId.requirePublicId("direction id")),
     fromStopId = StopId(fromStopId.requirePublicId("stop id")),
@@ -140,6 +188,59 @@ internal fun JourneyLegDto.toDomain() = TransitJourneyLeg(
     departureAt = departureAt.toUtcInstant("leg departureAt"),
     arrivalAt = arrivalAt.toUtcInstant("leg arrivalAt"),
 )
+
+internal fun JourneySegmentDto.toDomain(): TransitJourneySegment {
+    require((routeId != null) == (directionId != null)) { "journey segment route metadata is inconsistent" }
+    val normalizedMode = mode.toDomain()
+    if (normalizedMode == JourneySegmentMode.Transit) {
+        require(routeId != null && directionId != null && fromStopId != null && toStopId != null) {
+            "transit journey segment is incomplete"
+        }
+    } else {
+        require(routeId == null && directionId == null) { "non-transit journey segment has route metadata" }
+    }
+    return TransitJourneySegment(
+        departureAt = departureAt.toUtcInstant("segment departureAt"),
+        arrivalAt = arrivalAt.toUtcInstant("segment arrivalAt"),
+        mode = normalizedMode,
+        routeId = routeId?.let { RouteId(it.requirePublicId("route id")) },
+        directionId = directionId?.let { DirectionId(it.requirePublicId("direction id")) },
+        fromStopId = fromStopId?.let { StopId(it.requirePublicId("stop id")) },
+        toStopId = toStopId?.let { StopId(it.requirePublicId("stop id")) },
+        fromPosition = fromPosition?.toDomain(),
+        toPosition = toPosition?.toDomain(),
+    )
+}
+
+private fun JourneySegmentModeDto.toDomain(): JourneySegmentMode = when (this) {
+    JourneySegmentModeDto.Transit -> JourneySegmentMode.Transit
+    JourneySegmentModeDto.Walk -> JourneySegmentMode.Walk
+    JourneySegmentModeDto.Bicycle -> JourneySegmentMode.Bicycle
+    JourneySegmentModeDto.Car -> JourneySegmentMode.Car
+    JourneySegmentModeDto.Other -> JourneySegmentMode.Other
+}
+
+private fun TransitJourneyLeg.toTransitSegment(): TransitJourneySegment = TransitJourneySegment(
+    departureAt = departureAt,
+    arrivalAt = arrivalAt,
+    mode = JourneySegmentMode.Transit,
+    routeId = routeId,
+    directionId = directionId,
+    fromStopId = fromStopId,
+    toStopId = toStopId,
+)
+
+private fun TransitJourneySegment.toLegacyLeg(): TransitJourneyLeg {
+    require(mode == JourneySegmentMode.Transit) { "segment is not transit" }
+    return TransitJourneyLeg(
+        routeId = requireNotNull(routeId) { "transit segment routeId is missing" },
+        directionId = requireNotNull(directionId) { "transit segment directionId is missing" },
+        fromStopId = requireNotNull(fromStopId) { "transit segment fromStopId is missing" },
+        toStopId = requireNotNull(toStopId) { "transit segment toStopId is missing" },
+        departureAt = departureAt,
+        arrivalAt = arrivalAt,
+    )
+}
 
 internal fun ErrorDto.toFailure() = when (code) {
     ErrorCodeDto.InvalidArgument -> com.denis.georgiatransit.shared.domain.repository.TransitFailure.InvalidArgument(message, requestId)
@@ -156,6 +257,11 @@ internal fun ErrorDto.toFailure() = when (code) {
 }
 
 private fun LocalizedTextDto.toDomain() = LocalizedText(ru, en, ka)
+private fun AttributionLinkDto.toDomain() = TransitAttribution(
+    id = id.also { require(AttributionIdPattern.matches(it)) { "attribution id is invalid" } },
+    label = label.toDomain(),
+    url = url.also { require(UrlPattern.matches(it)) { "attribution url is invalid" } },
+)
 private fun GeoPointDto.toDomain() = GeoPoint(
     latitude = latitude.requireFinite("latitude").also { require(it in -90.0..90.0) { "latitude is invalid" } },
     longitude = longitude.requireFinite("longitude").also { require(it in -180.0..180.0) { "longitude is invalid" } },
@@ -215,3 +321,5 @@ private fun Int?.validRetryAfter(): Int? = takeIf { it != null && it in 1..86_40
 private const val MaxPublicIdLength = 256
 private val CityIdPattern = Regex("^[a-z][a-z0-9-]{1,31}$")
 private val PublicIdPattern = Regex("^[^:\\s]+:[^:\\s]+:[^:\\s]+:[^:\\s]+$")
+private val AttributionIdPattern = Regex("^[a-z][a-z0-9-]{0,31}$")
+private val UrlPattern = Regex("^https://[^\\s/@?#]+(?::[0-9]{1,5})?(?:/[^\\s#]*)?$")

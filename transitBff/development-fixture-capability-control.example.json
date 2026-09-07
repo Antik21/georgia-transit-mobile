@@ -14,7 +14,8 @@
         "routeGeometry": true,
         "vehiclePositions": true,
         "officialArrivals": true,
-        "tripPlanning": true
+        "tripPlanning": true,
+        "arrivals": true
       }
     }
   ]

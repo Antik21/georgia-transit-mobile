@@ -1,0 +1,22 @@
+{
+  "revision": "transitous-tbilisi-example-disabled-routing",
+  "cities": [
+    {
+      "id": "tbilisi",
+      "enabled": false,
+      "availability": {
+        "readiness": "PRODUCTION_READY",
+        "source": "REVIEWED_ADAPTER"
+      },
+      "capabilities": {
+        "routes": false,
+        "stops": false,
+        "routeGeometry": false,
+        "vehiclePositions": false,
+        "officialArrivals": false,
+        "tripPlanning": false,
+        "arrivals": true
+      }
+    }
+  ]
+}
