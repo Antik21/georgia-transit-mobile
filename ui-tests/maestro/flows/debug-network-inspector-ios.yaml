@@ -1,0 +1,39 @@
+appId: com.denis.georgiatransit
+---
+- launchApp:
+    clearState: true
+- assertVisible:
+    id: debug_network_inspector_open
+- tapOn:
+    id: debug_network_inspector_open
+- assertVisible:
+    id: debug_network_inspector_run_success
+- tapOn:
+    id: debug_network_inspector_run_success
+- extendedWaitUntil:
+    visible: Successful HTTPS smoke completed with HTTP 200.
+    timeout: 15000
+- assertVisible: GET https://example.com/
+- tapOn: GET https://example.com/
+- assertVisible: Request details
+- assertVisible: "Result, HTTP 200"
+- assertVisible: Request headers
+- assertVisible: Response headers
+- tapOn: Network inspector
+- tapOn:
+    id: debug_network_inspector_clear
+- assertNotVisible: GET https://example.com/
+- tapOn:
+    id: debug_network_inspector_run_failure
+- extendedWaitUntil:
+    visible: Controlled local failure recorded NSURLError.
+    timeout: 15000
+- assertVisible: GET https://127.0.0.1:1/den-77-controlled-failure
+- tapOn: GET https://127.0.0.1:1/den-77-controlled-failure
+- assertVisible: Request details
+- assertVisible: Result
+- assertVisible: Request headers
+- tapOn: Network inspector
+- tapOn:
+    id: debug_network_inspector_clear
+- assertNotVisible: GET https://127.0.0.1:1/den-77-controlled-failure

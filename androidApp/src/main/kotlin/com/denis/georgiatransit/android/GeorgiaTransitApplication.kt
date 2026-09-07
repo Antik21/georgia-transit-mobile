@@ -5,7 +5,7 @@ import com.denis.georgiatransit.shared.data.config.AndroidRuntimeBootstrapConfig
 import com.denis.georgiatransit.shared.data.persistence.AndroidSelectedCityStore
 import com.denis.georgiatransit.shared.di.initGeorgiaTransitKoin
 
-class GeorgiaTransitApplication : Application() {
+open class GeorgiaTransitApplication : Application() {
     override fun onCreate() {
         super.onCreate()
         initGeorgiaTransitKoin(

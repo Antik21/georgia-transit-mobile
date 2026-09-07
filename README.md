@@ -120,3 +120,7 @@ The cross-platform stable-ID scenario is in ui-tests/maestro/flows/shell-smoke.y
 ## Documentation
 
 Start with [AGENTS.md](AGENTS.md), the [toolchain](.agents/docs/01-stack-toolchain.md), [architecture boundaries](.agents/docs/02-architecture-boundaries.md), [ADR 0001](docs/adr/0001-kmp-shell.md), and [ADR 0002](docs/adr/0002-maplibre-native-and-map-assets.md).
+
+For the Debug-only Android/iOS local HTTP inspector, including smoke, clear,
+privacy, license, and Release-absence checks, see
+[network inspector development guide](docs/development/network-inspector.md).

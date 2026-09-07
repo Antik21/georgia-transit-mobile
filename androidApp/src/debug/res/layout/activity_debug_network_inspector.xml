@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:padding="24dp">
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Debug network inspector"
+        android:textAppearance="?android:attr/textAppearanceLarge" />
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:text="All entries are local to this debug build. Clear history from the Chucker screen."
+        android:textAppearance="?android:attr/textAppearanceSmall" />
+
+    <Button
+        android:id="@+id/debug_network_inspector_open_history"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="24dp"
+        android:contentDescription="debug_network_inspector_open_history"
+        android:text="Open captured requests" />
+
+    <Button
+        android:id="@+id/debug_network_inspector_run_success"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:contentDescription="debug_network_inspector_run_success"
+        android:text="Run successful HTTPS smoke" />
+
+    <Button
+        android:id="@+id/debug_network_inspector_run_failure"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:contentDescription="debug_network_inspector_run_failure"
+        android:text="Run controlled local failure" />
+
+    <TextView
+        android:id="@+id/debug_network_inspector_result"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="16dp"
+        android:contentDescription="debug_network_inspector_result"
+        android:textAppearance="?android:attr/textAppearanceMedium" />
+</LinearLayout>
