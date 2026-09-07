@@ -1,5 +1,12 @@
 <resources>
     <string name="app_name">საქართველოს ტრანსპორტი</string>
+    <string name="bootstrap_loading">ტრანსპორტის მომზადება…</string>
+    <string name="bootstrap_title">ტრანსპორტი მიუწვდომელია</string>
+    <string name="bootstrap_error_timeout">ჩატვირთვას ძალიან დიდი დრო დასჭირდა. შეამოწმეთ კავშირი და სცადეთ თავიდან.</string>
+    <string name="bootstrap_error_unavailable">ტრანსპორტის ხელმისაწვდომობის ჩატვირთვა ვერ მოხერხდა. შეამოწმეთ კავშირი და სცადეთ თავიდან.</string>
+    <string name="bootstrap_error_configuration_unavailable">გაშვების პარამეტრები მიუწვდომელია. სცადეთ თავიდან.</string>
+    <string name="bootstrap_error_configuration_invalid">გაშვების პარამეტრები არასწორია. სცადეთ თავიდან.</string>
+    <string name="bootstrap_retry">ხელახლა ცდა</string>
     <string name="city_title">აირჩიეთ ქალაქი</string>
     <string name="city_subtitle">ტრანსპორტის ხელმისაწვდომობა ქალაქის შესაძლებლობებით განისაზღვრება.</string>
     <string name="city_experimental">ექსპერიმენტული მონაცემები</string>

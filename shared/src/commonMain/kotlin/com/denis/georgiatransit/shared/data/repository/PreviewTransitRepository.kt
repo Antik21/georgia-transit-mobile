@@ -6,8 +6,11 @@ import com.denis.georgiatransit.shared.domain.model.GeoPoint
 import com.denis.georgiatransit.shared.domain.model.RouteId
 import com.denis.georgiatransit.shared.domain.model.TransitCity
 import com.denis.georgiatransit.shared.domain.model.TransitRoute
+import com.denis.georgiatransit.shared.domain.repository.SelectedCityStore
 import com.denis.georgiatransit.shared.domain.repository.TransitRepository
 import com.denis.georgiatransit.shared.domain.repository.TransitSession
+import com.denis.georgiatransit.shared.data.persistence.NoOpSelectedCityStore
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -47,7 +50,9 @@ class PreviewTransitRepository : TransitRepository {
     override fun routes(cityId: CityId): List<TransitRoute> = routeList.filter { it.cityId == cityId }
 }
 
-class RuntimeTransitSession : TransitSession {
+class RuntimeTransitSession(
+    private val selectedCityStore: SelectedCityStore = NoOpSelectedCityStore,
+) : TransitSession {
     private val mutableCity = MutableStateFlow<TransitCity?>(null)
     private val mutableRoutes = MutableStateFlow<Set<RouteId>>(emptySet())
 
@@ -57,13 +62,29 @@ class RuntimeTransitSession : TransitSession {
     override fun selectCity(city: TransitCity) {
         if (mutableCity.value?.id != city.id) clearRouteSelection()
         mutableCity.value = city
+        persistSelectedCity(city)
     }
 
     override fun selectRoutes(routeIds: Set<RouteId>) {
         mutableRoutes.value = if (mutableCity.value == null) emptySet() else routeIds.toSet()
     }
 
+    override fun clearSelectedCity() {
+        mutableCity.value = null
+        clearRouteSelection()
+    }
+
     private fun clearRouteSelection() {
         mutableRoutes.value = emptySet()
+    }
+
+    private fun persistSelectedCity(city: TransitCity) {
+        try {
+            selectedCityStore.save(city)
+        } catch (failure: CancellationException) {
+            throw failure
+        } catch (_: Throwable) {
+            // A failed cache write must not prevent the in-memory selection from opening Map.
+        }
     }
 }

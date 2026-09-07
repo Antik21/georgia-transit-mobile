@@ -1,5 +1,12 @@
 <resources>
     <string name="app_name">Транспорт Грузии</string>
+    <string name="bootstrap_loading">Подготавливаем транспорт…</string>
+    <string name="bootstrap_title">Транспорт недоступен</string>
+    <string name="bootstrap_error_timeout">Загрузка заняла слишком много времени. Проверьте подключение и повторите попытку.</string>
+    <string name="bootstrap_error_unavailable">Не удалось загрузить доступность транспорта. Проверьте подключение и повторите попытку.</string>
+    <string name="bootstrap_error_configuration_unavailable">Настройки запуска недоступны. Повторите попытку.</string>
+    <string name="bootstrap_error_configuration_invalid">Настройки запуска недействительны. Повторите попытку.</string>
+    <string name="bootstrap_retry">Повторить</string>
     <string name="city_title">Выберите город</string>
     <string name="city_subtitle">Доступность транспорта определяется возможностями каждого города.</string>
     <string name="city_experimental">Экспериментальные данные</string>

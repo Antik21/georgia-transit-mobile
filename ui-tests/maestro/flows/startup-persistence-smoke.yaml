@@ -1,0 +1,27 @@
+appId: com.denis.georgiatransit
+---
+# Establish a selected city from a cold first launch, then prove the native store hands it back
+# to the common bootstrap gate after the app process is terminated.
+- launchApp:
+    clearState: true
+- assertVisible:
+    id: city-selection.screen
+- tapOn:
+    id: city-selection.tbilisi
+- tapOn:
+    id: city-selection.continue
+- assertVisible:
+    id: map.screen
+- stopApp
+- launchApp:
+    clearState: false
+- assertVisible:
+    id: map.screen
+- tapOn:
+    id: map.routes
+- assertVisible:
+    id: routes.screen
+- tapOn:
+    id: routes.back
+- assertVisible:
+    id: map.screen

@@ -26,15 +26,19 @@ import kotlinx.serialization.modules.subclass
 import org.koin.compose.koinInject
 
 @Composable
-internal fun Navigation3AppHost() {
+internal fun Navigation3AppHost(initialDestination: Destination) {
     // App composition is the boundary where the shell obtains the shared selection session.
     val session: TransitSession = koinInject()
     val navigationEventApplier = remember(session) { SessionNavigationEventApplier(session) }
     val selectedCity by session.selectedCity.collectAsState()
     val selectedCityId = selectedCity?.id
+    val validatedInitialStack = NavigationTransitionPolicy.restore(
+        restoredStack = listOf(initialDestination),
+        selectedCityId = selectedCityId,
+    )
     val backStack = rememberNavBackStack(
         navigationSavedStateConfiguration,
-        NavigationTransitionPolicy.initialStack(selectedCityId).single(),
+        validatedInitialStack.single(),
     )
     val rawStack = backStack.toList()
     val currentStack = rawStack.filterIsInstance<Destination>()

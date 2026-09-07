@@ -16,6 +16,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
 object TransitColors {
+    /** Matches the native launch background so launch handoff has no visible seam. */
+    val LaunchBackground = Color(0xFFF7FAF9)
     val Brand = Color(0xFF2A9D8F)
     val BrandDark = Color(0xFF0B625A)
     val Accent = Color(0xFFE76F51)
