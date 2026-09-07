@@ -1,0 +1,25 @@
+appId: com.denis.georgiatransit
+---
+# Precondition: Android harness configures a prior, permanently denied foreground permission.
+- launchApp:
+    clearState: false
+    permissions:
+      all: deny
+- assertVisible:
+    id: city-selection.screen
+- assertVisible:
+    id: city-selection.location
+- tapOn:
+    id: city-selection.tbilisi
+- tapOn:
+    id: city-selection.continue
+- assertVisible:
+    id: map.screen
+- assertVisible:
+    id: map.location-settings
+- assertNotVisible:
+    id: map.user-location
+- tapOn:
+    id: map.routes
+- assertVisible:
+    id: routes.screen

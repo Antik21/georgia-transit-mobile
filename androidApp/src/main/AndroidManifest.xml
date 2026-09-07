@@ -4,9 +4,9 @@
     xmlns:tools="http://schemas.android.com/tools">
     <!-- MapLibre and the future Transit BFF require network access. The local prototype makes no requests. -->
     <uses-permission android:name="android.permission.INTERNET" />
-    <!-- Do not inherit MapLibre's optional location permissions: this app has no location feature. -->
-    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" tools:node="remove" />
-    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" tools:node="remove" />
+    <!-- Foreground-only location. No background permission or location foreground service. -->
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" tools:node="replace" />
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" tools:node="replace" />
     <application
         android:name=".GeorgiaTransitApplication"
         android:allowBackup="false"

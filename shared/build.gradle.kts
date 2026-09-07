@@ -60,6 +60,7 @@ kotlin {
             implementation(libs.ktor.serialization.json)
         }
         androidMain.dependencies {
+            implementation(libs.androidx.activity.compose)
             implementation(libs.ktor.client.okhttp)
             implementation(libs.maplibre.android)
         }

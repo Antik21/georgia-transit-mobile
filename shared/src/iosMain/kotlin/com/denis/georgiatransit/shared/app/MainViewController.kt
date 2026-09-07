@@ -7,7 +7,7 @@ import platform.UIKit.UIView
 
 fun MainViewController(
     mapViewFactory: () -> UIView,
-    updateMapView: (UIView, Double, Double, Double) -> Unit,
+    updateMapView: (UIView, Double, Double, Double, Double, Double, Double?, Double?, Double?, Int?) -> Unit,
 ): UIViewController {
     IosMapCompositionBridge.install(factory = mapViewFactory, updater = updateMapView)
     return ComposeUIViewController { App() }
