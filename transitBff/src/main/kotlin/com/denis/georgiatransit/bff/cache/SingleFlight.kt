@@ -31,11 +31,9 @@ class SingleFlight<K, V>(
     suspend fun get(key: K, loader: suspend () -> V): V {
         val deferred = synchronized(lock) {
             checkOpenLocked()
-            inFlight[key] ?: run {
-                pruneCompletedLocked()
-                checkOpenLocked()
-                inFlight[key] ?: createDeferred(key, loader)
-            }
+            pruneCompletedLocked()
+            checkOpenLocked()
+            inFlight[key] ?: createDeferred(key, loader)
         }
         return deferred.await()
     }
@@ -48,14 +46,14 @@ class SingleFlight<K, V>(
         scope.launch {
             try {
                 val value = withTimeout(lifetime.toJavaDuration().toMillis()) { loader() }
-                deferred.complete(value)
                 synchronized(lock) {
+                    deferred.complete(value)
                     if (inFlight[key] === deferred) inFlight.remove(key)
                 }
             } catch (failure: Throwable) {
                 withContext(NonCancellable) {
-                    deferred.completeExceptionally(failure)
                     synchronized(lock) {
+                        deferred.completeExceptionally(failure)
                         if (inFlight[key] === deferred) inFlight.remove(key)
                     }
                 }

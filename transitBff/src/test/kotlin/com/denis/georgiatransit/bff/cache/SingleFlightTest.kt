@@ -1,7 +1,10 @@
 package com.denis.georgiatransit.bff.cache
 
 import com.denis.georgiatransit.bff.api.SingleFlightCapacityExceeded
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
+import java.util.concurrent.atomic.AtomicReference
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineStart
@@ -16,7 +19,9 @@ import kotlinx.coroutines.withTimeout
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
+import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
+import kotlin.test.assertTrue
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
 
@@ -78,15 +83,62 @@ class SingleFlightTest {
     }
 
     @Test
-    fun `completed handoff generation remains shareable until worker cleanup`() = runTest {
-        SingleFlight<String, Int>(1.seconds).use { singleFlight ->
-            val completedGeneration = CompletableDeferred(11)
-            val inFlight = singleFlight.inFlightForTest()
-            inFlight["handoff"] = completedGeneration
+    fun `completed success and failure handoff residues start fresh generations`() = runTest {
+        SingleFlight<String, Int>(1.seconds, maximumEntries = 1).use { singleFlight ->
+            singleFlight.inFlightForTest()["handoff"] = CompletableDeferred(11)
             val replacementLoads = AtomicInteger()
 
-            assertEquals(11, singleFlight.get("handoff") { replacementLoads.incrementAndGet(); 22 })
-            assertEquals(0, replacementLoads.get())
+            assertEquals(22, singleFlight.get("handoff") { replacementLoads.incrementAndGet(); 22 })
+            assertEquals(1, replacementLoads.get())
+        }
+
+        SingleFlight<String, Int>(1.seconds, maximumEntries = 1).use { singleFlight ->
+            val failedGeneration = CompletableDeferred<Int>()
+            failedGeneration.completeExceptionally(IllegalStateException("completed failure"))
+            singleFlight.inFlightForTest()["handoff"] = failedGeneration
+            val replacementLoads = AtomicInteger()
+
+            assertEquals(33, singleFlight.get("handoff") { replacementLoads.incrementAndGet(); 33 })
+            assertEquals(1, replacementLoads.get())
+        }
+    }
+
+    @Test
+    fun `worker settlement and identity removal are atomic under the private monitor`() = runTest {
+        SingleFlight<String, Int>(1.seconds).use { singleFlight ->
+            val loaderStarted = CompletableDeferred<Unit>()
+            val allowLoaderReturn = CompletableDeferred<Unit>()
+            val loaderReturning = CountDownLatch(1)
+            val workerThread = AtomicReference<Thread>()
+            val loads = AtomicInteger()
+            val first = async {
+                singleFlight.get("atomic") {
+                    loads.incrementAndGet()
+                    workerThread.set(Thread.currentThread())
+                    loaderStarted.complete(Unit)
+                    allowLoaderReturn.await()
+                    loaderReturning.countDown()
+                    41
+                }
+            }
+            loaderStarted.await()
+
+            val lock = singleFlight.lockForTest()
+            synchronized(lock) {
+                allowLoaderReturn.complete(Unit)
+                assertTrue(loaderReturning.await(2, TimeUnit.SECONDS), "loader did not return")
+                val deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(2)
+                while (workerThread.get().state != Thread.State.BLOCKED && System.nanoTime() < deadline) {
+                    Thread.onSpinWait()
+                }
+                assertEquals(Thread.State.BLOCKED, workerThread.get().state)
+                val generation = assertNotNull(singleFlight.inFlightForTest()["atomic"])
+                assertFalse(generation.isCompleted, "result became visible before identity removal")
+            }
+
+            assertEquals(41, first.await())
+            assertEquals(42, singleFlight.get("atomic") { loads.incrementAndGet(); 42 })
+            assertEquals(2, loads.get())
         }
     }
 
@@ -209,4 +261,10 @@ private fun <K, V> SingleFlight<K, V>.inFlightForTest(): MutableMap<K, kotlinx.c
     val field = SingleFlight::class.java.getDeclaredField("inFlight")
     field.isAccessible = true
     return assertNotNull(field.get(this) as? MutableMap<K, kotlinx.coroutines.Deferred<V>>)
+}
+
+private fun SingleFlight<*, *>.lockForTest(): Any {
+    val field = SingleFlight::class.java.getDeclaredField("lock")
+    field.isAccessible = true
+    return assertNotNull(field.get(this))
 }
