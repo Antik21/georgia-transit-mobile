@@ -1,5 +1,12 @@
 <resources>
     <string name="app_name">Georgia Transit</string>
+    <string name="bootstrap_loading">Preparing transit…</string>
+    <string name="bootstrap_title">Transit is unavailable</string>
+    <string name="bootstrap_error_timeout">Loading took too long. Check your connection and try again.</string>
+    <string name="bootstrap_error_unavailable">We could not load transit availability. Check your connection and try again.</string>
+    <string name="bootstrap_error_configuration_unavailable">Startup settings are unavailable. Try again.</string>
+    <string name="bootstrap_error_configuration_invalid">Startup settings are invalid. Try again.</string>
+    <string name="bootstrap_retry">Try again</string>
     <string name="city_title">Choose a city</string>
     <string name="city_subtitle">Transit availability is controlled by each city’s capabilities.</string>
     <string name="city_experimental">Experimental data</string>

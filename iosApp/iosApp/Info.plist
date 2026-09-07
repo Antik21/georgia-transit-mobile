@@ -23,6 +23,9 @@
     <key>NSLocationWhenInUseUsageDescription</key>
     <string>Georgia Transit uses your location to center the map and show nearby transit stops.</string>
     <key>UILaunchScreen</key>
-    <dict />
+    <dict>
+        <key>UIColorName</key>
+        <string>LaunchBackground</string>
+    </dict>
 </dict>
 </plist>

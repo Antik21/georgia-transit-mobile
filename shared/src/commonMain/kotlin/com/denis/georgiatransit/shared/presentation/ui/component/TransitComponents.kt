@@ -72,6 +72,7 @@ fun ErrorState(
     message: String? = null,
     retryLabel: String? = null,
     onRetry: (() -> Unit)? = null,
+    retryModifier: Modifier = Modifier,
 ) {
     StateMessage(
         title = title,
@@ -79,6 +80,7 @@ fun ErrorState(
         modifier = modifier,
         actionLabel = retryLabel,
         onAction = onRetry,
+        actionModifier = retryModifier,
     )
 }
 
@@ -89,6 +91,7 @@ private fun StateMessage(
     modifier: Modifier,
     actionLabel: String?,
     onAction: (() -> Unit)?,
+    actionModifier: Modifier = Modifier,
 ) {
     Column(
         modifier = modifier
@@ -109,7 +112,7 @@ private fun StateMessage(
         if (actionLabel != null && onAction != null) {
             Button(
                 onClick = onAction,
-                modifier = Modifier.fillMaxWidth(),
+                modifier = actionModifier.fillMaxWidth(),
             ) {
                 Text(actionLabel)
             }

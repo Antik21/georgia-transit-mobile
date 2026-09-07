@@ -1,6 +1,9 @@
 package com.denis.georgiatransit.shared.presentation.ui.automation
 
 object AutomationId {
+    const val SplashLoading = "splash.loading"
+    const val SplashError = "splash.error"
+    const val SplashRetry = "splash.retry"
     const val CityScreen = "city-selection.screen"
     const val CityTbilisi = "city-selection.tbilisi"
     const val CityBatumi = "city-selection.batumi"

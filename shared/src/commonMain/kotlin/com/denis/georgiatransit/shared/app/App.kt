@@ -10,7 +10,6 @@ import com.denis.georgiatransit.shared.presentation.ui.theme.GeorgiaTransitTheme
 @Composable
 fun App() {
     GeorgiaTransitTheme {
-        Box(Modifier.fillMaxSize().enableAutomationResourceIds()) { Navigation3AppHost() }
+        Box(Modifier.fillMaxSize().enableAutomationResourceIds()) { BootstrapAppHost() }
     }
 }
-
