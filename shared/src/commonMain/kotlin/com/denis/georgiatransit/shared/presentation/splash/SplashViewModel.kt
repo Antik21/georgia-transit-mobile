@@ -10,7 +10,7 @@ import org.orbitmvi.orbit.container
 class SplashViewModel(
     private val bootstrapTransitSession: BootstrapTransitSession,
 ) : ViewModel(), ContainerHost<ViewState, Nothing> {
-    private var bootstrapInProgress = false
+    private val bootstrapGate = BootstrapGate()
 
     override val container: Container<ViewState, Nothing> = viewModelScope.container(
         initialState = ViewState.Loading,
@@ -23,22 +23,23 @@ class SplashViewModel(
         }
     }
 
-    private fun bootstrap() = intent {
-        if (bootstrapInProgress) return@intent
-
-        bootstrapInProgress = true
-        reduce { ViewState.Loading }
-        try {
-            val result = bootstrapTransitSession.bootstrap()
-            reduce {
-                when (result) {
-                    BootstrapTransitSession.Result.OpenCitySelection -> ViewState.Ready(Destination.CitySelection)
-                    BootstrapTransitSession.Result.OpenMap -> ViewState.Ready(Destination.Map)
-                    is BootstrapTransitSession.Result.Error -> ViewState.Error(result.failure)
+    private fun bootstrap() {
+        // Calls may race across threads, so atomically claim the gate before enqueuing an intent.
+        if (!bootstrapGate.tryClaim()) return
+        intent {
+            try {
+                reduce { ViewState.Loading }
+                val result = bootstrapTransitSession.bootstrap()
+                reduce {
+                    when (result) {
+                        BootstrapTransitSession.Result.OpenCitySelection -> ViewState.Ready(Destination.CitySelection)
+                        BootstrapTransitSession.Result.OpenMap -> ViewState.Ready(Destination.Map)
+                        is BootstrapTransitSession.Result.Error -> ViewState.Error(result.failure)
+                    }
                 }
+            } finally {
+                bootstrapGate.release()
             }
-        } finally {
-            bootstrapInProgress = false
         }
     }
 }
