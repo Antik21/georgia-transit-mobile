@@ -29,11 +29,16 @@ class RuntimeLocationSession(
         val compatibleFix = current.fix?.takeIf {
             permission is LocationPermissionState.Granted && permission.precision == it.precision
         }
+        val preservedFailure = current.failure.takeIf {
+            current.permission is LocationPermissionState.Granted &&
+                permission is LocationPermissionState.Granted &&
+                current.permission.precision == permission.precision
+        }
         mutableState.value = current.copy(
             permission = permission,
             fix = compatibleFix,
             isLocating = current.isLocating && permission is LocationPermissionState.Granted,
-            failure = null,
+            failure = preservedFailure,
             activeRequestId = current.activeRequestId.takeIf { permission is LocationPermissionState.Granted },
         )
         if (compatibleFix == null) cancelExpiry()

@@ -225,6 +225,53 @@ class CitySelectionViewModelTest {
         }
     }
 
+    @Test
+    fun grantedResumeAfterFailureWaitsForExplicitRetry() = runTest {
+        val repository = PreviewTransitRepository()
+        val locationSession = testLocationSession().also { session ->
+            session.updatePermission(PRECISE)
+            val failedRequest = session.nextCommandId()
+            assertTrue(session.beginLocationRequest(failedRequest))
+            session.fail(failedRequest, LocationFailure.TimedOut)
+        }
+        val viewModel = CitySelectionViewModel(repository, RuntimeTransitSession(), locationSession)
+
+        viewModel.test(this) {
+            runOnCreate()
+            this@runTest.runCurrent()
+            expectState(ViewState(cities = repository.cityItems(), location = locationSession.state.value))
+
+            viewModel.dispatchAction(Action.LocationEventReceived(LocationPlatformEvent.PermissionChanged(PRECISE)))
+            this@runTest.runCurrent()
+
+            assertEquals(LocationFailure.TimedOut, locationSession.state.value.failure)
+            assertEquals(LocationFailure.TimedOut, viewModel.container.stateFlow.value.location.failure)
+            assertNull(locationSession.state.value.activeRequestId)
+            assertFalse(locationSession.state.value.isLocating)
+            expectNoItems()
+
+            viewModel.dispatchAction(Action.LocationEventReceived(LocationPlatformEvent.PermissionChanged(PRECISE)))
+            this@runTest.runCurrent()
+
+            assertEquals(LocationFailure.TimedOut, locationSession.state.value.failure)
+            assertEquals(LocationFailure.TimedOut, viewModel.container.stateFlow.value.location.failure)
+            assertNull(locationSession.state.value.activeRequestId)
+            assertFalse(locationSession.state.value.isLocating)
+            expectNoItems()
+
+            viewModel.dispatchAction(Action.LocationClicked)
+            this@runTest.runCurrent()
+            val retry = awaitLocationCommand()
+
+            assertTrue(retry is LocationPlatformCommand.RequestLocation)
+            assertEquals(retry.id, locationSession.state.value.activeRequestId)
+            assertTrue(locationSession.state.value.isLocating)
+            assertNull(locationSession.state.value.failure)
+            assertNull(viewModel.container.stateFlow.value.location.failure)
+            cancelAndIgnoreRemainingItems()
+        }
+    }
+
     private fun TestScope.testLocationSession() = RuntimeLocationSession(
         scope = this,
         nowMillis = { NOW_MILLIS + testScheduler.currentTime },

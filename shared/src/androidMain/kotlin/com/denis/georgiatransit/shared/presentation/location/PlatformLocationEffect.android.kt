@@ -92,10 +92,10 @@ actual fun PlatformLocationEffect(
                 onEvent = currentOnEvent.value,
             )
             is LocationPlatformCommand.OpenAppSettings -> if (!adapter.openAppSettings()) {
-                currentOnEvent.value(LocationPlatformEvent.PermissionChanged(LocationPermissionState.Error(false)))
+                currentOnEvent.value(LocationPlatformEvent.PermissionChanged(LocationPermissionState.Error(true)))
             }
             is LocationPlatformCommand.OpenLocationSettings -> if (!adapter.openLocationSettings()) {
-                currentOnEvent.value(LocationPlatformEvent.PermissionChanged(LocationPermissionState.Error(false)))
+                currentOnEvent.value(LocationPlatformEvent.PermissionChanged(LocationPermissionState.Error(true)))
             }
         }
         onCommandConsumed()
@@ -237,7 +237,6 @@ private class AndroidLocationAdapter(
 
     private fun launchSettings(intent: Intent): Boolean = try {
         intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        if (intent.resolveActivity(context.packageManager) == null) return false
         context.startActivity(intent)
         true
     } catch (_: RuntimeException) {

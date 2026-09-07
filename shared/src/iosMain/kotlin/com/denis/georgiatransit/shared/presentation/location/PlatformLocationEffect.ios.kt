@@ -84,7 +84,7 @@ actual fun PlatformLocationEffect(
             is LocationPlatformCommand.OpenAppSettings,
             is LocationPlatformCommand.OpenLocationSettings,
             -> if (!adapter.openSettings()) {
-                currentOnEvent.value(LocationPlatformEvent.PermissionChanged(LocationPermissionState.Error(false)))
+                currentOnEvent.value(LocationPlatformEvent.PermissionChanged(LocationPermissionState.Error(true)))
             }
         }
         onCommandConsumed()

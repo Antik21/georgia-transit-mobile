@@ -209,6 +209,56 @@ class MapViewModelTest {
         }
     }
 
+    @Test
+    fun grantedResumeAfterFailureWaitsForExplicitMyLocationRetry() = runTest {
+        val repository = PreviewTransitRepository()
+        val transitSession = RuntimeTransitSession().also {
+            it.selectCity(repository.cities().first { city -> city.id.value == "tbilisi" })
+        }
+        val locationSession = testLocationSession().also { session ->
+            session.updatePermission(PRECISE)
+            val failedRequest = session.nextCommandId()
+            assertTrue(session.beginLocationRequest(failedRequest))
+            session.fail(failedRequest, LocationFailure.TimedOut)
+        }
+        val viewModel = MapViewModel(repository, transitSession, locationSession)
+
+        viewModel.test(this) {
+            runOnCreate()
+            this@runTest.runCurrent()
+            expectState(expectedCityState(repository, transitSession, locationSession))
+
+            viewModel.dispatchAction(Action.LocationEventReceived(LocationPlatformEvent.PermissionChanged(PRECISE)))
+            this@runTest.runCurrent()
+
+            assertEquals(LocationFailure.TimedOut, locationSession.state.value.failure)
+            assertEquals(LocationFailure.TimedOut, viewModel.container.stateFlow.value.location.failure)
+            assertNull(locationSession.state.value.activeRequestId)
+            assertFalse(locationSession.state.value.isLocating)
+            expectNoItems()
+
+            viewModel.dispatchAction(Action.LocationEventReceived(LocationPlatformEvent.PermissionChanged(PRECISE)))
+            this@runTest.runCurrent()
+
+            assertEquals(LocationFailure.TimedOut, locationSession.state.value.failure)
+            assertEquals(LocationFailure.TimedOut, viewModel.container.stateFlow.value.location.failure)
+            assertNull(locationSession.state.value.activeRequestId)
+            assertFalse(locationSession.state.value.isLocating)
+            expectNoItems()
+
+            viewModel.dispatchAction(Action.MyLocationClicked)
+            this@runTest.runCurrent()
+            val retry = awaitLocationCommand()
+
+            assertTrue(retry is LocationPlatformCommand.RequestLocation)
+            assertEquals(retry.id, locationSession.state.value.activeRequestId)
+            assertTrue(locationSession.state.value.isLocating)
+            assertNull(locationSession.state.value.failure)
+            assertNull(viewModel.container.stateFlow.value.location.failure)
+            cancelAndIgnoreRemainingItems()
+        }
+    }
+
     private suspend fun TestScope.assertMyLocationCommand(
         permission: LocationPermissionState,
         expectedType: kotlin.reflect.KClass<out LocationPlatformCommand>,

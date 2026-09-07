@@ -83,6 +83,7 @@ class MapViewModel(
                 val location = locationSession.state.value
                 if (
                     event.permission is LocationPermissionState.Granted &&
+                    location.failure == null &&
                     location.fix == null &&
                     location.activeRequestId == null
                 ) {
