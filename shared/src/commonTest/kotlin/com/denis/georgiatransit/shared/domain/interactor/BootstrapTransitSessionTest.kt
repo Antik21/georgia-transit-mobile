@@ -26,11 +26,13 @@ class BootstrapTransitSessionTest {
     fun firstLaunchWithoutCacheOpensCitySelection() = runTest {
         val store = FakeSelectedCityStore()
         val session = RuntimeTransitSession(store)
+        val repository = FakeRepository(cities = listOf(city("tbilisi")))
 
-        val result = bootstrap(store = store, session = session).bootstrap()
+        val result = bootstrap(store = store, session = session, repository = repository).bootstrap()
 
         assertEquals(BootstrapTransitSession.Result.OpenCitySelection, result)
         assertNull(session.selectedCity.value)
+        assertEquals(0, repository.snapshotCalls)
     }
 
     @Test
@@ -39,10 +41,12 @@ class BootstrapTransitSessionTest {
         val refreshed = city("tbilisi", name = "Tbilisi")
         val store = FakeSelectedCityStore(snapshot = CachedCitySnapshot(city = cached))
         val session = RuntimeTransitSession(store)
+        val repository = FakeRepository(cities = listOf(cached))
 
         val result = bootstrap(
             store = store,
             session = session,
+            repository = repository,
             cities = listOf(refreshed),
         ).bootstrap()
 
@@ -50,6 +54,7 @@ class BootstrapTransitSessionTest {
         assertEquals(refreshed, session.selectedCity.value)
         assertEquals(refreshed, store.savedCities.single())
         assertEquals(0, store.clearCalls)
+        assertEquals(1, repository.snapshotCalls)
     }
 
     @Test
@@ -124,22 +129,17 @@ class BootstrapTransitSessionTest {
     }
 
     @Test
-    fun repositoryTimeoutAndExceptionWithoutCacheProduceRetryableFailures() = runTest {
-        val timeoutResult = bootstrap(
-            repository = FakeRepository(loadSnapshot = { delay(RuntimeBootstrapConfiguration.default.bootstrapTimeoutMillis + 1) }),
-        ).bootstrap()
-        val unavailableResult = bootstrap(
-            repository = FakeRepository(loadSnapshot = { throw IllegalStateException("BFF unavailable") }),
-        ).bootstrap()
-
-        assertEquals(
-            BootstrapTransitSession.Result.Error(BootstrapTransitSession.Failure.TimedOut),
-            timeoutResult,
-        )
-        assertEquals(
-            BootstrapTransitSession.Result.Error(BootstrapTransitSession.Failure.Unavailable),
-            unavailableResult,
-        )
+    fun firstLaunchDoesNotMaskCatalogFailureInSplash() = runTest {
+        listOf(
+            FakeRepository(loadSnapshot = { delay(RuntimeBootstrapConfiguration.default.bootstrapTimeoutMillis + 1) }),
+            FakeRepository(loadSnapshot = { throw IllegalStateException("BFF unavailable") }),
+        ).forEach { repository ->
+            assertEquals(
+                BootstrapTransitSession.Result.OpenCitySelection,
+                bootstrap(repository = repository).bootstrap(),
+            )
+            assertEquals(0, repository.snapshotCalls)
+        }
     }
 
     @Test
@@ -188,6 +188,7 @@ class BootstrapTransitSessionTest {
         assertCancellationRethrown {
             bootstrap(
                 repository = FakeRepository(loadSnapshot = { throw CancellationException("repository cancelled") }),
+                store = FakeSelectedCityStore(snapshot = CachedCitySnapshot(city = city("tbilisi"))),
             ).bootstrap()
         }
         assertCancellationRethrown {
@@ -238,13 +239,16 @@ class BootstrapTransitSessionTest {
         session: RuntimeTransitSession = RuntimeTransitSession(store),
         repository: FakeRepository = FakeRepository(cities = listOf(city("tbilisi"))),
         configurationSource: RuntimeBootstrapConfigurationSource = FakeConfigurationSource { RuntimeBootstrapConfiguration.default },
-        cities: List<TransitCity> = repository.cities(),
-    ): BootstrapTransitSession = BootstrapTransitSession(
-        repository = repository.copy(cities = cities),
-        session = session,
-        selectedCityStore = store,
-        runtimeConfigurationSource = configurationSource,
-    )
+        cities: List<TransitCity>? = null,
+    ): BootstrapTransitSession {
+        if (cities != null) repository.cities = cities
+        return BootstrapTransitSession(
+            repository = repository,
+            session = session,
+            selectedCityStore = store,
+            runtimeConfigurationSource = configurationSource,
+        )
+    }
 
     private suspend fun assertCancellationRethrown(block: suspend () -> Unit) {
         try {
@@ -272,13 +276,17 @@ class BootstrapTransitSessionTest {
         override suspend fun load(): RuntimeBootstrapConfiguration? = loadConfiguration()
     }
 
-    private data class FakeRepository(
-        val cities: List<TransitCity> = emptyList(),
+    private class FakeRepository(
+        var cities: List<TransitCity> = emptyList(),
         val loadSnapshot: suspend () -> Unit = {},
     ) : TransitRepository {
+        var snapshotCalls = 0
+            private set
+
         override fun cities(): List<TransitCity> = cities
 
         override suspend fun loadCityCapabilitySnapshot(): List<TransitCity> {
+            snapshotCalls += 1
             loadSnapshot()
             return cities
         }

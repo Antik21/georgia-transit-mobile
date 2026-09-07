@@ -27,13 +27,19 @@ class BootstrapTransitSession(
         }
         val cachedCity = readValidCachedCity(runtimeConfiguration)
 
+        // A first selection owns its catalog request so it can represent loading, empty, and
+        // retryable failures in the City Selection UI instead of collapsing them into Splash.
+        // Bootstrap only validates a durable selection when one is available to restore.
+        if (cachedCity == null) {
+            session.clearSelectedCity()
+            return Result.OpenCitySelection
+        }
+
         return try {
             val currentCities = withTimeout(runtimeConfiguration.bootstrapTimeoutMillis) {
                 repository.loadCityCapabilitySnapshot()
             }
-            val currentCity = cachedCity?.let { cached ->
-                currentCities.firstOrNull { it.id == cached.id && it.isMapEligible() }
-            }
+            val currentCity = currentCities.firstOrNull { it.id == cachedCity.id && it.isMapEligible() }
 
             if (currentCity != null) {
                 session.selectCity(currentCity)

@@ -9,6 +9,11 @@
     <string name="bootstrap_retry">Try again</string>
     <string name="city_title">Choose a city</string>
     <string name="city_subtitle">Transit availability is controlled by each city’s capabilities.</string>
+    <string name="city_catalog_loading">Loading city availability…</string>
+    <string name="city_catalog_empty">No cities are available right now.</string>
+    <string name="city_catalog_error">We could not load the city catalogue.</string>
+    <string name="city_catalog_retry">Try again</string>
+    <string name="city_catalog_offline">Showing the last available city catalogue while offline.</string>
     <string name="city_experimental">Experimental data</string>
     <string name="city_unavailable">Coming later</string>
     <string name="continue_action">Continue</string>

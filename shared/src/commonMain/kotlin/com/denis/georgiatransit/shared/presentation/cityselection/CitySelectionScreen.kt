@@ -1,12 +1,12 @@
 package com.denis.georgiatransit.shared.presentation.cityselection
 
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Button
@@ -23,21 +23,33 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.semantics.disabled
-import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.intl.Locale
 import androidx.compose.ui.tooling.preview.Preview
 import com.denis.georgiatransit.shared.domain.model.CityId
-import com.denis.georgiatransit.shared.presentation.ui.automation.AutomationId
 import com.denis.georgiatransit.shared.presentation.location.LocationPermissionState
 import com.denis.georgiatransit.shared.presentation.location.LocationFailure
 import com.denis.georgiatransit.shared.presentation.location.LocationPlatformCommand
 import com.denis.georgiatransit.shared.presentation.location.LocationPrecision
 import com.denis.georgiatransit.shared.presentation.location.LocationState
 import com.denis.georgiatransit.shared.presentation.location.PlatformLocationEffect
+import com.denis.georgiatransit.shared.presentation.ui.automation.AutomationId
+import com.denis.georgiatransit.shared.presentation.ui.component.EmptyState
+import com.denis.georgiatransit.shared.presentation.ui.component.ErrorState
+import com.denis.georgiatransit.shared.presentation.ui.component.LoadingState
 import com.denis.georgiatransit.shared.presentation.ui.theme.GeorgiaTransitTheme
 import com.denis.georgiatransit.shared.presentation.ui.theme.TransitSpacing
 import georgiatransit.shared.generated.resources.Res
+import georgiatransit.shared.generated.resources.city_catalog_empty
+import georgiatransit.shared.generated.resources.city_catalog_error
+import georgiatransit.shared.generated.resources.city_catalog_loading
+import georgiatransit.shared.generated.resources.city_catalog_offline
+import georgiatransit.shared.generated.resources.city_catalog_retry
 import georgiatransit.shared.generated.resources.city_experimental
 import georgiatransit.shared.generated.resources.city_subtitle
 import georgiatransit.shared.generated.resources.city_title
@@ -94,8 +106,70 @@ private fun Content(state: ViewState, onAction: (Action) -> Unit) {
         modifier = Modifier.fillMaxSize().testTag(AutomationId.CityScreen).padding(TransitSpacing.Large),
         verticalArrangement = Arrangement.spacedBy(TransitSpacing.Medium),
     ) {
-        Text(stringResource(Res.string.city_title), style = MaterialTheme.typography.headlineSmall)
+        Text(
+            text = stringResource(Res.string.city_title),
+            modifier = Modifier.semantics { heading() },
+            style = MaterialTheme.typography.headlineSmall,
+        )
         Text(stringResource(Res.string.city_subtitle), color = MaterialTheme.colorScheme.onSurfaceVariant)
+        when (val catalog = state.catalog) {
+            CityCatalogState.Loading -> LoadingState(
+                message = stringResource(Res.string.city_catalog_loading),
+                modifier = Modifier.weight(1f).testTag(AutomationId.CityLoading),
+            )
+
+            is CityCatalogState.Populated -> CityList(
+                state = state,
+                isStaleOffline = catalog.freshness == com.denis.georgiatransit.shared.domain.repository.TransitFreshness.StaleOffline,
+                onAction = onAction,
+                modifier = Modifier.weight(1f),
+            )
+
+            is CityCatalogState.Empty -> EmptyState(
+                title = stringResource(Res.string.city_catalog_empty),
+                message = stringResource(Res.string.city_catalog_offline)
+                    .takeIf { catalog.freshness == com.denis.georgiatransit.shared.domain.repository.TransitFreshness.StaleOffline },
+                actionLabel = stringResource(Res.string.city_catalog_retry),
+                onAction = { onAction(Action.RetryClicked) },
+                actionModifier = Modifier.testTag(AutomationId.CityRetry),
+                modifier = Modifier.weight(1f).testTag(AutomationId.CityEmpty),
+            )
+
+            is CityCatalogState.RetryableError -> ErrorState(
+                title = stringResource(Res.string.city_catalog_error),
+                retryLabel = stringResource(Res.string.city_catalog_retry),
+                onRetry = { onAction(Action.RetryClicked) },
+                retryModifier = Modifier.testTag(AutomationId.CityRetry),
+                modifier = Modifier.weight(1f).testTag(AutomationId.CityError),
+            )
+        }
+        LocationCard(state.location, onClick = { onAction(Action.LocationClicked) })
+        Button(
+            onClick = { onAction(Action.ContinueClicked) },
+            enabled = state.canContinue,
+            modifier = Modifier.fillMaxWidth().testTag(AutomationId.CityContinue),
+        ) { Text(stringResource(Res.string.continue_action)) }
+    }
+}
+
+@Composable
+private fun CityList(
+    state: ViewState,
+    isStaleOffline: Boolean,
+    onAction: (Action) -> Unit,
+    modifier: Modifier,
+) {
+    Column(modifier = modifier) {
+        if (isStaleOffline) {
+            Text(
+                text = stringResource(Res.string.city_catalog_offline),
+                modifier = Modifier
+                    .testTag(AutomationId.CityStaleOffline)
+                    .semantics { liveRegion = LiveRegionMode.Polite },
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                style = MaterialTheme.typography.bodyMedium,
+            )
+        }
         LazyColumn(
             modifier = Modifier.weight(1f),
             verticalArrangement = Arrangement.spacedBy(TransitSpacing.Small),
@@ -108,12 +182,6 @@ private fun Content(state: ViewState, onAction: (Action) -> Unit) {
                 )
             }
         }
-        LocationCard(state.location, onClick = { onAction(Action.LocationClicked) })
-        Button(
-            onClick = { onAction(Action.ContinueClicked) },
-            enabled = state.selectedCityId != null,
-            modifier = Modifier.fillMaxWidth().testTag(AutomationId.CityContinue),
-        ) { Text(stringResource(Res.string.continue_action)) }
     }
 }
 
@@ -172,14 +240,16 @@ private fun LocationCard(location: LocationState, onClick: () -> Unit) {
 
 @Composable
 private fun CityRow(city: CityItemUiModel, selected: Boolean, onClick: () -> Unit) {
-    val tag = when (city.id.value) {
-        "tbilisi" -> AutomationId.CityTbilisi
-        "batumi" -> AutomationId.CityBatumi
-        else -> "city-selection.${city.id.value}"
-    }
+    val modifier = city.id.citySelectionAutomationId()?.let { Modifier.testTag(it) } ?: Modifier
     Card(
-        modifier = Modifier.fillMaxWidth().testTag(tag)
-            .then(if (city.isEnabled) Modifier.clickable(onClick = onClick) else Modifier.semantics { disabled() }),
+        modifier = modifier
+            .fillMaxWidth()
+            .selectable(
+                selected = selected,
+                enabled = city.isEnabled,
+                role = Role.RadioButton,
+                onClick = onClick,
+            ),
         colors = CardDefaults.cardColors(
             containerColor = if (selected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainer,
         ),
@@ -188,9 +258,12 @@ private fun CityRow(city: CityItemUiModel, selected: Boolean, onClick: () -> Uni
             modifier = Modifier.fillMaxWidth().padding(TransitSpacing.Medium),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            RadioButton(selected = selected, enabled = city.isEnabled, onClick = if (city.isEnabled) onClick else null)
+            RadioButton(selected = selected, enabled = city.isEnabled, onClick = null)
             Column(modifier = Modifier.weight(1f)) {
-                Text(city.name, style = MaterialTheme.typography.titleMedium)
+                Text(
+                    text = city.localizedName.citySelectionDisplayName(Locale.current.language, city.name),
+                    style = MaterialTheme.typography.titleMedium,
+                )
                 if (city.isExperimental) {
                     Text(stringResource(Res.string.city_experimental), style = MaterialTheme.typography.bodyMedium)
                 }

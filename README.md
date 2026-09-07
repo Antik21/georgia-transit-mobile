@@ -51,17 +51,17 @@ end at the splash retry state. The configuration source itself has a separate,
 trusted one-second guard before those loaded settings are accepted; it cannot be
 extended by an invalid configuration value.
 
-With valid settings, bootstrap loads the repository's current city/capability
-snapshot and validates the platform-stored selected-city snapshot. Android
-stores the full city record (including its capabilities) in `SharedPreferences`;
-iOS stores the same record in `NSUserDefaults`. A first launch,
-removed/disabled city, malformed cache, or incompatible schema opens City
-Selection. A matching current city opens Map and refreshes its cached snapshot.
-If snapshot loading fails or times out, only a structurally valid, enabled
-cached city can open Map offline; otherwise the splash presents an accessible
-retry state instead of remaining indefinitely loading. Read/write/clear storage
-failures degrade only durable restoration: they cannot block the current City
-Selection or Map transition.
+With valid settings, bootstrap validates the platform-stored selected-city
+snapshot. Android stores the full city record (including its capabilities) in
+`SharedPreferences`; iOS stores the same record in `NSUserDefaults`. A first
+launch, removed/disabled city, malformed cache, or incompatible schema opens
+City Selection directly. City Selection owns the initial `/v1/cities` refresh
+and exposes loading, empty, retryable-error, and stale-offline states without
+turning a first-choice catalogue failure into a Splash error. A matching cached
+city is revalidated against the current snapshot before Map opens; if that
+refresh fails or times out, only a structurally valid, enabled cached city can
+open Map offline. Read/write/clear storage failures degrade only durable
+restoration: they cannot block the current City Selection or Map transition.
 
 Verify startup explicitly on both platforms:
 
