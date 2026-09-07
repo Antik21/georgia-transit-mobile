@@ -1,0 +1,21 @@
+{
+  "revision": "development-fixture-20260907-1",
+  "cities": [
+    {
+      "id": "demo",
+      "enabled": true,
+      "availability": {
+        "readiness": "DEVELOPMENT_FIXTURE",
+        "source": "FIXTURE"
+      },
+      "capabilities": {
+        "routes": true,
+        "stops": true,
+        "routeGeometry": true,
+        "vehiclePositions": true,
+        "officialArrivals": true,
+        "tripPlanning": true
+      }
+    }
+  ]
+}

@@ -91,11 +91,26 @@ No mobile app calls a provider directly.
 The only currently included adapter is an unmistakably synthetic `demo` city.
 It is enabled only with both `BFF_MODE=development` and
 `BFF_FIXTURES_ENABLED=true`; it is useful for local contract development, but
-is not real provider readiness. Kutaisi and Batumi are absent until configured
-adapters are reviewed; an absent city returns `CITY_NOT_FOUND`. Trip planning
-is capability-gated for every configured city. In `production`, fixtures are
-rejected and startup fails closed because this repository does not yet contain
-a reviewed real provider adapter.
+is not real provider readiness. `/v1/cities` labels it
+`DEVELOPMENT_FIXTURE`/`FIXTURE` and always returns all six granular capability
+booleans. Kutaisi and Batumi are absent until configured adapters are reviewed;
+an absent city returns `CITY_NOT_FOUND`. Trip planning is capability-gated for
+every configured city. In `production`, fixtures are rejected and startup fails
+closed because this repository does not yet contain a reviewed real provider
+adapter.
+
+For a future reviewed adapter, an operator-owned JSON capability document can
+atomically enable/disable cities and individual features at runtime. The BFF
+strictly validates and polls the document, applies an immutable effective
+snapshot, retains bounded local last-known-good history for exact rollback, and
+logs redacted audit evidence. A missing/invalid initial production document is
+closed; later malformed updates retain the last accepted snapshot. The BFF
+provides no admin mutation endpoint. See the
+[capability-control runbook](docs/development/bff-capability-control.md),
+[`transitBff/.env.example`](transitBff/.env.example), and
+[ADR 0004](docs/adr/0004-runtime-capability-control-plane.md). Mobile BFF
+client/UI consumption is owned by DEN-49/DEN-47; this server control plane does
+not introduce a mobile configuration or networking stack.
 
 Start the development fixture without storing any environment file in the
 repository. Leave the server process running in one terminal, then use a
@@ -114,9 +129,10 @@ curl -i 'http://127.0.0.1:8080/v1/cities/demo/routes?locale=en'
 environment variable names, conservative cache defaults, and non-secret
 placeholders. `BFF_HOST`, `BFF_PORT`, `BFF_DIRECTORY_CACHE_TTL_SECONDS`
 (1–6 hours), `BFF_SHAPE_CACHE_TTL_SECONDS` (1–24 hours), and
-`BFF_REALTIME_SINGLE_FLIGHT_SECONDS` are parsed strictly at startup. `healthz`
-reports readiness and mode without configuration or credential details. Every
-response has `X-Request-ID`; errors use the documented
+`BFF_REALTIME_SINGLE_FLIGHT_SECONDS`, control-document path/state pairing,
+poll interval (5–300 seconds), and history bound (2–50 revisions) are parsed
+strictly at startup. `healthz` reports effective readiness and mode without
+configuration or credential details. Every response has `X-Request-ID`; errors use the documented
 `{error:{code,message,retryAfterSeconds?,requestId}}` envelope.
 
 Build a portable local distribution with:
@@ -134,7 +150,9 @@ network policy outside this repository, confirm the provider licence/cost/quota
 and attribution obligations, run the BFF verification commands below, and
 probe `/healthz` through the intended runtime. See
 [ADR 0003](docs/adr/0003-transit-bff-runtime-and-provider-boundary.md) for the
-production boundary and caching/single-flight constraints.
+production boundary and caching/single-flight constraints, and
+[ADR 0004](docs/adr/0004-runtime-capability-control-plane.md) for kill switches,
+audit, last-known-good state, and rollback.
 
 ## Build and quality checks
 

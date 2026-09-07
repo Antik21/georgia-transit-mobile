@@ -15,6 +15,12 @@ class ProviderRegistry(adapters: Collection<CityTransitProviderAdapter>) {
 
     val isReady: Boolean get() = adaptersByCity.isNotEmpty()
 
+    /**
+     * Adapter registration is the intrinsic upper bound for the operator control-plane. Callers
+     * receive no provider-specific data; the adapters remain owned by this BFF boundary.
+     */
+    fun registeredAdapters(): Map<String, CityTransitProviderAdapter> = adaptersByCity
+
     fun cities(): List<City> = adaptersByCity.values.map { it.city }.sortedBy { it.id }.also {
         NormalizedResponseValidator.cities(it)
     }

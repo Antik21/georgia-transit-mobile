@@ -19,6 +19,35 @@ data class CityCapabilities(
     val tripPlanning: Boolean,
 )
 
+/**
+ * A normalized statement about whether a city can be used outside local fixture development.
+ * It deliberately contains no provider name, URL, identifier, credential, or implementation
+ * detail. `DEVELOPMENT_FIXTURE` must never be treated as production transit readiness.
+ */
+@Serializable
+enum class CityReadiness {
+    DEVELOPMENT_FIXTURE,
+    PRODUCTION_READY,
+    UNREVIEWED,
+}
+
+/**
+ * The normalized class of data source behind a city. A reviewed adapter is still described only
+ * by this class so mobile clients do not become coupled to a particular provider.
+ */
+@Serializable
+enum class CitySource {
+    FIXTURE,
+    REVIEWED_ADAPTER,
+    UNREVIEWED_ADAPTER,
+}
+
+@Serializable
+data class CityAvailability(
+    val readiness: CityReadiness,
+    val source: CitySource,
+)
+
 @Serializable
 data class City(
     val id: String,
@@ -26,6 +55,10 @@ data class City(
     val center: GeoPoint,
     val defaultZoom: Double,
     val capabilities: CityCapabilities,
+    val availability: CityAvailability = CityAvailability(
+        readiness = CityReadiness.UNREVIEWED,
+        source = CitySource.UNREVIEWED_ADAPTER,
+    ),
 )
 
 @Serializable

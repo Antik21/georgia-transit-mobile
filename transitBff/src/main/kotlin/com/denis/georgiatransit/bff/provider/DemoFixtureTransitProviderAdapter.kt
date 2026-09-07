@@ -3,7 +3,10 @@ package com.denis.georgiatransit.bff.provider
 import com.denis.georgiatransit.bff.api.Arrival
 import com.denis.georgiatransit.bff.api.ArrivalSource
 import com.denis.georgiatransit.bff.api.City
+import com.denis.georgiatransit.bff.api.CityAvailability
 import com.denis.georgiatransit.bff.api.CityCapabilities
+import com.denis.georgiatransit.bff.api.CityReadiness
+import com.denis.georgiatransit.bff.api.CitySource
 import com.denis.georgiatransit.bff.api.Direction
 import com.denis.georgiatransit.bff.api.GeoPoint
 import com.denis.georgiatransit.bff.api.Journey
@@ -33,6 +36,10 @@ class DemoFixtureTransitProviderAdapter : CityTransitProviderAdapter {
             vehiclePositions = true,
             officialArrivals = true,
             tripPlanning = true,
+        ),
+        availability = CityAvailability(
+            readiness = CityReadiness.DEVELOPMENT_FIXTURE,
+            source = CitySource.FIXTURE,
         ),
     )
 

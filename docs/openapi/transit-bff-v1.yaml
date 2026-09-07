@@ -5,7 +5,8 @@ info:
   description: |
     Normalized, city-capability-driven public-transit API. Provider contracts and credentials
     never cross this boundary. The `demo` city exists only in opt-in development fixtures and
-    does not imply production provider readiness.
+    does not imply production provider readiness. `/v1/cities` is the authoritative effective
+    capability snapshot; clients must not invent a parallel mobile feature-flag source.
 servers:
   - url: http://127.0.0.1:8080
     description: Local development only
@@ -16,11 +17,11 @@ paths:
       summary: Report BFF readiness without configuration or provider details.
       responses:
         '200':
-          description: A configured adapter is ready.
+          description: At least one effective city is ready.
           headers: {X-Request-ID: {$ref: '#/components/headers/RequestId'}}
           content: {application/json: {schema: {$ref: '#/components/schemas/HealthResponse'}, example: {status: ready, mode: development}}}
         '503':
-          description: No adapter is ready; this health body intentionally remains safe for probes.
+          description: No effective city is ready; this health body intentionally remains safe for probes.
           headers: {X-Request-ID: {$ref: '#/components/headers/RequestId'}}
           content: {application/json: {schema: {$ref: '#/components/schemas/HealthResponse'}, example: {status: not_ready, mode: development}}}
         '500': {$ref: '#/components/responses/InternalError'}
@@ -29,7 +30,10 @@ paths:
       operationId: listCities
       responses:
         '200':
-          description: Raw list of enabled city capabilities.
+          description: |
+            Effective enabled cities only. A city disappears when its operator control is disabled.
+            Each `capabilities` boolean is authoritative for a feature gate; `availability` is
+            normalized source/readiness metadata and never contains provider details.
           headers: {X-Request-ID: {$ref: '#/components/headers/RequestId'}}
           content:
             application/json:
@@ -40,6 +44,7 @@ paths:
                   center: {latitude: 41.715137, longitude: 44.827096}
                   defaultZoom: 13
                   capabilities: {routes: true, stops: true, routeGeometry: true, vehiclePositions: true, officialArrivals: true, tripPlanning: true}
+                  availability: {readiness: DEVELOPMENT_FIXTURE, source: FIXTURE}
         '500': {$ref: '#/components/responses/InternalError'}
   /v1/cities/{cityId}/routes:
     get:
@@ -260,8 +265,8 @@ components:
     InternalError: {$ref: '#/components/responses/Error500'}
     Error400: {description: Invalid or missing parameter., headers: {X-Request-ID: {$ref: '#/components/headers/RequestId'}}, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorEnvelope'}, example: {error: {code: INVALID_ARGUMENT, message: latitude is invalid, requestId: req-123}}}}}
     Error404City: {description: Configured city was not found., headers: {X-Request-ID: {$ref: '#/components/headers/RequestId'}}, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorEnvelope'}, example: {error: {code: CITY_NOT_FOUND, message: City was not found, requestId: req-123}}}}}
-    Error404Route: {description: Route or direction was not found., headers: {X-Request-ID: {$ref: '#/components/headers/RequestId'}}, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorEnvelope'}, example: {error: {code: ROUTE_NOT_FOUND, message: Route was not found, requestId: req-123}}}}}
-    Error404Stop: {description: Stop was not found., headers: {X-Request-ID: {$ref: '#/components/headers/RequestId'}}, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorEnvelope'}, example: {error: {code: STOP_NOT_FOUND, message: Stop was not found, requestId: req-123}}}}}
+    Error404Route: {description: Route or direction was not found; a disabled or absent city returns CITY_NOT_FOUND instead., headers: {X-Request-ID: {$ref: '#/components/headers/RequestId'}}, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorEnvelope'}, example: {error: {code: ROUTE_NOT_FOUND, message: Route was not found, requestId: req-123}}}}}
+    Error404Stop: {description: Stop was not found; a disabled or absent city returns CITY_NOT_FOUND instead., headers: {X-Request-ID: {$ref: '#/components/headers/RequestId'}}, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorEnvelope'}, example: {error: {code: STOP_NOT_FOUND, message: Stop was not found, requestId: req-123}}}}}
     Error409: {description: Provider public ID changed., headers: {X-Request-ID: {$ref: '#/components/headers/RequestId'}}, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorEnvelope'}}}}
     Error429: {description: Rate limited. Retry-After is included only when the provider supplied a valid bounded value., headers: {X-Request-ID: {$ref: '#/components/headers/RequestId'}, Retry-After: {schema: {type: integer, minimum: 1, maximum: 86400}}}, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorEnvelope'}}}}
     Error500: {description: Unexpected internal BFF failure. The response omits internals and has no Retry-After header., headers: {X-Request-ID: {$ref: '#/components/headers/RequestId'}}, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorEnvelope'}, example: {error: {code: INTERNAL_ERROR, message: The service encountered an internal error, requestId: req-123}}}}}
@@ -301,15 +306,30 @@ components:
         vehiclePositions: {type: boolean}
         officialArrivals: {type: boolean}
         tripPlanning: {type: boolean}
+    CityReadiness:
+      type: string
+      description: DEVELOPMENT_FIXTURE is synthetic local development data and is never production readiness.
+      enum: [DEVELOPMENT_FIXTURE, PRODUCTION_READY, UNREVIEWED]
+    CitySource:
+      type: string
+      description: Normalized source class only; it intentionally omits provider identity and credentials.
+      enum: [FIXTURE, REVIEWED_ADAPTER, UNREVIEWED_ADAPTER]
+    CityAvailability:
+      type: object
+      required: [readiness, source]
+      properties:
+        readiness: {$ref: '#/components/schemas/CityReadiness'}
+        source: {$ref: '#/components/schemas/CitySource'}
     City:
       type: object
-      required: [id, name, center, defaultZoom, capabilities]
+      required: [id, name, center, defaultZoom, capabilities, availability]
       properties:
         id: {$ref: '#/components/schemas/CityId'}
         name: {$ref: '#/components/schemas/LocalizedText'}
         center: {$ref: '#/components/schemas/GeoPoint'}
         defaultZoom: {type: number}
         capabilities: {$ref: '#/components/schemas/CityCapabilities'}
+        availability: {$ref: '#/components/schemas/CityAvailability'}
     Direction:
       type: object
       required: [id, name, headsign]

@@ -95,7 +95,13 @@ internal open class FakeAdapter(
     override val city: City = City("test", text, GeoPoint(41.7, 44.8), 13.0, capabilities()),
 ) : CityTransitProviderAdapter {
     val routesCalls = AtomicInteger()
+    val routeCalls = AtomicInteger()
+    val directionStopsCalls = AtomicInteger()
+    val shapeCalls = AtomicInteger()
     val stopDirectoryCalls = AtomicInteger()
+    val vehiclesCalls = AtomicInteger()
+    val arrivalsCalls = AtomicInteger()
+    val journeysCalls = AtomicInteger()
     var routesResult: suspend () -> List<Route> = { listOf(route) }
     var routeResult: suspend () -> Route = { route }
     var stopDirectoryResult: suspend () -> List<Stop> = { listOf(stop) }
@@ -112,21 +118,38 @@ internal open class FakeAdapter(
         return routesResult()
     }
 
-    override suspend fun route(routeId: String, locale: String): Route = routeResult()
+    override suspend fun route(routeId: String, locale: String): Route {
+        routeCalls.incrementAndGet()
+        return routeResult()
+    }
 
-    override suspend fun directionStops(routeId: String, directionId: String, locale: String): List<Stop> = listOf(stop)
+    override suspend fun directionStops(routeId: String, directionId: String, locale: String): List<Stop> {
+        directionStopsCalls.incrementAndGet()
+        return listOf(stop)
+    }
 
-    override suspend fun shape(routeId: String, directionId: String): Shape =
-        Shape(precision = 5, value = "abc", updatedAt = "2030-01-01T00:00:00Z")
+    override suspend fun shape(routeId: String, directionId: String): Shape {
+        shapeCalls.incrementAndGet()
+        return Shape(precision = 5, value = "abc", updatedAt = "2030-01-01T00:00:00Z")
+    }
 
     override suspend fun stopDirectory(locale: String): List<Stop> {
         stopDirectoryCalls.incrementAndGet()
         return stopDirectoryResult()
     }
 
-    override suspend fun vehicles(routeId: String, directionId: String?): RealtimeVehicles = vehiclesResult()
+    override suspend fun vehicles(routeId: String, directionId: String?): RealtimeVehicles {
+        vehiclesCalls.incrementAndGet()
+        return vehiclesResult()
+    }
 
-    override suspend fun arrivals(stopId: String, limit: Int, locale: String): RealtimeArrivals = arrivalsResult()
+    override suspend fun arrivals(stopId: String, limit: Int, locale: String): RealtimeArrivals {
+        arrivalsCalls.incrementAndGet()
+        return arrivalsResult()
+    }
 
-    override suspend fun journeys(query: JourneyQuery): List<Journey> = journeysResult()
+    override suspend fun journeys(query: JourneyQuery): List<Journey> {
+        journeysCalls.incrementAndGet()
+        return journeysResult()
+    }
 }

@@ -4,6 +4,8 @@ import com.denis.georgiatransit.bff.api.Arrival
 import com.denis.georgiatransit.bff.api.ArrivalPage
 import com.denis.georgiatransit.bff.api.ArrivalSource
 import com.denis.georgiatransit.bff.api.City
+import com.denis.georgiatransit.bff.api.CityReadiness
+import com.denis.georgiatransit.bff.api.CitySource
 import com.denis.georgiatransit.bff.api.Direction
 import com.denis.georgiatransit.bff.api.GeoPoint
 import com.denis.georgiatransit.bff.api.Journey
@@ -34,6 +36,17 @@ object NormalizedResponseValidator {
         localized(city.name)
         point(city.center)
         finiteBetween(city.defaultZoom, 0.0, 22.0)
+        when (city.availability.readiness) {
+            CityReadiness.DEVELOPMENT_FIXTURE -> {
+                if (city.availability.source != CitySource.FIXTURE) invalid()
+            }
+            CityReadiness.PRODUCTION_READY -> {
+                if (city.availability.source != CitySource.REVIEWED_ADAPTER) invalid()
+            }
+            CityReadiness.UNREVIEWED -> {
+                if (city.availability.source != CitySource.UNREVIEWED_ADAPTER) invalid()
+            }
+        }
     }
 
     fun cities(cities: List<City>) {

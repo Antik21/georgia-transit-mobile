@@ -76,6 +76,26 @@ class OpenApiContractTest {
     }
 
     @Test
+    fun `OpenAPI city metadata requires normalized availability and exactly six capabilities`() {
+        val schemas = loadOpenApi().map("components").map("schemas")
+        val capabilities = schemas.map("CityCapabilities")
+        assertEquals(
+            listOf("routes", "stops", "routeGeometry", "vehiclePositions", "officialArrivals", "tripPlanning"),
+            capabilities["required"],
+        )
+        assertEquals(
+            setOf("routes", "stops", "routeGeometry", "vehiclePositions", "officialArrivals", "tripPlanning"),
+            capabilities.map("properties").keys,
+        )
+        assertEquals(
+            listOf("id", "name", "center", "defaultZoom", "capabilities", "availability"),
+            schemas.map("City")["required"],
+        )
+        assertEquals(listOf("readiness", "source"), schemas.map("CityAvailability")["required"])
+        assertEquals("#/components/schemas/CityAvailability", schemas.map("City").map("properties").map("availability")["\$ref"])
+    }
+
+    @Test
     fun `all reusable errors carry request ID and use the raw error envelope`() {
         val responses = loadOpenApi().map("components").map("responses")
         val concreteErrors = listOf(

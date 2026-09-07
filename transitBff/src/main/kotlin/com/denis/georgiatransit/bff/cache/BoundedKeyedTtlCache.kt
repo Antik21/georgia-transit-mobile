@@ -50,6 +50,14 @@ class BoundedKeyedTtlCache<K, V>(
         }
     }
 
+    /**
+     * Invalidates every completed value without cancelling callers already awaiting an old load.
+     * A stale generation cannot repopulate a cleared key because it no longer owns an entry.
+     */
+    suspend fun clear() {
+        mutex.withLock { entries.clear() }
+    }
+
     override fun close() {
         scope.cancel()
     }
