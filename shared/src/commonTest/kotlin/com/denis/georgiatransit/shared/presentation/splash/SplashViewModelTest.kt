@@ -10,9 +10,7 @@ import com.denis.georgiatransit.shared.domain.model.GeoPoint
 import com.denis.georgiatransit.shared.domain.model.TransitCity
 import com.denis.georgiatransit.shared.domain.repository.SelectedCityStore
 import com.denis.georgiatransit.shared.domain.repository.TransitRepository
-import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
 import org.orbitmvi.orbit.test.TestSettings
 import org.orbitmvi.orbit.test.test
@@ -23,67 +21,46 @@ import kotlin.test.assertEquals
 class SplashViewModelTest {
     @Test
     fun retryMovesFromErrorThroughLoadingToReady() = runTest {
-        val initialAttempt = CompletableDeferred<SnapshotOutcome>()
-        val retryAttempt = CompletableDeferred<SnapshotOutcome>()
-        val repository = SequencedRepository(
-            outcomes = mutableListOf(
-                SnapshotOutcome.WaitFor(initialAttempt),
-                SnapshotOutcome.WaitFor(retryAttempt),
-            ),
-        )
+        val repository = FailingThenReadyRepository()
         val viewModel = SplashViewModel(bootstrap(repository))
 
-        viewModel.test(
-            this,
-            settings = TestSettings(dispatcherOverride = UnconfinedTestDispatcher(testScheduler)),
-        ) {
+        viewModel.test(this, settings = TestSettings(autoCheckInitialState = false)) {
+            expectState(ViewState.Loading)
             runOnCreate()
-            assertEquals(1, repository.snapshotCalls)
-            assertEquals(ViewState.Loading, viewModel.container.stateFlow.value)
+            expectState(ViewState.Error(BootstrapTransitSession.Failure.Unavailable))
+            viewModel.container.joinIntents()
 
-            initialAttempt.complete(SnapshotOutcome.Fail)
-            assertEquals(
-                ViewState.Error(BootstrapTransitSession.Failure.Unavailable),
-                viewModel.container.stateFlow.value,
-            )
+            assertEquals(1, repository.snapshotCalls)
 
             viewModel.dispatchAction(Action.RetryClicked)
-            assertEquals(2, repository.snapshotCalls)
-            assertEquals(ViewState.Loading, viewModel.container.stateFlow.value)
+            expectState(ViewState.Loading)
+            expectState(ViewState.Ready(Destination.CitySelection))
 
-            retryAttempt.complete(SnapshotOutcome.Cities(listOf(tbilisi)))
-            assertEquals(ViewState.Ready(Destination.CitySelection), viewModel.container.stateFlow.value)
+            assertEquals(2, repository.snapshotCalls)
             cancelAndIgnoreRemainingItems()
         }
     }
 
     @Test
     fun duplicateRetriesWhileBootstrapIsRunningStartOnlyOneRequest() = runTest {
-        val gate = CompletableDeferred<SnapshotOutcome>()
-        val repository = SequencedRepository(
-            outcomes = mutableListOf(SnapshotOutcome.WaitFor(gate)),
-        )
-        val viewModel = SplashViewModel(bootstrap(repository))
+        lateinit var viewModel: SplashViewModel
+        val repository = RetryDispatchingRepository {
+            viewModel.dispatchAction(Action.RetryClicked)
+            viewModel.dispatchAction(Action.RetryClicked)
+        }
+        viewModel = SplashViewModel(bootstrap(repository))
 
-        viewModel.test(
-            this,
-            settings = TestSettings(dispatcherOverride = UnconfinedTestDispatcher(testScheduler)),
-        ) {
+        viewModel.test(this, settings = TestSettings(autoCheckInitialState = false)) {
+            expectState(ViewState.Loading)
             runOnCreate()
-            assertEquals(ViewState.Loading, viewModel.container.stateFlow.value)
-            viewModel.dispatchAction(Action.RetryClicked)
-            viewModel.dispatchAction(Action.RetryClicked)
-
-            assertEquals(1, repository.snapshotCalls)
-            gate.complete(SnapshotOutcome.Cities(listOf(tbilisi)))
-            assertEquals(ViewState.Ready(Destination.CitySelection), viewModel.container.stateFlow.value)
+            expectState(ViewState.Ready(Destination.CitySelection))
 
             assertEquals(1, repository.snapshotCalls)
             cancelAndIgnoreRemainingItems()
         }
     }
 
-    private fun bootstrap(repository: SequencedRepository): BootstrapTransitSession {
+    private fun bootstrap(repository: TransitRepository): BootstrapTransitSession {
         val store = object : SelectedCityStore {
             override fun read() = null
             override fun save(city: TransitCity) = Unit
@@ -99,8 +76,26 @@ class SplashViewModelTest {
         )
     }
 
-    private class SequencedRepository(
-        private val outcomes: MutableList<SnapshotOutcome>,
+    private class FailingThenReadyRepository : TransitRepository {
+        var snapshotCalls = 0
+            private set
+
+        override fun cities(): List<TransitCity> = listOf(tbilisi)
+
+        override suspend fun loadCityCapabilitySnapshot(): List<TransitCity> {
+            snapshotCalls += 1
+            return when (snapshotCalls) {
+                1 -> throw IllegalStateException("Initial snapshot unavailable")
+                2 -> listOf(tbilisi)
+                else -> error("Unexpected bootstrap request")
+            }
+        }
+
+        override fun routes(cityId: CityId) = emptyList<com.denis.georgiatransit.shared.domain.model.TransitRoute>()
+    }
+
+    private class RetryDispatchingRepository(
+        private val dispatchRetries: () -> Unit,
     ) : TransitRepository {
         var snapshotCalls = 0
             private set
@@ -109,22 +104,11 @@ class SplashViewModelTest {
 
         override suspend fun loadCityCapabilitySnapshot(): List<TransitCity> {
             snapshotCalls += 1
-            return snapshotFor(outcomes.removeFirst())
-        }
-
-        private suspend fun snapshotFor(outcome: SnapshotOutcome): List<TransitCity> = when (outcome) {
-            SnapshotOutcome.Fail -> throw IllegalStateException("unavailable")
-            is SnapshotOutcome.Cities -> outcome.cities
-            is SnapshotOutcome.WaitFor -> snapshotFor(outcome.gate.await())
+            dispatchRetries()
+            return listOf(tbilisi)
         }
 
         override fun routes(cityId: CityId) = emptyList<com.denis.georgiatransit.shared.domain.model.TransitRoute>()
-    }
-
-    private sealed interface SnapshotOutcome {
-        data object Fail : SnapshotOutcome
-        data class Cities(val cities: List<TransitCity>) : SnapshotOutcome
-        data class WaitFor(val gate: CompletableDeferred<SnapshotOutcome>) : SnapshotOutcome
     }
 
     private companion object {
