@@ -1,6 +1,7 @@
 package com.denis.georgiatransit.bff.cache
 
 import com.denis.georgiatransit.bff.api.SingleFlightCapacityExceeded
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Deferred
@@ -9,8 +10,6 @@ import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.sync.Mutex
-import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
 import kotlin.time.Duration
@@ -25,13 +24,16 @@ class SingleFlight<K, V>(
     private val maximumEntries: Int = 128,
 ) : AutoCloseable {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
-    private val mutex = Mutex()
+    private val lock = Any()
     private val inFlight = mutableMapOf<K, Deferred<V>>()
+    private var isClosed = false
 
     suspend fun get(key: K, loader: suspend () -> V): V {
-        val deferred = mutex.withLock {
+        val deferred = synchronized(lock) {
+            checkOpenLocked()
             inFlight[key] ?: run {
                 pruneCompletedLocked()
+                checkOpenLocked()
                 inFlight[key] ?: createDeferred(key, loader)
             }
         }
@@ -39,6 +41,7 @@ class SingleFlight<K, V>(
     }
 
     private fun createDeferred(key: K, loader: suspend () -> V): Deferred<V> {
+        checkOpenLocked()
         if (inFlight.size >= maximumEntries) throw SingleFlightCapacityExceeded()
         val deferred = CompletableDeferred<V>()
         inFlight[key] = deferred
@@ -46,13 +49,13 @@ class SingleFlight<K, V>(
             try {
                 val value = withTimeout(lifetime.toJavaDuration().toMillis()) { loader() }
                 deferred.complete(value)
-                mutex.withLock {
+                synchronized(lock) {
                     if (inFlight[key] === deferred) inFlight.remove(key)
                 }
             } catch (failure: Throwable) {
                 withContext(NonCancellable) {
                     deferred.completeExceptionally(failure)
-                    mutex.withLock {
+                    synchronized(lock) {
                         if (inFlight[key] === deferred) inFlight.remove(key)
                     }
                 }
@@ -66,6 +69,20 @@ class SingleFlight<K, V>(
     }
 
     override fun close() {
-        scope.cancel()
+        val deferreds = synchronized(lock) {
+            if (isClosed) {
+                null
+            } else {
+                isClosed = true
+                inFlight.values.toList().also { inFlight.clear() }
+            }
+        } ?: return
+        val cancellation = CancellationException("SingleFlight is closed")
+        scope.cancel(cancellation)
+        deferreds.forEach { it.cancel(cancellation) }
+    }
+
+    private fun checkOpenLocked() {
+        if (isClosed) throw CancellationException("SingleFlight is closed")
     }
 }

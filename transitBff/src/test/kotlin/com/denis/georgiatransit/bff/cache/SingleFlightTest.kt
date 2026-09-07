@@ -4,6 +4,7 @@ import com.denis.georgiatransit.bff.api.SingleFlightCapacityExceeded
 import java.util.concurrent.atomic.AtomicInteger
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.cancelAndJoin
@@ -160,6 +161,46 @@ class SingleFlightTest {
         singleFlight.close()
 
         assertFailsWith<CancellationException> { caller.await() }
+    }
+
+    @Test
+    fun `close completes an in-flight waiter before its worker begins`() = runTest {
+        val singleFlight = SingleFlight<String, Unit>(10.seconds)
+        val queuedGeneration = CompletableDeferred<Unit>()
+        singleFlight.inFlightForTest()["queued"] = queuedGeneration
+        val waiter = async(start = CoroutineStart.UNDISPATCHED) {
+            singleFlight.get("queued") { error("worker must not begin") }
+        }
+
+        singleFlight.close()
+
+        val failure = assertFailsWith<CancellationException> { waiter.await() }
+        assertEquals("SingleFlight is closed", failure.message)
+        assertEquals(true, queuedGeneration.isCancelled)
+    }
+
+    @Test
+    fun `close is idempotent`() {
+        val singleFlight = SingleFlight<String, Unit>(10.seconds)
+
+        singleFlight.close()
+        singleFlight.close()
+        singleFlight.close()
+    }
+
+    @Test
+    fun `get after close rejects without running loader`() = runTest {
+        val singleFlight = SingleFlight<String, Unit>(10.seconds)
+        val loads = AtomicInteger()
+        singleFlight.close()
+
+        val failure = assertFailsWith<CancellationException> {
+            singleFlight.get("closed") {
+                throw AssertionError("loader ran ${loads.incrementAndGet()} time(s)")
+            }
+        }
+        assertEquals("SingleFlight is closed", failure.message)
+        assertEquals(0, loads.get())
     }
 }
 
