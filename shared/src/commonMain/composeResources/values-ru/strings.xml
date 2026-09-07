@@ -9,6 +9,11 @@
     <string name="bootstrap_retry">Повторить</string>
     <string name="city_title">Выберите город</string>
     <string name="city_subtitle">Доступность транспорта определяется возможностями каждого города.</string>
+    <string name="city_catalog_loading">Загружаем доступность городов…</string>
+    <string name="city_catalog_empty">Сейчас нет доступных городов.</string>
+    <string name="city_catalog_error">Не удалось загрузить каталог городов.</string>
+    <string name="city_catalog_retry">Повторить</string>
+    <string name="city_catalog_offline">В офлайн-режиме показан последний доступный каталог городов.</string>
     <string name="city_experimental">Экспериментальные данные</string>
     <string name="city_unavailable">Будет позже</string>
     <string name="continue_action">Продолжить</string>

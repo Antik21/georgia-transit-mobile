@@ -2,6 +2,12 @@ package com.denis.georgiatransit.shared.presentation.map
 
 import com.denis.georgiatransit.shared.data.repository.PreviewTransitRepository
 import com.denis.georgiatransit.shared.data.repository.RuntimeTransitSession
+import com.denis.georgiatransit.shared.domain.model.CityCapabilities
+import com.denis.georgiatransit.shared.domain.model.CityId
+import com.denis.georgiatransit.shared.domain.model.GeoPoint
+import com.denis.georgiatransit.shared.domain.model.TransitCity
+import com.denis.georgiatransit.shared.domain.model.TransitRoute
+import com.denis.georgiatransit.shared.domain.repository.TransitRepository
 import com.denis.georgiatransit.shared.presentation.location.LocationFailure
 import com.denis.georgiatransit.shared.presentation.location.LocationFixCandidate
 import com.denis.georgiatransit.shared.presentation.location.LocationPermissionState
@@ -25,6 +31,56 @@ import kotlin.test.assertTrue
 @OptIn(ExperimentalCoroutinesApi::class)
 class MapViewModelTest {
     @Test
+    fun noFixViewportUsesEachSelectedCityNonDefaultBffZoom() = runTest {
+        val tbilisi = city("tbilisi", defaultZoom = 13.5)
+        val batumi = city("batumi", defaultZoom = 12.5)
+        val session = RuntimeTransitSession().also { it.selectCity(tbilisi) }
+        val locationSession = testLocationSession()
+
+        MapViewModel(MapRepository(), session, locationSession).test(this) {
+            runOnCreate()
+            this@runTest.runCurrent()
+            expectState(
+                ViewState(
+                    cityName = tbilisi.name,
+                    viewport = MapViewport(center = tbilisi.center, zoom = 13.5),
+                ),
+            )
+
+            session.selectCity(batumi)
+            this@runTest.runCurrent()
+            expectState(
+                ViewState(
+                    cityName = batumi.name,
+                    viewport = MapViewport(center = batumi.center, zoom = 12.5),
+                ),
+            )
+            cancelAndIgnoreRemainingItems()
+        }
+    }
+
+    @Test
+    fun userFixKeepsZoomFifteenForANonDefaultBffZoom() = runTest {
+        val batumi = city("batumi", defaultZoom = 12.5)
+        val session = RuntimeTransitSession().also { it.selectCity(batumi) }
+        val locationSession = testLocationSessionWithFix()
+        val fix = requireNotNull(locationSession.state.value.fix)
+
+        MapViewModel(MapRepository(), session, locationSession).test(this) {
+            runOnCreate()
+            this@runTest.runCurrent()
+            expectState(
+                ViewState(
+                    cityName = batumi.name,
+                    viewport = MapViewport(center = fix.point, contentCenter = batumi.center, zoom = 15.0),
+                    location = locationSession.state.value,
+                ),
+            )
+            cancelAndIgnoreRemainingItems()
+        }
+    }
+
+    @Test
     @OptIn(ExperimentalCoroutinesApi::class)
     fun selectedCityCenterDrivesViewportAndUpdatesWhenCityChanges() = runTest {
         val repository = PreviewTransitRepository()
@@ -39,7 +95,7 @@ class MapViewModelTest {
             expectState(
                 ViewState(
                     cityName = tbilisi.name,
-                    viewport = MapViewport(center = tbilisi.center),
+                    viewport = MapViewport(center = tbilisi.center, zoom = tbilisi.defaultZoom),
                 ),
             )
 
@@ -49,7 +105,7 @@ class MapViewModelTest {
             expectState(
                 ViewState(
                     cityName = batumi.name,
-                    viewport = MapViewport(center = batumi.center),
+                    viewport = MapViewport(center = batumi.center, zoom = batumi.defaultZoom),
                 ),
             )
             cancelAndIgnoreRemainingItems()
@@ -295,7 +351,7 @@ class MapViewModelTest {
             viewport = MapViewport(
                 center = fix?.point ?: city.center,
                 contentCenter = city.center,
-                zoom = if (fix == null) 12.0 else 15.0,
+                zoom = if (fix == null) city.defaultZoom else 15.0,
             ),
             selectedRouteNames = repository.routes(city.id)
                 .filter { it.id in transitSession.selectedRouteIds.value }
@@ -336,5 +392,25 @@ class MapViewModelTest {
             accuracyMeters = 20.0,
             capturedAtEpochMillis = NOW_MILLIS,
         )
+
+        fun city(id: String, defaultZoom: Double) = TransitCity(
+            id = CityId(id),
+            name = id.replaceFirstChar(Char::uppercase),
+            center = GeoPoint(latitude = 41.0, longitude = 44.0),
+            capabilities = CityCapabilities(
+                stops = true,
+                vehicles = true,
+                arrivals = true,
+                routeShapes = true,
+                journeyPlanning = true,
+            ),
+            defaultZoom = defaultZoom,
+        )
+    }
+
+    private class MapRepository : TransitRepository {
+        override fun cities(): List<TransitCity> = emptyList()
+
+        override fun routes(cityId: CityId): List<TransitRoute> = emptyList()
     }
 }

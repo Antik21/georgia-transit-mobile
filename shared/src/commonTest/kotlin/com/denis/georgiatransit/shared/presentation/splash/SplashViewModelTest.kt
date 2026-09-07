@@ -20,23 +20,40 @@ import kotlin.test.assertEquals
 @OptIn(ExperimentalCoroutinesApi::class)
 class SplashViewModelTest {
     @Test
-    fun retryMovesFromErrorThroughLoadingToReady() = runTest {
+    fun firstLaunchOpensCitySelectionWithoutRequestingTheCatalog() = runTest {
         val repository = FailingThenReadyRepository()
         val viewModel = SplashViewModel(bootstrap(repository))
 
         viewModel.test(this, settings = TestSettings(autoCheckInitialState = false)) {
             expectState(ViewState.Loading)
             runOnCreate()
-            expectState(ViewState.Error(BootstrapTransitSession.Failure.Unavailable))
+            expectState(ViewState.Ready(Destination.CitySelection))
+
+            assertEquals(0, repository.snapshotCalls)
+            cancelAndIgnoreRemainingItems()
+        }
+    }
+
+    @Test
+    fun retryMovesFromErrorThroughLoadingToReady() = runTest {
+        val repository = FailingThenReadyRepository()
+        val configuration = FailingThenReadyConfigurationSource()
+        val viewModel = SplashViewModel(bootstrap(repository, configurationSource = configuration))
+
+        viewModel.test(this, settings = TestSettings(autoCheckInitialState = false)) {
+            expectState(ViewState.Loading)
+            runOnCreate()
+            expectState(ViewState.Error(BootstrapTransitSession.Failure.RuntimeConfigurationUnavailable))
             viewModel.container.joinIntents()
 
-            assertEquals(1, repository.snapshotCalls)
+            assertEquals(0, repository.snapshotCalls)
 
             viewModel.dispatchAction(Action.RetryClicked)
             expectState(ViewState.Loading)
             expectState(ViewState.Ready(Destination.CitySelection))
 
-            assertEquals(2, repository.snapshotCalls)
+            assertEquals(0, repository.snapshotCalls)
+            assertEquals(2, configuration.calls)
             cancelAndIgnoreRemainingItems()
         }
     }
@@ -48,21 +65,27 @@ class SplashViewModelTest {
             viewModel.dispatchAction(Action.RetryClicked)
             viewModel.dispatchAction(Action.RetryClicked)
         }
-        viewModel = SplashViewModel(bootstrap(repository))
+        viewModel = SplashViewModel(bootstrap(repository, cachedCity = tbilisi))
 
         viewModel.test(this, settings = TestSettings(autoCheckInitialState = false)) {
             expectState(ViewState.Loading)
             runOnCreate()
-            expectState(ViewState.Ready(Destination.CitySelection))
+            expectState(ViewState.Ready(Destination.Map))
 
             assertEquals(1, repository.snapshotCalls)
             cancelAndIgnoreRemainingItems()
         }
     }
 
-    private fun bootstrap(repository: TransitRepository): BootstrapTransitSession {
+    private fun bootstrap(
+        repository: TransitRepository,
+        cachedCity: TransitCity? = null,
+        configurationSource: RuntimeBootstrapConfigurationSource = object : RuntimeBootstrapConfigurationSource {
+            override suspend fun load() = RuntimeBootstrapConfiguration.default
+        },
+    ): BootstrapTransitSession {
         val store = object : SelectedCityStore {
-            override fun read() = null
+            override fun read() = cachedCity?.let { com.denis.georgiatransit.shared.domain.repository.CachedCitySnapshot(city = it) }
             override fun save(city: TransitCity) = Unit
             override fun clear() = Unit
         }
@@ -70,9 +93,7 @@ class SplashViewModelTest {
             repository = repository,
             session = RuntimeTransitSession(store),
             selectedCityStore = store,
-            runtimeConfigurationSource = object : RuntimeBootstrapConfigurationSource {
-                override suspend fun load() = RuntimeBootstrapConfiguration.default
-            },
+            runtimeConfigurationSource = configurationSource,
         )
     }
 
@@ -109,6 +130,16 @@ class SplashViewModelTest {
         }
 
         override fun routes(cityId: CityId) = emptyList<com.denis.georgiatransit.shared.domain.model.TransitRoute>()
+    }
+
+    private class FailingThenReadyConfigurationSource : RuntimeBootstrapConfigurationSource {
+        var calls = 0
+            private set
+
+        override suspend fun load(): RuntimeBootstrapConfiguration? {
+            calls += 1
+            return if (calls == 1) null else RuntimeBootstrapConfiguration.default
+        }
     }
 
     private companion object {

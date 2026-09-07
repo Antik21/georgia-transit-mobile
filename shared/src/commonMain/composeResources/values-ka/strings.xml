@@ -9,6 +9,11 @@
     <string name="bootstrap_retry">ხელახლა ცდა</string>
     <string name="city_title">აირჩიეთ ქალაქი</string>
     <string name="city_subtitle">ტრანსპორტის ხელმისაწვდომობა ქალაქის შესაძლებლობებით განისაზღვრება.</string>
+    <string name="city_catalog_loading">ქალაქების ხელმისაწვდომობა იტვირთება…</string>
+    <string name="city_catalog_empty">ამჟამად არცერთი ქალაქი არ არის ხელმისაწვდომი.</string>
+    <string name="city_catalog_error">ქალაქების კატალოგის ჩატვირთვა ვერ მოხერხდა.</string>
+    <string name="city_catalog_retry">ხელახლა ცდა</string>
+    <string name="city_catalog_offline">ოფლაინ რეჟიმში ნაჩვენებია ქალაქების ბოლოს ხელმისაწვდომი კატალოგი.</string>
     <string name="city_experimental">ექსპერიმენტული მონაცემები</string>
     <string name="city_unavailable">მოგვიანებით</string>
     <string name="continue_action">გაგრძელება</string>

@@ -55,6 +55,7 @@ fun EmptyState(
     message: String? = null,
     actionLabel: String? = null,
     onAction: (() -> Unit)? = null,
+    actionModifier: Modifier = Modifier,
 ) {
     StateMessage(
         title = title,
@@ -62,6 +63,7 @@ fun EmptyState(
         modifier = modifier,
         actionLabel = actionLabel,
         onAction = onAction,
+        actionModifier = actionModifier,
     )
 }
 

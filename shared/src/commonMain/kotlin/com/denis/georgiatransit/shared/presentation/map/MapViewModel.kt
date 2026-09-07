@@ -32,7 +32,7 @@ class MapViewModel(
                         MapViewport(
                             center = location.fix?.point ?: it.center,
                             contentCenter = it.center,
-                            zoom = if (location.fix == null) 12.0 else 15.0,
+                            zoom = if (location.fix == null) it.defaultZoom else 15.0,
                         )
                     },
                     selectedRouteNames = routeNames,
