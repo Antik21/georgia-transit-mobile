@@ -12,6 +12,7 @@ internal data class CityDto(
     val defaultZoom: Double,
     val capabilities: CityCapabilitiesDto,
     val availability: CityAvailabilityDto,
+    val attribution: List<AttributionLinkDto> = emptyList(),
 )
 
 @Serializable internal data class LocalizedTextDto(val ru: String, val en: String, val ka: String)
@@ -25,6 +26,14 @@ internal data class CityCapabilitiesDto(
     val vehiclePositions: Boolean,
     val officialArrivals: Boolean,
     val tripPlanning: Boolean,
+    val arrivals: Boolean = officialArrivals,
+)
+
+@Serializable
+internal data class AttributionLinkDto(
+    val id: String,
+    val label: LocalizedTextDto,
+    val url: String,
 )
 
 @Serializable
@@ -149,15 +158,45 @@ internal data class JourneyLegDto(
 )
 
 @Serializable
+internal enum class JourneySegmentModeDto {
+    @SerialName("TRANSIT") Transit,
+    @SerialName("WALK") Walk,
+    @SerialName("BICYCLE") Bicycle,
+    @SerialName("CAR") Car,
+    @SerialName("OTHER") Other,
+}
+
+@Serializable
+internal data class JourneySegmentDto(
+    val departureAt: String,
+    val arrivalAt: String,
+    val mode: JourneySegmentModeDto,
+    val routeId: String? = null,
+    val directionId: String? = null,
+    val fromStopId: String? = null,
+    val toStopId: String? = null,
+    val fromPosition: GeoPointDto? = null,
+    val toPosition: GeoPointDto? = null,
+)
+
+@Serializable
 internal data class JourneyDto(
     val id: String,
     val departureAt: String,
     val arrivalAt: String,
     val transfers: Int,
     val legs: List<JourneyLegDto>,
+    val segments: List<JourneySegmentDto> = emptyList(),
 )
 
-@Serializable internal data class JourneyPageDto(val items: List<JourneyDto>, val observedAt: String)
+@Serializable
+internal data class JourneyPageDto(
+    val items: List<JourneyDto>,
+    val observedAt: String,
+    val source: ArrivalSourceDto = ArrivalSourceDto.Schedule,
+    val realtime: Boolean = false,
+    val stale: Boolean = false,
+)
 
 @Serializable internal data class ErrorEnvelopeDto(val error: ErrorDto)
 

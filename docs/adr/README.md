@@ -7,3 +7,5 @@ The runtime capability control-plane is recorded in
 [ADR 0004](0004-runtime-capability-control-plane.md).
 The mobile BFF client and bounded offline catalog cache are recorded in
 [ADR 0005](0005-mobile-transit-bff-client-and-offline-catalog-cache.md).
+The controlled Transitous fallback, attribution, and capability contract are
+recorded in [ADR 0006](0006-transitous-best-effort-fallback.md).

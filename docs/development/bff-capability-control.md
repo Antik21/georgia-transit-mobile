@@ -1,7 +1,7 @@
 # Transit BFF capability control plane
 
 `GET /v1/cities` is the authoritative, effective city/capability snapshot. Its
-`capabilities` object always carries all six normalized feature booleans, and
+`capabilities` object always carries all seven normalized feature booleans, and
 `availability` identifies only a normalized readiness/source class:
 
 - `DEVELOPMENT_FIXTURE` plus `FIXTURE` is synthetic data, valid only with the
@@ -33,7 +33,7 @@ city and returns `CAPABILITY_NOT_AVAILABLE` (501) before any provider call.
 | route shape | `routeGeometry` and `routes` |
 | nearby stops | `stops` |
 | vehicles | `vehiclePositions` and `routes` |
-| arrivals | `officialArrivals` |
+| arrivals | `arrivals` (`officialArrivals` only controls an official-source claim) |
 | journeys | `tripPlanning` |
 
 Each request captures one immutable snapshot. A newly accepted revision clears
@@ -67,14 +67,17 @@ default 30). It accepts at most 64 KiB of strict JSON with exactly this shape:
         "routeGeometry": false,
         "vehiclePositions": false,
         "officialArrivals": true,
-        "tripPlanning": false
+        "tripPlanning": false,
+        "arrivals": true
       }
     }
   ]
 }
 ```
 
-All fields are required. Unknown keys, duplicate JSON keys, duplicate or blank
+All fields are required for newly written documents. The decoder accepts an omitted
+`arrivals` only for backward-compatible existing documents, where it is treated as the
+same value as `officialArrivals`; new documents must state it explicitly. Unknown keys, duplicate JSON keys, duplicate or blank
 city/revision values, non-boolean feature values, an unknown city, capability
 expansion, or an unsafe/adapter-mismatched source/readiness pair are rejected.
 Omitting a registered city disables it. A document may use an empty `cities`

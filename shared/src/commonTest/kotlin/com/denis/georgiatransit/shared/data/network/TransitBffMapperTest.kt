@@ -3,6 +3,7 @@ package com.denis.georgiatransit.shared.data.network
 import com.denis.georgiatransit.shared.domain.model.ArrivalSource
 import com.denis.georgiatransit.shared.domain.model.CityReadiness
 import com.denis.georgiatransit.shared.domain.model.CitySource
+import com.denis.georgiatransit.shared.domain.model.JourneySegmentMode
 import com.denis.georgiatransit.shared.domain.model.TransitMode
 import com.denis.georgiatransit.shared.domain.model.VehiclePositionKind
 import kotlinx.serialization.SerializationException
@@ -20,7 +21,7 @@ class TransitBffMapperTest {
     @Test
     fun cityDtoUsesPublishedWireNamesAndMapsCapabilitiesAndAvailability() {
         val encoded =
-            """{"id":"demo","name":{"ru":"Демо","en":"Demo","ka":"დემო"},"center":{"latitude":41.715137,"longitude":44.827096},"defaultZoom":13.0,"capabilities":{"routes":true,"stops":true,"routeGeometry":true,"vehiclePositions":true,"officialArrivals":true,"tripPlanning":true},"availability":{"readiness":"DEVELOPMENT_FIXTURE","source":"FIXTURE"}}"""
+            """{"id":"demo","name":{"ru":"Демо","en":"Demo","ka":"დემო"},"center":{"latitude":41.715137,"longitude":44.827096},"defaultZoom":13.0,"capabilities":{"routes":true,"stops":true,"routeGeometry":true,"vehiclePositions":true,"officialArrivals":true,"tripPlanning":true,"arrivals":true},"availability":{"readiness":"DEVELOPMENT_FIXTURE","source":"FIXTURE"},"attribution":[]}"""
 
         val dto = json.decodeFromString<CityDto>(encoded)
         val city = dto.toDomain()
@@ -35,6 +36,7 @@ class TransitBffMapperTest {
         assertEquals(true, city.capabilities.routeGeometry)
         assertEquals(true, city.capabilities.vehiclePositions)
         assertEquals(true, city.capabilities.officialArrivals)
+        assertEquals(true, city.capabilities.arrivals)
         assertEquals(true, city.capabilities.tripPlanning)
         assertEquals(CityReadiness.DevelopmentFixture, city.availability.readiness)
         assertEquals(CitySource.Fixture, city.availability.source)
@@ -77,6 +79,26 @@ class TransitBffMapperTest {
     }
 
     @Test
+    fun cityAttributionAndCompleteJourneySegmentsMapThroughSharedDomainWithoutProviderTypes() {
+        val city = json.decodeFromString<CityDto>(
+            """{"id":"tbilisi","name":{"ru":"Тбилиси","en":"Tbilisi","ka":"თბილისი"},"center":{"latitude":41.715137,"longitude":44.827096},"defaultZoom":12.5,"capabilities":{"routes":false,"stops":false,"routeGeometry":false,"vehiclePositions":false,"officialArrivals":false,"tripPlanning":true,"arrivals":true},"availability":{"readiness":"PRODUCTION_READY","source":"REVIEWED_ADAPTER"},"attribution":[{"id":"transitous","label":{"ru":"Источники","en":"Sources","ka":"წყაროები"},"url":"https://transitous.org/sources/"}]}""",
+        ).toDomain()
+        val journey = json.decodeFromString<JourneyPageDto>(
+            """{"items":[{"id":"tbilisi:transitous:journey:opaque","departureAt":"2030-01-01T00:00:00Z","arrivalAt":"2030-01-01T00:10:00Z","transfers":0,"legs":[{"routeId":"tbilisi:transitous:route:opaque","directionId":"tbilisi:transitous:direction:opaque","fromStopId":"tbilisi:transitous:stop:one","toStopId":"tbilisi:transitous:stop:two","departureAt":"2030-01-01T00:05:00Z","arrivalAt":"2030-01-01T00:10:00Z"}],"segments":[{"departureAt":"2030-01-01T00:00:00Z","arrivalAt":"2030-01-01T00:05:00Z","mode":"WALK","fromPosition":{"latitude":41.70,"longitude":44.80},"toPosition":{"latitude":41.71,"longitude":44.81}},{"departureAt":"2030-01-01T00:05:00Z","arrivalAt":"2030-01-01T00:10:00Z","mode":"TRANSIT","routeId":"tbilisi:transitous:route:opaque","directionId":"tbilisi:transitous:direction:opaque","fromStopId":"tbilisi:transitous:stop:one","toStopId":"tbilisi:transitous:stop:two"}]}],"observedAt":"2030-01-01T00:00:00Z","source":"AGGREGATOR_REALTIME","realtime":true,"stale":true}""",
+        ).toDomain()
+
+        assertEquals(true, city.capabilities.arrivals)
+        assertEquals(false, city.capabilities.officialArrivals)
+        assertEquals("https://transitous.org/sources/", city.attribution.single().url)
+        assertEquals("Sources", city.attribution.single().label.en)
+        assertEquals(ArrivalSource.AggregatorRealtime, journey.source)
+        assertEquals(true, journey.realtime)
+        assertEquals(true, journey.stale)
+        assertEquals(listOf(JourneySegmentMode.Walk, JourneySegmentMode.Transit), journey.items.single().segments.map { it.mode })
+        assertEquals("tbilisi:transitous:route:opaque", journey.items.single().legs.single().routeId.value)
+    }
+
+    @Test
     fun dtoDecoderRejectsMissingRequiredAndUnknownEnumValues() {
         assertFailsWith<SerializationException> {
             json.decodeFromString<CityDto>("""{"id":"demo"}""")
@@ -110,6 +132,21 @@ class TransitBffMapperTest {
         assertFails { ShapeDto("encoded_polyline", 5, "value", "2030-01-01T00:00:00+03:00").toDomain() }
         assertFails {
             VehiclePageDto(emptyList(), "not-a-time", 0, false).toDomain()
+        }
+        assertFails {
+            CityDto(
+                "demo",
+                text,
+                GeoPointDto(0.0, 0.0),
+                13.0,
+                CityCapabilitiesDto(true, true, true, true, true, true, arrivals = false),
+                availability,
+            ).toDomain()
+        }
+        assertFails {
+            json.decodeFromString<JourneyPageDto>(
+                """{"items":[],"observedAt":"2030-01-01T00:00:00Z","source":"OFFICIAL_REALTIME","realtime":true,"stale":false}""",
+            ).toDomain()
         }
     }
 }

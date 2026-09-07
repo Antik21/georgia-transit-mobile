@@ -382,8 +382,8 @@ private val featureCases = listOf(
         providerCalls = { it.vehiclesCalls.get() },
     ),
     FeatureCase(
-        name = "officialArrivals",
-        disable = { it.copy(officialArrivals = false) },
+        name = "arrivals",
+        disable = { it.copy(arrivals = false, officialArrivals = false) },
         invoke = { it.arrivals("test", stop.id, 1, "en") },
         providerCalls = { it.arrivalsCalls.get() },
     ),
@@ -536,7 +536,8 @@ private fun cityDocument(
       "routeGeometry":${capabilityValues.routeGeometry},
       "vehiclePositions":${capabilityValues.vehiclePositions},
       "officialArrivals":${capabilityValues.officialArrivals},
-      "tripPlanning":${capabilityValues.tripPlanning}
+      "tripPlanning":${capabilityValues.tripPlanning},
+      "arrivals":${capabilityValues.arrivals}
     }
     }""".trimIndent()
 

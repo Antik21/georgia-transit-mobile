@@ -6,7 +6,9 @@ info:
     Normalized, city-capability-driven public-transit API. Provider contracts and credentials
     never cross this boundary. The `demo` city exists only in opt-in development fixtures and
     does not imply production provider readiness. `/v1/cities` is the authoritative effective
-    capability snapshot; clients must not invent a parallel mobile feature-flag source.
+    capability snapshot; clients must not invent a parallel mobile feature-flag source. City
+    attribution is normalized public metadata and is rendered by clients without provider DTOs,
+    including for a city whose selectable capabilities are false.
 servers:
   - url: http://127.0.0.1:8080
     description: Local development only
@@ -43,7 +45,7 @@ paths:
                   name: {ru: Демо-город, en: Demo City, ka: დემო ქალაქი}
                   center: {latitude: 41.715137, longitude: 44.827096}
                   defaultZoom: 13
-                  capabilities: {routes: true, stops: true, routeGeometry: true, vehiclePositions: true, officialArrivals: true, tripPlanning: true}
+                  capabilities: {routes: true, stops: true, routeGeometry: true, vehiclePositions: true, officialArrivals: true, tripPlanning: true, arrivals: true}
                   availability: {readiness: DEVELOPMENT_FIXTURE, source: FIXTURE}
         '500': {$ref: '#/components/responses/InternalError'}
   /v1/cities/{cityId}/routes:
@@ -185,7 +187,7 @@ paths:
         - {$ref: '#/components/parameters/Locale'}
       responses:
         '200':
-          description: Raw normalized arrival page. Approximate ETAs use expected fields only when a source supports them.
+          description: Raw normalized arrival/departure page. Approximate ETAs use expected fields only when a source supports them. Transitous `arriveBy=false` maps departure and scheduledDeparture events. `stale=true` is a BFF last-known-good response after an eligible upstream outage, never a live provider response.
           headers: {X-Request-ID: {$ref: '#/components/headers/RequestId'}}
           content: {application/json: {schema: {$ref: '#/components/schemas/ArrivalPage'}, example: {items: [{stopId: demo:fixture:stop:center, routeId: demo:fixture:route:blue, tripId: blue-trip-01, headsign: {ru: Демо-парк, en: Demo Park, ka: დემო პარკი}, scheduledAt: '2030-01-01T00:05:00Z', expectedAt: '2030-01-01T00:04:00Z', expectedInMinutes: 4, realtime: true, cancelled: false, source: OFFICIAL_REALTIME}], source: OFFICIAL_REALTIME, observedAt: '2030-01-01T00:00:00Z', stale: false}}}
         '400': {$ref: '#/components/responses/InvalidArgument'}
@@ -211,9 +213,9 @@ paths:
         - {$ref: '#/components/parameters/MaxTransfers'}
       responses:
         '200':
-          description: Raw normalized journey page when the configured city exposes trip planning.
+          description: Raw normalized journey page when the configured city exposes trip planning. `source`, `realtime`, and `stale` describe the normalized page; `stale=true` is BFF last-known-good data after an eligible upstream outage.
           headers: {X-Request-ID: {$ref: '#/components/headers/RequestId'}}
-          content: {application/json: {schema: {$ref: '#/components/schemas/JourneyPage'}, example: {items: [{id: demo:fixture:journey:blue-direct, departureAt: '2030-01-01T00:00:00Z', arrivalAt: '2030-01-01T00:15:00Z', transfers: 0, legs: []}], observedAt: '2030-01-01T00:00:00Z'}}}
+          content: {application/json: {schema: {$ref: '#/components/schemas/JourneyPage'}, example: {items: [{id: demo:fixture:journey:blue-direct, departureAt: '2030-01-01T00:00:00Z', arrivalAt: '2030-01-01T00:15:00Z', transfers: 0, legs: [{routeId: demo:fixture:route:blue, directionId: demo:fixture:direction:blue-outbound, fromStopId: demo:fixture:stop:center, toStopId: demo:fixture:stop:park, departureAt: '2030-01-01T00:00:00Z', arrivalAt: '2030-01-01T00:15:00Z'}], segments: [{departureAt: '2030-01-01T00:00:00Z', arrivalAt: '2030-01-01T00:15:00Z', mode: TRANSIT, routeId: demo:fixture:route:blue, directionId: demo:fixture:direction:blue-outbound, fromStopId: demo:fixture:stop:center, toStopId: demo:fixture:stop:park}]}], observedAt: '2030-01-01T00:00:00Z', source: SCHEDULE, realtime: false, stale: false}}}
         '400': {$ref: '#/components/responses/InvalidArgument'}
         '404': {$ref: '#/components/responses/CityNotFound'}
         '409': {$ref: '#/components/responses/ProviderIdChanged'}
@@ -298,14 +300,15 @@ components:
         longitude: {type: number, minimum: -180, maximum: 180}
     CityCapabilities:
       type: object
-      required: [routes, stops, routeGeometry, vehiclePositions, officialArrivals, tripPlanning]
+      required: [routes, stops, routeGeometry, vehiclePositions, officialArrivals, tripPlanning, arrivals]
       properties:
         routes: {type: boolean}
         stops: {type: boolean}
         routeGeometry: {type: boolean}
         vehiclePositions: {type: boolean}
-        officialArrivals: {type: boolean}
+        officialArrivals: {type: boolean, description: True only for a city-provided official arrivals feed.}
         tripPlanning: {type: boolean}
+        arrivals: {type: boolean, description: Generic arrivals/schedule availability; this may be true while officialArrivals is false.}
     CityReadiness:
       type: string
       description: DEVELOPMENT_FIXTURE is synthetic local development data and is never production readiness.
@@ -320,6 +323,14 @@ components:
       properties:
         readiness: {$ref: '#/components/schemas/CityReadiness'}
         source: {$ref: '#/components/schemas/CitySource'}
+    AttributionLink:
+      type: object
+      description: Provider-neutral visible source or licence credit. Clients must expose the URL as an accessible link, including before selection of a non-selectable city.
+      required: [id, label, url]
+      properties:
+        id: {type: string, pattern: '^[a-z][a-z0-9-]{0,31}$'}
+        label: {$ref: '#/components/schemas/LocalizedText'}
+        url: {type: string, format: uri, pattern: '^https://'}
     City:
       type: object
       required: [id, name, center, defaultZoom, capabilities, availability]
@@ -330,6 +341,7 @@ components:
         defaultZoom: {type: number}
         capabilities: {$ref: '#/components/schemas/CityCapabilities'}
         availability: {$ref: '#/components/schemas/CityAvailability'}
+        attribution: {type: array, items: {$ref: '#/components/schemas/AttributionLink'}}
     Direction:
       type: object
       required: [id, name, headsign]
@@ -399,6 +411,7 @@ components:
         source: {$ref: '#/components/schemas/ArrivalSource'}
     JourneyLeg:
       type: object
+      description: Legacy transit-only leg retained unchanged for existing clients. Use Journey.segments for the complete ordered itinerary.
       required: [routeId, directionId, fromStopId, toStopId, departureAt, arrivalAt]
       properties:
         routeId: {$ref: '#/components/schemas/RouteId'}
@@ -407,6 +420,29 @@ components:
         toStopId: {$ref: '#/components/schemas/StopId'}
         departureAt: {$ref: '#/components/schemas/UtcTimestamp'}
         arrivalAt: {$ref: '#/components/schemas/UtcTimestamp'}
+    JourneySegmentMode:
+      type: string
+      description: App-owned high-level segment category; it never exposes provider mode taxonomies.
+      enum: [TRANSIT, WALK, BICYCLE, CAR, OTHER]
+    JourneySegment:
+      type: object
+      description: Additive complete ordered itinerary segment. TRANSIT requires route/direction and stop IDs; other categories have no route/direction and may omit stop IDs.
+      required: [departureAt, arrivalAt, mode]
+      properties:
+        departureAt: {$ref: '#/components/schemas/UtcTimestamp'}
+        arrivalAt: {$ref: '#/components/schemas/UtcTimestamp'}
+        mode:
+          $ref: '#/components/schemas/JourneySegmentMode'
+        routeId:
+          oneOf: [{$ref: '#/components/schemas/RouteId'}, {type: 'null'}]
+        directionId:
+          oneOf: [{$ref: '#/components/schemas/DirectionId'}, {type: 'null'}]
+        fromStopId:
+          oneOf: [{$ref: '#/components/schemas/StopId'}, {type: 'null'}]
+        toStopId:
+          oneOf: [{$ref: '#/components/schemas/StopId'}, {type: 'null'}]
+        fromPosition: {$ref: '#/components/schemas/GeoPoint', description: Endpoint coordinate when the provider can represent the leg without inventing a stop.}
+        toPosition: {$ref: '#/components/schemas/GeoPoint', description: Endpoint coordinate when the provider can represent the leg without inventing a stop.}
     Journey:
       type: object
       required: [id, departureAt, arrivalAt, transfers, legs]
@@ -416,6 +452,10 @@ components:
         arrivalAt: {$ref: '#/components/schemas/UtcTimestamp'}
         transfers: {type: integer, minimum: 0, maximum: 6}
         legs: {type: array, items: {$ref: '#/components/schemas/JourneyLeg'}}
+        segments:
+          type: array
+          description: Additive complete ordered itinerary. New clients should prefer this field; absent means use legacy legs.
+          items: {$ref: '#/components/schemas/JourneySegment'}
     VehiclePage:
       type: object
       required: [items, observedAt, maxAgeSeconds, stale]
@@ -434,10 +474,13 @@ components:
         stale: {type: boolean}
     JourneyPage:
       type: object
-      required: [items, observedAt]
+      required: [items, observedAt, source, realtime, stale]
       properties:
         items: {type: array, items: {$ref: '#/components/schemas/Journey'}}
         observedAt: {$ref: '#/components/schemas/UtcTimestamp'}
+        source: {$ref: '#/components/schemas/ArrivalSource'}
+        realtime: {type: boolean}
+        stale: {type: boolean}
     Cities: {type: array, items: {$ref: '#/components/schemas/City'}}
     Routes: {type: array, items: {$ref: '#/components/schemas/Route'}}
     Stops: {type: array, items: {$ref: '#/components/schemas/Stop'}}

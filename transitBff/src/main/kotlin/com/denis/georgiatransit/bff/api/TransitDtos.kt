@@ -1,6 +1,8 @@
 package com.denis.georgiatransit.bff.api
 
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.EncodeDefault
+import kotlinx.serialization.ExperimentalSerializationApi
 
 @Serializable
 data class LocalizedText(
@@ -17,6 +19,11 @@ data class CityCapabilities(
     val vehiclePositions: Boolean,
     val officialArrivals: Boolean,
     val tripPlanning: Boolean,
+    /**
+     * Arrivals may be supplied by a reviewed non-official schedule/realtime source. Keep this
+     * separate from [officialArrivals] so a client never labels aggregated data as official.
+     */
+    val arrivals: Boolean = officialArrivals,
 )
 
 /**
@@ -48,6 +55,14 @@ data class CityAvailability(
     val source: CitySource,
 )
 
+/** A provider-neutral, user-visible source/license link for a city. */
+@Serializable
+data class AttributionLink(
+    val id: String,
+    val label: LocalizedText,
+    val url: String,
+)
+
 @Serializable
 data class City(
     val id: String,
@@ -59,6 +74,7 @@ data class City(
         readiness = CityReadiness.UNREVIEWED,
         source = CitySource.UNREVIEWED_ADAPTER,
     ),
+    val attribution: List<AttributionLink> = emptyList(),
 )
 
 @Serializable
@@ -149,6 +165,7 @@ data class Arrival(
 
 @Serializable
 data class JourneyLeg(
+    /** Legacy transit-only representation retained for existing clients. */
     val routeId: String,
     val directionId: String,
     val fromStopId: String,
@@ -157,13 +174,42 @@ data class JourneyLeg(
     val arrivalAt: String,
 )
 
+/** Small app-owned taxonomy for the complete ordered itinerary. */
+@Serializable
+enum class JourneySegmentMode {
+    TRANSIT,
+    WALK,
+    BICYCLE,
+    CAR,
+    OTHER,
+}
+
+/** Additive complete itinerary representation; non-transit segments have no route/direction. */
+@Serializable
+data class JourneySegment(
+    val departureAt: String,
+    val arrivalAt: String,
+    val mode: JourneySegmentMode,
+    val routeId: String? = null,
+    val directionId: String? = null,
+    val fromStopId: String? = null,
+    val toStopId: String? = null,
+    val fromPosition: GeoPoint? = null,
+    val toPosition: GeoPoint? = null,
+)
+
+@OptIn(ExperimentalSerializationApi::class)
 @Serializable
 data class Journey(
     val id: String,
     val departureAt: String,
     val arrivalAt: String,
     val transfers: Int,
+    /** Legacy transit-only legs. New clients should use [segments] for full order. */
     val legs: List<JourneyLeg>,
+    /** Omit the empty default so legacy fixture responses retain their exact serialized shape. */
+    @EncodeDefault(EncodeDefault.Mode.NEVER)
+    val segments: List<JourneySegment> = emptyList(),
 )
 
 @Serializable
@@ -186,6 +232,9 @@ data class ArrivalPage(
 data class JourneyPage(
     val items: List<Journey>,
     val observedAt: String,
+    val source: ArrivalSource = ArrivalSource.SCHEDULE,
+    val realtime: Boolean = false,
+    val stale: Boolean = false,
 )
 
 @Serializable

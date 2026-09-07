@@ -1,5 +1,7 @@
 package com.denis.georgiatransit.bff.config
 
+import java.net.URI
+import java.nio.charset.StandardCharsets
 import java.nio.file.Path
 
 private const val DefaultDirectoryCacheTtlSeconds = 14_400L
@@ -27,6 +29,7 @@ data class BffConfig(
     val capabilityControlStateDirectory: Path?,
     val capabilityControlPollSeconds: Long,
     val capabilityControlHistoryLimit: Int,
+    val transitous: TransitousActivationConfig = TransitousActivationConfig.disabled(),
 ) {
     init {
         require(host.isNotBlank()) { "BFF_HOST must not be blank" }
@@ -94,6 +97,7 @@ data class BffConfig(
                         2,
                         50,
                     ),
+                    transitous = TransitousActivationConfig.fromEnvironment(environment),
                 )
             } catch (exception: IllegalArgumentException) {
                 throw BffConfigurationException(exception.message ?: "Invalid BFF configuration")
@@ -148,6 +152,161 @@ data class BffConfig(
                 Path.of(rawValue).toAbsolutePath().normalize()
             } catch (_: IllegalArgumentException) {
                 throw BffConfigurationException("$name is invalid")
+            }
+        }
+    }
+}
+
+/**
+ * Hosted Transitous calls are opt-in. This stores only operator assertions/references, never
+ * provider credentials; the references are deliberately not logged or exposed by the BFF.
+ */
+data class TransitousActivationConfig(
+    val enabled: Boolean,
+    val baseUrl: URI?,
+    val contact: String?,
+    val appVersion: String,
+    val eligibilityAcknowledged: Boolean,
+    val eligibilityReference: String?,
+    val contactAcknowledged: Boolean,
+    val routingApprovalAcknowledged: Boolean,
+    val routingApprovalReference: String?,
+    /** Operator-approved, raw upstream IDs used only to seed the server-side stop catalog. */
+    val approvedStopIds: Set<String> = emptySet(),
+) {
+    val isActivated: Boolean
+        get() = enabled && baseUrl != null && contact != null && eligibilityAcknowledged &&
+            eligibilityReference != null && contactAcknowledged
+
+    /** Routing remains unavailable unless a separate, recorded upstream approval is present. */
+    val isRoutingApproved: Boolean
+        get() = isActivated && routingApprovalAcknowledged && routingApprovalReference != null
+
+    init {
+        require(appVersion.matches(Regex("[A-Za-z0-9][A-Za-z0-9._-]{0,63}"))) {
+            "BFF_RELEASE_VERSION must be a safe version token"
+        }
+        eligibilityReference?.also(::requireSafeReference)
+        routingApprovalReference?.also(::requireSafeReference)
+        contact?.also(::requireMeaningfulContact)
+        require(approvedStopIds.size <= MaximumApprovedStopIds) {
+            "TRANSITOUS_TBILISI_STOP_IDS must contain at most $MaximumApprovedStopIds IDs"
+        }
+        approvedStopIds.forEach(::requireApprovedStopId)
+        if (enabled) {
+            requireHostedBaseUrl(baseUrl)
+            require(appVersion != "development") {
+                "BFF_RELEASE_VERSION is required when TRANSITOUS_ENABLED=true"
+            }
+            require(contact != null) { "TRANSITOUS_CONTACT is required when TRANSITOUS_ENABLED=true" }
+            require(eligibilityAcknowledged) {
+                "TRANSITOUS_ELIGIBILITY_ACKNOWLEDGED must be true when TRANSITOUS_ENABLED=true"
+            }
+            require(eligibilityReference != null) {
+                "TRANSITOUS_ELIGIBILITY_REFERENCE is required when TRANSITOUS_ENABLED=true"
+            }
+            require(contactAcknowledged) {
+                "TRANSITOUS_CONTACT_ACKNOWLEDGED must be true when TRANSITOUS_ENABLED=true"
+            }
+        }
+    }
+
+    fun userAgent(): String = "GeorgiaTransitBff/$appVersion (contact: ${requireNotNull(contact)})"
+
+    companion object {
+        private const val DefaultBaseUrl = "https://api.transitous.org"
+        private const val TransitousHostedApiHost = "api.transitous.org"
+        private const val MaximumApprovedStopIds = 128
+        private const val MaximumApprovedStopIdBytes = 150
+        private val safeReference = Regex("[A-Za-z0-9][A-Za-z0-9._/-]{0,127}")
+        private val emailAddress = Regex(
+            "[A-Za-z0-9.!#$%&'*+/=?^_`{|}~-]+@" +
+                "[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?" +
+                "(?:\\.[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)+",
+        )
+
+        fun fromEnvironment(environment: Map<String, String>): TransitousActivationConfig {
+            val enabled = parseBoolean(environment, "TRANSITOUS_ENABLED", false)
+            val baseUrl = if (enabled) parseHostedBaseUrl(environment["TRANSITOUS_BASE_URL"] ?: DefaultBaseUrl) else null
+            val contact = environment["TRANSITOUS_CONTACT"]?.takeIf { it.isNotBlank() }
+            return TransitousActivationConfig(
+                enabled = enabled,
+                baseUrl = baseUrl,
+                contact = contact,
+                appVersion = environment["BFF_RELEASE_VERSION"] ?: "development",
+                eligibilityAcknowledged = parseBoolean(
+                    environment,
+                    "TRANSITOUS_ELIGIBILITY_ACKNOWLEDGED",
+                    false,
+                ),
+                eligibilityReference = environment["TRANSITOUS_ELIGIBILITY_REFERENCE"]?.also(::requireSafeReference),
+                contactAcknowledged = parseBoolean(environment, "TRANSITOUS_CONTACT_ACKNOWLEDGED", false),
+                routingApprovalAcknowledged = parseBoolean(
+                    environment,
+                    "TRANSITOUS_ROUTING_APPROVAL_ACKNOWLEDGED",
+                    false,
+                ),
+                routingApprovalReference = environment["TRANSITOUS_ROUTING_APPROVAL_REFERENCE"]?.also(::requireSafeReference),
+                approvedStopIds = parseApprovedStopIds(environment["TRANSITOUS_TBILISI_STOP_IDS"]),
+            )
+        }
+
+        fun disabled(): TransitousActivationConfig = fromEnvironment(emptyMap())
+
+        private fun parseBoolean(environment: Map<String, String>, name: String, default: Boolean): Boolean =
+            when ((environment[name] ?: return default).lowercase()) {
+                "true" -> true
+                "false" -> false
+                else -> throw BffConfigurationException("$name must be true or false")
+            }
+
+        private fun parseHostedBaseUrl(value: String): URI = try {
+            URI(value).also(::requireHostedBaseUrl)
+        } catch (exception: Exception) {
+            throw BffConfigurationException(exception.message ?: "TRANSITOUS_BASE_URL is invalid")
+        }
+
+        private fun requireHostedBaseUrl(uri: URI?) {
+            require(
+                uri != null && uri.scheme == "https" && uri.host == TransitousHostedApiHost &&
+                    (uri.port == -1 || uri.port == 443) && uri.userInfo == null &&
+                    uri.query == null && uri.fragment == null && (uri.path.isNullOrEmpty() || uri.path == "/"),
+            ) {
+                "TRANSITOUS_BASE_URL must be exactly the HTTPS api.transitous.org origin"
+            }
+        }
+
+        private fun requireMeaningfulContact(value: String) {
+            val contactUrl = runCatching { URI(value) }.getOrNull()
+            val isHttpUrl = contactUrl != null && contactUrl.isAbsolute &&
+                contactUrl.scheme in setOf("https", "http") && !contactUrl.host.isNullOrBlank() &&
+                contactUrl.userInfo == null
+            require(value.length <= 256 && value.none(Char::isWhitespace) && (isHttpUrl || emailAddress.matches(value))) {
+                "TRANSITOUS_CONTACT must be an absolute http(s) URL or syntactically valid email address"
+            }
+        }
+
+        private fun parseApprovedStopIds(value: String?): Set<String> {
+            if (value == null || value.isBlank()) return emptySet()
+            val stopIds = value.split(',')
+            require(stopIds.none(String::isBlank) && stopIds.size == stopIds.toSet().size) {
+                "TRANSITOUS_TBILISI_STOP_IDS must be a unique comma-separated list"
+            }
+            return stopIds.toSet()
+        }
+
+        private fun requireApprovedStopId(value: String) {
+            require(
+                value.isNotBlank() && value.none(Char::isWhitespace) &&
+                    value.toByteArray(StandardCharsets.UTF_8).size <= MaximumApprovedStopIdBytes,
+            ) {
+                "TRANSITOUS_TBILISI_STOP_IDS contains an invalid stop ID"
+            }
+        }
+
+        private fun requireSafeReference(value: String) {
+            require(safeReference.matches(value)) {
+                "Transitous policy and approval references must be safe, non-secret identifiers"
             }
         }
     }

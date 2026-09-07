@@ -5,6 +5,8 @@ import com.denis.georgiatransit.bff.api.ArrivalSource
 import com.denis.georgiatransit.bff.api.City
 import com.denis.georgiatransit.bff.api.GeoPoint
 import com.denis.georgiatransit.bff.api.JourneyPage
+import com.denis.georgiatransit.bff.api.JourneySegment
+import com.denis.georgiatransit.bff.api.JourneySegmentMode
 import com.denis.georgiatransit.bff.api.PositionKind
 import com.denis.georgiatransit.bff.api.Shape
 import com.denis.georgiatransit.bff.api.VehiclePage
@@ -242,6 +244,81 @@ class NormalizedResponseValidatorTest {
                 )
             },
             { NormalizedResponseValidator.journeyPage("test", validJourneys.copy(observedAt = "not-an-instant")) },
+        )
+    }
+
+    @Test
+    fun `journey pages retain legacy transit legs while validating complete additive segment order and provenance`() {
+        val transit = journey.legs.single().copy(departureAt = "2030-01-01T00:05:00Z")
+        val walk = JourneySegment(
+            departureAt = "2030-01-01T00:00:00Z",
+            arrivalAt = "2030-01-01T00:05:00Z",
+            mode = JourneySegmentMode.WALK,
+            fromPosition = GeoPoint(41.70, 44.80),
+            toPosition = GeoPoint(41.71, 44.81),
+        )
+        val transitSegment = JourneySegment(
+            departureAt = "2030-01-01T00:05:00Z",
+            arrivalAt = "2030-01-01T00:10:00Z",
+            mode = JourneySegmentMode.TRANSIT,
+            routeId = transit.routeId,
+            directionId = transit.directionId,
+            fromStopId = transit.fromStopId,
+            toStopId = transit.toStopId,
+            fromPosition = GeoPoint(41.71, 44.81),
+            toPosition = GeoPoint(41.72, 44.82),
+        )
+        val complete = journey.copy(legs = listOf(transit), segments = listOf(walk, transitSegment))
+        val page = JourneyPage(
+            items = listOf(complete),
+            observedAt = "2030-01-01T00:00:00Z",
+            source = ArrivalSource.AGGREGATOR_REALTIME,
+            realtime = true,
+            stale = true,
+        )
+
+        NormalizedResponseValidator.journeyPage("test", page)
+
+        assertInvalid(
+            {
+                NormalizedResponseValidator.journeyPage(
+                    "test",
+                    page.copy(source = ArrivalSource.OFFICIAL_REALTIME),
+                )
+            },
+            { NormalizedResponseValidator.journeyPage("test", page.copy(realtime = false)) },
+            {
+                NormalizedResponseValidator.journeyPage(
+                    "test",
+                    page.copy(items = listOf(complete.copy(legs = emptyList()))),
+                )
+            },
+            {
+                NormalizedResponseValidator.journeyPage(
+                    "test",
+                    page.copy(items = listOf(complete.copy(segments = listOf(transitSegment, walk)))),
+                )
+            },
+            {
+                NormalizedResponseValidator.journeyPage(
+                    "test",
+                    page.copy(
+                        items = listOf(
+                            complete.copy(
+                                segments = listOf(
+                                    transitSegment.copy(fromStopId = null),
+                                ),
+                            ),
+                        ),
+                    ),
+                )
+            },
+            {
+                NormalizedResponseValidator.journeyPage(
+                    "test",
+                    page.copy(items = listOf(complete.copy(segments = listOf(walk.copy(routeId = route.id))))),
+                )
+            },
         )
     }
 

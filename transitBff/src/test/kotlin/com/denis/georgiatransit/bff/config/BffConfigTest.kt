@@ -6,6 +6,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
+import kotlin.test.assertTrue
 
 class BffConfigTest {
     @Test
@@ -19,6 +20,9 @@ class BffConfigTest {
         assertEquals(86_400, config.shapeCacheTtlSeconds)
         assertEquals(15, config.realtimeSingleFlightSeconds)
         assertFalse(config.fixturesEnabled)
+        assertFalse(config.transitous.enabled)
+        assertFalse(config.transitous.isActivated)
+        assertFalse(config.transitous.isRoutingApproved)
     }
 
     @Test
@@ -120,4 +124,81 @@ class BffConfigTest {
             }
         }
     }
+
+    @Test
+    fun `Transitous activation is fail closed until policy contact and version evidence are complete`() {
+        val valid = BffConfig.fromEnvironment(transitousEnvironment())
+
+        assertTrue(valid.transitous.isActivated)
+        assertFalse(valid.transitous.isRoutingApproved)
+        assertEquals("GeorgiaTransitBff/2026.9.8 (contact: transit-ops@example.com)", valid.transitous.userAgent())
+
+        listOf(
+            transitousEnvironment() - "BFF_RELEASE_VERSION",
+            transitousEnvironment() - "TRANSITOUS_CONTACT",
+            transitousEnvironment() - "TRANSITOUS_ELIGIBILITY_ACKNOWLEDGED",
+            transitousEnvironment() - "TRANSITOUS_ELIGIBILITY_REFERENCE",
+            transitousEnvironment() - "TRANSITOUS_CONTACT_ACKNOWLEDGED",
+            transitousEnvironment() + ("TRANSITOUS_ELIGIBILITY_ACKNOWLEDGED" to "false"),
+            transitousEnvironment() + ("BFF_RELEASE_VERSION" to "unsafe version"),
+        ).forEach { environment ->
+            assertFailsWith<BffConfigurationException> { BffConfig.fromEnvironment(environment) }
+        }
+    }
+
+    @Test
+    fun `Transitous accepts only official HTTPS origin and meaningful operator contacts`() {
+        val contacts = listOf("transit-ops@example.com", "https://status.example.com/transitous", "http://ops.example.com/contact")
+        contacts.forEach { contact ->
+            assertTrue(BffConfig.fromEnvironment(transitousEnvironment() + ("TRANSITOUS_CONTACT" to contact)).transitous.isActivated)
+        }
+
+        listOf(
+            "http://api.transitous.org",
+            "https://api.transitous.org.evil.example",
+            "https://staging.api.transitous.org",
+            "https://api.transitous.org/path",
+            "https://api.transitous.org?redirect=https://evil.example",
+        ).forEach { origin ->
+            assertFailsWith<BffConfigurationException> {
+                BffConfig.fromEnvironment(transitousEnvironment() + ("TRANSITOUS_BASE_URL" to origin))
+            }
+        }
+        listOf("ops", "mailto:ops@example.com", "/contact", "https://", "ops @example.com").forEach { contact ->
+            assertFailsWith<BffConfigurationException> {
+                BffConfig.fromEnvironment(transitousEnvironment() + ("TRANSITOUS_CONTACT" to contact))
+            }
+        }
+    }
+
+    @Test
+    fun `Transitous routing remains off without a separately acknowledged safe approval reference`() {
+        val activated = transitousEnvironment()
+        assertFalse(BffConfig.fromEnvironment(activated + ("TRANSITOUS_ROUTING_APPROVAL_ACKNOWLEDGED" to "true")).transitous.isRoutingApproved)
+
+        val approved = BffConfig.fromEnvironment(
+            activated + mapOf(
+                "TRANSITOUS_ROUTING_APPROVAL_ACKNOWLEDGED" to "true",
+                "TRANSITOUS_ROUTING_APPROVAL_REFERENCE" to "approval/DEN-56",
+            ),
+        )
+        assertTrue(approved.transitous.isRoutingApproved)
+        assertFailsWith<BffConfigurationException> {
+            BffConfig.fromEnvironment(
+                activated + mapOf(
+                    "TRANSITOUS_ROUTING_APPROVAL_ACKNOWLEDGED" to "true",
+                    "TRANSITOUS_ROUTING_APPROVAL_REFERENCE" to "approval with a secret",
+                ),
+            )
+        }
+    }
+
+    private fun transitousEnvironment(): Map<String, String> = mapOf(
+        "TRANSITOUS_ENABLED" to "true",
+        "BFF_RELEASE_VERSION" to "2026.9.8",
+        "TRANSITOUS_CONTACT" to "transit-ops@example.com",
+        "TRANSITOUS_ELIGIBILITY_ACKNOWLEDGED" to "true",
+        "TRANSITOUS_ELIGIBILITY_REFERENCE" to "policy/DEN-56",
+        "TRANSITOUS_CONTACT_ACKNOWLEDGED" to "true",
+    )
 }

@@ -133,6 +133,7 @@ class CitySelectionViewModel(
         localizedName = localizedName,
         isEnabled = capabilities.stops,
         isExperimental = capabilities.experimental,
+        attribution = attribution,
     )
 
     private fun onContinueClicked() {

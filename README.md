@@ -114,16 +114,28 @@ city-scoped provider adapter boundary: provider DTOs, URLs, credentials, and
 secrets must stay inside a reviewed server adapter and operator secret manager.
 No mobile app calls a provider directly.
 
-The only currently included adapter is an unmistakably synthetic `demo` city.
-It is enabled only with both `BFF_MODE=development` and
+The synthetic `demo` city is enabled only with both `BFF_MODE=development` and
 `BFF_FIXTURES_ENABLED=true`; it is useful for local contract development, but
 is not real provider readiness. `/v1/cities` labels it
-`DEVELOPMENT_FIXTURE`/`FIXTURE` and always returns all six granular capability
+`DEVELOPMENT_FIXTURE`/`FIXTURE` and always returns all seven granular capability
 booleans. Kutaisi and Batumi are absent until configured adapters are reviewed;
 an absent city returns `CITY_NOT_FOUND`. Trip planning is capability-gated for
 every configured city. In `production`, fixtures are rejected and startup fails
-closed because this repository does not yet contain a reviewed real provider
-adapter.
+closed when no reviewed adapter has been explicitly activated.
+
+The BFF also contains a server-only, disabled-by-default Transitous Tbilisi
+best-effort adapter for arrivals/schedule and approved routing. It does not add
+provider types, URLs, or credentials to mobile code, does not use
+`/api/v6/map/trips`, and never represents its data as official arrivals or GPS
+vehicle positions. Hosted requests are impossible unless the deployer supplies
+explicit policy-eligibility evidence, a meaningful contact acknowledgement, a
+release version, and an operator-owned control document. Routing has a separate
+written-upstream-approval gate. Transitous policy limits hosted API use to FOSS,
+non-commercial, light use; commercial use is forbidden and routing/heavy or
+multi-user use needs operator approval. MOTIS's MIT software licence does not
+grant hosted API/data rights. See the [Transitous operator runbook](docs/development/transitous-fallback.md)
+and [ADR 0006](docs/adr/0006-transitous-best-effort-fallback.md); production
+activation remains blocked without that written eligibility/approval.
 
 For a future reviewed adapter, an operator-owned JSON capability document can
 atomically enable/disable cities and individual features at runtime. The BFF
@@ -133,6 +145,7 @@ logs redacted audit evidence. A missing/invalid initial production document is
 closed; later malformed updates retain the last accepted snapshot. The BFF
 provides no admin mutation endpoint. See the
 [capability-control runbook](docs/development/bff-capability-control.md),
+the [Transitous operator runbook](docs/development/transitous-fallback.md),
 [`transitBff/.env.example`](transitBff/.env.example), and
 [ADR 0004](docs/adr/0004-runtime-capability-control-plane.md). Mobile BFF
 client/UI consumption is owned by DEN-49/DEN-47; this server control plane does
