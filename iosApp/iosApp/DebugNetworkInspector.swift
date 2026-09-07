@@ -115,11 +115,14 @@ private final class NetworkInspectorURLProtocol: URLProtocol, URLSessionDataDele
     }
 
     override func stopLoading() {
-        stateLock.lock()
-        let task = forwardingTask
-        stateLock.unlock()
-        finish(with: URLError(.cancelled))
-        task?.cancel()
+        let resources =
+            finish(
+                with: URLError(.cancelled),
+                notifyClient: false,
+                invalidateSession: false
+            )
+        resources?.task?.cancel()
+        resources?.session?.invalidateAndCancel()
     }
 
     func urlSession(
@@ -195,11 +198,21 @@ private final class NetworkInspectorURLProtocol: URLProtocol, URLSessionDataDele
         }
     }
 
-    private func finish(with error: Error?) {
+    private struct ForwardingResources {
+        let task: URLSessionDataTask?
+        let session: URLSession?
+    }
+
+    @discardableResult
+    private func finish(
+        with error: Error?,
+        notifyClient: Bool = true,
+        invalidateSession: Bool = true
+    ) -> ForwardingResources? {
         stateLock.lock()
         guard !isFinished else {
             stateLock.unlock()
-            return
+            return nil
         }
         isFinished = true
         let finalResponse = response
@@ -207,6 +220,7 @@ private final class NetworkInspectorURLProtocol: URLProtocol, URLSessionDataDele
         let finalResponseWasTruncated = responseWasTruncated
         let finalDuration = Date().timeIntervalSince(startedAt)
         let finalGeneration = captureGeneration
+        let finalTask = forwardingTask
         let finalSession = session
         stateLock.unlock()
 
@@ -222,12 +236,17 @@ private final class NetworkInspectorURLProtocol: URLProtocol, URLSessionDataDele
             NetworkInspectorStore.shared.append(capture.entry, generation: finalGeneration)
         }
 
-        if let error {
-            client?.urlProtocol(self, didFailWithError: error)
-        } else {
-            client?.urlProtocolDidFinishLoading(self)
+        if notifyClient {
+            if let error {
+                client?.urlProtocol(self, didFailWithError: error)
+            } else {
+                client?.urlProtocolDidFinishLoading(self)
+            }
         }
-        finalSession?.finishTasksAndInvalidate()
+        if invalidateSession {
+            finalSession?.finishTasksAndInvalidate()
+        }
+        return ForwardingResources(task: finalTask, session: finalSession)
     }
 }
 

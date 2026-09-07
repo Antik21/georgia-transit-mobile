@@ -159,7 +159,7 @@ internal class RedactingChuckerInterceptor(context: Context) : Interceptor {
         const val MAX_CAPTURED_BODY_BYTES = 256L * 1024L
         const val OMITTED_REQUEST_BODY_MARKER = "[Request body omitted before inspection]"
         const val OMITTED_RESPONSE_BODY_MARKER =
-            "[Response body omitted before inspection: unsupported, unknown, or larger than 256 KiB]"
+            "[Response body omitted before inspection: unsupported or larger than 256 KiB]"
 
         val inspectionMarkerMediaType = "text/plain; charset=utf-8".toMediaType()
 
@@ -207,7 +207,7 @@ internal class RedactingChuckerInterceptor(context: Context) : Interceptor {
             if (!RedactingBodyDecoder.supportsInspectionPreview(contentType)) {
                 return omittedInspectionResponseBody()
             }
-            if (originalBody.contentLength() !in 0..MAX_CAPTURED_BODY_BYTES) {
+            if (originalBody.contentLength() > MAX_CAPTURED_BODY_BYTES) {
                 return omittedInspectionResponseBody()
             }
 

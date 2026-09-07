@@ -1,6 +1,11 @@
 appId: com.denis.georgiatransit
 ---
-# Precondition: start .android.DebugNetworkInspectorActivity in the Debug APK on the explicit emulator.
+# Precondition: launch the Debug app once, then open the Android app drawer with KEYCODE_ALL_APPS.
+# The inspector is intentionally non-exported; reach it only through this app-owned dynamic shortcut.
+- assertVisible: Georgia Transit
+- longPressOn: Georgia Transit
+- assertVisible: Network inspector
+- tapOn: Network inspector
 - assertVisible:
     id: debug_network_inspector_run_success
 - tapOn:

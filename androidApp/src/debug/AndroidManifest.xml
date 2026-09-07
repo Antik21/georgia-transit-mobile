@@ -7,7 +7,7 @@
         tools:replace="android:name">
         <activity
             android:name=".DebugNetworkInspectorActivity"
-            android:exported="true"
+            android:exported="false"
             android:label="Network inspector" />
     </application>
 </manifest>
