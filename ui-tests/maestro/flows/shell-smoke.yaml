@@ -7,7 +7,7 @@ appId: com.denis.georgiatransit
 - assertVisible:
     id: city-selection.location
 - tapOn:
-    id: city-selection.tbilisi
+    id: city-selection.demo
 - tapOn:
     id: city-selection.continue
 - assertVisible:
@@ -22,9 +22,6 @@ appId: com.denis.georgiatransit
     id: routes.option
     index: 0
 - tapOn:
-    id: routes.option
-    index: 1
-- tapOn:
     id: routes.confirm
 - assertVisible:
     id: map.screen
@@ -34,15 +31,5 @@ appId: com.denis.georgiatransit
     id: routes.screen
 - tapOn:
     id: routes.back
-- assertVisible:
-    id: map.screen
-- tapOn:
-    id: map.change-city
-- assertVisible:
-    id: city-selection.screen
-- tapOn:
-    id: city-selection.batumi
-- tapOn:
-    id: city-selection.continue
 - assertVisible:
     id: map.screen

@@ -46,5 +46,9 @@
     <string name="routes_back_action">უკან</string>
     <string name="routes_confirm_action">რუკაზე ჩვენება</string>
     <string name="routes_empty">ამ ქალაქისთვის მარშრუტების კატალოგი ჯერ მიუწვდომელია.</string>
+    <string name="routes_loading">მარშრუტების კატალოგი იტვირთება…</string>
+    <string name="routes_error">მარშრუტების კატალოგი მიუწვდომელია.</string>
+    <string name="routes_retry">ხელახლა ცდა</string>
+    <string name="routes_offline">ოფლაინ რეჟიმში ნაჩვენებია ბოლოს ხელმისაწვდომი კატალოგი.</string>
     <string name="loading">ტრანსპორტის მონაცემები იტვირთება…</string>
 </resources>

@@ -17,6 +17,9 @@ object AutomationId {
     const val MapUserLocation = "map.user-location"
     const val RoutesScreen = "routes.screen"
     const val RoutesOption = "routes.option"
+    const val RoutesLoading = "routes.loading"
+    const val RoutesError = "routes.error"
+    const val RoutesRetry = "routes.retry"
     const val RoutesBack = "routes.back"
     const val RoutesConfirm = "routes.confirm"
 }

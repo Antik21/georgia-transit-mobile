@@ -80,6 +80,7 @@ kotlin {
             implementation(libs.kotlinx.coroutines.test)
             implementation(libs.turbine)
             implementation(libs.orbit.test)
+            implementation(libs.ktor.client.mock)
         }
     }
 }

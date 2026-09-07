@@ -11,7 +11,8 @@
         android:name=".GeorgiaTransitApplication"
         android:allowBackup="false"
         android:label="Georgia Transit"
-        android:theme="@style/AppTheme">
+        android:theme="@style/AppTheme"
+        android:usesCleartextTraffic="false">
         <activity
             android:name=".MainActivity"
             android:exported="true">

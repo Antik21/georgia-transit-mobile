@@ -73,11 +73,37 @@ Verify startup explicitly on both platforms:
    Routes: the existing common navigation state remains valid for the restored
    city.
 
-The checked-in preview repository and platform runtime-config adapters are
-local and immediately available, so they do not exercise timeout, unavailable,
-or invalid-configuration recovery at runtime. Those paths are nevertheless
-bounded and terminal for a future BFF repository or host adapter that reports a
-failure.
+The production Koin binding is the shared BFF repository. Preview data remains
+available only for Compose previews, tests, or explicit local construction; it
+is never a production fallback.
+
+## Mobile BFF endpoint and offline catalog cache
+
+The mobile app has no deployed production BFF URL checked in. Release host
+composition supplies no endpoint today, so shared data returns a typed
+configuration failure without sending traffic anywhere. When a reviewed BFF is
+deployed, the native composition boundary must inject its exact non-secret
+`https://` endpoint via `BffEndpointConfiguration`; it must not add a provider
+URL, provider key, or a fallback to preview data. Plain HTTP is rejected except
+for the explicit debug loopbacks: Android emulator `http://10.0.2.2:8080` and
+iOS Simulator `http://127.0.0.1:8080`.
+
+The common Ktor client applies a five-second connect bound, eight-second bounds
+for vehicles/arrivals, and 20-second bounds for directory and journey calls.
+It makes at most two GET retries, only for transport timeouts/connect failures
+or 408/429/502/503/504, using exponential backoff with jitter and a bounded
+`Retry-After`. BFF error envelopes map to typed domain failures; cancellation is
+always rethrown.
+
+Offline durable last-known-good data is intentionally narrow: only the
+city/capability snapshot and route-list snapshots are persisted. Android uses
+`SharedPreferences`; iOS uses `NSUserDefaults`. Entries are schema-versioned,
+size-bounded, corruption-evicted, and limited to 12 route lists. Route keys
+include city, locale, and mode; the one-hour TTL causes revalidation without
+deleting LKG. A route-list `304` retains its payload and advances validation
+time. On transient transport/429/502/503/504 failures, stale LKG is returned
+with explicit failure metadata. Stops, shapes, realtime vehicles, arrivals, and
+journeys are never durably stored.
 
 ## Transit BFF
 

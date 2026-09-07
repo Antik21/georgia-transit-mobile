@@ -46,5 +46,9 @@
     <string name="routes_back_action">Назад</string>
     <string name="routes_confirm_action">Показать на карте</string>
     <string name="routes_empty">Для этого города каталог маршрутов пока недоступен.</string>
+    <string name="routes_loading">Загрузка каталога маршрутов…</string>
+    <string name="routes_error">Каталог маршрутов недоступен.</string>
+    <string name="routes_retry">Повторить</string>
+    <string name="routes_offline">Показан последний доступный каталог в офлайн-режиме.</string>
     <string name="loading">Загружаем транспортные данные…</string>
 </resources>

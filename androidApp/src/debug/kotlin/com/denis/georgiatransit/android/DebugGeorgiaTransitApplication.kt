@@ -3,9 +3,12 @@ package com.denis.georgiatransit.android
 import android.content.Intent
 import android.content.pm.ShortcutInfo
 import android.content.pm.ShortcutManager
+import com.denis.georgiatransit.shared.data.config.BffEndpointConfiguration
 import com.denis.georgiatransit.shared.data.network.installTransitOkHttpInterceptor
 
 class DebugGeorgiaTransitApplication : GeorgiaTransitApplication() {
+    override val bffEndpointConfiguration: BffEndpointConfiguration = BffEndpointConfiguration.debugAndroidEmulator
+
     override fun onCreate() {
         installTransitOkHttpInterceptor(RedactingChuckerInterceptor(this))
         super.onCreate()
