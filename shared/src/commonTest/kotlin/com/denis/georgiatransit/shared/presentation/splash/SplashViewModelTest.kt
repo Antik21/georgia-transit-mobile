@@ -23,23 +23,32 @@ import kotlin.test.assertEquals
 class SplashViewModelTest {
     @Test
     fun retryMovesFromErrorThroughLoadingToReady() = runTest {
+        val initialAttempt = CompletableDeferred<SnapshotOutcome>()
+        val retryAttempt = CompletableDeferred<SnapshotOutcome>()
         val repository = SequencedRepository(
             outcomes = mutableListOf(
-                SnapshotOutcome.Fail,
-                SnapshotOutcome.Cities(listOf(tbilisi)),
+                SnapshotOutcome.WaitFor(initialAttempt),
+                SnapshotOutcome.WaitFor(retryAttempt),
             ),
         )
         val viewModel = SplashViewModel(bootstrap(repository))
 
         viewModel.test(this) {
             runOnCreate()
-            this@runTest.advanceUntilIdle()
-            expectState(ViewState.Error(BootstrapTransitSession.Failure.Unavailable))
+            this@runTest.runCurrent()
+            assertEquals(1, repository.snapshotCalls)
+            assertEquals(ViewState.Loading, viewModel.container.stateFlow.value)
+
+            initialAttempt.complete(SnapshotOutcome.Fail)
+            expectState(
+                ViewState.Error(BootstrapTransitSession.Failure.Unavailable),
+            )
 
             viewModel.dispatchAction(Action.RetryClicked)
-            this@runTest.runCurrent()
             expectState(ViewState.Loading)
-            this@runTest.advanceUntilIdle()
+            assertEquals(2, repository.snapshotCalls)
+
+            retryAttempt.complete(SnapshotOutcome.Cities(listOf(tbilisi)))
             expectState(ViewState.Ready(Destination.CitySelection))
             cancelAndIgnoreRemainingItems()
         }
@@ -47,25 +56,25 @@ class SplashViewModelTest {
 
     @Test
     fun duplicateRetriesWhileBootstrapIsRunningStartOnlyOneRequest() = runTest {
-        val gate = CompletableDeferred<Unit>()
+        val gate = CompletableDeferred<SnapshotOutcome>()
         val repository = SequencedRepository(
-            outcomes = mutableListOf(SnapshotOutcome.WaitFor(gate, listOf(tbilisi))),
+            outcomes = mutableListOf(SnapshotOutcome.WaitFor(gate)),
         )
         val viewModel = SplashViewModel(bootstrap(repository))
 
         viewModel.test(this) {
             runOnCreate()
             this@runTest.runCurrent()
+            assertEquals(ViewState.Loading, viewModel.container.stateFlow.value)
             viewModel.dispatchAction(Action.RetryClicked)
             viewModel.dispatchAction(Action.RetryClicked)
             this@runTest.runCurrent()
 
             assertEquals(1, repository.snapshotCalls)
-            gate.complete(Unit)
-            this@runTest.advanceUntilIdle()
+            gate.complete(SnapshotOutcome.Cities(listOf(tbilisi)))
+            expectState(ViewState.Ready(Destination.CitySelection))
 
             assertEquals(1, repository.snapshotCalls)
-            expectState(ViewState.Ready(Destination.CitySelection))
             cancelAndIgnoreRemainingItems()
         }
     }
@@ -96,14 +105,13 @@ class SplashViewModelTest {
 
         override suspend fun loadCityCapabilitySnapshot(): List<TransitCity> {
             snapshotCalls += 1
-            return when (val outcome = outcomes.removeFirst()) {
-                SnapshotOutcome.Fail -> throw IllegalStateException("unavailable")
-                is SnapshotOutcome.Cities -> outcome.cities
-                is SnapshotOutcome.WaitFor -> {
-                    outcome.gate.await()
-                    outcome.cities
-                }
-            }
+            return snapshotFor(outcomes.removeFirst())
+        }
+
+        private suspend fun snapshotFor(outcome: SnapshotOutcome): List<TransitCity> = when (outcome) {
+            SnapshotOutcome.Fail -> throw IllegalStateException("unavailable")
+            is SnapshotOutcome.Cities -> outcome.cities
+            is SnapshotOutcome.WaitFor -> snapshotFor(outcome.gate.await())
         }
 
         override fun routes(cityId: CityId) = emptyList<com.denis.georgiatransit.shared.domain.model.TransitRoute>()
@@ -112,7 +120,7 @@ class SplashViewModelTest {
     private sealed interface SnapshotOutcome {
         data object Fail : SnapshotOutcome
         data class Cities(val cities: List<TransitCity>) : SnapshotOutcome
-        data class WaitFor(val gate: CompletableDeferred<Unit>, val cities: List<TransitCity>) : SnapshotOutcome
+        data class WaitFor(val gate: CompletableDeferred<SnapshotOutcome>) : SnapshotOutcome
     }
 
     private companion object {
