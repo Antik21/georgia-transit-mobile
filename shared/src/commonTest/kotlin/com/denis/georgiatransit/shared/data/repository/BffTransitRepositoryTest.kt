@@ -6,10 +6,13 @@ import com.denis.georgiatransit.shared.data.cache.TransitCacheStore
 import com.denis.georgiatransit.shared.data.cache.TransitClock
 import com.denis.georgiatransit.shared.data.config.BffEndpointConfiguration
 import com.denis.georgiatransit.shared.data.network.TransitBffClient
+import com.denis.georgiatransit.shared.domain.model.CityCapabilities
 import com.denis.georgiatransit.shared.domain.model.CityId
+import com.denis.georgiatransit.shared.domain.model.GeoPoint
 import com.denis.georgiatransit.shared.domain.model.RouteId
 import com.denis.georgiatransit.shared.domain.model.TransitLocale
 import com.denis.georgiatransit.shared.domain.model.TransitMode
+import com.denis.georgiatransit.shared.domain.model.TransitCity
 import com.denis.georgiatransit.shared.domain.repository.RouteListRequest
 import com.denis.georgiatransit.shared.domain.repository.TransitFailure
 import com.denis.georgiatransit.shared.domain.repository.TransitFreshness
@@ -27,11 +30,15 @@ import io.ktor.http.HttpStatusCode
 import io.ktor.http.headersOf
 import io.ktor.serialization.kotlinx.json.json
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.Runnable
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.runTest
 import kotlinx.io.IOException
 import kotlinx.serialization.json.Json
+import kotlin.coroutines.CoroutineContext
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -178,15 +185,57 @@ class BffTransitRepositoryTest {
         assertEquals(listOf(RouteId("demo:fixture:route:blue")), repository.routes(CityId("demo")).map { it.id })
     }
 
+    @Test
+    fun lazyHydrationIsOnceOnlyPreservesCacheValidCitiesAndUsesInjectedCacheDispatcher() = runTest {
+        val clock = MutableClock(1_000_000L)
+        val store = MemoryStore()
+        val cachedCities = listOf(cachedCity())
+        TransitCache(store).write(
+            CityCacheKeyForTest,
+            TransitCacheEntry(
+                fetchedAtEpochMillis = clock.now,
+                validatedAtEpochMillis = clock.now,
+                payload = cachedCities,
+            ),
+            64 * 1024,
+        )
+        val dispatcher = RecordingDispatcher(StandardTestDispatcher(testScheduler))
+        val repository = repository(store, clock, cacheDispatcher = dispatcher) { jsonResponse(routesJson()) }
+
+        assertTrue(repository.cities().isEmpty(), "Construction must not hydrate the synchronous cache on the caller thread")
+        assertEquals(0, store.readCount(CityCacheKeyForTest))
+
+        val cityResult = assertIs<TransitLoadResult.Data<*>>(repository.refreshCityCapabilities())
+        assertEquals(TransitFreshness.CacheValid, cityResult.freshness)
+        assertEquals(cachedCities, repository.cities())
+        assertEquals(2, store.readCount(CityCacheKeyForTest), "One hydration read and one normal cache lookup are expected")
+
+        assertEquals(TransitFreshness.Network, assertIs<TransitLoadResult.Data<*>>(
+            repository.refreshRoutes(RouteListRequest(CityId("demo"))),
+        ).freshness)
+        assertEquals(2, store.readCount(CityCacheKeyForTest), "Route refresh must reuse the completed hydration")
+        assertTrue(dispatcher.dispatchCount > 0, "Cache I/O must enter the injected cache dispatcher")
+    }
+
     private fun repository(
         store: MemoryStore,
         clock: MutableClock,
+        cacheDispatcher: CoroutineDispatcher? = null,
         handler: suspend MockRequestHandleScope.(HttpRequestData) -> HttpResponseData,
-    ) = BffTransitRepository(
-        client = TransitBffClient(mockHttpClient(handler), BffEndpointConfiguration("https://bff.example")),
-        cache = TransitCache(store),
-        clock = clock,
-    )
+    ) = if (cacheDispatcher == null) {
+        BffTransitRepository(
+            client = TransitBffClient(mockHttpClient(handler), BffEndpointConfiguration("https://bff.example")),
+            cache = TransitCache(store),
+            clock = clock,
+        )
+    } else {
+        BffTransitRepository(
+            client = TransitBffClient(mockHttpClient(handler), BffEndpointConfiguration("https://bff.example")),
+            cache = TransitCache(store),
+            clock = clock,
+            cacheDispatcher = cacheDispatcher,
+        )
+    }
 
     private fun mockHttpClient(handler: suspend MockRequestHandleScope.(HttpRequestData) -> HttpResponseData) =
         HttpClient(MockEngine(handler)) {
@@ -218,21 +267,46 @@ class BffTransitRepositoryTest {
     private fun errorJson(code: String) =
         """{"error":{"code":"$code","message":"contract message","requestId":"req-123"}}"""
 
+    private fun cachedCity() = TransitCity(
+        id = CityId("demo"),
+        name = "Demo",
+        center = GeoPoint(41.7, 44.8),
+        capabilities = CityCapabilities(true, true, true, true, true),
+    )
+
     private class MemoryStore(private val failWrites: Boolean = false) : TransitCacheStore {
         val values = linkedMapOf<String, String>()
-        override fun read(key: String): String? = values[key]
+        private val readCounts = mutableMapOf<String, Int>()
+        override fun read(key: String): String? {
+            readCounts[key] = (readCounts[key] ?: 0) + 1
+            return values[key]
+        }
         override fun write(key: String, value: String): Boolean = !failWrites && values.put(key, value).let { true }
         override fun remove(key: String) {
             values.remove(key)
         }
         override fun keys(prefix: String): List<String> = values.keys.filter { it.startsWith(prefix) }
+        fun readCount(key: String): Int = readCounts[key] ?: 0
     }
 
     private class MutableClock(var now: Long) : TransitClock {
         override fun nowEpochMillis(): Long = now
     }
 
+    private class RecordingDispatcher(private val delegate: CoroutineDispatcher) : CoroutineDispatcher() {
+        var dispatchCount = 0
+            private set
+
+        override fun dispatch(context: CoroutineContext, block: Runnable) {
+            dispatchCount += 1
+            delegate.dispatch(context, block)
+        }
+
+        override fun isDispatchNeeded(context: CoroutineContext): Boolean = delegate.isDispatchNeeded(context)
+    }
+
     private companion object {
+        const val CityCacheKeyForTest = "transit-bff-v1.cities"
         const val HOUR_MILLIS = 60L * 60L * 1_000L
     }
 }

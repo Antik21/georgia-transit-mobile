@@ -3,6 +3,7 @@ package com.denis.georgiatransit.shared.data.repository
 import com.denis.georgiatransit.shared.data.cache.TransitCache
 import com.denis.georgiatransit.shared.data.cache.TransitCacheEntry
 import com.denis.georgiatransit.shared.data.cache.TransitClock
+import com.denis.georgiatransit.shared.data.cache.transitCacheDispatcher
 import com.denis.georgiatransit.shared.data.network.BffResponse
 import com.denis.georgiatransit.shared.data.network.TransitBffClient
 import com.denis.georgiatransit.shared.domain.model.ArrivalPage
@@ -26,9 +27,11 @@ import com.denis.georgiatransit.shared.domain.repository.TransitLoadResult
 import com.denis.georgiatransit.shared.domain.repository.TransitRepository
 import com.denis.georgiatransit.shared.domain.repository.TransitRepositoryException
 import com.denis.georgiatransit.shared.domain.repository.canUseLastKnownGood
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
 import kotlin.time.Clock
 import kotlin.time.Instant
@@ -63,17 +66,12 @@ class BffTransitRepository(
     private val client: TransitBffClient,
     private val cache: TransitCache,
     private val clock: TransitClock = SystemTransitClock,
+    private val cacheDispatcher: CoroutineDispatcher = transitCacheDispatcher,
 ) : TransitRepository {
     private val refreshMutex = Mutex()
-    private val snapshots = MutableStateFlow(
-        TransitSnapshot(
-            cities = cache.read<List<TransitCity>>(
-                key = CityCacheKey,
-                maxEncodedChars = CityMaxChars,
-                nowEpochMillis = clock.nowEpochMillis(),
-            )?.payload.orEmpty(),
-        ),
-    )
+    private val hydrationMutex = Mutex()
+    private var hydrated = false
+    private val snapshots = MutableStateFlow(TransitSnapshot())
 
     override fun cities(): List<TransitCity> = snapshots.value.cities
 
@@ -83,89 +81,19 @@ class BffTransitRepository(
         is TransitLoadResult.Failure -> throw TransitRepositoryException(result.error)
     }
 
-    override suspend fun refreshCityCapabilities(): TransitLoadResult<List<TransitCity>> = refreshMutex.withLock {
-        client.configurationFailure()?.let { return@withLock TransitLoadResult.Failure(it) }
-        val now = clock.nowEpochMillis()
-        val cached = cachedCities(now)
-        if (cached?.isFresh(now) == true) {
-            publishCities(cached.payload)
-            return@withLock cached.payload.asCityResult(TransitFreshness.CacheValid, validatedAt = cached.validatedAtEpochMillis)
-        }
-
-        when (val response = client.cities()) {
-            is TransitLoadResult.Data -> {
-                publishCities(response.value)
-                cache.write(
-                    CityCacheKey,
-                    TransitCacheEntry(fetchedAtEpochMillis = now, validatedAtEpochMillis = now, payload = response.value),
-                    CityMaxChars,
-                ) // Write failure never invalidates fresh memory.
-                invalidateRouteCachesFor(response.value, now)
-                response.value.asCityResult(TransitFreshness.Network, validatedAt = now)
-            }
-            is TransitLoadResult.Empty -> {
-                publishCities(emptyList())
-                cache.write(
-                    CityCacheKey,
-                    TransitCacheEntry(fetchedAtEpochMillis = now, validatedAtEpochMillis = now, payload = emptyList<TransitCity>()),
-                    CityMaxChars,
-                )
-                invalidateRouteCachesFor(emptyList(), now)
-                TransitLoadResult.Empty(TransitFreshness.Network, validatedAtEpochMillis = now)
-            }
-            is TransitLoadResult.Failure -> cached.staleOrFailure(response.error)
-        }
+    override suspend fun refreshCityCapabilities(): TransitLoadResult<List<TransitCity>> {
+        client.configurationFailure()?.let { return TransitLoadResult.Failure(it) }
+        ensureHydrated()
+        return refreshMutex.withLock { refreshCityCapabilitiesLocked() }
     }
 
     override fun routes(cityId: CityId): List<TransitRoute> =
         snapshots.value.routes[RouteListRequest(cityId)].orEmpty()
 
-    override suspend fun refreshRoutes(request: RouteListRequest): TransitLoadResult<List<TransitRoute>> = refreshMutex.withLock {
-        client.configurationFailure()?.let { return@withLock TransitLoadResult.Failure(it) }
-        val now = clock.nowEpochMillis()
-        val key = routeCacheKey(request)
-        val cached = cache.read<CachedRouteList>(key, RouteMaxChars, now)
-            ?.takeIf { it.payload.request == request }
-            ?: run {
-                cache.remove(key)
-                null
-        }
-        if (cached?.isFresh(now) == true) {
-            publishRoutes(request, cached.payload.routes)
-            return@withLock cached.payload.routes.asRouteResult(TransitFreshness.CacheValid, validatedAt = cached.validatedAtEpochMillis)
-        }
-
-        when (val response = client.routes(request.cityId, request.locale, request.mode, cached?.eTag)) {
-            is BffResponse.Data -> {
-                publishRoutes(request, response.value)
-                cache.write(
-                    key,
-                    TransitCacheEntry(
-                        fetchedAtEpochMillis = now,
-                        validatedAtEpochMillis = now,
-                        eTag = response.eTag,
-                        payload = CachedRouteList(request, response.value),
-                    ),
-                    RouteMaxChars,
-                )
-                trimRouteEntries(now)
-                response.value.asRouteResult(TransitFreshness.Network, validatedAt = now)
-            }
-            is BffResponse.NotModified -> {
-                if (cached == null) {
-                    TransitLoadResult.Failure(TransitFailure.InvalidResponse("BFF returned 304 without a route-list cache"))
-                } else {
-                    val refreshed = cached.copy(validatedAtEpochMillis = now, eTag = response.eTag ?: cached.eTag)
-                    publishRoutes(request, refreshed.payload.routes)
-                    cache.write(key, refreshed, RouteMaxChars)
-                    refreshed.payload.routes.asRouteResult(TransitFreshness.NetworkValidated, validatedAt = now)
-                }
-            }
-            is BffResponse.Failure -> {
-                if (response.error is TransitFailure.ProviderIdChanged) invalidateRouteCache(request)
-                cached.staleOrFailure(response.error) { it.payload.routes }
-            }
-        }
+    override suspend fun refreshRoutes(request: RouteListRequest): TransitLoadResult<List<TransitRoute>> {
+        client.configurationFailure()?.let { return TransitLoadResult.Failure(it) }
+        ensureHydrated()
+        return refreshMutex.withLock { refreshRoutesLocked(request) }
     }
 
     override suspend fun route(cityId: CityId, routeId: RouteId, locale: TransitLocale): TransitLoadResult<TransitRoute> =
@@ -195,27 +123,142 @@ class BffTransitRepository(
         maxTransfers: Int,
     ): TransitLoadResult<JourneyPage> = client.journeys(cityId, from, to, departureAt, locale, maxTransfers)
 
-    private fun cachedCities(now: Long): TransitCacheEntry<List<TransitCity>>? =
-        cache.read(CityCacheKey, CityMaxChars, now)
+    private suspend fun ensureHydrated() {
+        hydrationMutex.withLock {
+            if (hydrated) return
+            val cachedCities = withCache {
+                cache.read<List<TransitCity>>(
+                    key = CityCacheKey,
+                    maxEncodedChars = CityMaxChars,
+                    nowEpochMillis = clock.nowEpochMillis(),
+                )?.payload.orEmpty()
+            }
+            snapshots.value = snapshots.value.copy(cities = cachedCities)
+            hydrated = true
+        }
+    }
+
+    private suspend fun refreshCityCapabilitiesLocked(): TransitLoadResult<List<TransitCity>> {
+        val now = clock.nowEpochMillis()
+        val cached = cachedCities(now)
+        if (cached?.isFresh(now) == true) {
+            publishCities(cached.payload)
+            return cached.payload.asCityResult(TransitFreshness.CacheValid, validatedAt = cached.validatedAtEpochMillis)
+        }
+
+        return when (val response = client.cities()) {
+            is TransitLoadResult.Data -> {
+                publishCities(response.value)
+                withCache {
+                    cache.write(
+                        CityCacheKey,
+                        TransitCacheEntry(fetchedAtEpochMillis = now, validatedAtEpochMillis = now, payload = response.value),
+                        CityMaxChars,
+                    )
+                } // Write failure never invalidates fresh memory.
+                invalidateRouteCachesFor(response.value, now)
+                response.value.asCityResult(TransitFreshness.Network, validatedAt = now)
+            }
+            is TransitLoadResult.Empty -> {
+                val cities = emptyList<TransitCity>()
+                publishCities(cities)
+                withCache {
+                    cache.write(
+                        CityCacheKey,
+                        TransitCacheEntry(fetchedAtEpochMillis = now, validatedAtEpochMillis = now, payload = cities),
+                        CityMaxChars,
+                    )
+                }
+                invalidateRouteCachesFor(cities, now)
+                TransitLoadResult.Empty(TransitFreshness.Network, validatedAtEpochMillis = now)
+            }
+            is TransitLoadResult.Failure -> cached.staleOrFailure(response.error)
+        }
+    }
+
+    private suspend fun refreshRoutesLocked(request: RouteListRequest): TransitLoadResult<List<TransitRoute>> {
+        val now = clock.nowEpochMillis()
+        val key = routeCacheKey(request)
+        val cached = cachedRoutes(key, request, now)
+        if (cached?.isFresh(now) == true) {
+            publishRoutes(request, cached.payload.routes)
+            return cached.payload.routes.asRouteResult(TransitFreshness.CacheValid, validatedAt = cached.validatedAtEpochMillis)
+        }
+
+        return when (val response = client.routes(request.cityId, request.locale, request.mode, cached?.eTag)) {
+            is BffResponse.Data -> {
+                publishRoutes(request, response.value)
+                withCache {
+                    cache.write(
+                        key,
+                        TransitCacheEntry(
+                            fetchedAtEpochMillis = now,
+                            validatedAtEpochMillis = now,
+                            eTag = response.eTag,
+                            payload = CachedRouteList(request, response.value),
+                        ),
+                        RouteMaxChars,
+                    )
+                    trimRouteEntries(now)
+                }
+                response.value.asRouteResult(TransitFreshness.Network, validatedAt = now)
+            }
+            is BffResponse.NotModified -> {
+                if (cached == null) {
+                    TransitLoadResult.Failure(TransitFailure.InvalidResponse("BFF returned 304 without a route-list cache"))
+                } else {
+                    val refreshed = cached.copy(validatedAtEpochMillis = now, eTag = response.eTag ?: cached.eTag)
+                    publishRoutes(request, refreshed.payload.routes)
+                    withCache { cache.write(key, refreshed, RouteMaxChars) }
+                    refreshed.payload.routes.asRouteResult(TransitFreshness.NetworkValidated, validatedAt = now)
+                }
+            }
+            is BffResponse.Failure -> {
+                if (response.error is TransitFailure.ProviderIdChanged) invalidateRouteCache(request)
+                cached.staleOrFailure(response.error) { it.payload.routes }
+            }
+        }
+    }
+
+    private suspend fun cachedCities(now: Long): TransitCacheEntry<List<TransitCity>>? =
+        withCache { cache.read(CityCacheKey, CityMaxChars, now) }
+
+    private suspend fun cachedRoutes(
+        key: String,
+        request: RouteListRequest,
+        now: Long,
+    ): TransitCacheEntry<CachedRouteList>? = withCache {
+        cache.read<CachedRouteList>(key, RouteMaxChars, now)
+            ?.takeIf { it.payload.request == request }
+            ?: run {
+                cache.remove(key)
+                null
+            }
+    }
+
+    /** Runs native preferences access off the UI dispatcher and awaits synchronous commit work. */
+    private suspend fun <T> withCache(operation: () -> T): T = withContext(cacheDispatcher) { operation() }
 
     /** Called only while [refreshMutex] is held. */
-    private fun invalidateRouteCachesFor(cities: List<TransitCity>, now: Long) {
+    private suspend fun invalidateRouteCachesFor(cities: List<TransitCity>, now: Long) {
         val enabledRouteCities = cities.filter { it.capabilities.routes }.mapTo(mutableSetOf()) { it.id }
-        cache.keys(RouteCachePrefix).forEach { key ->
-            val entry = cache.read<CachedRouteList>(key, RouteMaxChars, now)
-            if (entry == null || entry.payload.request.cityId !in enabledRouteCities) cache.remove(key)
+        withCache {
+            cache.keys(RouteCachePrefix).forEach { key ->
+                val entry = cache.read<CachedRouteList>(key, RouteMaxChars, now)
+                if (entry == null || entry.payload.request.cityId !in enabledRouteCities) cache.remove(key)
+            }
         }
         snapshots.value = snapshots.value.copy(
             routes = snapshots.value.routes.filterKeys { it.cityId in enabledRouteCities },
         )
     }
 
-    private fun invalidateRouteCache(request: RouteListRequest) {
-        cache.remove(routeCacheKey(request))
+    private suspend fun invalidateRouteCache(request: RouteListRequest) {
+        withCache { cache.remove(routeCacheKey(request)) }
         snapshots.value = snapshots.value.copy(routes = snapshots.value.routes - request)
     }
 
-    /** Called only while [refreshMutex] is held. */
+    /** Called only from [withCache] while [refreshMutex] is held. */
     private fun trimRouteEntries(now: Long) {
         val entries = cache.keys(RouteCachePrefix).mapNotNull { key ->
             cache.read<CachedRouteList>(key, RouteMaxChars, now)?.let { key to it }

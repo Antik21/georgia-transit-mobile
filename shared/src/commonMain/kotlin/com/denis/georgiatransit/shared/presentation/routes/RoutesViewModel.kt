@@ -85,6 +85,7 @@ class RoutesViewModel(
     ): ViewState = when (result) {
         is TransitLoadResult.Data -> copy(
             routes = result.value.map { RouteItemUiModel(it.id, it.shortName, it.name, it.colorArgb) },
+            selectedIds = selectedIds.intersect(result.value.mapTo(mutableSetOf()) { it.id }),
             catalog = CatalogState.Available(result.freshness),
         )
         is TransitLoadResult.Empty -> copy(

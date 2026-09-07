@@ -163,6 +163,53 @@ class RoutesViewModelTest {
 
     @Test
     @OptIn(ExperimentalCoroutinesApi::class)
+    fun refreshedCatalogRemovesMissingSelectedRoutesBeforeConfirmPersistsSelection() = runTest {
+        val city = city()
+        val retained = routes(city.id).single()
+        val removed = TransitRoute(
+            id = RouteId("demo:fixture:route:removed"),
+            cityId = city.id,
+            shortName = "Old",
+            name = "Removed route",
+            colorArgb = 0xFF666666,
+        )
+        val cached = listOf(retained, removed)
+        val selected = linkedSetOf(retained.id, removed.id)
+        val repository = ResultsRepository(
+            cached = cached,
+            results = ArrayDeque(listOf(TransitLoadResult.Data(listOf(retained), TransitFreshness.Network))),
+        )
+        val session = RuntimeTransitSession().also {
+            it.selectCity(city)
+            it.selectRoutes(selected)
+        }
+        val viewModel = RoutesViewModel(repository, session)
+
+        viewModel.test(this) {
+            runOnCreate()
+            this@runTest.runCurrent()
+            expectState(ViewState(cityName = city.name, routes = routeItems(cached), selectedIds = selected))
+            expectState(
+                ViewState(
+                    cityName = city.name,
+                    routes = routeItems(listOf(retained)),
+                    selectedIds = setOf(retained.id),
+                    catalog = CatalogState.Available(TransitFreshness.Network),
+                ),
+            )
+
+            viewModel.dispatchAction(Action.ConfirmClicked)
+            this@runTest.runCurrent()
+
+            expectSideEffect(NavigationEffect.BackToMap)
+            assertEquals(setOf(retained.id), session.selectedRouteIds.value)
+            assertEquals(setOf(retained.id), viewModel.container.stateFlow.value.selectedIds)
+            cancelAndIgnoreRemainingItems()
+        }
+    }
+
+    @Test
+    @OptIn(ExperimentalCoroutinesApi::class)
     fun noSelectedCityIsNonRetryable() = runTest {
         val noCity = RoutesViewModel(ResultsRepository(emptyList(), ArrayDeque()), RuntimeTransitSession())
         noCity.test(this) {
