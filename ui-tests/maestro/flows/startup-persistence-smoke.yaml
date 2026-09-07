@@ -7,7 +7,7 @@ appId: com.denis.georgiatransit
 - assertVisible:
     id: city-selection.screen
 - tapOn:
-    id: city-selection.tbilisi
+    id: city-selection.demo
 - tapOn:
     id: city-selection.continue
 - assertVisible:

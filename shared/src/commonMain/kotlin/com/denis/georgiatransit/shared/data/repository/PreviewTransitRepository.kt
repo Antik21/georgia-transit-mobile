@@ -33,7 +33,7 @@ class PreviewTransitRepository : TransitRepository {
             id = CityId("kutaisi"),
             name = "Kutaisi",
             center = GeoPoint(42.2679, 42.6946),
-            capabilities = CityCapabilities(false, false, false, false, false, experimental = true),
+            capabilities = CityCapabilities(false, false, false, false, false, experimental = true, routes = false),
         ),
     )
 

@@ -28,7 +28,8 @@ actual fun platformHttpClient(config: HttpClientConfig<*>.() -> Unit): HttpClien
         config {
             connectTimeout(5, TimeUnit.SECONDS)
             readTimeout(20, TimeUnit.SECONDS)
-            retryOnConnectionFailure(true)
+            // Retry policy is explicit and bounded in common BFF client code.
+            retryOnConnectionFailure(false)
             transitOkHttpInterceptor.get()?.let(::addInterceptor)
         }
     }

@@ -4,6 +4,7 @@
     xmlns:tools="http://schemas.android.com/tools">
     <application
         android:name=".DebugGeorgiaTransitApplication"
+        android:networkSecurityConfig="@xml/debug_network_security_config"
         tools:replace="android:name">
         <activity
             android:name=".DebugNetworkInspectorActivity"

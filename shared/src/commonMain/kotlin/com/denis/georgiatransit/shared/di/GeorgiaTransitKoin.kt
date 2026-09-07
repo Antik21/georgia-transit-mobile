@@ -1,9 +1,14 @@
 package com.denis.georgiatransit.shared.di
 
+import com.denis.georgiatransit.shared.data.cache.TransitCache
+import com.denis.georgiatransit.shared.data.cache.TransitCacheStore
+import com.denis.georgiatransit.shared.data.config.BffEndpointConfiguration
+import com.denis.georgiatransit.shared.data.network.TransitBffClient
+import com.denis.georgiatransit.shared.data.network.createTransitHttpClient
+import com.denis.georgiatransit.shared.data.repository.BffTransitRepository
 import com.denis.georgiatransit.shared.domain.config.RuntimeBootstrapConfigurationSource
 import com.denis.georgiatransit.shared.domain.interactor.BootstrapTransitSession
 import com.denis.georgiatransit.shared.domain.repository.SelectedCityStore
-import com.denis.georgiatransit.shared.data.repository.PreviewTransitRepository
 import com.denis.georgiatransit.shared.data.repository.RuntimeTransitSession
 import com.denis.georgiatransit.shared.domain.repository.TransitRepository
 import com.denis.georgiatransit.shared.domain.repository.TransitSession
@@ -19,10 +24,16 @@ import org.koin.dsl.module
 private fun appModule(
     selectedCityStore: SelectedCityStore,
     runtimeConfigurationSource: RuntimeBootstrapConfigurationSource,
+    transitCacheStore: TransitCacheStore,
+    bffEndpointConfiguration: BffEndpointConfiguration?,
 ) = module {
     single<SelectedCityStore> { selectedCityStore }
     single<RuntimeBootstrapConfigurationSource> { runtimeConfigurationSource }
-    single<TransitRepository> { PreviewTransitRepository() }
+    single<TransitCacheStore> { transitCacheStore }
+    single { TransitCache(get()) }
+    single { createTransitHttpClient() }
+    single { TransitBffClient(httpClient = get(), endpoint = bffEndpointConfiguration) }
+    single<TransitRepository> { BffTransitRepository(client = get(), cache = get()) }
     single<TransitSession> { RuntimeTransitSession(selectedCityStore = get()) }
     single<LocationSession> { RuntimeLocationSession() }
     factory {
@@ -42,6 +53,17 @@ private fun appModule(
 fun initGeorgiaTransitKoin(
     selectedCityStore: SelectedCityStore,
     runtimeConfigurationSource: RuntimeBootstrapConfigurationSource,
+    transitCacheStore: TransitCacheStore,
+    bffEndpointConfiguration: BffEndpointConfiguration?,
 ) {
-    startKoin { modules(appModule(selectedCityStore, runtimeConfigurationSource)) }
+    startKoin {
+        modules(
+            appModule(
+                selectedCityStore = selectedCityStore,
+                runtimeConfigurationSource = runtimeConfigurationSource,
+                transitCacheStore = transitCacheStore,
+                bffEndpointConfiguration = bffEndpointConfiguration,
+            ),
+        )
+    }
 }
