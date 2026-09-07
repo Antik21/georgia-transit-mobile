@@ -2,6 +2,7 @@ package com.denis.georgiatransit.bff.provider
 
 import com.denis.georgiatransit.bff.api.ArrivalPage
 import com.denis.georgiatransit.bff.api.ArrivalSource
+import com.denis.georgiatransit.bff.api.AttributionLink
 import com.denis.georgiatransit.bff.api.City
 import com.denis.georgiatransit.bff.api.GeoPoint
 import com.denis.georgiatransit.bff.api.JourneyPage
@@ -51,6 +52,22 @@ class NormalizedResponseValidatorTest {
             { NormalizedResponseValidator.city(city.copy(center = GeoPoint(91.0, 0.0))) },
             { NormalizedResponseValidator.city(city.copy(defaultZoom = 22.1)) },
             { NormalizedResponseValidator.cities(listOf(city, city)) },
+        )
+    }
+
+    @Test
+    fun `city attribution URLs allow the established maximum and reject oversized values`() {
+        val maxLengthUrl = "https://example.org/" + "a".repeat(2_028)
+        val attribution = AttributionLink(id = "source", label = city.name, url = maxLengthUrl)
+
+        NormalizedResponseValidator.city(city.copy(attribution = listOf(attribution)))
+
+        assertInvalid(
+            {
+                NormalizedResponseValidator.city(
+                    city.copy(attribution = listOf(attribution.copy(url = "$maxLengthUrl/"))),
+                )
+            },
         )
     }
 

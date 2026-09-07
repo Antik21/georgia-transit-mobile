@@ -76,6 +76,7 @@ class TransitBffMapperTest {
         assertEquals(ArrivalSource.OfficialRealtime, arrivals.source)
         assertEquals("blue-trip-01", arrivals.items.single().tripId?.value)
         assertEquals(routeId, journeys.items.single().legs.single().routeId.value)
+        assertEquals(listOf(JourneySegmentMode.Transit), journeys.items.single().segments.map { it.mode })
     }
 
     @Test

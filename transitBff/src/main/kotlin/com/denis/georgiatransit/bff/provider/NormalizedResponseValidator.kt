@@ -25,6 +25,7 @@ import java.time.Instant
 import java.net.URI
 
 private const val MaximumOpaqueValueLength = 256
+private const val MaximumAttributionUrlLength = 2_048
 private const val MaximumRealtimeAgeSeconds = 86_400
 private val cityIdPattern = Regex("[a-z][a-z0-9-]{1,31}")
 private val publicIdPattern = Regex("([^:\\s]+):([^:\\s]+):([^:\\s]+):([^:\\s]+)")
@@ -129,6 +130,7 @@ object NormalizedResponseValidator {
     private fun attribution(link: AttributionLink) {
         if (!Regex("[a-z][a-z0-9-]{0,31}").matches(link.id)) invalid()
         localized(link.label)
+        if (link.url.length > MaximumAttributionUrlLength) invalid()
         val uri = try {
             URI(link.url)
         } catch (_: Exception) {

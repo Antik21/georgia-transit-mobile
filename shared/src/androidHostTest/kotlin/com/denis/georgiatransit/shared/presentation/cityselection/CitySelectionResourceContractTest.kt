@@ -133,7 +133,7 @@ class CitySelectionResourceContractTest {
     }
 
     @Test
-    fun cityAttributionResourcesAndComposableKeepLinksOutsideTheDisabledSelector() {
+    fun cityAttributionResourcesAndComposableKeepLinksOutsideTheDisabledSelectableRow() {
         val projectRoot = projectRoot()
         val resources = projectRoot.resolve("shared/src/commonMain/composeResources")
         listOf(
@@ -144,13 +144,32 @@ class CitySelectionResourceContractTest {
             assertTrue(resource.readText().contains("name=\"city_attribution_title\""), "$resource is missing attribution title")
         }
 
-        // Compose UI test APIs are not on this host source set. This source-level contract guards
-        // the semantic link primitive and its placement outside the disabled selectable row.
+        // Compose UI test APIs are not on this host source set. Parse the Row call's balanced
+        // delimiters rather than stopping at the first ')': onClick may be a lambda expression.
+        // This keeps the enabled binding tied to .selectable and proves attribution is outside
+        // that Row's content lambda.
         val screen = projectRoot.resolve(
             "shared/src/commonMain/kotlin/com/denis/georgiatransit/shared/presentation/cityselection/CitySelectionScreen.kt",
         ).readText()
         assertTrue(screen.contains("withLink(LinkAnnotation.Url(item.url))"))
-        assertTrue(screen.indexOf("CityAttribution(city)") > screen.indexOf("enabled = city.isEnabled"))
+        val cityRowStart = screen.indexOf("private fun CityRow").also { check(it >= 0) }
+        val cityRowEnd = screen.indexOf("/** Credits are not nested", cityRowStart).also { check(it >= 0) }
+        val cityRow = screen.substring(cityRowStart, cityRowEnd)
+        val rowOpenParenthesis = Regex("""(?m)^\s*Row\(""").find(cityRow)?.range?.last
+            ?: error("CityRow must contain a Row invocation")
+        val rowCloseParenthesis = cityRow.matchingDelimiter(rowOpenParenthesis, '(', ')')
+        val selectableOpenParenthesis = cityRow.indexOf(".selectable(").also { check(it >= 0) } + ".selectable".length
+        val selectableCloseParenthesis = cityRow.matchingDelimiter(selectableOpenParenthesis, '(', ')')
+        val selectable = cityRow.substring(selectableOpenParenthesis, selectableCloseParenthesis + 1)
+        assertTrue(selectableOpenParenthesis < rowCloseParenthesis)
+        assertTrue(selectable.contains("selected = selected"))
+        assertTrue(selectable.contains("enabled = city.isEnabled"))
+        assertTrue(selectable.contains("role = Role.RadioButton"))
+
+        val rowContentStart = cityRow.indexOf('{', rowCloseParenthesis).also { check(it >= 0) }
+        val rowContentEnd = cityRow.matchingDelimiter(rowContentStart, '{', '}')
+        val attributionCall = cityRow.indexOf("CityAttribution(city)").also { check(it >= 0) }
+        assertTrue(attributionCall > rowContentEnd)
     }
 
     @Test
@@ -179,6 +198,21 @@ class CitySelectionResourceContractTest {
 
     private fun stringKeys(path: Path): Set<String> =
         StringKey.findAll(path.readText()).map { it.groupValues[1] }.toSet()
+
+    private fun String.matchingDelimiter(openIndex: Int, open: Char, close: Char): Int {
+        check(this[openIndex] == open)
+        var depth = 0
+        for (index in openIndex until length) {
+            when (this[index]) {
+                open -> depth += 1
+                close -> {
+                    depth -= 1
+                    if (depth == 0) return index
+                }
+            }
+        }
+        error("No closing '$close' for '$open' at $openIndex")
+    }
 
     private fun projectRoot(): Path =
         generateSequence(Path.of("").toAbsolutePath()) { it.parent }

@@ -176,7 +176,7 @@ internal fun JourneyDto.toDomain(): TransitJourney {
         arrivalAt = journeyArrival,
         transfers = transfers.also { require(it in 0..6) { "transfers is invalid" } },
         legs = mappedLegs,
-        segments = mappedSegments,
+        segments = orderedSegments,
     )
 }
 
