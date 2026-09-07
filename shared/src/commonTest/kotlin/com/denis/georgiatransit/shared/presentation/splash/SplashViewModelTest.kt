@@ -12,9 +12,9 @@ import com.denis.georgiatransit.shared.domain.repository.SelectedCityStore
 import com.denis.georgiatransit.shared.domain.repository.TransitRepository
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
+import org.orbitmvi.orbit.test.OrbitTestContext
 import org.orbitmvi.orbit.test.test
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -40,16 +40,17 @@ class SplashViewModelTest {
             assertEquals(ViewState.Loading, viewModel.container.stateFlow.value)
 
             initialAttempt.complete(SnapshotOutcome.Fail)
-            expectState(
+            awaitTerminalState(
                 ViewState.Error(BootstrapTransitSession.Failure.Unavailable),
             )
 
             viewModel.dispatchAction(Action.RetryClicked)
-            expectState(ViewState.Loading)
+            this@runTest.runCurrent()
             assertEquals(2, repository.snapshotCalls)
+            assertEquals(ViewState.Loading, viewModel.container.stateFlow.value)
 
             retryAttempt.complete(SnapshotOutcome.Cities(listOf(tbilisi)))
-            expectState(ViewState.Ready(Destination.CitySelection))
+            awaitTerminalState(ViewState.Ready(Destination.CitySelection))
             cancelAndIgnoreRemainingItems()
         }
     }
@@ -72,11 +73,22 @@ class SplashViewModelTest {
 
             assertEquals(1, repository.snapshotCalls)
             gate.complete(SnapshotOutcome.Cities(listOf(tbilisi)))
-            expectState(ViewState.Ready(Destination.CitySelection))
+            awaitTerminalState(ViewState.Ready(Destination.CitySelection))
 
             assertEquals(1, repository.snapshotCalls)
             cancelAndIgnoreRemainingItems()
         }
+    }
+
+    private suspend fun OrbitTestContext<ViewState, Nothing, SplashViewModel>.awaitTerminalState(
+        expected: ViewState,
+    ) {
+        var state: ViewState
+        do {
+            state = awaitState()
+        } while (state == ViewState.Loading)
+
+        assertEquals(expected, state)
     }
 
     private fun bootstrap(repository: SequencedRepository): BootstrapTransitSession {
