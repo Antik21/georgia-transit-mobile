@@ -1,0 +1,129 @@
+package com.denis.georgiatransit.bff.cache
+
+import com.denis.georgiatransit.bff.api.SingleFlightCapacityExceeded
+import java.util.concurrent.atomic.AtomicInteger
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeout
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
+import kotlin.time.Duration.Companion.milliseconds
+import kotlin.time.Duration.Companion.seconds
+
+class SingleFlightTest {
+    @Test
+    fun `concurrent callers for one key share work`() = runTest {
+        SingleFlight<String, Int>(1.seconds).use { singleFlight ->
+            val release = CompletableDeferred<Unit>()
+            val loads = AtomicInteger()
+            val results = List(25) {
+                async {
+                    singleFlight.get("same") {
+                        loads.incrementAndGet()
+                        release.await()
+                        7
+                    }
+                }
+            }
+            while (loads.get() == 0) delay(1)
+            release.complete(Unit)
+            assertEquals(List(25) { 7 }, results.awaitAll())
+            assertEquals(1, loads.get())
+        }
+    }
+
+    @Test
+    fun `distinct keys run independently`() = runTest {
+        SingleFlight<String, String>(1.seconds).use { singleFlight ->
+            assertEquals(
+                setOf("a", "b"),
+                listOf("a", "b").map { key -> async { singleFlight.get(key) { key } } }.awaitAll().toSet(),
+            )
+        }
+    }
+
+    @Test
+    fun `successful and failed work is removed`() = runTest {
+        SingleFlight<String, Int>(1.seconds).use { singleFlight ->
+            var loads = 0
+            assertEquals(1, singleFlight.get("success") { ++loads })
+            assertEquals(2, singleFlight.get("success") { ++loads })
+            assertFailsWith<IllegalStateException> { singleFlight.get("failure") { error("boom") } }
+            assertEquals(3, singleFlight.get("failure") { ++loads })
+        }
+    }
+
+    @Test
+    fun `timeout cancels loader`() = runTest {
+        SingleFlight<String, Unit>(25.milliseconds).use { singleFlight ->
+            assertFailsWith<kotlinx.coroutines.TimeoutCancellationException> {
+                singleFlight.get("slow") { delay(10.seconds) }
+            }
+        }
+    }
+
+    @Test
+    fun `cancelling one waiter does not cancel shared work`() = runTest {
+        SingleFlight<String, Int>(1.seconds).use { singleFlight ->
+            val started = CompletableDeferred<Unit>()
+            val release = CompletableDeferred<Unit>()
+            val loads = AtomicInteger()
+            val cancelledWaiter = async {
+                singleFlight.get("key") {
+                    loads.incrementAndGet()
+                    started.complete(Unit)
+                    release.await()
+                    9
+                }
+            }
+            started.await()
+            val survivingWaiter = async { singleFlight.get("key") { error("must be deduplicated") } }
+            cancelledWaiter.cancelAndJoin()
+            release.complete(Unit)
+
+            assertEquals(9, survivingWaiter.await())
+            assertEquals(1, loads.get())
+        }
+    }
+
+    @Test
+    fun `capacity is bounded and released after completion`() = runTest {
+        SingleFlight<String, Int>(1.seconds, maximumEntries = 1).use { singleFlight ->
+            val release = CompletableDeferred<Unit>()
+            val first = async { singleFlight.get("one") { release.await(); 1 } }
+            delay(10)
+            assertFailsWith<SingleFlightCapacityExceeded> { singleFlight.get("two") { 2 } }
+            release.complete(Unit)
+            assertEquals(1, first.await())
+            withContext(Dispatchers.Default) {
+                withTimeout(1.seconds) {
+                    while (runCatching { singleFlight.get("two") { 2 } }.isFailure) delay(1)
+                }
+            }
+        }
+    }
+
+    @Test
+    fun `close cancels shared work`() = runTest {
+        val singleFlight = SingleFlight<String, Unit>(10.seconds)
+        val started = CompletableDeferred<Unit>()
+        val caller = async {
+            singleFlight.get("key") {
+                started.complete(Unit)
+                delay(10.seconds)
+            }
+        }
+        started.await()
+        singleFlight.close()
+
+        assertFailsWith<CancellationException> { caller.await() }
+    }
+}

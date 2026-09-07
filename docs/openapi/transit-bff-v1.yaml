@@ -1,0 +1,428 @@
+openapi: 3.1.0
+info:
+  title: Georgia Transit BFF
+  version: 1.0.0-draft
+  description: |
+    Normalized, city-capability-driven public-transit API. Provider contracts and credentials
+    never cross this boundary. The `demo` city exists only in opt-in development fixtures and
+    does not imply production provider readiness.
+servers:
+  - url: http://127.0.0.1:8080
+    description: Local development only
+paths:
+  /healthz:
+    get:
+      operationId: health
+      summary: Report BFF readiness without configuration or provider details.
+      responses:
+        '200':
+          description: A configured adapter is ready.
+          headers: {X-Request-ID: {$ref: '#/components/headers/RequestId'}}
+          content: {application/json: {schema: {$ref: '#/components/schemas/HealthResponse'}, example: {status: ready, mode: development}}}
+        '503':
+          description: No adapter is ready; this health body intentionally remains safe for probes.
+          headers: {X-Request-ID: {$ref: '#/components/headers/RequestId'}}
+          content: {application/json: {schema: {$ref: '#/components/schemas/HealthResponse'}, example: {status: not_ready, mode: development}}}
+  /v1/cities:
+    get:
+      operationId: listCities
+      responses:
+        '200':
+          description: Raw list of enabled city capabilities.
+          headers: {X-Request-ID: {$ref: '#/components/headers/RequestId'}}
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Cities'}
+              example:
+                - id: demo
+                  name: {ru: Демо-город, en: Demo City, ka: დემო ქალაქი}
+                  center: {latitude: 41.715137, longitude: 44.827096}
+                  defaultZoom: 13
+                  capabilities: {routes: true, stops: true, routeGeometry: true, vehiclePositions: true, officialArrivals: true, tripPlanning: true}
+  /v1/cities/{cityId}/routes:
+    get:
+      operationId: listRoutes
+      parameters:
+        - {$ref: '#/components/parameters/CityId'}
+        - {$ref: '#/components/parameters/Locale'}
+        - {$ref: '#/components/parameters/Mode'}
+        - {$ref: '#/components/parameters/IfNoneMatch'}
+      responses:
+        '200':
+          description: Raw route list. It excludes route geometry point arrays.
+          headers:
+            X-Request-ID: {$ref: '#/components/headers/RequestId'}
+            ETag: {$ref: '#/components/headers/RouteEtag'}
+          content: {application/json: {schema: {$ref: '#/components/schemas/Routes'}, example: [{id: demo:fixture:route:blue, providerId: blue, shortName: D1, longName: {ru: Демо-синяя линия, en: Demo Blue Line, ka: დემო ლურჯი ხაზი}, color: '#0057B8', textColor: '#FFFFFF', mode: bus, directions: []}]}}
+        '304':
+          description: Existing route list matches `If-None-Match`, including wildcard `*`.
+          headers:
+            X-Request-ID: {$ref: '#/components/headers/RequestId'}
+            ETag: {$ref: '#/components/headers/RouteEtag'}
+        '400': {$ref: '#/components/responses/InvalidArgument'}
+        '404': {$ref: '#/components/responses/CityNotFound'}
+        '501': {$ref: '#/components/responses/CapabilityNotAvailable'}
+        '502': {$ref: '#/components/responses/UpstreamBadResponse'}
+        '503': {$ref: '#/components/responses/UpstreamUnavailable'}
+        '504': {$ref: '#/components/responses/UpstreamTimeout'}
+  /v1/cities/{cityId}/routes/{routeId}:
+    get:
+      operationId: getRoute
+      parameters:
+        - {$ref: '#/components/parameters/CityId'}
+        - {$ref: '#/components/parameters/RouteId'}
+        - {$ref: '#/components/parameters/Locale'}
+      responses:
+        '200':
+          description: Raw normalized route.
+          headers: {X-Request-ID: {$ref: '#/components/headers/RequestId'}}
+          content: {application/json: {schema: {$ref: '#/components/schemas/Route'}, example: {id: demo:fixture:route:blue, providerId: blue, shortName: D1, longName: {ru: Демо-синяя линия, en: Demo Blue Line, ka: დემო ლურჯი ხაზი}, color: '#0057B8', textColor: '#FFFFFF', mode: bus, directions: []}}}
+        '400': {$ref: '#/components/responses/InvalidArgument'}
+        '404': {$ref: '#/components/responses/RouteNotFound'}
+        '501': {$ref: '#/components/responses/CapabilityNotAvailable'}
+        '502': {$ref: '#/components/responses/UpstreamBadResponse'}
+        '503': {$ref: '#/components/responses/UpstreamUnavailable'}
+        '504': {$ref: '#/components/responses/UpstreamTimeout'}
+  /v1/cities/{cityId}/routes/{routeId}/directions/{directionId}/stops:
+    get:
+      operationId: listDirectionStops
+      parameters:
+        - {$ref: '#/components/parameters/CityId'}
+        - {$ref: '#/components/parameters/RouteId'}
+        - {$ref: '#/components/parameters/DirectionId'}
+        - {$ref: '#/components/parameters/Locale'}
+      responses:
+        '200':
+          description: Raw ordered stops for the direction.
+          headers: {X-Request-ID: {$ref: '#/components/headers/RequestId'}}
+          content: {application/json: {schema: {$ref: '#/components/schemas/Stops'}, example: [{id: demo:fixture:stop:center, providerId: center, code: D001, name: {ru: Демо-центр, en: Demo Center, ka: დემო ცენტრი}, position: {latitude: 41.715137, longitude: 44.827096}, routeIds: [demo:fixture:route:blue], mode: bus}]}}
+        '400': {$ref: '#/components/responses/InvalidArgument'}
+        '404': {$ref: '#/components/responses/RouteNotFound'}
+        '501': {$ref: '#/components/responses/CapabilityNotAvailable'}
+        '502': {$ref: '#/components/responses/UpstreamBadResponse'}
+        '503': {$ref: '#/components/responses/UpstreamUnavailable'}
+        '504': {$ref: '#/components/responses/UpstreamTimeout'}
+  /v1/cities/{cityId}/routes/{routeId}/directions/{directionId}/shape:
+    get:
+      operationId: getDirectionShape
+      parameters:
+        - {$ref: '#/components/parameters/CityId'}
+        - {$ref: '#/components/parameters/RouteId'}
+        - {$ref: '#/components/parameters/DirectionId'}
+      responses:
+        '200':
+          description: Raw encoded-polyline geometry.
+          headers: {X-Request-ID: {$ref: '#/components/headers/RequestId'}}
+          content: {application/json: {schema: {$ref: '#/components/schemas/Shape'}, example: {format: encoded_polyline, precision: 5, value: '_p~iF~ps|U_ulLnnqC_mqNvxq`@', updatedAt: '2030-01-01T00:00:00Z'}}}
+        '400': {$ref: '#/components/responses/InvalidArgument'}
+        '404': {$ref: '#/components/responses/RouteNotFound'}
+        '501': {$ref: '#/components/responses/CapabilityNotAvailable'}
+        '502': {$ref: '#/components/responses/UpstreamBadResponse'}
+        '503': {$ref: '#/components/responses/UpstreamUnavailable'}
+        '504': {$ref: '#/components/responses/UpstreamTimeout'}
+  /v1/cities/{cityId}/vehicles:
+    get:
+      operationId: listVehicles
+      parameters:
+        - {$ref: '#/components/parameters/CityId'}
+        - {$ref: '#/components/parameters/RouteIdQuery'}
+        - {$ref: '#/components/parameters/DirectionIdQuery'}
+      responses:
+        '200':
+          description: Raw normalized realtime vehicle page.
+          headers: {X-Request-ID: {$ref: '#/components/headers/RequestId'}}
+          content: {application/json: {schema: {$ref: '#/components/schemas/VehiclePage'}, example: {items: [{id: demo:fixture:vehicle:blue-01, routeId: demo:fixture:route:blue, directionId: demo:fixture:direction:blue-outbound, position: {latitude: 41.716123, longitude: 44.829221}, bearing: 62, nextStopId: demo:fixture:stop:park, observedAt: '2030-01-01T00:00:00Z', ageSeconds: 4, positionKind: GPS}], observedAt: '2030-01-01T00:00:00Z', maxAgeSeconds: 30, stale: false}}}
+        '400': {$ref: '#/components/responses/InvalidArgument'}
+        '404': {$ref: '#/components/responses/RouteNotFound'}
+        '409': {$ref: '#/components/responses/ProviderIdChanged'}
+        '429': {$ref: '#/components/responses/RateLimited'}
+        '501': {$ref: '#/components/responses/CapabilityNotAvailable'}
+        '502': {$ref: '#/components/responses/UpstreamBadResponse'}
+        '503': {$ref: '#/components/responses/UpstreamUnavailable'}
+        '504': {$ref: '#/components/responses/UpstreamTimeout'}
+  /v1/cities/{cityId}/stops/nearby:
+    get:
+      operationId: nearbyStops
+      description: Filters the cached local stop directory using WGS84 Haversine distance; distance is not added to the public stop schema.
+      parameters:
+        - {$ref: '#/components/parameters/CityId'}
+        - {$ref: '#/components/parameters/Latitude'}
+        - {$ref: '#/components/parameters/Longitude'}
+        - {$ref: '#/components/parameters/RadiusMeters'}
+        - {$ref: '#/components/parameters/Limit'}
+        - {$ref: '#/components/parameters/Locale'}
+      responses:
+        '200':
+          description: Raw nearby stop list, sorted nearest first.
+          headers: {X-Request-ID: {$ref: '#/components/headers/RequestId'}}
+          content: {application/json: {schema: {$ref: '#/components/schemas/Stops'}, example: [{id: demo:fixture:stop:center, providerId: center, code: D001, name: {ru: Демо-центр, en: Demo Center, ka: დემო ცენტრი}, position: {latitude: 41.715137, longitude: 44.827096}, routeIds: [demo:fixture:route:blue], mode: bus}]}}
+        '400': {$ref: '#/components/responses/InvalidArgument'}
+        '404': {$ref: '#/components/responses/CityNotFound'}
+        '501': {$ref: '#/components/responses/CapabilityNotAvailable'}
+        '502': {$ref: '#/components/responses/UpstreamBadResponse'}
+        '503': {$ref: '#/components/responses/UpstreamUnavailable'}
+        '504': {$ref: '#/components/responses/UpstreamTimeout'}
+  /v1/cities/{cityId}/stops/{stopId}/arrivals:
+    get:
+      operationId: listArrivals
+      parameters:
+        - {$ref: '#/components/parameters/CityId'}
+        - {$ref: '#/components/parameters/StopId'}
+        - {$ref: '#/components/parameters/Limit'}
+        - {$ref: '#/components/parameters/Locale'}
+      responses:
+        '200':
+          description: Raw normalized arrival page. Approximate ETAs use expected fields only when a source supports them.
+          headers: {X-Request-ID: {$ref: '#/components/headers/RequestId'}}
+          content: {application/json: {schema: {$ref: '#/components/schemas/ArrivalPage'}, example: {items: [{stopId: demo:fixture:stop:center, routeId: demo:fixture:route:blue, tripId: blue-trip-01, headsign: {ru: Демо-парк, en: Demo Park, ka: დემო პარკი}, scheduledAt: '2030-01-01T00:05:00Z', expectedAt: '2030-01-01T00:04:00Z', expectedInMinutes: 4, realtime: true, cancelled: false, source: OFFICIAL_REALTIME}], source: OFFICIAL_REALTIME, observedAt: '2030-01-01T00:00:00Z', stale: false}}}
+        '400': {$ref: '#/components/responses/InvalidArgument'}
+        '404': {$ref: '#/components/responses/StopNotFound'}
+        '409': {$ref: '#/components/responses/ProviderIdChanged'}
+        '429': {$ref: '#/components/responses/RateLimited'}
+        '501': {$ref: '#/components/responses/CapabilityNotAvailable'}
+        '502': {$ref: '#/components/responses/UpstreamBadResponse'}
+        '503': {$ref: '#/components/responses/UpstreamUnavailable'}
+        '504': {$ref: '#/components/responses/UpstreamTimeout'}
+  /v1/cities/{cityId}/journeys:
+    get:
+      operationId: planJourney
+      parameters:
+        - {$ref: '#/components/parameters/CityId'}
+        - {$ref: '#/components/parameters/FromLatitude'}
+        - {$ref: '#/components/parameters/FromLongitude'}
+        - {$ref: '#/components/parameters/ToLatitude'}
+        - {$ref: '#/components/parameters/ToLongitude'}
+        - {$ref: '#/components/parameters/DepartureAt'}
+        - {$ref: '#/components/parameters/Locale'}
+        - {$ref: '#/components/parameters/MaxTransfers'}
+      responses:
+        '200':
+          description: Raw normalized journey page when the configured city exposes trip planning.
+          headers: {X-Request-ID: {$ref: '#/components/headers/RequestId'}}
+          content: {application/json: {schema: {$ref: '#/components/schemas/JourneyPage'}, example: {items: [{id: demo:fixture:journey:blue-direct, departureAt: '2030-01-01T00:00:00Z', arrivalAt: '2030-01-01T00:15:00Z', transfers: 0, legs: []}], observedAt: '2030-01-01T00:00:00Z'}}}
+        '400': {$ref: '#/components/responses/InvalidArgument'}
+        '404': {$ref: '#/components/responses/CityNotFound'}
+        '409': {$ref: '#/components/responses/ProviderIdChanged'}
+        '429': {$ref: '#/components/responses/RateLimited'}
+        '501': {$ref: '#/components/responses/CapabilityNotAvailable'}
+        '502': {$ref: '#/components/responses/UpstreamBadResponse'}
+        '503': {$ref: '#/components/responses/UpstreamUnavailable'}
+        '504': {$ref: '#/components/responses/UpstreamTimeout'}
+components:
+  headers:
+    RequestId:
+      description: Echoes a safe supplied request ID or a BFF-generated opaque ID.
+      schema: {$ref: '#/components/schemas/RequestId'}
+    RouteEtag:
+      description: Strong entity tag for the complete serialized route-list representation.
+      schema: {type: string}
+  parameters:
+    CityId: {name: cityId, in: path, required: true, schema: {$ref: '#/components/schemas/CityId'}}
+    RouteId: {name: routeId, in: path, required: true, schema: {$ref: '#/components/schemas/RouteId'}}
+    DirectionId: {name: directionId, in: path, required: true, schema: {$ref: '#/components/schemas/DirectionId'}}
+    StopId: {name: stopId, in: path, required: true, schema: {$ref: '#/components/schemas/StopId'}}
+    RouteIdQuery: {name: routeId, in: query, required: true, schema: {$ref: '#/components/schemas/RouteId'}}
+    DirectionIdQuery: {name: directionId, in: query, required: false, schema: {$ref: '#/components/schemas/DirectionId'}}
+    Locale: {name: locale, in: query, required: false, schema: {type: string, enum: [ka, en, ru], default: en}}
+    Mode: {name: mode, in: query, required: false, schema: {type: string, enum: [bus, metro, tram, ferry]}}
+    IfNoneMatch: {name: If-None-Match, in: header, required: false, schema: {type: string}}
+    Latitude: {name: lat, in: query, required: true, schema: {type: number, minimum: -90, maximum: 90}}
+    Longitude: {name: lon, in: query, required: true, schema: {type: number, minimum: -180, maximum: 180}}
+    FromLatitude: {name: fromLat, in: query, required: true, schema: {type: number, minimum: -90, maximum: 90}}
+    FromLongitude: {name: fromLon, in: query, required: true, schema: {type: number, minimum: -180, maximum: 180}}
+    ToLatitude: {name: toLat, in: query, required: true, schema: {type: number, minimum: -90, maximum: 90}}
+    ToLongitude: {name: toLon, in: query, required: true, schema: {type: number, minimum: -180, maximum: 180}}
+    RadiusMeters: {name: radiusMeters, in: query, required: true, schema: {type: integer, minimum: 1, maximum: 50000}}
+    Limit: {name: limit, in: query, required: true, schema: {type: integer, minimum: 1, maximum: 100}}
+    DepartureAt: {name: departureAt, in: query, required: true, schema: {type: string, format: date-time, description: ISO-8601 UTC timestamp}}
+    MaxTransfers: {name: maxTransfers, in: query, required: true, schema: {type: integer, minimum: 0, maximum: 6}}
+  responses:
+    InvalidArgument: {$ref: '#/components/responses/Error400'}
+    CityNotFound: {$ref: '#/components/responses/Error404City'}
+    RouteNotFound: {$ref: '#/components/responses/Error404Route'}
+    StopNotFound: {$ref: '#/components/responses/Error404Stop'}
+    ProviderIdChanged: {$ref: '#/components/responses/Error409'}
+    RateLimited: {$ref: '#/components/responses/Error429'}
+    CapabilityNotAvailable: {$ref: '#/components/responses/Error501'}
+    UpstreamBadResponse: {$ref: '#/components/responses/Error502'}
+    UpstreamUnavailable: {$ref: '#/components/responses/Error503'}
+    UpstreamTimeout: {$ref: '#/components/responses/Error504'}
+    Error400: {description: Invalid or missing parameter., headers: {X-Request-ID: {$ref: '#/components/headers/RequestId'}}, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorEnvelope'}, example: {error: {code: INVALID_ARGUMENT, message: latitude is invalid, requestId: req-123}}}}}
+    Error404City: {description: Configured city was not found., headers: {X-Request-ID: {$ref: '#/components/headers/RequestId'}}, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorEnvelope'}, example: {error: {code: CITY_NOT_FOUND, message: City was not found, requestId: req-123}}}}}
+    Error404Route: {description: Route or direction was not found., headers: {X-Request-ID: {$ref: '#/components/headers/RequestId'}}, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorEnvelope'}, example: {error: {code: ROUTE_NOT_FOUND, message: Route was not found, requestId: req-123}}}}}
+    Error404Stop: {description: Stop was not found., headers: {X-Request-ID: {$ref: '#/components/headers/RequestId'}}, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorEnvelope'}, example: {error: {code: STOP_NOT_FOUND, message: Stop was not found, requestId: req-123}}}}}
+    Error409: {description: Provider public ID changed., headers: {X-Request-ID: {$ref: '#/components/headers/RequestId'}}, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorEnvelope'}}}}
+    Error429: {description: Rate limited., headers: {X-Request-ID: {$ref: '#/components/headers/RequestId'}, Retry-After: {schema: {type: integer, minimum: 1}}}, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorEnvelope'}}}}
+    Error501: {description: City capability is unavailable., headers: {X-Request-ID: {$ref: '#/components/headers/RequestId'}}, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorEnvelope'}}}}
+    Error502: {description: Provider returned an invalid response., headers: {X-Request-ID: {$ref: '#/components/headers/RequestId'}}, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorEnvelope'}}}}
+    Error503: {description: BFF or provider is unavailable., headers: {X-Request-ID: {$ref: '#/components/headers/RequestId'}}, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorEnvelope'}}}}
+    Error504: {description: Provider request timed out., headers: {X-Request-ID: {$ref: '#/components/headers/RequestId'}}, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorEnvelope'}}}}
+  schemas:
+    RequestId: {type: string, maxLength: 128, pattern: '^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$'}
+    CityId: {type: string, pattern: '^[a-z][a-z0-9-]{1,31}$', example: demo}
+    PublicId:
+      type: string
+      description: Four nonempty opaque segments `{city}:{provider}:{entity}:{providerId}`. The fourth segment is opaque and cannot contain colon or whitespace.
+      maxLength: 256
+      pattern: '^[^:\s]+:[^:\s]+:[^:\s]+:[^:\s]+$'
+    RouteId: {allOf: [{$ref: '#/components/schemas/PublicId'}], example: demo:fixture:route:blue}
+    DirectionId: {allOf: [{$ref: '#/components/schemas/PublicId'}], example: demo:fixture:direction:blue-outbound}
+    StopId: {allOf: [{$ref: '#/components/schemas/PublicId'}], example: demo:fixture:stop:center}
+    LocalizedText:
+      type: object
+      required: [ru, en, ka]
+      properties: {ru: {type: string}, en: {type: string}, ka: {type: string}}
+    GeoPoint:
+      type: object
+      description: WGS84 coordinate.
+      required: [latitude, longitude]
+      properties:
+        latitude: {type: number, minimum: -90, maximum: 90}
+        longitude: {type: number, minimum: -180, maximum: 180}
+    CityCapabilities:
+      type: object
+      required: [routes, stops, routeGeometry, vehiclePositions, officialArrivals, tripPlanning]
+      properties:
+        routes: {type: boolean}
+        stops: {type: boolean}
+        routeGeometry: {type: boolean}
+        vehiclePositions: {type: boolean}
+        officialArrivals: {type: boolean}
+        tripPlanning: {type: boolean}
+    City:
+      type: object
+      required: [id, name, center, defaultZoom, capabilities]
+      properties:
+        id: {$ref: '#/components/schemas/CityId'}
+        name: {$ref: '#/components/schemas/LocalizedText'}
+        center: {$ref: '#/components/schemas/GeoPoint'}
+        defaultZoom: {type: number}
+        capabilities: {$ref: '#/components/schemas/CityCapabilities'}
+    Direction:
+      type: object
+      required: [id, name, headsign]
+      properties:
+        id: {$ref: '#/components/schemas/DirectionId'}
+        name: {$ref: '#/components/schemas/LocalizedText'}
+        headsign: {$ref: '#/components/schemas/LocalizedText'}
+    Route:
+      type: object
+      required: [id, providerId, shortName, longName, color, textColor, mode, directions]
+      properties:
+        id: {$ref: '#/components/schemas/RouteId'}
+        providerId: {type: string}
+        shortName: {type: string}
+        longName: {$ref: '#/components/schemas/LocalizedText'}
+        color: {type: string, pattern: '^#[0-9A-Fa-f]{6}$'}
+        textColor: {type: string, pattern: '^#[0-9A-Fa-f]{6}$'}
+        mode: {type: string, enum: [bus, metro, tram, ferry]}
+        directions: {type: array, items: {$ref: '#/components/schemas/Direction'}}
+    Stop:
+      type: object
+      required: [id, providerId, code, name, position, routeIds, mode]
+      properties:
+        id: {$ref: '#/components/schemas/StopId'}
+        providerId: {type: string}
+        code: {type: string}
+        name: {$ref: '#/components/schemas/LocalizedText'}
+        position: {$ref: '#/components/schemas/GeoPoint'}
+        routeIds: {type: array, items: {$ref: '#/components/schemas/RouteId'}}
+        mode: {type: string, enum: [bus, metro, tram, ferry]}
+    Shape:
+      type: object
+      required: [format, precision, value, updatedAt]
+      properties:
+        format: {type: string, const: encoded_polyline}
+        precision: {type: integer}
+        value: {type: string}
+        updatedAt: {$ref: '#/components/schemas/UtcTimestamp'}
+    PositionKind: {type: string, enum: [GPS, ESTIMATED, UNKNOWN]}
+    Vehicle:
+      type: object
+      required: [id, routeId, position, positionKind]
+      properties:
+        id: {$ref: '#/components/schemas/PublicId'}
+        routeId: {$ref: '#/components/schemas/RouteId'}
+        directionId: {$ref: '#/components/schemas/DirectionId'}
+        position: {$ref: '#/components/schemas/GeoPoint'}
+        bearing: {type: number, minimum: 0, maximum: 360}
+        nextStopId: {$ref: '#/components/schemas/StopId'}
+        observedAt: {$ref: '#/components/schemas/UtcTimestamp'}
+        ageSeconds: {type: integer, minimum: 0}
+        positionKind: {$ref: '#/components/schemas/PositionKind'}
+    ArrivalSource: {type: string, enum: [OFFICIAL_REALTIME, AGGREGATOR_REALTIME, SCHEDULE, CLIENT_ESTIMATE]}
+    Arrival:
+      type: object
+      required: [stopId, routeId, headsign, realtime, cancelled, source]
+      properties:
+        stopId: {$ref: '#/components/schemas/StopId'}
+        routeId: {$ref: '#/components/schemas/RouteId'}
+        tripId: {type: string}
+        headsign: {$ref: '#/components/schemas/LocalizedText'}
+        scheduledAt: {$ref: '#/components/schemas/UtcTimestamp'}
+        expectedAt: {$ref: '#/components/schemas/UtcTimestamp'}
+        expectedInMinutes: {type: integer, minimum: 0}
+        realtime: {type: boolean}
+        cancelled: {type: boolean}
+        source: {$ref: '#/components/schemas/ArrivalSource'}
+    JourneyLeg:
+      type: object
+      required: [routeId, directionId, fromStopId, toStopId, departureAt, arrivalAt]
+      properties:
+        routeId: {$ref: '#/components/schemas/RouteId'}
+        directionId: {$ref: '#/components/schemas/DirectionId'}
+        fromStopId: {$ref: '#/components/schemas/StopId'}
+        toStopId: {$ref: '#/components/schemas/StopId'}
+        departureAt: {$ref: '#/components/schemas/UtcTimestamp'}
+        arrivalAt: {$ref: '#/components/schemas/UtcTimestamp'}
+    Journey:
+      type: object
+      required: [id, departureAt, arrivalAt, transfers, legs]
+      properties:
+        id: {$ref: '#/components/schemas/PublicId'}
+        departureAt: {$ref: '#/components/schemas/UtcTimestamp'}
+        arrivalAt: {$ref: '#/components/schemas/UtcTimestamp'}
+        transfers: {type: integer, minimum: 0, maximum: 6}
+        legs: {type: array, items: {$ref: '#/components/schemas/JourneyLeg'}}
+    VehiclePage:
+      type: object
+      required: [items, observedAt, maxAgeSeconds, stale]
+      properties:
+        items: {type: array, items: {$ref: '#/components/schemas/Vehicle'}}
+        observedAt: {$ref: '#/components/schemas/UtcTimestamp'}
+        maxAgeSeconds: {type: integer, minimum: 0}
+        stale: {type: boolean}
+    ArrivalPage:
+      type: object
+      required: [items, source, observedAt, stale]
+      properties:
+        items: {type: array, items: {$ref: '#/components/schemas/Arrival'}}
+        source: {$ref: '#/components/schemas/ArrivalSource'}
+        observedAt: {$ref: '#/components/schemas/UtcTimestamp'}
+        stale: {type: boolean}
+    JourneyPage:
+      type: object
+      required: [items, observedAt]
+      properties:
+        items: {type: array, items: {$ref: '#/components/schemas/Journey'}}
+        observedAt: {$ref: '#/components/schemas/UtcTimestamp'}
+    Cities: {type: array, items: {$ref: '#/components/schemas/City'}}
+    Routes: {type: array, items: {$ref: '#/components/schemas/Route'}}
+    Stops: {type: array, items: {$ref: '#/components/schemas/Stop'}}
+    HealthResponse:
+      type: object
+      required: [status, mode]
+      properties: {status: {type: string, enum: [ready, not_ready]}, mode: {type: string, enum: [development, production]}}
+    ErrorEnvelope:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, message, requestId]
+          properties:
+            code: {type: string, enum: [INVALID_ARGUMENT, CITY_NOT_FOUND, ROUTE_NOT_FOUND, STOP_NOT_FOUND, PROVIDER_ID_CHANGED, RATE_LIMITED, CAPABILITY_NOT_AVAILABLE, UPSTREAM_BAD_RESPONSE, UPSTREAM_UNAVAILABLE, UPSTREAM_TIMEOUT]}
+            message: {type: string}
+            retryAfterSeconds: {type: integer, minimum: 1}
+            requestId: {$ref: '#/components/schemas/RequestId'}
+    UtcTimestamp: {type: string, format: date-time, pattern: 'Z$', description: ISO-8601 UTC timestamp.}

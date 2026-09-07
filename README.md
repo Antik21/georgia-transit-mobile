@@ -8,6 +8,7 @@ Kotlin Multiplatform shell for a Georgia public-transit app. Shared Compose UI c
 - Navigation 3, common lifecycle ViewModels, Koin and Orbit MVI
 - Coroutines, serialization, datetime and immutable collections
 - Ktor client with OkHttp on Android and Darwin on iOS
+- Separate Java 17/Kotlin JVM Transit BFF: Ktor 3.3.3 Netty and kotlinx serialization
 - MapLibre Native: Android OpenGL SDK 13.6.0 and iOS SPM product `MapLibre` 6.29.0
 
 ## Maps
@@ -78,6 +79,59 @@ or invalid-configuration recovery at runtime. Those paths are nevertheless
 bounded and terminal for a future BFF repository or host adapter that reports a
 failure.
 
+## Transit BFF
+
+`:transitBff` is a standalone JVM server module; it does not enter `shared`,
+Android, or iOS. It exposes the normalized, capability-driven `/v1` contract in
+[the OpenAPI 3.1 document](docs/openapi/transit-bff-v1.yaml). The server has a
+city-scoped provider adapter boundary: provider DTOs, URLs, credentials, and
+secrets must stay inside a reviewed server adapter and operator secret manager.
+No mobile app calls a provider directly.
+
+The only currently included adapter is an unmistakably synthetic `demo` city.
+It is enabled only with both `BFF_MODE=development` and
+`BFF_FIXTURES_ENABLED=true`; it is useful for local contract development, but
+is not real provider readiness. Kutaisi and Batumi are absent until configured
+adapters are reviewed; an absent city returns `CITY_NOT_FOUND`. Trip planning
+is capability-gated for every configured city. In `production`, fixtures are
+rejected and startup fails closed because this repository does not yet contain
+a reviewed real provider adapter.
+
+Start the development fixture without storing any environment file in the
+repository:
+
+```text
+BFF_MODE=development BFF_FIXTURES_ENABLED=true ./gradlew :transitBff:run
+curl -i http://127.0.0.1:8080/healthz
+curl -i 'http://127.0.0.1:8080/v1/cities/demo/routes?locale=en'
+```
+
+[`transitBff/.env.example`](transitBff/.env.example) documents the accepted
+environment variable names, conservative cache defaults, and non-secret
+placeholders. `BFF_HOST`, `BFF_PORT`, `BFF_DIRECTORY_CACHE_TTL_SECONDS`
+(1–6 hours), `BFF_SHAPE_CACHE_TTL_SECONDS` (1–24 hours), and
+`BFF_REALTIME_SINGLE_FLIGHT_SECONDS` are parsed strictly at startup. `healthz`
+reports readiness and mode without configuration or credential details. Every
+response has `X-Request-ID`; errors use the documented
+`{error:{code,message,retryAfterSeconds?,requestId}}` envelope.
+
+Build a portable local distribution with:
+
+```text
+./gradlew :transitBff:check :transitBff:installDist
+BFF_MODE=development BFF_FIXTURES_ENABLED=true \
+  transitBff/build/install/transitBff/bin/transitBff
+```
+
+The supported deployment artifact is `installDist`; no Docker image, hosting
+service, provider credential, or production provider integration is checked in.
+Before deploying a future real adapter, configure operator-managed secrets and
+network policy outside this repository, confirm the provider licence/cost/quota
+and attribution obligations, run the BFF verification commands below, and
+probe `/healthz` through the intended runtime. See
+[ADR 0003](docs/adr/0003-transit-bff-runtime-and-provider-boundary.md) for the
+production boundary and caching/single-flight constraints.
+
 ## Build and quality checks
 
 Prerequisites:
@@ -92,6 +146,7 @@ Run the same quality checks locally with:
 
 ```text
 ./gradlew --no-daemon --no-build-cache spotlessCheck
+./gradlew --no-daemon --no-build-cache :transitBff:compileKotlin :transitBff:check :transitBff:installDist
 ./gradlew --no-daemon --no-build-cache :shared:testAndroidHostTest :shared:checkKotlinGradlePluginConfigurationErrors :androidApp:lintDebug :androidApp:assembleDebug
 SIMULATOR_UDID="<an available iOS Simulator UDID from xcrun simctl list devices available>"
 ./gradlew --no-daemon --no-build-cache :shared:iosSimulatorArm64Test --device "$SIMULATOR_UDID" :shared:checkXcodeProjectConfiguration
@@ -101,25 +156,26 @@ git diff --check
 
 The two iOS commands require macOS, Xcode, and a simulator runtime. The iOS test task's supported `--device` option binds it to the selected simulator UDID; CI creates, boots, and deletes that temporary device for runtime tests. The unsigned Xcode compile/link gate uses Xcode's supported generic iOS Simulator destination. On Windows, Android work is available but cannot provide iOS simulator evidence.
 
-Formatting is enforced with the Apache-2.0, no-cost Spotless Gradle plugin (`8.10.2`), which is a build-only dependency. To avoid unrelated rewrapping/import churn in the existing Kotlin baseline, its current rule set checks trailing whitespace in Kotlin and Gradle Kotlin files, and trailing whitespace plus one final newline in `README.md`, `.gitignore`, and GitHub Actions YAML. It does not apply a Kotlin style formatter or change runtime dependencies.
+Formatting is enforced with the Apache-2.0, no-cost Spotless Gradle plugin (`8.10.2`), which is a build-only dependency. To avoid unrelated rewrapping/import churn in the existing Kotlin baseline, its current rule set checks trailing whitespace in Kotlin and Gradle Kotlin files, and trailing whitespace plus one final newline in repository docs, the BFF sample environment file, OpenAPI YAML, and GitHub Actions YAML. It does not apply a Kotlin style formatter or change runtime dependencies.
 
 ## Continuous integration
 
-GitHub Actions runs three stable checks for pushes and pull requests targeting `main`:
+GitHub Actions runs four stable checks for pushes and pull requests targeting `main`:
 
 - `Quality` checks formatting.
+- `Transit BFF` checks formatting plus the BFF check and build surfaces.
 - `Android` runs shared Android-host unit tests, Kotlin Gradle configuration checks, Android lint, and the debug build.
 - `iOS` validates an Apple Silicon runner, runs arm64 simulator tests against an explicitly created temporary simulator and the Xcode configuration check, then builds the unsigned app for Xcode's generic iOS Simulator destination.
 
 The workflow gives `gradle/actions/setup-gradle` sole ownership of the Gradle User Home cache. Pull requests and non-`main` branches restore caches read-only; `main` may write them after success. It does not cache repository `.gradle`, build outputs, `DerivedData`, `local.properties`, secret/configuration files, or generated app artifacts. Gradle invocations disable the build cache so a cached artifact cannot hide a generation failure.
 
-Repository administrators should configure branch protection to require the exact `Quality`, `Android`, and `iOS` checks before merging into `main`. This repository documentation does not claim that protection is already enabled.
+Repository administrators should configure branch protection to require the exact `Quality`, `Transit BFF`, `Android`, and `iOS` checks before merging into `main`. This repository documentation does not claim that protection is already enabled.
 
 The cross-platform stable-ID scenario is in ui-tests/maestro/flows/shell-smoke.yaml.
 
 ## Documentation
 
-Start with [AGENTS.md](AGENTS.md), the [toolchain](.agents/docs/01-stack-toolchain.md), [architecture boundaries](.agents/docs/02-architecture-boundaries.md), [ADR 0001](docs/adr/0001-kmp-shell.md), and [ADR 0002](docs/adr/0002-maplibre-native-and-map-assets.md).
+Start with [AGENTS.md](AGENTS.md), the [toolchain](.agents/docs/01-stack-toolchain.md), [architecture boundaries](.agents/docs/02-architecture-boundaries.md), [ADR 0001](docs/adr/0001-kmp-shell.md), [ADR 0002](docs/adr/0002-maplibre-native-and-map-assets.md), and [ADR 0003](docs/adr/0003-transit-bff-runtime-and-provider-boundary.md).
 
 For the Debug-only Android/iOS local HTTP inspector, including smoke, clear,
 privacy, license, and Release-absence checks, see
