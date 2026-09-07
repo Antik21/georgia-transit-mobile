@@ -12,8 +12,9 @@ import com.denis.georgiatransit.shared.domain.repository.SelectedCityStore
 import com.denis.georgiatransit.shared.domain.repository.TransitRepository
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.test.runCurrent
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
+import org.orbitmvi.orbit.test.TestSettings
 import org.orbitmvi.orbit.test.test
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -32,26 +33,25 @@ class SplashViewModelTest {
         )
         val viewModel = SplashViewModel(bootstrap(repository))
 
-        viewModel.test(this) {
+        viewModel.test(
+            this,
+            settings = TestSettings(dispatcherOverride = UnconfinedTestDispatcher(testScheduler)),
+        ) {
             runOnCreate()
-            this@runTest.runCurrent()
             assertEquals(1, repository.snapshotCalls)
             assertEquals(ViewState.Loading, viewModel.container.stateFlow.value)
 
             initialAttempt.complete(SnapshotOutcome.Fail)
-            this@runTest.runCurrent()
             assertEquals(
                 ViewState.Error(BootstrapTransitSession.Failure.Unavailable),
                 viewModel.container.stateFlow.value,
             )
 
             viewModel.dispatchAction(Action.RetryClicked)
-            this@runTest.runCurrent()
             assertEquals(2, repository.snapshotCalls)
             assertEquals(ViewState.Loading, viewModel.container.stateFlow.value)
 
             retryAttempt.complete(SnapshotOutcome.Cities(listOf(tbilisi)))
-            this@runTest.runCurrent()
             assertEquals(ViewState.Ready(Destination.CitySelection), viewModel.container.stateFlow.value)
             cancelAndIgnoreRemainingItems()
         }
@@ -65,17 +65,17 @@ class SplashViewModelTest {
         )
         val viewModel = SplashViewModel(bootstrap(repository))
 
-        viewModel.test(this) {
+        viewModel.test(
+            this,
+            settings = TestSettings(dispatcherOverride = UnconfinedTestDispatcher(testScheduler)),
+        ) {
             runOnCreate()
-            this@runTest.runCurrent()
             assertEquals(ViewState.Loading, viewModel.container.stateFlow.value)
             viewModel.dispatchAction(Action.RetryClicked)
             viewModel.dispatchAction(Action.RetryClicked)
-            this@runTest.runCurrent()
 
             assertEquals(1, repository.snapshotCalls)
             gate.complete(SnapshotOutcome.Cities(listOf(tbilisi)))
-            this@runTest.runCurrent()
             assertEquals(ViewState.Ready(Destination.CitySelection), viewModel.container.stateFlow.value)
 
             assertEquals(1, repository.snapshotCalls)
