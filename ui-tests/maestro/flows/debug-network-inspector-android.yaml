@@ -1,0 +1,56 @@
+appId: com.denis.georgiatransit
+---
+# Precondition: launch the Debug app once, then open the Android app drawer with KEYCODE_ALL_APPS.
+# The inspector is intentionally non-exported; reach it only through this app-owned dynamic shortcut.
+- assertVisible: Georgia Transit
+- longPressOn: Georgia Transit
+- assertVisible: Network inspector
+- tapOn: Network inspector
+- assertVisible:
+    id: debug_network_inspector_run_success
+- tapOn:
+    id: debug_network_inspector_run_success
+- extendedWaitUntil:
+    visible: Successful HTTPS smoke completed with HTTP 200.
+    timeout: 15000
+- tapOn:
+    id: debug_network_inspector_run_failure
+- extendedWaitUntil:
+    visible: Controlled local failure recorded ConnectException.
+    timeout: 15000
+- tapOn:
+    id: debug_network_inspector_open_history
+- assertVisible: Chucker
+- assertVisible: "200"
+- assertVisible: example.com
+- assertVisible: 127.0.0.1
+- tapOn: example.com
+- assertVisible:
+    id: method
+- assertVisible:
+    id: url
+- assertVisible:
+    id: status
+- assertVisible:
+    id: response
+- assertVisible: GET
+- assertVisible: https://example.com
+- pressKey: BACK
+- tapOn: 127.0.0.1
+- assertVisible:
+    id: method
+- assertVisible:
+    id: url
+- assertVisible:
+    id: status
+- assertVisible:
+    id: response
+- assertVisible: GET
+- assertVisible: https://127.0.0.1:1/den-77-controlled-failure
+- pressKey: BACK
+- tapOn:
+    id: clear
+- tapOn:
+    id: "android:id/button1"
+- assertNotVisible: example.com
+- assertNotVisible: 127.0.0.1

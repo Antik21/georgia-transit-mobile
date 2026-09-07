@@ -19,6 +19,7 @@ kotlinx-collections-immutable = "0.4.0"
 turbine = "1.2.1"
 maplibre-android = "13.6.0"
 spotless = "8.10.2"
+chucker = "4.3.1"
 
 [libraries]
 androidx-activity-compose = { module = "androidx.activity:activity-compose", version.ref = "androidx-activity" }
@@ -52,6 +53,7 @@ orbit-compose = { module = "org.orbit-mvi:orbit-compose", version.ref = "orbit" 
 orbit-test = { module = "org.orbit-mvi:orbit-test", version.ref = "orbit" }
 turbine = { module = "app.cash.turbine:turbine", version.ref = "turbine" }
 maplibre-android = { module = "org.maplibre.gl:android-sdk-opengl", version.ref = "maplibre-android" }
+chucker = { module = "com.github.chuckerteam.chucker:library", version.ref = "chucker" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

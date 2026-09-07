@@ -3,11 +3,15 @@ import Shared
 
 struct ContentView: View {
     var body: some View {
+#if DEBUG
+        DebugNetworkInspectorOverlay()
+#else
         ComposeViewController()
+#endif
     }
 }
 
-private struct ComposeViewController: UIViewControllerRepresentable {
+struct ComposeViewController: UIViewControllerRepresentable {
     func makeUIViewController(context: Context) -> UIViewController {
         MainViewControllerKt.MainViewController(
             mapViewFactory: { MapLibreMapViewBridge.makeView() },
