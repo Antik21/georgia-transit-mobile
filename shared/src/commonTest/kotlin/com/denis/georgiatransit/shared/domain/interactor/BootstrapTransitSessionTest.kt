@@ -41,10 +41,12 @@ class BootstrapTransitSessionTest {
         val refreshed = city("tbilisi", name = "Tbilisi")
         val store = FakeSelectedCityStore(snapshot = CachedCitySnapshot(city = cached))
         val session = RuntimeTransitSession(store)
+        val repository = FakeRepository(cities = listOf(cached))
 
         val result = bootstrap(
             store = store,
             session = session,
+            repository = repository,
             cities = listOf(refreshed),
         ).bootstrap()
 
@@ -52,6 +54,7 @@ class BootstrapTransitSessionTest {
         assertEquals(refreshed, session.selectedCity.value)
         assertEquals(refreshed, store.savedCities.single())
         assertEquals(0, store.clearCalls)
+        assertEquals(1, repository.snapshotCalls)
     }
 
     @Test
@@ -236,13 +239,16 @@ class BootstrapTransitSessionTest {
         session: RuntimeTransitSession = RuntimeTransitSession(store),
         repository: FakeRepository = FakeRepository(cities = listOf(city("tbilisi"))),
         configurationSource: RuntimeBootstrapConfigurationSource = FakeConfigurationSource { RuntimeBootstrapConfiguration.default },
-        cities: List<TransitCity> = repository.cities(),
-    ): BootstrapTransitSession = BootstrapTransitSession(
-        repository = repository.copy(cities = cities),
-        session = session,
-        selectedCityStore = store,
-        runtimeConfigurationSource = configurationSource,
-    )
+        cities: List<TransitCity>? = null,
+    ): BootstrapTransitSession {
+        if (cities != null) repository.cities = cities
+        return BootstrapTransitSession(
+            repository = repository,
+            session = session,
+            selectedCityStore = store,
+            runtimeConfigurationSource = configurationSource,
+        )
+    }
 
     private suspend fun assertCancellationRethrown(block: suspend () -> Unit) {
         try {
@@ -270,8 +276,8 @@ class BootstrapTransitSessionTest {
         override suspend fun load(): RuntimeBootstrapConfiguration? = loadConfiguration()
     }
 
-    private data class FakeRepository(
-        val cities: List<TransitCity> = emptyList(),
+    private class FakeRepository(
+        var cities: List<TransitCity> = emptyList(),
         val loadSnapshot: suspend () -> Unit = {},
     ) : TransitRepository {
         var snapshotCalls = 0

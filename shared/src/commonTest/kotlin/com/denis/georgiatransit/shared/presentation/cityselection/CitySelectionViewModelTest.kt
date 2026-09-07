@@ -239,11 +239,12 @@ class CitySelectionViewModelTest {
     }
 
     @Test
-    fun refreshRevalidatesTheVisibleSelectionAgainstTheReplacementSnapshot() = runTest {
+    fun refreshRetainsTheVisibleSelectionWhenTheReplacementSnapshotStillEnablesIt() = runTest {
+        val refreshedTbilisi = tbilisi.copy(name = "Refreshed Tbilisi")
         val repository = CatalogRepository(
             results = mutableListOf(
                 TransitLoadResult.Data(listOf(tbilisi, batumi), TransitFreshness.Network),
-                TransitLoadResult.Data(listOf(batumi), TransitFreshness.Network),
+                TransitLoadResult.Data(listOf(refreshedTbilisi, batumi), TransitFreshness.Network),
             ),
         )
         val viewModel = CitySelectionViewModel(repository, RuntimeTransitSession(), testLocationSession())
@@ -253,13 +254,50 @@ class CitySelectionViewModelTest {
             this@runTest.runCurrent()
             viewModel.dispatchAction(Action.CityClicked(tbilisi.id))
             this@runTest.runCurrent()
-            assertEquals(tbilisi.id, viewModel.container.stateFlow.value.selectedCityId)
 
             viewModel.dispatchAction(Action.RetryClicked)
             this@runTest.runCurrent()
-            assertNull(viewModel.container.stateFlow.value.selectedCityId)
-            assertFalse(viewModel.container.stateFlow.value.canContinue)
+
+            assertEquals(tbilisi.id, viewModel.container.stateFlow.value.selectedCityId)
+            assertTrue(viewModel.container.stateFlow.value.canContinue)
+            assertEquals(
+                refreshedTbilisi.name,
+                viewModel.container.stateFlow.value.cities.single { it.id == tbilisi.id }.name,
+            )
             cancelAndIgnoreRemainingItems()
+        }
+    }
+
+    @Test
+    fun refreshClearsTheVisibleSelectionWhenTheReplacementSnapshotRemovesOrDisablesIt() = runTest {
+        val disabledTbilisi = tbilisi.copy(capabilities = tbilisi.capabilities.copy(stops = false))
+        val scenarios = listOf(
+            "removed" to listOf(batumi),
+            "disabled" to listOf(disabledTbilisi, batumi),
+        )
+
+        scenarios.forEach { (name, replacementSnapshot) ->
+            val repository = CatalogRepository(
+                results = mutableListOf(
+                    TransitLoadResult.Data(listOf(tbilisi, batumi), TransitFreshness.Network),
+                    TransitLoadResult.Data(replacementSnapshot, TransitFreshness.Network),
+                ),
+            )
+            val viewModel = CitySelectionViewModel(repository, RuntimeTransitSession(), testLocationSession())
+
+            viewModel.test(this) {
+                runOnCreate()
+                this@runTest.runCurrent()
+                viewModel.dispatchAction(Action.CityClicked(tbilisi.id))
+                this@runTest.runCurrent()
+
+                viewModel.dispatchAction(Action.RetryClicked)
+                this@runTest.runCurrent()
+
+                assertNull(viewModel.container.stateFlow.value.selectedCityId, name)
+                assertFalse(viewModel.container.stateFlow.value.canContinue, name)
+                cancelAndIgnoreRemainingItems()
+            }
         }
     }
 

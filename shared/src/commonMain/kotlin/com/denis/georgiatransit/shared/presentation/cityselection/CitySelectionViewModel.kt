@@ -60,6 +60,7 @@ class CitySelectionViewModel(
         if (!catalogRefreshGate.tryClaim()) return
         intent {
             try {
+                val previousSelection = state.selectedCityId
                 currentCatalog = emptyList()
                 reduce {
                     state.copy(
@@ -84,7 +85,7 @@ class CitySelectionViewModel(
                             reduce {
                                 state.copy(
                                     cities = snapshot.map { it.toCityItemUiModel() },
-                                    selectedCityId = selectedIdIn(snapshot, state.selectedCityId),
+                                    selectedCityId = selectedIdIn(snapshot, previousSelection),
                                     catalog = CityCatalogState.Populated(result.freshness, result.revalidationFailure),
                                 )
                             }
