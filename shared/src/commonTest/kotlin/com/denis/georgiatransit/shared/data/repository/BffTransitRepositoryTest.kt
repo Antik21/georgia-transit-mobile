@@ -13,6 +13,7 @@ import com.denis.georgiatransit.shared.domain.model.RouteId
 import com.denis.georgiatransit.shared.domain.model.TransitLocale
 import com.denis.georgiatransit.shared.domain.model.TransitMode
 import com.denis.georgiatransit.shared.domain.model.TransitCity
+import com.denis.georgiatransit.shared.domain.model.TransitStop
 import com.denis.georgiatransit.shared.domain.repository.RouteListRequest
 import com.denis.georgiatransit.shared.domain.repository.TransitFailure
 import com.denis.georgiatransit.shared.domain.repository.TransitFreshness
@@ -30,6 +31,7 @@ import io.ktor.http.HttpStatusCode
 import io.ktor.http.headersOf
 import io.ktor.serialization.kotlinx.json.json
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Runnable
 import kotlinx.coroutines.coroutineScope
@@ -41,6 +43,7 @@ import kotlinx.serialization.json.Json
 import kotlin.coroutines.CoroutineContext
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
 import kotlin.test.assertIs
 import kotlin.test.assertNull
@@ -48,6 +51,141 @@ import kotlin.test.assertTrue
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class BffTransitRepositoryTest {
+    @Test
+    fun nearbyCacheIsFreshOnlyForTheExactCityViewportLimitAndLocaleQuery() = runTest {
+        val store = MemoryStore()
+        val clock = MutableClock(1_000_000L)
+        val requests = mutableListOf<HttpRequestData>()
+        val repository = repository(store, clock) { request ->
+            requests += request
+            jsonResponse(nearbyStopsJson())
+        }
+        val city = CityId("demo")
+        val center = GeoPoint(41.7, 44.8)
+
+        val network = assertIs<TransitLoadResult.Data<*>>(
+            repository.nearbyStops(city, center, 1_000, 50, TransitLocale.English),
+        )
+        val cached = assertIs<TransitLoadResult.Data<*>>(
+            repository.nearbyStops(city, center, 1_000, 50, TransitLocale.English),
+        )
+        assertEquals(TransitFreshness.Network, network.freshness)
+        assertEquals(TransitFreshness.CacheValid, cached.freshness)
+        assertEquals(1, requests.size)
+
+        repository.nearbyStops(city, GeoPoint(41.70001, 44.8), 1_000, 50, TransitLocale.English)
+        repository.nearbyStops(city, center, 1_025, 50, TransitLocale.English)
+        repository.nearbyStops(city, center, 1_000, 49, TransitLocale.English)
+        repository.nearbyStops(city, center, 1_000, 50, TransitLocale.Russian)
+        repository.nearbyStops(CityId("other"), center, 1_000, 50, TransitLocale.English)
+
+        assertEquals(6, requests.size, "No different nearby query may reuse another viewport's LKG")
+        assertEquals(6, store.keys(NearbyCachePrefixForTest).size)
+    }
+
+    @Test
+    fun expiredNearbyEntryUsesStaleLkgOnlyForAllowedFailureAndKeepsFailureVisible() = runTest {
+        val clock = MutableClock(1_000_000L)
+        var online = true
+        val repository = repository(MemoryStore(), clock) {
+            if (online) jsonResponse(nearbyStopsJson()) else throw IOException("offline")
+        }
+        val request: suspend () -> TransitLoadResult<List<TransitStop>> = {
+            repository.nearbyStops(CityId("demo"), GeoPoint(41.7, 44.8), 1_000, 50, TransitLocale.English)
+        }
+        assertEquals(TransitFreshness.Network, assertIs<TransitLoadResult.Data<*>>(request()).freshness)
+        clock.now += NEARBY_TTL_MILLIS
+        assertEquals(TransitFreshness.CacheValid, assertIs<TransitLoadResult.Data<*>>(request()).freshness)
+
+        clock.now += 1L
+        online = false
+        val stale = assertIs<TransitLoadResult.Data<List<TransitStop>>>(request())
+        assertEquals(TransitFreshness.StaleOffline, stale.freshness)
+        assertIs<TransitFailure.Transport>(stale.revalidationFailure)
+        assertEquals("demo:fixture:stop:center", stale.value.single().id.value)
+    }
+
+    @Test
+    fun cityNotFoundAndProviderConflictAreNeverMaskedByNearbyLkg() = runTest {
+        val clock = MutableClock(1_000_000L)
+        var failureCode: String? = null
+        val store = MemoryStore()
+        val repository = repository(store, clock) {
+            failureCode?.let { code ->
+                val status = if (code == "CITY_NOT_FOUND") HttpStatusCode.NotFound else HttpStatusCode.Conflict
+                jsonResponse(errorJson(code), status)
+            } ?: jsonResponse(nearbyStopsJson())
+        }
+        val request: suspend () -> TransitLoadResult<List<TransitStop>> = {
+            repository.nearbyStops(CityId("demo"), GeoPoint(41.7, 44.8), 1_000, 50, TransitLocale.English)
+        }
+        request()
+        clock.now += NEARBY_TTL_MILLIS + 1L
+
+        failureCode = "CITY_NOT_FOUND"
+        assertIs<TransitFailure.CityNotFound>(assertIs<TransitLoadResult.Failure>(request()).error)
+        assertEquals(1, store.keys(NearbyCachePrefixForTest).size, "404 remains available for catalog-driven revalidation")
+
+        failureCode = "PROVIDER_ID_CHANGED"
+        assertIs<TransitFailure.ProviderIdChanged>(assertIs<TransitLoadResult.Failure>(request()).error)
+        assertTrue(store.keys(NearbyCachePrefixForTest).isEmpty(), "409 must invalidate the exact stale provider identity")
+    }
+
+    @Test
+    fun nearbyCacheIsBoundedAndCancellationEscapesWithoutWritingAnEntry() = runTest {
+        val clock = MutableClock(1_000_000L)
+        val store = MemoryStore()
+        var cancel = false
+        val repository = repository(store, clock) {
+            if (cancel) throw CancellationException("cancelled")
+            jsonResponse(nearbyStopsJson())
+        }
+
+        repeat(25) { index ->
+            repository.nearbyStops(
+                CityId("demo"),
+                GeoPoint(41.7 + index * 0.00001, 44.8),
+                1_000,
+                50,
+                TransitLocale.English,
+            )
+            clock.now += 1L
+        }
+        assertEquals(24, store.keys(NearbyCachePrefixForTest).size)
+
+        cancel = true
+        assertFailsWith<CancellationException> {
+            repository.nearbyStops(
+                CityId("cancelled"),
+                GeoPoint(41.7, 44.8),
+                1_000,
+                50,
+                TransitLocale.English,
+            )
+        }
+        assertTrue(store.keys(NearbyCachePrefixForTest).none { it.contains("cancelled") })
+    }
+
+    @Test
+    fun forcedCityRevalidationBypassesAStillValidCityCache() = runTest {
+        val clock = MutableClock(1_000_000L)
+        var routes = true
+        var requests = 0
+        val repository = repository(MemoryStore(), clock) {
+            requests += 1
+            jsonResponse(citiesJson(routes = routes))
+        }
+
+        assertEquals(TransitFreshness.Network, assertIs<TransitLoadResult.Data<*>>(
+            repository.refreshCityCapabilities(),
+        ).freshness)
+        routes = false
+        val forced = assertIs<TransitLoadResult.Data<List<TransitCity>>>(repository.revalidateCityCapabilities())
+
+        assertEquals(2, requests)
+        assertFalse(forced.value.single().capabilities.routes)
+    }
+
     @Test
     fun freshOneHourRouteCacheAvoidsNetworkAndExpiryUsesEtag304ToRefreshValidationTime() = runTest {
         val store = MemoryStore()
@@ -261,6 +399,9 @@ class BffTransitRepositoryTest {
     private fun routesJson() =
         """[{"id":"demo:fixture:route:blue","providerId":"blue","shortName":"D1","longName":{"ru":"Р","en":"Route","ka":"მ"},"color":"#0057B8","textColor":"#FFFFFF","mode":"bus","directions":[]}]"""
 
+    private fun nearbyStopsJson() =
+        """[{"id":"demo:fixture:stop:center","providerId":"center","code":"D001","name":{"ru":"Центр","en":"Center","ka":"ცენტრი"},"position":{"latitude":41.7,"longitude":44.8},"routeIds":[],"mode":"bus"}]"""
+
     private fun citiesJson(routes: Boolean) =
         """[{"id":"demo","name":{"ru":"Демо","en":"Demo","ka":"დემო"},"center":{"latitude":41.7,"longitude":44.8},"defaultZoom":13.0,"capabilities":{"routes":$routes,"stops":true,"routeGeometry":true,"vehiclePositions":true,"officialArrivals":true,"tripPlanning":true},"availability":{"readiness":"DEVELOPMENT_FIXTURE","source":"FIXTURE"}}]"""
 
@@ -307,6 +448,8 @@ class BffTransitRepositoryTest {
 
     private companion object {
         const val CityCacheKeyForTest = "transit-bff-v1.cities"
+        const val NearbyCachePrefixForTest = "transit-bff-v1.nearby."
         const val HOUR_MILLIS = 60L * 60L * 1_000L
+        const val NEARBY_TTL_MILLIS = 5L * 60L * 1_000L
     }
 }

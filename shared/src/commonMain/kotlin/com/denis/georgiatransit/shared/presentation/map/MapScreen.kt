@@ -8,12 +8,15 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -21,6 +24,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.LinkAnnotation
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.intl.Locale
@@ -29,6 +35,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import com.denis.georgiatransit.shared.domain.model.GeoPoint
 import com.denis.georgiatransit.shared.domain.model.LocalizedText
 import com.denis.georgiatransit.shared.domain.model.TransitAttribution
+import com.denis.georgiatransit.shared.domain.model.TransitLocale
 import com.denis.georgiatransit.shared.presentation.location.LocationFailure
 import com.denis.georgiatransit.shared.presentation.location.LocationPermissionState
 import com.denis.georgiatransit.shared.presentation.location.LocationPlatformCommand
@@ -65,18 +72,27 @@ import georgiatransit.shared.generated.resources.map_content_loading
 import georgiatransit.shared.generated.resources.map_content_offline
 import georgiatransit.shared.generated.resources.map_content_stale
 import georgiatransit.shared.generated.resources.map_content_unavailable
+import georgiatransit.shared.generated.resources.map_cluster_stops
 import georgiatransit.shared.generated.resources.map_my_location_action
 import georgiatransit.shared.generated.resources.map_preview_note
 import georgiatransit.shared.generated.resources.map_routes_action
+import georgiatransit.shared.generated.resources.map_nearby_stops_title
+import georgiatransit.shared.generated.resources.map_retry_action
 import georgiatransit.shared.generated.resources.map_selected_routes
+import georgiatransit.shared.generated.resources.map_selected_stop
 import georgiatransit.shared.generated.resources.map_title
 import org.jetbrains.compose.resources.stringResource
+import kotlinx.collections.immutable.toPersistentList
 import org.orbitmvi.orbit.compose.collectAsState
 import org.orbitmvi.orbit.compose.collectSideEffect
 
 @Composable
 fun MapScreen(viewModel: MapViewModel, handleNavigation: suspend (NavigationEffect) -> Unit) {
     val state by viewModel.collectAsState()
+    val language = Locale.current.language
+    LaunchedEffect(language) {
+        viewModel.dispatchAction(Action.LocaleChanged(language.toTransitLocale()))
+    }
     var platformCommand by remember { mutableStateOf<LocationPlatformCommand?>(null) }
     viewModel.collectSideEffect { effect ->
         when (effect) {
@@ -107,6 +123,7 @@ private fun Content(state: ViewState, onAction: (Action) -> Unit) {
             MapCanvas(
                 renderState = renderState,
                 contentState = state.contentState,
+                baseLayerState = state.baseLayerState,
                 locationActionLabel = locationActionLabel(state.location.permission),
                 locationActionAutomationId = if (state.location.permission == LocationPermissionState.SettingsRequired) {
                     AutomationId.MapLocationSettings
@@ -115,14 +132,34 @@ private fun Content(state: ViewState, onAction: (Action) -> Unit) {
                 },
                 locationActionEnabled = locationActionEnabled(state.location.permission) && !state.location.isLocating,
                 onMyLocationClick = { onAction(Action.MyLocationClicked) },
+                onMapEvent = { onAction(Action.MapEventReceived(it)) },
+                onRetry = { onAction(Action.RetryNearby) },
                 modifier = mapModifier,
             )
-        } ?: MapContentPlaceholder(contentState = state.contentState, modifier = mapModifier)
+        } ?: MapContentPlaceholder(
+            contentState = state.contentState,
+            baseLayerState = state.baseLayerState,
+            modifier = mapModifier,
+        )
         Column(
             modifier = Modifier.fillMaxWidth().padding(TransitSpacing.Medium),
             verticalArrangement = Arrangement.spacedBy(TransitSpacing.Small),
         ) {
             LocationStatus(state.location)
+            NearbyStopsAccessibility(
+                stops = state.nearbyStops,
+                onStopSelected = { onAction(Action.StopSelected(it)) },
+            )
+            state.selectedStop?.let { selectedStop ->
+                Text(
+                    stringResource(Res.string.map_selected_stop, selectedStop.name),
+                    modifier = Modifier
+                        .testTag(AutomationId.MapSelectedStop)
+                        .semantics { liveRegion = LiveRegionMode.Polite },
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.primary,
+                )
+            }
             if (state.selectedRouteNames.isNotEmpty()) {
                 Text(
                     stringResource(Res.string.map_selected_routes, state.selectedRouteNames.joinToString()),
@@ -148,11 +185,13 @@ private fun Content(state: ViewState, onAction: (Action) -> Unit) {
 @Composable
 private fun MapContentPlaceholder(
     contentState: MapContentState,
+    baseLayerState: MapBaseLayerState,
     modifier: Modifier = Modifier,
 ) {
     Box(modifier = modifier.background(TransitColors.MapLand)) {
-        MapContentOverlay(
+        MapStatusOverlays(
             contentState = contentState,
+            baseLayerState = baseLayerState,
             modifier = Modifier.align(Alignment.TopCenter).padding(TransitSpacing.Medium),
         )
     }
@@ -162,12 +201,16 @@ private fun MapContentPlaceholder(
 private fun MapCanvas(
     renderState: MapRenderState,
     contentState: MapContentState,
+    baseLayerState: MapBaseLayerState,
     locationActionLabel: String,
     locationActionAutomationId: String,
     locationActionEnabled: Boolean,
     onMyLocationClick: () -> Unit,
+    onMapEvent: (MapPlatformEvent) -> Unit,
+    onRetry: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val localizedRenderState = renderState.withLocalizedClusterLabels()
     Box(modifier = modifier.background(TransitColors.MapLand)) {
         // AndroidView/UIKitView do not retain Compose test tags. Keep the automation-only
         // semantics node in common Compose so it remains visible without drawing or handling
@@ -177,10 +220,16 @@ private fun MapCanvas(
                 if (renderState.userLocation != null) Modifier.testTag(AutomationId.MapUserLocation) else Modifier,
             ),
         ) {
-            PlatformMap(renderState = renderState, modifier = Modifier.fillMaxSize())
+            PlatformMap(
+                renderState = localizedRenderState,
+                onEvent = onMapEvent,
+                modifier = Modifier.fillMaxSize(),
+            )
         }
-        MapContentOverlay(
+        MapStatusOverlays(
             contentState = contentState,
+            baseLayerState = baseLayerState,
+            onRetry = onRetry,
             modifier = Modifier.align(Alignment.TopCenter).padding(TransitSpacing.Medium),
         )
         Button(
@@ -192,10 +241,47 @@ private fun MapCanvas(
     }
 }
 
+@Composable
+private fun MapStatusOverlays(
+    contentState: MapContentState,
+    baseLayerState: MapBaseLayerState,
+    onRetry: (() -> Unit)? = null,
+    modifier: Modifier = Modifier,
+) {
+    Column(
+        modifier = modifier,
+        verticalArrangement = Arrangement.spacedBy(TransitSpacing.ExtraSmall),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        BaseLayerOverlay(baseLayerState)
+        MapContentOverlay(contentState = contentState, onRetry = onRetry)
+    }
+}
+
+@Composable
+private fun BaseLayerOverlay(baseLayerState: MapBaseLayerState) {
+    val text = when (baseLayerState) {
+        MapBaseLayerState.LocalPreview -> stringResource(Res.string.map_preview_note)
+    }
+    Surface(
+        modifier = Modifier.testTag(AutomationId.MapLocalPreview),
+        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.92f),
+        shape = TransitShapes.Small,
+        shadowElevation = TransitSpacing.ExtraSmall,
+    ) {
+        Text(
+            text,
+            modifier = Modifier.padding(TransitSpacing.Small),
+            style = MaterialTheme.typography.labelLarge,
+        )
+    }
+}
+
 /** The surface is deliberately compact: pan and zoom remain available around it. */
 @Composable
 private fun MapContentOverlay(
     contentState: MapContentState,
+    onRetry: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
     val textAndId = when (contentState) {
@@ -209,7 +295,6 @@ private fun MapContentOverlay(
             )
             text to AutomationId.MapOffline
         }
-        MapContentState.LocalPreview -> stringResource(Res.string.map_preview_note) to AutomationId.MapLocalPreview
         MapContentState.Ready -> return
     }
     Surface(
@@ -223,6 +308,57 @@ private fun MapContentOverlay(
             verticalArrangement = Arrangement.spacedBy(TransitSpacing.ExtraSmall),
         ) {
             Text(textAndId.first, style = MaterialTheme.typography.labelLarge)
+            if (contentState is MapContentState.RetryableError && onRetry != null) {
+                Button(
+                    onClick = onRetry,
+                    modifier = Modifier.testTag(AutomationId.MapRetry),
+                ) {
+                    Text(stringResource(Res.string.map_retry_action))
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun MapRenderState.withLocalizedClusterLabels(): MapRenderState = copy(
+    stopClusters = stopClusters.map { cluster ->
+        cluster.copy(
+            accessibilityLabel = stringResource(Res.string.map_cluster_stops, cluster.stopCount),
+        )
+    }.toPersistentList(),
+)
+
+/** Screen-reader and switch-control equivalent of stop marker activation. */
+@Composable
+private fun NearbyStopsAccessibility(
+    stops: List<NearbyStopUi>,
+    onStopSelected: (com.denis.georgiatransit.shared.domain.model.StopId) -> Unit,
+) {
+    if (stops.isEmpty()) return
+    Column(
+        modifier = Modifier.fillMaxWidth().testTag(AutomationId.MapNearbyStops),
+        verticalArrangement = Arrangement.spacedBy(TransitSpacing.ExtraSmall),
+    ) {
+        Text(
+            stringResource(Res.string.map_nearby_stops_title),
+            style = MaterialTheme.typography.labelLarge,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        LazyRow(horizontalArrangement = Arrangement.spacedBy(TransitSpacing.Small)) {
+            items(items = stops, key = { it.id.value }) { stop ->
+                if (stop.isSelected) {
+                    Button(
+                        onClick = { onStopSelected(stop.id) },
+                        modifier = Modifier.testTag(AutomationId.MapNearbyStop),
+                    ) { Text(stop.name) }
+                } else {
+                    OutlinedButton(
+                        onClick = { onStopSelected(stop.id) },
+                        modifier = Modifier.testTag(AutomationId.MapNearbyStop),
+                    ) { Text(stop.name) }
+                }
+            }
         }
     }
 }
@@ -260,6 +396,12 @@ private fun LocalizedText.mapAttributionDisplayName(languageTag: String): String
     "ru" -> ru
     else -> en
 }.ifBlank { en.ifBlank { ru.ifBlank { ka } } }
+
+private fun String.toTransitLocale(): TransitLocale = when (this) {
+    "ka" -> TransitLocale.Georgian
+    "ru" -> TransitLocale.Russian
+    else -> TransitLocale.English
+}
 
 @Composable
 private fun locationActionLabel(permission: LocationPermissionState): String = stringResource(

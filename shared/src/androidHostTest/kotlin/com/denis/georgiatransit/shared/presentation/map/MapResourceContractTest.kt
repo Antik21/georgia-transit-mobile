@@ -41,6 +41,10 @@ class MapResourceContractTest {
             AutomationId.MapUnavailable,
             AutomationId.MapOffline,
             AutomationId.MapLocalPreview,
+            AutomationId.MapSelectedStop,
+            AutomationId.MapNearbyStops,
+            AutomationId.MapNearbyStop,
+            AutomationId.MapRetry,
             AutomationId.MapAttribution,
         )
 
@@ -50,6 +54,10 @@ class MapResourceContractTest {
         assertEquals("map.my-location", AutomationId.MapMyLocation)
         assertEquals("map.location-settings", AutomationId.MapLocationSettings)
         assertEquals("map.content.local-preview", AutomationId.MapLocalPreview)
+        assertEquals("map.selected-stop", AutomationId.MapSelectedStop)
+        assertEquals("map.nearby-stops", AutomationId.MapNearbyStops)
+        assertEquals("map.nearby-stop", AutomationId.MapNearbyStop)
+        assertEquals("map.retry", AutomationId.MapRetry)
         assertEquals("map.attribution.link.transitous", AutomationId.mapAttributionLink("transitous"))
     }
 
@@ -62,32 +70,32 @@ class MapResourceContractTest {
             "shared/src/commonMain/kotlin/com/denis/georgiatransit/shared/presentation/map/MapViewModel.kt",
         ).readText()
         val canvas = screen.functionBody("private fun MapCanvas")
+        val contentOverlay = screen.functionBody("private fun MapContentOverlay")
+        val baseLayerOverlay = screen.functionBody("private fun BaseLayerOverlay")
+        val nearbyStops = screen.functionBody("private fun NearbyStopsAccessibility")
+        val content = screen.functionBody("private fun Content")
 
-        assertTrue(screen.contains("MapContentState.Ready -> return"))
-        assertTrue(viewModel.contains("contentState = MapContentState.LocalPreview"))
-        assertTrue(screen.contains("MapContentState.LocalPreview -> stringResource(Res.string.map_preview_note) to AutomationId.MapLocalPreview"))
-        assertTrue(screen.contains("MapContentState.Loading -> stringResource(Res.string.map_content_loading) to AutomationId.MapLoading"))
-        assertTrue(screen.contains("MapContentState.Empty -> stringResource(Res.string.map_content_empty) to AutomationId.MapEmpty"))
-        assertTrue(screen.contains("is MapContentState.RetryableError -> stringResource(Res.string.map_content_error) to AutomationId.MapError"))
-        assertTrue(screen.contains("MapContentState.Unavailable -> stringResource(Res.string.map_content_unavailable) to AutomationId.MapUnavailable"))
-        assertTrue(screen.contains("if (contentState.isStale) Res.string.map_content_stale else Res.string.map_content_offline"))
-        assertTrue(screen.contains("AutomationId.MapOffline"))
-        assertTrue(screen.contains("AutomationId.MapLocationSettings"))
-        assertTrue(screen.contains("AutomationId.MapMyLocation"))
+        assertCodePath(baseLayerOverlay, "MapBaseLayerState.LocalPreview", "map_preview_note", "MapLocalPreview")
+        assertCodePath(contentOverlay, "MapContentState.Loading", "map_content_loading", "MapLoading")
+        assertCodePath(contentOverlay, "MapContentState.Empty", "map_content_empty", "MapEmpty")
+        assertCodePath(contentOverlay, "MapContentState.RetryableError", "map_content_error", "MapError")
+        assertCodePath(contentOverlay, "MapContentState.Unavailable", "map_content_unavailable", "MapUnavailable")
+        assertCodePath(contentOverlay, "MapContentState.Offline", "contentState.isStale", "map_content_stale", "map_content_offline", "MapOffline")
+        assertTrue(contentOverlay.compactWhitespace().contains("MapContentState.Ready -> return"))
+        assertTrue(viewModel.compactWhitespace().contains("contentState = MapContentState.Loading"))
         val userLocationTag = canvas.indexOf("AutomationId.MapUserLocation")
-        val platformMapCall = canvas.indexOf("PlatformMap(renderState = renderState")
+        val platformMapCall = canvas.indexOf("PlatformMap(")
         assertTrue(userLocationTag >= 0)
         assertTrue(platformMapCall >= 0)
         assertTrue(
             userLocationTag < platformMapCall,
             "The conditional user-location ID must live on the Compose wrapper, before PlatformMap.",
         )
-        val overlayIndex = canvas.indexOf("MapContentOverlay(")
-        val buttonIndex = canvas.indexOf("Button(")
-        assertTrue(overlayIndex >= 0, "MapCanvas must render the informational overlay.")
-        assertTrue(buttonIndex >= 0, "MapCanvas must retain its actionable controls.")
-        assertTrue(overlayIndex < buttonIndex, "Informational overlays must not replace map actions.")
-        assertTrue(canvas.contains(".testTag(locationActionAutomationId)"))
+        assertCodePath(canvas, "PlatformMap(", "onEvent = onMapEvent", "MapStatusOverlays(", "onRetry = onRetry", "Button(")
+        assertTrue(canvas.compactWhitespace().contains("testTag(locationActionAutomationId)"))
+        assertCodePath(contentOverlay, "contentState is MapContentState.RetryableError", "Button(", "onClick = onRetry", "MapRetry")
+        assertCodePath(nearbyStops, "stops.isEmpty()", "MapNearbyStops", "items(", "key = { it.id.value }", "onStopSelected(stop.id)", "MapNearbyStop")
+        assertCodePath(content, "state.selectedStop?.let", "MapSelectedStop", "liveRegion = LiveRegionMode.Polite")
     }
 
     @Test
@@ -125,8 +133,27 @@ class MapResourceContractTest {
             "shared/src/iosMain/kotlin/com/denis/georgiatransit/shared/presentation/map/IosMapCompositionBridge.kt",
         ).readText()
         val swift = root.resolve("iosApp/iosApp/MapLibreMapViewBridge.swift").readText()
+        val androidHitTest = android.functionBody("private fun onMapClick")
+        val iosHitTest = swift.functionBody("private func handleMapTap")
 
-        assertTrue(android.contains("actual fun PlatformMap(renderState: MapRenderState"))
+        assertTrue(android.contains("actual fun PlatformMap("))
+        assertTrue(android.contains("onEvent: (MapPlatformEvent) -> Unit"))
+        assertTrue(android.contains("MapPlatformEvent.ViewportSettled"))
+        assertCodePath(
+            androidHitTest,
+            "MIN_STOP_TARGET_DP / 2f",
+            "RectF(",
+            "screenPoint.x - halfTarget",
+            "screenPoint.x + halfTarget",
+            "queryRenderedFeatures(hitRect, STOPS_LAYER_ID)",
+            "FEATURE_KIND_PROPERTY) == FEATURE_KIND_STOP",
+            "MapPlatformEvent.StopTapped",
+            "StopId(stopId)",
+        )
+        assertTrue(
+            android.numericDeclaration("MIN_STOP_TARGET_DP") >= 48.0,
+            "Android stop activation target must remain at least 48dp.",
+        )
         assertTrue(android.contains("MapLibre.setConnected(false)"))
         assertTrue(android.contains("lastAppliedCameraRevision == renderState.camera.revision"))
         assertTrue(android.contains("if (destroyed) return"))
@@ -134,10 +161,30 @@ class MapResourceContractTest {
             android.compactWhitespace().contains("onRelease = { lifecycle.destroy() controller.destroy() }"),
         )
 
-        assertTrue(ios.contains("actual fun PlatformMap(renderState: MapRenderState"))
+        assertTrue(ios.contains("actual fun PlatformMap("))
+        assertTrue(ios.contains("onEvent: (MapPlatformEvent) -> Unit"))
+        assertTrue(ios.contains("UIKitInteropInteractionMode.NonCooperative"))
         assertTrue(ios.contains("onRelease = IosMapCompositionBridge::releaseMapView"))
+        assertTrue(iosBridge.contains("((MapViewport) -> Unit, (StopId) -> Unit) -> UIView"))
+        assertTrue(iosBridge.contains("MapPlatformEvent.ViewportSettled"))
+        assertTrue(iosBridge.contains("MapPlatformEvent.StopTapped"))
         assertTrue(iosBridge.contains("(UIView, MapRenderState) -> Unit"))
         assertTrue(iosBridge.contains("fun releaseMapView(view: UIView)"))
+        assertCodePath(
+            iosHitTest,
+            "Self.minimumStopTargetPoints / 2",
+            "CGRect(",
+            "width: Self.minimumStopTargetPoints",
+            "height: Self.minimumStopTargetPoints",
+            "visibleFeatures(in: hitRect",
+            "Self.featureKindProperty",
+            "Self.stopFeatureKind",
+            "onStopTapped(id)",
+        )
+        assertTrue(
+            swift.numericDeclaration("minimumStopTargetPoints") >= 44.0,
+            "iOS stop activation target must remain at least 44pt.",
+        )
         assertTrue(swift.contains("func update(view: UIView, renderState: MapRenderState)"))
         assertTrue(swift.contains("guard lastAppliedCameraRevision != command.revision"))
         assertTrue(swift.contains("func releaseResources()"))
@@ -174,6 +221,24 @@ class MapResourceContractTest {
 
     private fun String.compactWhitespace(): String = replace(Regex("\\s+"), " ")
 
+    private fun assertCodePath(source: String, vararg fragments: String) {
+        val compact = source.compactWhitespace()
+        var previous = -1
+        fragments.forEach { fragment ->
+            val index = compact.indexOf(fragment, startIndex = previous + 1)
+            assertTrue(index >= 0, "Expected code path fragment '$fragment' after index $previous in: $compact")
+            previous = index
+        }
+    }
+
+    private fun String.numericDeclaration(name: String): Double {
+        val declaration = Regex(
+            """\b(?:private\s+)?(?:static\s+)?(?:const\s+)?(?:let|val)\s+${Regex.escape(name)}(?:\s*:\s*[A-Za-z0-9_.<>]+)?\s*=\s*([0-9]+(?:\.[0-9]+)?)(?:[fFdD])?\b""",
+        )
+        return declaration.find(this)?.groupValues?.get(1)?.toDouble()
+            ?: error("Could not parse numeric declaration '$name'")
+    }
+
     private fun projectRoot(): Path =
         generateSequence(Path.of("").toAbsolutePath()) { it.parent }
             .firstOrNull { Files.isDirectory(it.resolve("shared/src/commonMain/composeResources")) }
@@ -194,6 +259,10 @@ class MapResourceContractTest {
             "map_change_city_action",
             "map_my_location_action",
             "map_selected_routes",
+            "map_selected_stop",
+            "map_nearby_stops_title",
+            "map_cluster_stops",
+            "map_retry_action",
             "map_attribution_title",
         )
         const val ShellSmokeFlow = "ui-tests/maestro/flows/shell-smoke.yaml"

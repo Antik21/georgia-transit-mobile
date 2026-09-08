@@ -14,6 +14,11 @@ import com.denis.georgiatransit.shared.presentation.location.UserLocationFix
 import kotlinx.collections.immutable.PersistentList
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.toPersistentList
+import kotlin.math.PI
+import kotlin.math.floor
+import kotlin.math.ln
+import kotlin.math.pow
+import kotlin.math.sin
 
 /**
  * A deliberate, programmatic camera move. Adapters must only move the camera when [revision]
@@ -26,15 +31,40 @@ data class MapCameraCommand(
     val revision: Long,
 )
 
+/** The settled visible area reported by a native map without leaking an SDK viewport type. */
+@Immutable
+data class MapViewport(
+    val center: GeoPoint,
+    val radiusMeters: Int,
+    val zoom: Double,
+)
+
+/** Native map input is reduced to product-level viewport and typed stop interactions. */
+sealed interface MapPlatformEvent {
+    data class ViewportSettled(val viewport: MapViewport) : MapPlatformEvent
+    data class StopTapped(val stopId: StopId) : MapPlatformEvent
+}
+
 /** A compact SDK-free map marker; labels and stop details stay in future product flows. */
 @Immutable
 data class MapStopMarker(
     val id: StopId,
     val position: GeoPoint,
+    val accessibilityLabel: String = "",
+    val isSelected: Boolean = false,
 ) {
     /** iOS-safe bridge key; [id] remains the authoritative typed identifier in common code. */
     val stableId: String get() = id.value
 }
+
+/** Common clustering output. Its key is stable for a zoom bucket and projected grid cell. */
+@Immutable
+data class MapStopCluster(
+    val stableId: String,
+    val position: GeoPoint,
+    val stopCount: Int,
+    val accessibilityLabel: String = "",
+)
 
 /**
  * Presentation-only vehicle geometry. The adapter may use [bearingDegrees] and [positionKind]
@@ -88,6 +118,7 @@ data class MapPolyline(
 data class MapRenderState(
     val camera: MapCameraCommand,
     val stops: PersistentList<MapStopMarker> = persistentListOf(),
+    val stopClusters: PersistentList<MapStopCluster> = persistentListOf(),
     val vehicles: PersistentList<MapVehicleMarker> = persistentListOf(),
     val polylines: PersistentList<MapPolyline> = persistentListOf(),
     val userLocation: UserLocationFix? = null,
@@ -100,18 +131,89 @@ data class MapRenderState(
         fun from(
             camera: MapCameraCommand,
             stops: Iterable<MapStopMarker> = emptyList(),
+            stopClusters: Iterable<MapStopCluster> = emptyList(),
             vehicles: Iterable<MapVehicleMarker> = emptyList(),
             polylines: Iterable<MapPolyline> = emptyList(),
             userLocation: UserLocationFix? = null,
         ): MapRenderState = MapRenderState(
             camera = camera,
             stops = stops.toPersistentList(),
+            stopClusters = stopClusters.toPersistentList(),
             vehicles = vehicles.toPersistentList(),
             polylines = polylines.toPersistentList(),
             userLocation = userLocation,
         )
     }
 }
+
+@Immutable
+data class ClusteredStops(
+    val stops: PersistentList<MapStopMarker>,
+    val clusters: PersistentList<MapStopCluster>,
+)
+
+/**
+ * Deterministic linear-time Web-Mercator grid clustering. The projected cell size grows with
+ * density, while zoom changes the world scale; high zoom always exposes individual stops.
+ */
+internal fun clusterStops(markers: List<MapStopMarker>, zoom: Double): ClusteredStops {
+    val valid = markers.asSequence()
+        .filter { it.id.value.isNotBlank() && it.position.isMapCoordinate() }
+        .sortedBy(MapStopMarker::stableId)
+        .toList()
+    val zoomBucket = floor(zoom.coerceIn(MIN_CLUSTER_ZOOM, MAX_CLUSTER_ZOOM)).toInt()
+    if (zoomBucket >= INDIVIDUAL_STOP_ZOOM || valid.size < 2) {
+        return ClusteredStops(valid.toPersistentList(), persistentListOf())
+    }
+
+    val cellPixels = when {
+        valid.size >= HIGH_DENSITY_STOP_COUNT -> HIGH_DENSITY_CELL_PIXELS
+        valid.size >= MEDIUM_DENSITY_STOP_COUNT -> MEDIUM_DENSITY_CELL_PIXELS
+        else -> DEFAULT_CELL_PIXELS
+    }
+    val worldPixels = TILE_SIZE * 2.0.pow(zoomBucket)
+    val selected = valid.filter(MapStopMarker::isSelected)
+    val cells = linkedMapOf<GridCell, MutableList<MapStopMarker>>()
+    valid.asSequence().filterNot(MapStopMarker::isSelected).forEach { marker ->
+        val point = marker.position.toProjectedPoint(worldPixels)
+        val cell = GridCell(floor(point.first / cellPixels).toLong(), floor(point.second / cellPixels).toLong())
+        cells.getOrPut(cell, ::mutableListOf).add(marker)
+    }
+
+    val individuals = selected.toMutableList()
+    val clusters = mutableListOf<MapStopCluster>()
+    cells.entries.sortedWith(compareBy<Map.Entry<GridCell, MutableList<MapStopMarker>>> { it.key.x }.thenBy { it.key.y })
+        .forEach { (cell, members) ->
+        if (members.size == 1) {
+            individuals += members.single()
+        } else {
+            clusters += MapStopCluster(
+                stableId = "cluster:$zoomBucket:${cellPixels.toInt()}:${cell.x}:${cell.y}",
+                position = GeoPoint(
+                    latitude = members.sumOf { it.position.latitude } / members.size,
+                    longitude = members.sumOf { it.position.longitude } / members.size,
+                ),
+                stopCount = members.size,
+            )
+        }
+        }
+    return ClusteredStops(
+        stops = individuals.sortedBy(MapStopMarker::stableId).toPersistentList(),
+        clusters = clusters.sortedBy(MapStopCluster::stableId).toPersistentList(),
+    )
+}
+
+private data class GridCell(val x: Long, val y: Long)
+
+private fun GeoPoint.toProjectedPoint(worldPixels: Double): Pair<Double, Double> {
+    val x = (longitude + 180.0) / 360.0 * worldPixels
+    val latitudeRadians = latitude.coerceIn(-MERCATOR_LATITUDE_LIMIT, MERCATOR_LATITUDE_LIMIT) * PI / 180.0
+    val y = (0.5 - ln((1.0 + sin(latitudeRadians)) / (1.0 - sin(latitudeRadians))) / (4.0 * PI)) * worldPixels
+    return x to y
+}
+
+internal fun GeoPoint.isMapCoordinate(): Boolean = latitude.isFinite() && longitude.isFinite() &&
+    latitude in -90.0..90.0 && longitude in -180.0..180.0
 
 /**
  * Native renderer boundary. A re-created native view receives the current state and applies its
@@ -120,5 +222,17 @@ data class MapRenderState(
 @Composable
 expect fun PlatformMap(
     renderState: MapRenderState,
+    onEvent: (MapPlatformEvent) -> Unit,
     modifier: Modifier = Modifier,
 )
+
+private const val MIN_CLUSTER_ZOOM = 0.0
+private const val MAX_CLUSTER_ZOOM = 22.0
+private const val INDIVIDUAL_STOP_ZOOM = 17
+private const val TILE_SIZE = 256.0
+private const val DEFAULT_CELL_PIXELS = 56.0
+private const val MEDIUM_DENSITY_CELL_PIXELS = 68.0
+private const val HIGH_DENSITY_CELL_PIXELS = 80.0
+private const val MEDIUM_DENSITY_STOP_COUNT = 40
+private const val HIGH_DENSITY_STOP_COUNT = 80
+private const val MERCATOR_LATITUDE_LIMIT = 85.05112878

@@ -58,6 +58,7 @@ class MapViewModelTest {
                         zoom = selectedCity.defaultZoom,
                         revision = 1,
                     ),
+                    contentState = MapContentState.Loading,
                     attribution = listOf(attribution),
                 ),
             )
@@ -82,6 +83,7 @@ class MapViewModelTest {
                 ViewState(
                     cityName = tbilisi.name,
                     renderState = renderState(center = tbilisi.center, zoom = 13.5, revision = 1),
+                    contentState = MapContentState.Loading,
                 ),
             )
             // The local renderer foundation must not manufacture stops, vehicles, or shapes.
@@ -98,6 +100,7 @@ class MapViewModelTest {
                 ViewState(
                     cityName = batumi.name,
                     renderState = renderState(center = batumi.center, zoom = 12.5, revision = 2),
+                    contentState = MapContentState.Loading,
                 ),
             )
             cancelAndIgnoreRemainingItems()
@@ -118,6 +121,7 @@ class MapViewModelTest {
                 ViewState(
                     cityName = batumi.name,
                     renderState = renderState(center = fix.point, zoom = 15.0, revision = 2, userLocation = fix),
+                    contentState = MapContentState.Loading,
                     location = locationSession.state.value,
                 ),
             )
@@ -141,6 +145,7 @@ class MapViewModelTest {
                 ViewState(
                     cityName = tbilisi.name,
                     renderState = renderState(center = tbilisi.center, zoom = tbilisi.defaultZoom, revision = 1),
+                    contentState = MapContentState.Loading,
                 ),
             )
 
@@ -151,6 +156,7 @@ class MapViewModelTest {
                 ViewState(
                     cityName = batumi.name,
                     renderState = renderState(center = batumi.center, zoom = batumi.defaultZoom, revision = 2),
+                    contentState = MapContentState.Loading,
                 ),
             )
             cancelAndIgnoreRemainingItems()
@@ -174,6 +180,7 @@ class MapViewModelTest {
                 ViewState(
                     cityName = tbilisi.name,
                     renderState = renderState(center = fix.point, zoom = 15.0, revision = 2, userLocation = fix),
+                    contentState = MapContentState.Loading,
                     location = locationSession.state.value,
                 ),
             )
@@ -399,6 +406,7 @@ class MapViewModelTest {
                 revision = if (fix == null) 1 else 2,
                 userLocation = fix,
             ),
+            contentState = MapContentState.Loading,
             selectedRouteNames = repository.routes(city.id)
                 .filter { it.id in transitSession.selectedRouteIds.value }
                 .map { it.shortName },
@@ -492,6 +500,7 @@ class MapViewModelTest {
                         revision = 2,
                         userLocation = acceptedFix,
                     ),
+                    contentState = MapContentState.Loading,
                     location = locationSession.state.value,
                 ),
             )

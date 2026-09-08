@@ -1,8 +1,10 @@
 package com.denis.georgiatransit.shared.presentation.map
 
+import android.graphics.RectF
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.viewinterop.AndroidView
@@ -38,13 +40,22 @@ import org.maplibre.geojson.FeatureCollection
 import org.maplibre.geojson.LineString
 import org.maplibre.geojson.Point
 import org.maplibre.geojson.Polygon
+import kotlin.math.atan2
+import kotlin.math.ceil
+import kotlin.math.cos
+import kotlin.math.sin
+import kotlin.math.sqrt
 
 /**
  * MapLibre remains entirely inside this Android adapter. Connectivity is explicitly disabled:
  * without an approved BFF asset contract the local fallback style must fail closed.
  */
 @Composable
-actual fun PlatformMap(renderState: MapRenderState, modifier: Modifier) {
+actual fun PlatformMap(
+    renderState: MapRenderState,
+    onEvent: (MapPlatformEvent) -> Unit,
+    modifier: Modifier,
+) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
     val mapView = remember(context.applicationContext, lifecycleOwner) {
@@ -53,7 +64,8 @@ actual fun PlatformMap(renderState: MapRenderState, modifier: Modifier) {
         MapView(context).also { it.onCreate(null) }
     }
     val lifecycle = remember(mapView) { MapViewLifecycle(mapView) }
-    val controller = remember(mapView) { LocalMapController(mapView) }
+    val currentOnEvent = rememberUpdatedState(onEvent)
+    val controller = remember(mapView) { LocalMapController(mapView) { currentOnEvent.value(it) } }
 
     DisposableEffect(lifecycleOwner, lifecycle, controller) {
         val observer = LifecycleEventObserver { _, event -> lifecycle.onEvent(event) }
@@ -141,18 +153,25 @@ private class MapViewLifecycle(private val mapView: MapView) {
     }
 }
 
-private class LocalMapController(mapView: MapView) {
+private class LocalMapController(
+    private val mapView: MapView,
+    private val onEvent: (MapPlatformEvent) -> Unit,
+) {
     private var map: MapLibreMap? = null
     private var style: Style? = null
     private var latestState: MapRenderState? = null
     private var layersInstalled = false
     private var lastAppliedCameraRevision: Long? = null
     private var destroyed = false
+    private val cameraIdleListener = MapLibreMap.OnCameraIdleListener { notifyViewportSettled() }
+    private val mapClickListener = MapLibreMap.OnMapClickListener { point -> onMapClick(point) }
 
     init {
         mapView.getMapAsync { mapLibreMap ->
             if (destroyed) return@getMapAsync
             map = mapLibreMap
+            mapLibreMap.addOnCameraIdleListener(cameraIdleListener)
+            mapLibreMap.addOnMapClickListener(mapClickListener)
             mapLibreMap.setStyle(Style.Builder().fromJson(LOCAL_STYLE_JSON)) styleLoaded@{ loadedStyle ->
                 if (destroyed) return@styleLoaded
                 style = loadedStyle
@@ -172,6 +191,8 @@ private class LocalMapController(mapView: MapView) {
     fun destroy() {
         if (destroyed) return
         destroyed = true
+        map?.removeOnCameraIdleListener(cameraIdleListener)
+        map?.removeOnMapClickListener(mapClickListener)
         map = null
         style = null
         latestState = null
@@ -218,8 +239,8 @@ private class LocalMapController(mapView: MapView) {
         )
         loadedStyle.addLayer(
             CircleLayer(STOPS_LAYER_ID, STOPS_SOURCE_ID).withProperties(
-                circleColor("#2A9D8F"),
-                circleRadius(5f),
+                circleColor(Expression.get(MARKER_COLOR_PROPERTY)),
+                circleRadius(Expression.get(MARKER_RADIUS_PROPERTY)),
                 circleStrokeColor("#FFFFFF"),
                 circleStrokeWidth(2f),
             ),
@@ -244,7 +265,7 @@ private class LocalMapController(mapView: MapView) {
 
     /** Updates each stable, grouped source once per state; no native view is created per feature. */
     private fun updateSources(loadedStyle: Style, renderState: MapRenderState) {
-        loadedStyle.getSourceAs<GeoJsonSource>(STOPS_SOURCE_ID)?.setGeoJson(stopFeatures(renderState.stops))
+        loadedStyle.getSourceAs<GeoJsonSource>(STOPS_SOURCE_ID)?.setGeoJson(stopFeatures(renderState))
         loadedStyle.getSourceAs<GeoJsonSource>(VEHICLES_SOURCE_ID)?.setGeoJson(vehicleFeatures(renderState.vehicles))
         loadedStyle.getSourceAs<GeoJsonSource>(POLYLINES_SOURCE_ID)?.setGeoJson(polylineFeatures(renderState.polylines))
         loadedStyle.getSourceAs<GeoJsonSource>(USER_LOCATION_SOURCE_ID)?.setGeoJson(userLocationFeatures(renderState.userLocation))
@@ -262,18 +283,81 @@ private class LocalMapController(mapView: MapView) {
             ),
         )
         lastAppliedCameraRevision = command.revision
+        mapView.post { notifyViewportSettled() }
+    }
+
+    private fun notifyViewportSettled() {
+        if (destroyed) return
+        val currentMap = map ?: return
+        val target = currentMap.cameraPosition.target ?: return
+        val center = GeoPoint(target.latitude, target.longitude)
+        val region = currentMap.projection.visibleRegion
+        val radius = listOfNotNull(region.farLeft, region.farRight, region.nearLeft, region.nearRight)
+            .maxOfOrNull { corner -> center.distanceMetersTo(GeoPoint(corner.latitude, corner.longitude)) }
+            ?.takeIf(Double::isFinite)
+            ?: return
+        onEvent(
+            MapPlatformEvent.ViewportSettled(
+                MapViewport(
+                    center = center,
+                    radiusMeters = ceil(radius).toInt().coerceAtLeast(1),
+                    zoom = currentMap.cameraPosition.zoom,
+                ),
+            ),
+        )
+    }
+
+    private fun onMapClick(point: LatLng): Boolean {
+        val currentMap = map ?: return false
+        val screenPoint = currentMap.projection.toScreenLocation(point)
+        val halfTarget = MIN_STOP_TARGET_DP / 2f * mapView.resources.displayMetrics.density
+        val hitRect = RectF(
+            screenPoint.x - halfTarget,
+            screenPoint.y - halfTarget,
+            screenPoint.x + halfTarget,
+            screenPoint.y + halfTarget,
+        )
+        val stopId = currentMap.queryRenderedFeatures(hitRect, STOPS_LAYER_ID)
+            .asSequence()
+            .filter { it.getStringProperty(FEATURE_KIND_PROPERTY) == FEATURE_KIND_STOP }
+            .mapNotNull { it.getStringProperty(FEATURE_ID_PROPERTY)?.takeIf(String::isNotBlank) }
+            .firstOrNull()
+            ?: return false
+        onEvent(MapPlatformEvent.StopTapped(com.denis.georgiatransit.shared.domain.model.StopId(stopId)))
+        return true
     }
 }
 
-private fun stopFeatures(stops: List<MapStopMarker>): FeatureCollection = FeatureCollection.fromFeatures(
-    stops.asSequence()
+private fun stopFeatures(renderState: MapRenderState): FeatureCollection = FeatureCollection.fromFeatures(
+    (
+        renderState.stops.asSequence()
         .filter { it.id.value.isNotBlank() && it.position.isMapCoordinate() }
         .sortedBy { it.id.value }
         .take(MAX_STOP_MARKERS)
         .map { marker ->
-            Feature.fromGeometry(marker.position.asMapPoint()).also { it.addStringProperty(FEATURE_ID_PROPERTY, marker.id.value) }
+            Feature.fromGeometry(marker.position.asMapPoint()).also { feature ->
+                feature.addStringProperty(FEATURE_ID_PROPERTY, marker.id.value)
+                feature.addStringProperty(FEATURE_KIND_PROPERTY, FEATURE_KIND_STOP)
+                feature.addStringProperty(ACCESSIBILITY_LABEL_PROPERTY, marker.accessibilityLabel)
+                feature.addStringProperty(MARKER_COLOR_PROPERTY, if (marker.isSelected) SELECTED_STOP_COLOR else STOP_COLOR)
+                feature.addNumberProperty(MARKER_RADIUS_PROPERTY, if (marker.isSelected) SELECTED_STOP_RADIUS else STOP_RADIUS)
+            }
         }
-        .toList(),
+        + renderState.stopClusters.asSequence()
+            .filter { it.stableId.isNotBlank() && it.position.isMapCoordinate() && it.stopCount > 1 }
+            .sortedBy { it.stableId }
+            .take(MAX_STOP_MARKERS)
+            .map { cluster ->
+                Feature.fromGeometry(cluster.position.asMapPoint()).also { feature ->
+                    feature.addStringProperty(FEATURE_ID_PROPERTY, cluster.stableId)
+                    feature.addStringProperty(FEATURE_KIND_PROPERTY, FEATURE_KIND_CLUSTER)
+                    feature.addStringProperty(ACCESSIBILITY_LABEL_PROPERTY, cluster.accessibilityLabel)
+                    feature.addStringProperty(MARKER_COLOR_PROPERTY, CLUSTER_COLOR)
+                    feature.addNumberProperty(MARKER_RADIUS_PROPERTY, CLUSTER_RADIUS)
+                    feature.addNumberProperty(CLUSTER_COUNT_PROPERTY, cluster.stopCount)
+                }
+            }
+    ).toList(),
 )
 
 private fun vehicleFeatures(vehicles: List<MapVehicleMarker>): FeatureCollection = FeatureCollection.fromFeatures(
@@ -322,10 +406,17 @@ private fun userAccuracyFeatures(location: UserLocationFix?): FeatureCollection 
     }.orEmpty(),
 )
 
-private fun GeoPoint.isMapCoordinate(): Boolean = latitude.isFinite() && longitude.isFinite() &&
-    latitude in -90.0..90.0 && longitude in -180.0..180.0
-
 private fun GeoPoint.asMapPoint(): Point = Point.fromLngLat(longitude, latitude)
+
+private fun GeoPoint.distanceMetersTo(other: GeoPoint): Double {
+    val latitudeDelta = Math.toRadians(other.latitude - latitude)
+    val longitudeDelta = Math.toRadians(other.longitude - longitude)
+    val firstLatitude = Math.toRadians(latitude)
+    val secondLatitude = Math.toRadians(other.latitude)
+    val a = sin(latitudeDelta / 2.0).let { it * it } +
+        cos(firstLatitude) * cos(secondLatitude) * sin(longitudeDelta / 2.0).let { it * it }
+    return EARTH_RADIUS_METERS * 2.0 * atan2(sqrt(a), sqrt(1.0 - a))
+}
 
 private fun isNonDegenerateLine(points: List<GeoPoint>): Boolean = points.size >= 2 && points.zipWithNext().any { (first, second) -> first != second }
 
@@ -345,6 +436,19 @@ private const val USER_LOCATION_LAYER_ID = "gt-user-location-layer"
 private const val USER_ACCURACY_FILL_LAYER_ID = "gt-user-accuracy-fill-layer"
 private const val USER_ACCURACY_STROKE_LAYER_ID = "gt-user-accuracy-stroke-layer"
 private const val FEATURE_ID_PROPERTY = "featureId"
+private const val FEATURE_KIND_PROPERTY = "featureKind"
+private const val ACCESSIBILITY_LABEL_PROPERTY = "accessibilityLabel"
+private const val MARKER_COLOR_PROPERTY = "markerColor"
+private const val MARKER_RADIUS_PROPERTY = "markerRadius"
+private const val CLUSTER_COUNT_PROPERTY = "clusterCount"
+private const val FEATURE_KIND_STOP = "stop"
+private const val FEATURE_KIND_CLUSTER = "cluster"
+private const val STOP_COLOR = "#2A9D8F"
+private const val SELECTED_STOP_COLOR = "#E76F51"
+private const val CLUSTER_COLOR = "#264653"
+private const val STOP_RADIUS = 5
+private const val SELECTED_STOP_RADIUS = 9
+private const val CLUSTER_RADIUS = 12
 private const val ROUTE_COLOR_PROPERTY = "routeColor"
 private const val BEARING_PROPERTY = "bearing"
 private const val POSITION_KIND_PROPERTY = "positionKind"
@@ -354,6 +458,8 @@ private const val MAX_POLYLINES = 256
 private const val MIN_POLYGON_POINTS = 4
 private const val MIN_ZOOM = 0.0
 private const val MAX_ZOOM = 22.0
+private const val MIN_STOP_TARGET_DP = 48f
+private const val EARTH_RADIUS_METERS = 6_371_008.8
 
 /** A deliberately asset-free, local-only MapLibre style. */
 private const val LOCAL_STYLE_JSON = """
