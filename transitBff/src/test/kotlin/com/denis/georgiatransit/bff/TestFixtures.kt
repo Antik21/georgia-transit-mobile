@@ -14,10 +14,12 @@ import com.denis.georgiatransit.bff.api.Route
 import com.denis.georgiatransit.bff.api.Shape
 import com.denis.georgiatransit.bff.api.Stop
 import com.denis.georgiatransit.bff.api.Vehicle
+import com.denis.georgiatransit.bff.api.WalkingEstimate
 import com.denis.georgiatransit.bff.provider.CityTransitProviderAdapter
 import com.denis.georgiatransit.bff.provider.JourneyQuery
 import com.denis.georgiatransit.bff.provider.RealtimeArrivals
 import com.denis.georgiatransit.bff.provider.RealtimeVehicles
+import com.denis.georgiatransit.bff.provider.WalkingQuery
 import java.time.Instant
 import java.util.concurrent.atomic.AtomicInteger
 
@@ -111,6 +113,7 @@ internal open class FakeAdapter(
     val vehiclesCalls = AtomicInteger()
     val arrivalsCalls = AtomicInteger()
     val journeysCalls = AtomicInteger()
+    val walkingCalls = AtomicInteger()
     var routesResult: suspend () -> List<Route> = { listOf(route) }
     var routeResult: suspend () -> Route = { route }
     var stopDirectoryResult: suspend () -> List<Stop> = { listOf(stop) }
@@ -121,6 +124,9 @@ internal open class FakeAdapter(
         RealtimeArrivals(listOf(arrival), ArrivalSource.OFFICIAL_REALTIME, Instant.parse("2030-01-01T00:00:00Z"), false)
     }
     var journeysResult: suspend () -> List<Journey> = { listOf(journey) }
+    var walkingResult: suspend () -> WalkingEstimate = {
+        WalkingEstimate(400.0, 300L, "2030-01-01T00:00:00Z")
+    }
 
     override suspend fun routes(locale: String, mode: String?): List<Route> {
         routesCalls.incrementAndGet()
@@ -160,5 +166,10 @@ internal open class FakeAdapter(
     override suspend fun journeys(query: JourneyQuery): List<Journey> {
         journeysCalls.incrementAndGet()
         return journeysResult()
+    }
+
+    override suspend fun walkingEstimate(query: WalkingQuery): WalkingEstimate {
+        walkingCalls.incrementAndGet()
+        return walkingResult()
     }
 }

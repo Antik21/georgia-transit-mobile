@@ -22,7 +22,7 @@ const city = {
     routeGeometry: false,
     vehiclePositions: false,
     officialArrivals: true,
-    tripPlanning: false,
+    tripPlanning: true,
     arrivals: true,
   },
   availability: { readiness: "DEVELOPMENT_FIXTURE", source: "FIXTURE" },
@@ -76,12 +76,43 @@ function arrivals() {
   };
 }
 
+let walkingRequests = 0;
+
+async function walkingEstimate(request, response) {
+  if (request.headers["cache-control"] !== "no-store") {
+    return send(response, { error: "walking request must be no-store" }, 400);
+  }
+  const chunks = [];
+  for await (const chunk of request) chunks.push(chunk);
+  let body;
+  try {
+    body = JSON.parse(Buffer.concat(chunks).toString("utf8"));
+  } catch {
+    return send(response, { error: "invalid JSON" }, 400);
+  }
+  const points = [body?.from, body?.to];
+  const valid = points.every((point) =>
+    Number.isFinite(point?.latitude) && Number.isFinite(point?.longitude)
+  ) && ["ka", "en", "ru"].includes(body?.locale);
+  if (!valid) return send(response, { error: "invalid walking request" }, 400);
+  walkingRequests += 1;
+  // Coordinates remain local to this request handler and are never copied into health or logs.
+  return send(response, {
+    distanceMeters: 400,
+    durationSeconds: 300,
+    observedAt: new Date().toISOString(),
+  });
+}
+
 const server = http.createServer((request, response) => {
   const url = new URL(request.url ?? "/", `http://${request.headers.host ?? "127.0.0.1"}`);
-  if (request.method !== "GET") return send(response, { error: "GET only" }, 405);
+  if (request.method === "POST" && url.pathname === "/v1/cities/demo/walking-estimate") {
+    return walkingEstimate(request, response);
+  }
+  if (request.method !== "GET") return send(response, { error: "method not allowed" }, 405);
   switch (url.pathname) {
     case "/healthz":
-      return send(response, { status: "ready", mode: "test-only-stop-arrivals-fixture", arrivalDelayMillis });
+      return send(response, { status: "ready", mode: "test-only-stop-arrivals-fixture", arrivalDelayMillis, walkingRequests });
     case "/v1/cities":
       return send(response, [city]);
     case "/v1/cities/demo/routes":

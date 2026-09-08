@@ -32,6 +32,7 @@ import com.denis.georgiatransit.bff.provider.ProviderTimeout
 import com.denis.georgiatransit.bff.provider.ProviderUnavailable
 import com.denis.georgiatransit.bff.route
 import com.denis.georgiatransit.bff.stop
+import com.denis.georgiatransit.bff.provider.WalkingQuery
 import java.util.concurrent.atomic.AtomicInteger
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.async
@@ -191,6 +192,42 @@ class TransitServiceTest {
 
             assertEquals(List(20) { listOf(route) }, calls.awaitAll())
             assertEquals(1, loads.get())
+        }
+    }
+
+    @Test
+    fun `walking estimates are never cached or coalesced by coordinate`() = runTest {
+        val started = AtomicInteger()
+        val bothStarted = CompletableDeferred<Unit>()
+        val release = CompletableDeferred<Unit>()
+        val adapter = FakeAdapter().apply {
+            walkingResult = {
+                if (started.incrementAndGet() == 2) bothStarted.complete(Unit)
+                release.await()
+                com.denis.georgiatransit.bff.api.WalkingEstimate(400.0, 300L, "2030-01-01T00:00:00Z")
+            }
+        }
+        service(adapter).use { transit ->
+            val query = WalkingQuery(GeoPoint(41.7, 44.8), GeoPoint(41.71, 44.81), "en")
+            val calls = List(2) { async { transit.walkingEstimate("test", query) } }
+            bothStarted.await()
+            release.complete(Unit)
+
+            assertEquals(2, calls.awaitAll().size)
+            assertEquals(2, adapter.walkingCalls.get())
+        }
+    }
+
+    @Test
+    fun `walking response validation rejects unsafe normalized values`() = runTest {
+        val adapter = FakeAdapter().apply {
+            walkingResult = { com.denis.georgiatransit.bff.api.WalkingEstimate(Double.NaN, 0, "not-a-time") }
+        }
+        service(adapter).use { transit ->
+            val failure = assertFailsWith<UpstreamBadGateway> {
+                transit.walkingEstimate("test", WalkingQuery(GeoPoint(41.7, 44.8), GeoPoint(41.71, 44.81), "en"))
+            }
+            assertEquals("UPSTREAM_BAD_RESPONSE", failure.errorCode)
         }
     }
 

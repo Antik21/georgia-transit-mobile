@@ -28,7 +28,7 @@ class OpenApiContractTest {
             "/v1/cities/{cityId}/journeys" to "JourneyPage",
         )
 
-        assertEquals(expectedSchemas.keys + "/metrics", paths.keys)
+        assertEquals(expectedSchemas.keys + setOf("/metrics", "/v1/cities/{cityId}/walking-estimate"), paths.keys)
         expectedSchemas.forEach { (path, schema) ->
             val get = paths.map(path).map("get")
             val success = get.map("responses").map("200")
@@ -45,6 +45,22 @@ class OpenApiContractTest {
                 path,
             )
         }
+
+        val walking = paths.map("/v1/cities/{cityId}/walking-estimate").map("post")
+        assertEquals(
+            "#/components/schemas/WalkingEstimateRequest",
+            walking.map("requestBody").map("content").map("application/json").map("schema")["\$ref"],
+        )
+        val walkingSuccess = walking.map("responses").map("200")
+        assertEquals(
+            "#/components/schemas/WalkingEstimate",
+            walkingSuccess.map("content").map("application/json").map("schema")["\$ref"],
+        )
+        assertEquals(
+            "#/components/headers/NoStoreCacheControl",
+            walkingSuccess.map("headers").map("Cache-Control")["\$ref"],
+        )
+        assertEquals("#/components/responses/InternalError", walking.map("responses").map("500")["\$ref"])
 
         val metrics = paths.map("/metrics").map("get")
         val success = metrics.map("responses").map("200")
@@ -128,6 +144,20 @@ class OpenApiContractTest {
             schemas.map("JourneySegmentMode")["enum"],
         )
         assertEquals(listOf("items", "observedAt", "source", "realtime", "stale"), page["required"])
+    }
+
+    @Test
+    fun `OpenAPI walking request and response are strict coordinate-minimal contracts`() {
+        val schemas = loadOpenApi().map("components").map("schemas")
+        val request = schemas.map("WalkingEstimateRequest")
+        val response = schemas.map("WalkingEstimate")
+
+        assertEquals(listOf("from", "to", "locale"), request["required"])
+        assertEquals(setOf("from", "to", "locale"), request.map("properties").keys)
+        assertEquals(listOf("distanceMeters", "durationSeconds", "observedAt"), response["required"])
+        assertEquals(setOf("distanceMeters", "durationSeconds", "observedAt"), response.map("properties").keys)
+        assertFalse(response.map("properties").containsKey("from"))
+        assertFalse(response.map("properties").containsKey("to"))
     }
 
     @Test

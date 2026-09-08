@@ -7,10 +7,13 @@ import java.nio.charset.StandardCharsets
 import java.util.concurrent.LinkedBlockingQueue
 import io.ktor.client.request.get
 import io.ktor.client.request.header
+import io.ktor.client.request.post
+import io.ktor.client.request.setBody
 import io.ktor.client.statement.HttpResponse
 import io.ktor.client.statement.bodyAsText
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
+import io.ktor.http.ContentType
 import io.ktor.server.testing.ApplicationTestBuilder
 import io.ktor.server.testing.testApplication
 import io.ktor.server.routing.get
@@ -156,6 +159,42 @@ class ApplicationContractTest {
             setOf("routeId", "directionId", "fromStopId", "toStopId", "departureAt", "arrivalAt"),
             journey.getValue("legs").jsonArray.single().jsonObject.keys,
         )
+
+        val walking = client.post("/v1/cities/demo/walking-estimate") {
+            header(HttpHeaders.ContentType, ContentType.Application.Json.toString())
+            setBody("""{"from":{"latitude":41.7151,"longitude":44.8271},"to":{"latitude":41.718,"longitude":44.833},"locale":"ka"}""")
+        }
+        assertEquals(HttpStatusCode.OK, walking.status)
+        assertSingleRequestId(walking)
+        assertEquals("no-store, no-cache, max-age=0", walking.headers[HttpHeaders.CacheControl])
+        assertEquals("no-cache", walking.headers[HttpHeaders.Pragma])
+        assertEquals(
+            setOf("distanceMeters", "durationSeconds", "observedAt"),
+            walking.objectBody().keys,
+        )
+        assertFalse(walking.bodyAsText().contains("latitude"))
+        assertFalse(walking.bodyAsText().contains("longitude"))
+    }
+
+    @Test
+    fun `walking POST rejects malformed coordinates and locale while retaining no-store headers`() = testApplication {
+        installBff()
+        val bodies = listOf(
+            "{",
+            """{"from":{"latitude":91,"longitude":44.8},"to":{"latitude":41.7,"longitude":44.8},"locale":"en"}""",
+            """{"from":{"latitude":41.7,"longitude":44.8},"to":{"latitude":41.7,"longitude":44.8},"locale":"fr"}""",
+        )
+
+        bodies.forEach { body ->
+            val response = client.post("/v1/cities/demo/walking-estimate") {
+                header(HttpHeaders.ContentType, ContentType.Application.Json.toString())
+                setBody(body)
+            }
+            assertEquals(HttpStatusCode.BadRequest, response.status)
+            assertEquals("INVALID_ARGUMENT", response.errorCode())
+            assertEquals("no-store, no-cache, max-age=0", response.headers[HttpHeaders.CacheControl])
+            assertEquals("no-cache", response.headers[HttpHeaders.Pragma])
+        }
     }
 
     @Test

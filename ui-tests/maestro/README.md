@@ -129,3 +129,19 @@ ui-tests/maestro/run-stop-arrivals-smoke.sh ios \
   19C4B36C-E2E9-43C3-BB33-B762FFDA5A08 \
   /absolute/path/to/Build/Products/Debug-iphonesimulator/iosApp.app
 ```
+
+## Walking estimate
+
+The walking flow reuses the owned stop-arrivals fixture, grants foreground location, injects a
+known simulator fix, opens the stop sheet, and requires both an arrivals row and
+`map.walking-estimate.ready`. The harness also verifies that at least one no-store POST reached
+the owned fixture without recording coordinates. Use only an explicit emulator/simulator:
+
+```shell
+ui-tests/maestro/run-walking-estimate-smoke.sh android emulator-5554 \
+  androidApp/build/outputs/apk/debug/androidApp-debug.apk
+
+ui-tests/maestro/run-walking-estimate-smoke.sh ios \
+  19C4B36C-E2E9-43C3-BB33-B762FFDA5A08 \
+  /absolute/path/to/Build/Products/Debug-iphonesimulator/iosApp.app
+```

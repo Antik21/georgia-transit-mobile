@@ -122,6 +122,41 @@ class TransitBffClientTest {
     }
 
     @Test
+    fun walkingEstimateUsesOneNoStorePostWithoutRetryOrCoordinateQueryParameters() = runTest {
+        val requests = mutableListOf<HttpRequestData>()
+        val client = TransitBffClient(mockHttpClient { request ->
+            requests += request
+            jsonResponse("""{"distanceMeters":420.0,"durationSeconds":360,"observedAt":"2030-01-01T00:00:00Z"}""")
+        }, endpoint())
+
+        val result = assertIs<TransitLoadResult.Data<*>>(
+            client.walkingEstimate(
+                CityId("demo"),
+                GeoPoint(41.7151, 44.8271),
+                GeoPoint(41.7180, 44.8330),
+                TransitLocale.Georgian,
+            ),
+        )
+        assertEquals(420.0, (result.value as com.denis.georgiatransit.shared.domain.model.WalkingEstimate).distanceMeters)
+        val request = requests.single()
+        assertEquals("POST", request.method.value)
+        assertEquals("/v1/cities/demo/walking-estimate", request.url.encodedPath)
+        assertTrue(request.url.parameters.isEmpty())
+        assertEquals("no-store", request.headers[HttpHeaders.CacheControl])
+        assertTimeouts(request, 8_000L)
+
+        var attempts = 0
+        val noRetry = TransitBffClient(mockHttpClient {
+            attempts++
+            jsonResponse(errorJson("RATE_LIMITED"), HttpStatusCode.TooManyRequests)
+        }, endpoint())
+        assertIs<TransitLoadResult.Failure>(
+            noRetry.walkingEstimate(CityId("demo"), GeoPoint(41.7, 44.8), GeoPoint(41.8, 44.9), TransitLocale.English),
+        )
+        assertEquals(1, attempts)
+    }
+
+    @Test
     fun mapsEveryPublishedErrorCodeAndRejectsMalformedOrUndocumentedBodies() = runTest {
         val expected = mapOf(
             "INVALID_ARGUMENT" to TransitFailure.InvalidArgument::class,
