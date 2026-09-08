@@ -39,10 +39,13 @@
     <string name="location_failure_invalid">The location fix was not accurate or recent enough.</string>
     <string name="location_failure_unavailable">Your location could not be obtained.</string>
     <string name="map_title">Transit map</string>
-    <string name="map_preview_note">Local MapLibre prototype — no production basemap or transit data</string>
-    <string name="map_nearby_stops">Nearby stops</string>
-    <string name="map_stop_one">Freedom Square · 2 min walk</string>
-    <string name="map_stop_two">Rustaveli Avenue · 6 min walk</string>
+    <string name="map_preview_note">Local map fallback — production basemap and transit data are unavailable</string>
+    <string name="map_content_loading">Loading map data…</string>
+    <string name="map_content_empty">No map data is available for this view.</string>
+    <string name="map_content_error">Map data could not be loaded.</string>
+    <string name="map_content_unavailable">Map data is unavailable for this city.</string>
+    <string name="map_content_offline">Map data is unavailable while offline.</string>
+    <string name="map_content_stale">Showing last available map data while offline.</string>
     <string name="map_routes_action">Choose routes</string>
     <string name="map_change_city_action">Change city</string>
     <string name="map_my_location_action">My location</string>

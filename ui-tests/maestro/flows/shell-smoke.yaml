@@ -13,6 +13,8 @@ appId: com.denis.georgiatransit
 - assertVisible:
     id: map.screen
 - assertVisible:
+    id: map.content.local-preview
+- assertVisible:
     id: map.my-location
 - tapOn:
     id: map.routes

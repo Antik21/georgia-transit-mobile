@@ -7,10 +7,8 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Button
-import androidx.compose.material3.Card
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
@@ -28,31 +26,23 @@ import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.intl.Locale
 import androidx.compose.ui.text.withLink
 import androidx.compose.ui.tooling.preview.Preview
-import androidx.compose.ui.unit.dp
+import com.denis.georgiatransit.shared.domain.model.GeoPoint
 import com.denis.georgiatransit.shared.domain.model.LocalizedText
 import com.denis.georgiatransit.shared.domain.model.TransitAttribution
-import com.denis.georgiatransit.shared.presentation.ui.automation.AutomationId
 import com.denis.georgiatransit.shared.presentation.location.LocationFailure
 import com.denis.georgiatransit.shared.presentation.location.LocationPermissionState
 import com.denis.georgiatransit.shared.presentation.location.LocationPlatformCommand
 import com.denis.georgiatransit.shared.presentation.location.LocationPrecision
+import com.denis.georgiatransit.shared.presentation.location.LocationState
 import com.denis.georgiatransit.shared.presentation.location.PlatformLocationEffect
+import com.denis.georgiatransit.shared.presentation.ui.automation.AutomationId
 import com.denis.georgiatransit.shared.presentation.ui.theme.GeorgiaTransitTheme
 import com.denis.georgiatransit.shared.presentation.ui.theme.TransitColors
 import com.denis.georgiatransit.shared.presentation.ui.theme.TransitShapes
 import com.denis.georgiatransit.shared.presentation.ui.theme.TransitSpacing
 import georgiatransit.shared.generated.resources.Res
-import georgiatransit.shared.generated.resources.map_attribution_title
-import georgiatransit.shared.generated.resources.map_change_city_action
-import georgiatransit.shared.generated.resources.map_nearby_stops
-import georgiatransit.shared.generated.resources.map_preview_note
-import georgiatransit.shared.generated.resources.map_routes_action
-import georgiatransit.shared.generated.resources.map_selected_routes
-import georgiatransit.shared.generated.resources.map_stop_one
-import georgiatransit.shared.generated.resources.map_stop_two
-import georgiatransit.shared.generated.resources.map_title
-import georgiatransit.shared.generated.resources.location_action_location_settings
 import georgiatransit.shared.generated.resources.location_action_enable
+import georgiatransit.shared.generated.resources.location_action_location_settings
 import georgiatransit.shared.generated.resources.location_action_retry
 import georgiatransit.shared.generated.resources.location_action_settings
 import georgiatransit.shared.generated.resources.location_failure_invalid
@@ -67,7 +57,19 @@ import georgiatransit.shared.generated.resources.location_status_restricted
 import georgiatransit.shared.generated.resources.location_status_services_disabled
 import georgiatransit.shared.generated.resources.location_status_settings_required
 import georgiatransit.shared.generated.resources.location_status_unavailable
+import georgiatransit.shared.generated.resources.map_attribution_title
+import georgiatransit.shared.generated.resources.map_change_city_action
+import georgiatransit.shared.generated.resources.map_content_empty
+import georgiatransit.shared.generated.resources.map_content_error
+import georgiatransit.shared.generated.resources.map_content_loading
+import georgiatransit.shared.generated.resources.map_content_offline
+import georgiatransit.shared.generated.resources.map_content_stale
+import georgiatransit.shared.generated.resources.map_content_unavailable
 import georgiatransit.shared.generated.resources.map_my_location_action
+import georgiatransit.shared.generated.resources.map_preview_note
+import georgiatransit.shared.generated.resources.map_routes_action
+import georgiatransit.shared.generated.resources.map_selected_routes
+import georgiatransit.shared.generated.resources.map_title
 import org.jetbrains.compose.resources.stringResource
 import org.orbitmvi.orbit.compose.collectAsState
 import org.orbitmvi.orbit.compose.collectSideEffect
@@ -100,14 +102,12 @@ private fun Content(state: ViewState, onAction: (Action) -> Unit) {
             Text(stringResource(Res.string.map_title), style = MaterialTheme.typography.headlineSmall)
             Text(state.cityName, color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.titleMedium)
         }
-        state.viewport?.let { viewport ->
-            MapPreview(
-                viewport = viewport,
-                userLocation = state.location.fix,
+        state.renderState?.let { renderState ->
+            MapCanvas(
+                renderState = renderState,
+                contentState = state.contentState,
                 locationActionLabel = locationActionLabel(state.location.permission),
-                locationActionAutomationId = if (
-                    state.location.permission == LocationPermissionState.SettingsRequired
-                ) {
+                locationActionAutomationId = if (state.location.permission == LocationPermissionState.SettingsRequired) {
                     AutomationId.MapLocationSettings
                 } else {
                     AutomationId.MapMyLocation
@@ -121,10 +121,7 @@ private fun Content(state: ViewState, onAction: (Action) -> Unit) {
             modifier = Modifier.fillMaxWidth().padding(TransitSpacing.Medium),
             verticalArrangement = Arrangement.spacedBy(TransitSpacing.Small),
         ) {
-            Text(stringResource(Res.string.map_nearby_stops), style = MaterialTheme.typography.titleMedium)
             LocationStatus(state.location)
-            StopCard(stringResource(Res.string.map_stop_one), "301 · 337")
-            StopCard(stringResource(Res.string.map_stop_two), "301 · 395")
             if (state.selectedRouteNames.isNotEmpty()) {
                 Text(
                     stringResource(Res.string.map_selected_routes, state.selectedRouteNames.joinToString()),
@@ -142,6 +139,75 @@ private fun Content(state: ViewState, onAction: (Action) -> Unit) {
                 ) { Text(stringResource(Res.string.map_routes_action)) }
             }
             CityAttribution(state.attribution)
+        }
+    }
+}
+
+@Composable
+private fun MapCanvas(
+    renderState: MapRenderState,
+    contentState: MapContentState,
+    locationActionLabel: String,
+    locationActionAutomationId: String,
+    locationActionEnabled: Boolean,
+    onMyLocationClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Box(modifier = modifier.background(TransitColors.MapLand)) {
+        // AndroidView/UIKitView do not retain Compose test tags. Keep the automation-only
+        // semantics node in common Compose so it remains visible without drawing or handling
+        // pointer input above the native map.
+        Box(
+            modifier = Modifier.fillMaxSize().then(
+                if (renderState.userLocation != null) Modifier.testTag(AutomationId.MapUserLocation) else Modifier,
+            ),
+        ) {
+            PlatformMap(renderState = renderState, modifier = Modifier.fillMaxSize())
+        }
+        MapContentOverlay(
+            contentState = contentState,
+            modifier = Modifier.align(Alignment.TopCenter).padding(TransitSpacing.Medium),
+        )
+        Button(
+            onClick = onMyLocationClick,
+            enabled = locationActionEnabled,
+            modifier = Modifier.align(Alignment.BottomEnd).padding(TransitSpacing.Medium)
+                .testTag(locationActionAutomationId),
+        ) { Text(locationActionLabel) }
+    }
+}
+
+/** The surface is deliberately compact: pan and zoom remain available around it. */
+@Composable
+private fun MapContentOverlay(
+    contentState: MapContentState,
+    modifier: Modifier = Modifier,
+) {
+    val textAndId = when (contentState) {
+        MapContentState.Loading -> stringResource(Res.string.map_content_loading) to AutomationId.MapLoading
+        MapContentState.Empty -> stringResource(Res.string.map_content_empty) to AutomationId.MapEmpty
+        is MapContentState.RetryableError -> stringResource(Res.string.map_content_error) to AutomationId.MapError
+        MapContentState.Unavailable -> stringResource(Res.string.map_content_unavailable) to AutomationId.MapUnavailable
+        is MapContentState.Offline -> {
+            val text = stringResource(
+                if (contentState.isStale) Res.string.map_content_stale else Res.string.map_content_offline,
+            )
+            text to AutomationId.MapOffline
+        }
+        MapContentState.LocalPreview -> stringResource(Res.string.map_preview_note) to AutomationId.MapLocalPreview
+        MapContentState.Ready -> return
+    }
+    Surface(
+        modifier = modifier.testTag(textAndId.second),
+        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.92f),
+        shape = TransitShapes.Small,
+        shadowElevation = TransitSpacing.ExtraSmall,
+    ) {
+        Column(
+            modifier = Modifier.padding(TransitSpacing.Small),
+            verticalArrangement = Arrangement.spacedBy(TransitSpacing.ExtraSmall),
+        ) {
+            Text(textAndId.first, style = MaterialTheme.typography.labelLarge)
         }
     }
 }
@@ -181,40 +247,6 @@ private fun LocalizedText.mapAttributionDisplayName(languageTag: String): String
 }.ifBlank { en.ifBlank { ru.ifBlank { ka } } }
 
 @Composable
-private fun MapPreview(
-    viewport: MapViewport,
-    userLocation: com.denis.georgiatransit.shared.presentation.location.UserLocationFix?,
-    locationActionLabel: String,
-    locationActionAutomationId: String,
-    locationActionEnabled: Boolean,
-    onMyLocationClick: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    Box(modifier = modifier.background(TransitColors.MapLand), contentAlignment = Alignment.Center) {
-        Box(
-            modifier = Modifier.fillMaxSize().then(
-                if (userLocation != null) Modifier.testTag(AutomationId.MapUserLocation) else Modifier,
-            ),
-        ) {
-            PlatformMap(
-                viewport = viewport,
-                userLocation = userLocation,
-                modifier = Modifier.fillMaxSize(),
-            )
-        }
-        Surface(color = MaterialTheme.colorScheme.surface.copy(alpha = .9f), shape = TransitShapes.Small) {
-            Text(stringResource(Res.string.map_preview_note), modifier = Modifier.padding(TransitSpacing.Small), style = MaterialTheme.typography.labelLarge)
-        }
-        Button(
-            onClick = onMyLocationClick,
-            enabled = locationActionEnabled,
-            modifier = Modifier.align(Alignment.BottomEnd).padding(TransitSpacing.Medium)
-                .testTag(locationActionAutomationId),
-        ) { Text(locationActionLabel) }
-    }
-}
-
-@Composable
 private fun locationActionLabel(permission: LocationPermissionState): String = stringResource(
     when (permission) {
         LocationPermissionState.NotDetermined -> Res.string.location_action_enable
@@ -236,7 +268,7 @@ private fun locationActionEnabled(permission: LocationPermissionState): Boolean 
 }
 
 @Composable
-private fun LocationStatus(location: com.denis.georgiatransit.shared.presentation.location.LocationState) {
+private fun LocationStatus(location: LocationState) {
     val text = when {
         location.isLocating -> stringResource(Res.string.location_locating)
         location.failure != null -> when (requireNotNull(location.failure)) {
@@ -261,20 +293,6 @@ private fun LocationStatus(location: com.denis.georgiatransit.shared.presentatio
     text?.let { Text(it, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant) }
 }
 
-@Composable
-private fun StopCard(title: String, routes: String) {
-    Card(modifier = Modifier.fillMaxWidth()) {
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(TransitSpacing.Medium),
-            horizontalArrangement = Arrangement.spacedBy(TransitSpacing.Small),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Box(Modifier.height(12.dp).fillMaxWidth(.03f).background(TransitColors.Brand, TransitShapes.Full))
-            Column { Text(title); Text(routes, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant) }
-        }
-    }
-}
-
 @Preview
 @Composable
 private fun Preview() {
@@ -282,8 +300,13 @@ private fun Preview() {
         Content(
             ViewState(
                 cityName = "Tbilisi",
-                viewport = MapViewport(com.denis.georgiatransit.shared.domain.model.GeoPoint(41.7151, 44.8271)),
-                selectedRouteNames = listOf("301", "337"),
+                renderState = MapRenderState(
+                    camera = MapCameraCommand(
+                        center = GeoPoint(41.7151, 44.8271),
+                        zoom = 13.0,
+                        revision = 1,
+                    ),
+                ),
             ),
             onAction = {},
         )

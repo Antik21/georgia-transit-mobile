@@ -39,10 +39,13 @@
     <string name="location_failure_invalid">Геопозиция недостаточно точная или устарела.</string>
     <string name="location_failure_unavailable">Не удалось получить геопозицию.</string>
     <string name="map_title">Карта транспорта</string>
-    <string name="map_preview_note">Локальный прототип MapLibre — без производственной базовой карты и данных транспорта</string>
-    <string name="map_nearby_stops">Остановки рядом</string>
-    <string name="map_stop_one">Площадь Свободы · 2 мин пешком</string>
-    <string name="map_stop_two">Проспект Руставели · 6 мин пешком</string>
+    <string name="map_preview_note">Локальная замена карты — производственная базовая карта и данные транспорта недоступны</string>
+    <string name="map_content_loading">Загружаем данные карты…</string>
+    <string name="map_content_empty">Для этого вида нет данных карты.</string>
+    <string name="map_content_error">Не удалось загрузить данные карты.</string>
+    <string name="map_content_unavailable">Данные карты для этого города недоступны.</string>
+    <string name="map_content_offline">Данные карты недоступны в офлайн-режиме.</string>
+    <string name="map_content_stale">Показаны последние доступные данные карты в офлайн-режиме.</string>
     <string name="map_routes_action">Выбрать маршруты</string>
     <string name="map_change_city_action">Сменить город</string>
     <string name="map_my_location_action">Моя геопозиция</string>

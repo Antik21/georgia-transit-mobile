@@ -6,10 +6,13 @@ import com.denis.georgiatransit.shared.domain.model.CityCapabilities
 import com.denis.georgiatransit.shared.domain.model.CityId
 import com.denis.georgiatransit.shared.domain.model.GeoPoint
 import com.denis.georgiatransit.shared.domain.model.LocalizedText
+import com.denis.georgiatransit.shared.domain.model.RouteId
+import com.denis.georgiatransit.shared.domain.model.StopId
 import com.denis.georgiatransit.shared.domain.model.TransitAttribution
 import com.denis.georgiatransit.shared.domain.model.TransitCity
 import com.denis.georgiatransit.shared.domain.model.TransitRoute
 import com.denis.georgiatransit.shared.domain.repository.TransitRepository
+import com.denis.georgiatransit.shared.domain.repository.TransitFreshness
 import com.denis.georgiatransit.shared.presentation.location.LocationFailure
 import com.denis.georgiatransit.shared.presentation.location.LocationFixCandidate
 import com.denis.georgiatransit.shared.presentation.location.LocationPermissionState
@@ -50,7 +53,11 @@ class MapViewModelTest {
             expectState(
                 ViewState(
                     cityName = selectedCity.name,
-                    viewport = MapViewport(center = selectedCity.center, zoom = selectedCity.defaultZoom),
+                    renderState = renderState(
+                        center = selectedCity.center,
+                        zoom = selectedCity.defaultZoom,
+                        revision = 1,
+                    ),
                     attribution = listOf(attribution),
                 ),
             )
@@ -61,28 +68,36 @@ class MapViewModelTest {
     }
 
     @Test
-    fun noFixViewportUsesEachSelectedCityNonDefaultBffZoom() = runTest {
+    fun noFixCameraUsesEachSelectedCityNonDefaultBffCenterAndZoom() = runTest {
         val tbilisi = city("tbilisi", defaultZoom = 13.5)
         val batumi = city("batumi", defaultZoom = 12.5)
         val session = RuntimeTransitSession().also { it.selectCity(tbilisi) }
         val locationSession = testLocationSession()
+        val viewModel = MapViewModel(MapRepository(), session, locationSession)
 
-        MapViewModel(MapRepository(), session, locationSession).test(this) {
+        viewModel.test(this) {
             runOnCreate()
             this@runTest.runCurrent()
             expectState(
                 ViewState(
                     cityName = tbilisi.name,
-                    viewport = MapViewport(center = tbilisi.center, zoom = 13.5),
+                    renderState = renderState(center = tbilisi.center, zoom = 13.5, revision = 1),
                 ),
             )
+            // The local renderer foundation must not manufacture stops, vehicles, or shapes.
+            // All layers stay empty until a reviewed BFF-backed map contract supplies them.
+            val initialRenderState = requireNotNull(viewModel.container.stateFlow.value.renderState)
+            assertTrue(initialRenderState.stops.isEmpty())
+            assertTrue(initialRenderState.vehicles.isEmpty())
+            assertTrue(initialRenderState.polylines.isEmpty())
+            assertNull(initialRenderState.userLocation)
 
             session.selectCity(batumi)
             this@runTest.runCurrent()
             expectState(
                 ViewState(
                     cityName = batumi.name,
-                    viewport = MapViewport(center = batumi.center, zoom = 12.5),
+                    renderState = renderState(center = batumi.center, zoom = 12.5, revision = 2),
                 ),
             )
             cancelAndIgnoreRemainingItems()
@@ -90,7 +105,7 @@ class MapViewModelTest {
     }
 
     @Test
-    fun userFixKeepsZoomFifteenForANonDefaultBffZoom() = runTest {
+    fun userFixUsesNewCameraRevisionAndKeepsZoomFifteenForANonDefaultBffZoom() = runTest {
         val batumi = city("batumi", defaultZoom = 12.5)
         val session = RuntimeTransitSession().also { it.selectCity(batumi) }
         val locationSession = testLocationSessionWithFix()
@@ -102,7 +117,7 @@ class MapViewModelTest {
             expectState(
                 ViewState(
                     cityName = batumi.name,
-                    viewport = MapViewport(center = fix.point, contentCenter = batumi.center, zoom = 15.0),
+                    renderState = renderState(center = fix.point, zoom = 15.0, revision = 2, userLocation = fix),
                     location = locationSession.state.value,
                 ),
             )
@@ -112,7 +127,7 @@ class MapViewModelTest {
 
     @Test
     @OptIn(ExperimentalCoroutinesApi::class)
-    fun selectedCityCenterDrivesViewportAndUpdatesWhenCityChanges() = runTest {
+    fun selectedCityCenterDrivesCameraAndUpdatesWhenCityChanges() = runTest {
         val repository = PreviewTransitRepository()
         val session = RuntimeTransitSession()
         val tbilisi = repository.cities().first { it.id.value == "tbilisi" }
@@ -125,7 +140,7 @@ class MapViewModelTest {
             expectState(
                 ViewState(
                     cityName = tbilisi.name,
-                    viewport = MapViewport(center = tbilisi.center, zoom = tbilisi.defaultZoom),
+                    renderState = renderState(center = tbilisi.center, zoom = tbilisi.defaultZoom, revision = 1),
                 ),
             )
 
@@ -135,7 +150,7 @@ class MapViewModelTest {
             expectState(
                 ViewState(
                     cityName = batumi.name,
-                    viewport = MapViewport(center = batumi.center, zoom = batumi.defaultZoom),
+                    renderState = renderState(center = batumi.center, zoom = batumi.defaultZoom, revision = 2),
                 ),
             )
             cancelAndIgnoreRemainingItems()
@@ -143,7 +158,7 @@ class MapViewModelTest {
     }
 
     @Test
-    fun freshSharedFixDrivesViewportAndUserLocationState() = runTest {
+    fun freshSharedFixDrivesCameraAndUserLocationState() = runTest {
         val repository = PreviewTransitRepository()
         val transitSession = RuntimeTransitSession()
         val tbilisi = repository.cities().first { it.id.value == "tbilisi" }
@@ -158,7 +173,7 @@ class MapViewModelTest {
             expectState(
                 ViewState(
                     cityName = tbilisi.name,
-                    viewport = MapViewport(center = fix.point, contentCenter = tbilisi.center, zoom = 15.0),
+                    renderState = renderState(center = fix.point, zoom = 15.0, revision = 2, userLocation = fix),
                     location = locationSession.state.value,
                 ),
             )
@@ -286,7 +301,7 @@ class MapViewModelTest {
 
             val state = viewModel.container.stateFlow.value
             val city = requireNotNull(transitSession.selectedCity.value)
-            assertEquals(city.center, state.viewport?.center)
+            assertEquals(city.center, state.renderState?.camera?.center)
             assertNull(state.location.fix)
             assertNull(state.location.failure)
             assertFalse(state.location.isLocating)
@@ -378,10 +393,11 @@ class MapViewModelTest {
         val fix = locationSession.state.value.fix
         return ViewState(
             cityName = city.name,
-            viewport = MapViewport(
+            renderState = renderState(
                 center = fix?.point ?: city.center,
-                contentCenter = city.center,
                 zoom = if (fix == null) city.defaultZoom else 15.0,
+                revision = if (fix == null) 1 else 2,
+                userLocation = fix,
             ),
             selectedRouteNames = repository.routes(city.id)
                 .filter { it.id in transitSession.selectedRouteIds.value }
@@ -401,6 +417,103 @@ class MapViewModelTest {
         assertTrue(session.beginLocationRequest(requestId))
         session.accept(requestId, validCandidate())
     }
+
+    @Test
+    fun cameraRevisionChangesOnlyForCityAndAcceptedLocationUpdates() = runTest {
+        val repository = PreviewTransitRepository()
+        val city = repository.cities().first { it.id.value == "tbilisi" }
+        val transitSession = RuntimeTransitSession().also { it.selectCity(city) }
+        val locationSession = testLocationSession()
+        val viewModel = MapViewModel(repository, transitSession, locationSession)
+
+        viewModel.test(this) {
+            runOnCreate()
+            this@runTest.runCurrent()
+            expectState(expectedCityState(repository, transitSession, locationSession))
+
+            val cityCamera = requireNotNull(viewModel.container.stateFlow.value.renderState).camera
+            assertEquals(city.center, cityCamera.center)
+            assertEquals(city.defaultZoom, cityCamera.zoom)
+            assertEquals(1, cityCamera.revision)
+
+            viewModel.dispatchAction(Action.LocationEventReceived(LocationPlatformEvent.PermissionChanged(PRECISE)))
+            this@runTest.runCurrent()
+            val firstRequest = awaitLocationCommand()
+            val locatingState = requireNotNull(viewModel.container.stateFlow.value.renderState)
+            assertEquals(cityCamera, locatingState.camera)
+            assertNull(locatingState.userLocation)
+
+            viewModel.dispatchAction(Action.LocationEventReceived(LocationPlatformEvent.FixReceived(firstRequest.id, validCandidate())))
+            this@runTest.runCurrent()
+            val acceptedFix = requireNotNull(locationSession.state.value.fix)
+            val locationCamera = requireNotNull(viewModel.container.stateFlow.value.renderState).camera
+            assertEquals(2, locationCamera.revision)
+            assertEquals(acceptedFix.point, locationCamera.center)
+            assertEquals(15.0, locationCamera.zoom)
+
+            transitSession.selectRoutes(setOf(repository.routes(city.id).first().id))
+            this@runTest.runCurrent()
+            assertEquals(locationCamera, requireNotNull(viewModel.container.stateFlow.value.renderState).camera)
+
+            viewModel.dispatchAction(Action.MyLocationClicked)
+            this@runTest.runCurrent()
+            val refreshRequest = awaitLocationCommand()
+            val refreshingState = requireNotNull(viewModel.container.stateFlow.value.renderState)
+            assertEquals(locationCamera, refreshingState.camera)
+            assertNull(refreshingState.userLocation)
+
+            viewModel.dispatchAction(Action.LocationEventReceived(LocationPlatformEvent.FixReceived(refreshRequest.id, validCandidate())))
+            this@runTest.runCurrent()
+            val refreshedCamera = requireNotNull(viewModel.container.stateFlow.value.renderState).camera
+            assertEquals(3, refreshedCamera.revision)
+            assertEquals(acceptedFix.point, refreshedCamera.center)
+            cancelAndIgnoreRemainingItems()
+        }
+    }
+
+    @Test
+    fun mapRenderStateSnapshotsCallerOwnedLayersAndDefaultsToNoTransitData() {
+        val camera = MapCameraCommand(center = GeoPoint(41.7151, 44.8271), zoom = 13.0, revision = 1)
+        val callerStops = mutableListOf(MapStopMarker(StopId("stop-1"), GeoPoint(41.7151, 44.8271)))
+        val state = MapRenderState.from(camera = camera, stops = callerStops)
+
+        callerStops.clear()
+
+        assertEquals(1, state.stops.size)
+        assertTrue(state.vehicles.isEmpty())
+        assertTrue(state.polylines.isEmpty())
+        assertNull(state.userLocation)
+
+        val callerPoints = mutableListOf(GeoPoint(41.0, 44.0), GeoPoint(41.1, 44.1))
+        val polyline = MapPolyline(
+            routeId = RouteId("route-1"),
+            directionId = null,
+            points = callerPoints,
+            routeColorArgb = 0xFF0000,
+            freshness = TransitFreshness.Network,
+        )
+        callerPoints.clear()
+
+        assertEquals(listOf(GeoPoint(41.0, 44.0), GeoPoint(41.1, 44.1)), polyline.points)
+    }
+
+    @Test
+    fun noSelectedCityCreatesNoMapRenderStateOrFabricatedTransitLayers() = runTest {
+        val viewModel = MapViewModel(MapRepository(), RuntimeTransitSession(), testLocationSession())
+
+        assertEquals(ViewState(), viewModel.container.stateFlow.value)
+        assertNull(viewModel.container.stateFlow.value.renderState)
+    }
+
+    private fun renderState(
+        center: GeoPoint,
+        zoom: Double,
+        revision: Long,
+        userLocation: com.denis.georgiatransit.shared.presentation.location.UserLocationFix? = null,
+    ) = MapRenderState(
+        camera = MapCameraCommand(center = center, zoom = zoom, revision = revision),
+        userLocation = userLocation,
+    )
 
     private suspend fun OrbitTestContext<ViewState, SideEffect, MapViewModel>.awaitLocationCommand():
         LocationPlatformCommand {
