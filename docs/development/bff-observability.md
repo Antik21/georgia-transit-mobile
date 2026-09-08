@@ -133,12 +133,16 @@ contains deployment-agnostic rule definitions for scrape availability, no fresh
 probe success, realtime freshness, schema latch, circuit open, rate budget,
 elevated provider failures/schema parse, and stale/data age. The
 `TransitBffScrapeDown` rule expects the deployment's private scrape target to
-use the canonical Prometheus `job="transit-bff"` label and pages after
-`up{job="transit-bff"} == 0` for five minutes; deployment configuration must
-preserve that label or consciously replace the rule selector. The two five-minute
-freshness rules use `time() - timestamp > 300` and a target-enabled-since signal;
-they do not also use `for: 5m`, which would delay notification to roughly ten
-minutes.
+use the canonical Prometheus `job="transit-bff"` label and pages after five
+minutes for either a discovered target whose `up{job="transit-bff"} == 0` or
+no matching target series through `absent(up{job="transit-bff"})`. The
+`absent` branch derives the canonical `job="transit-bff"` label from its
+selector, and the rule's `severity: page` label applies to both result paths.
+The branches do not overlap: `absent` only returns a result when there are no
+matching `up` series. Deployment configuration must preserve that canonical
+label or consciously replace the rule selector. The two five-minute freshness
+rules use `time() - timestamp > 300` and a target-enabled-since signal; they do
+not also use `for: 5m`, which would delay notification to roughly ten minutes.
 They explicitly join `bff_probe_target_enabled==1`, preventing a deliberately
 disabled capability from paging. The receiver, severity routing, runbook URL,
 and ownership/on-call rota are external deployment inputs.

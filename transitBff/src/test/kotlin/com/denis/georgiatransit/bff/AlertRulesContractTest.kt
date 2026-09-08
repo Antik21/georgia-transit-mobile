@@ -14,7 +14,12 @@ class AlertRulesContractTest {
     fun `alerts distinguish scrape availability from enabled probe freshness with exact five minute semantics`() {
         val rules = alertRules()
         val scrapeDown = rules.getValue("TransitBffScrapeDown")
-        assertEquals("up{job=\"transit-bff\"} == 0", scrapeDown.string("expr").trim())
+        val scrapeDownExpression = scrapeDown.string("expr").trim()
+        assertEquals(
+            "up{job=\"transit-bff\"} == 0 or absent(up{job=\"transit-bff\"})",
+            scrapeDownExpression,
+        )
+        assertTrue(scrapeDownExpression.contains("absent(up{job=\"transit-bff\"})"))
         assertEquals("5m", scrapeDown.string("for"))
         assertEquals("page", scrapeDown.map("labels").string("severity"))
 

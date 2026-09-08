@@ -66,9 +66,11 @@ capability control revision with an explicit normalized acknowledgement for that
 exact city/capability; startup restore and historical rollback preserve latches
 even when an old document carries an acknowledgement.
 
-Repository-owned alert rules document expected scrape availability (canonical
-Prometheus `job="transit-bff"`), no-success/realtime freshness, schema latch,
-circuit, rate budget, parsing/5xx, and stale/data-age conditions. Private ingress,
+Repository-owned alert rules combine `up{job="transit-bff"} == 0` with
+`absent(up{job="transit-bff"})` for failed discovered scrapes and completely
+missing target series under the canonical Prometheus `job="transit-bff"`
+selector, then document no-success/realtime freshness, schema latch, circuit,
+rate budget, parsing/5xx, and stale/data-age conditions. Private ingress,
 Prometheus backend/receiver, operator-owned real probe target,
 Transitous hosted-use approval, and aggregate multi-replica limits remain
 deployment inputs; defaults make no real upstream request.

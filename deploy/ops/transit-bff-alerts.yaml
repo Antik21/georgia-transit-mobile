@@ -2,7 +2,7 @@ groups:
   - name: transit-bff-observability
     rules:
       - alert: TransitBffScrapeDown
-        expr: up{job="transit-bff"} == 0
+        expr: up{job="transit-bff"} == 0 or absent(up{job="transit-bff"})
         for: 5m
         labels:
           severity: page
