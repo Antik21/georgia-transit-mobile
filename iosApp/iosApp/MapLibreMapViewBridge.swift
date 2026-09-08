@@ -8,11 +8,18 @@ import UIKit
  * the bundled source-free style has no provider URL, key, remote style, or remote tile fallback.
  */
 enum MapLibreMapViewBridge {
-    static func makeView() -> UIView {
+    static func makeView(
+        onViewportSettled: @escaping (MapViewport) -> KotlinUnit,
+        onStopTapped: @escaping (Any) -> KotlinUnit
+    ) -> UIView {
         guard let styleURL = Bundle.main.url(forResource: "MapLibrePrototypeStyle", withExtension: "json") else {
             return LocalMapUnavailableView()
         }
-        return LocalMapLibreView(styleURL: styleURL)
+        return LocalMapLibreView(
+            styleURL: styleURL,
+            onViewportSettled: onViewportSettled,
+            onStopTapped: onStopTapped
+        )
     }
 
     static func update(view: UIView, renderState: MapRenderState) {
@@ -30,9 +37,17 @@ private final class LocalMapLibreView: UIView, MLNMapViewDelegate {
     private var layersInstalled = false
     private var lastAppliedCameraRevision: Int64?
     private var released = false
+    private let onViewportSettled: (MapViewport) -> KotlinUnit
+    private let onStopTapped: (Any) -> KotlinUnit
 
-    init(styleURL: URL) {
+    init(
+        styleURL: URL,
+        onViewportSettled: @escaping (MapViewport) -> KotlinUnit,
+        onStopTapped: @escaping (Any) -> KotlinUnit
+    ) {
         mapView = MLNMapView(frame: .zero, styleURL: styleURL)
+        self.onViewportSettled = onViewportSettled
+        self.onStopTapped = onStopTapped
         super.init(frame: .zero)
 
         mapView.delegate = self
@@ -43,6 +58,9 @@ private final class LocalMapLibreView: UIView, MLNMapViewDelegate {
         mapView.isAccessibilityElement = false
         mapView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
         addSubview(mapView)
+        let tapRecognizer = UITapGestureRecognizer(target: self, action: #selector(handleMapTap(_:)))
+        tapRecognizer.cancelsTouchesInView = false
+        mapView.addGestureRecognizer(tapRecognizer)
     }
 
     required init?(coder: NSCoder) {
@@ -72,6 +90,10 @@ private final class LocalMapLibreView: UIView, MLNMapViewDelegate {
         lastAppliedCameraRevision = nil
         installSourcesAndLayersIfNeeded(style: style)
         pendingRenderState.map { render($0, style: style) }
+    }
+
+    func mapView(_ mapView: MLNMapView, regionDidChangeAnimated animated: Bool) {
+        reportSettledViewport()
     }
 
     func releaseResources() {
@@ -111,8 +133,8 @@ private final class LocalMapLibreView: UIView, MLNMapViewDelegate {
         style.addLayer(accuracyStrokeLayer)
 
         let stopsLayer = MLNCircleStyleLayer(identifier: Self.stopsLayerID, source: stopsSource)
-        stopsLayer.circleColor = NSExpression(forConstantValue: UIColor(red: 0.16, green: 0.62, blue: 0.56, alpha: 1))
-        stopsLayer.circleRadius = NSExpression(forConstantValue: 5)
+        stopsLayer.circleColor = NSExpression(forKeyPath: Self.markerColorProperty)
+        stopsLayer.circleRadius = NSExpression(forKeyPath: Self.markerRadiusProperty)
         stopsLayer.circleStrokeColor = NSExpression(forConstantValue: UIColor.white)
         stopsLayer.circleStrokeWidth = NSExpression(forConstantValue: 2)
         style.addLayer(stopsLayer)
@@ -135,7 +157,11 @@ private final class LocalMapLibreView: UIView, MLNMapViewDelegate {
     }
 
     private func render(_ state: MapRenderState, style: MLNStyle) {
-        updateSource(style: style, identifier: Self.stopsSourceID, features: stopFeatures(state.stops))
+        updateSource(
+            style: style,
+            identifier: Self.stopsSourceID,
+            features: stopFeatures(state.stops) + clusterFeatures(state.stopClusters)
+        )
         updateSource(style: style, identifier: Self.vehiclesSourceID, features: vehicleFeatures(state.vehicles))
         updateSource(style: style, identifier: Self.polylinesSourceID, features: polylineFeatures(state.polylines))
         updateSource(style: style, identifier: Self.userLocationSourceID, features: userLocationFeatures(state.userLocation))
@@ -161,6 +187,7 @@ private final class LocalMapLibreView: UIView, MLNMapViewDelegate {
             animated: false
         )
         lastAppliedCameraRevision = command.revision
+        DispatchQueue.main.async { [weak self] in self?.reportSettledViewport() }
     }
 
     private func stopFeatures(_ markers: [MapStopMarker]) -> [[String: Any]] {
@@ -172,9 +199,92 @@ private final class LocalMapLibreView: UIView, MLNMapViewDelegate {
                 feature(
                     id: marker.stableId,
                     coordinates: [marker.position.longitude, marker.position.latitude],
-                    properties: [:]
+                    properties: [
+                        Self.featureIDProperty: marker.stableId,
+                        Self.featureKindProperty: Self.stopFeatureKind,
+                        Self.accessibilityLabelProperty: marker.accessibilityLabel,
+                        Self.markerColorProperty: marker.isSelected ? Self.selectedStopColor : Self.stopColor,
+                        Self.markerRadiusProperty: marker.isSelected ? Self.selectedStopRadius : Self.stopRadius,
+                    ]
                 )
             }
+    }
+
+    private func clusterFeatures(_ clusters: [MapStopCluster]) -> [[String: Any]] {
+        clusters
+            .filter { !$0.stableId.isEmpty && $0.stopCount > 1 && isCoordinateValid($0.position) }
+            .sorted(by: { $0.stableId < $1.stableId })
+            .prefix(Self.maximumStopMarkers)
+            .map { cluster in
+                feature(
+                    id: cluster.stableId,
+                    coordinates: [cluster.position.longitude, cluster.position.latitude],
+                    properties: [
+                        Self.featureIDProperty: cluster.stableId,
+                        Self.featureKindProperty: Self.clusterFeatureKind,
+                        Self.accessibilityLabelProperty: cluster.accessibilityLabel,
+                        Self.markerColorProperty: Self.clusterColor,
+                        Self.markerRadiusProperty: Self.clusterRadius,
+                        Self.clusterCountProperty: cluster.stopCount,
+                    ]
+                )
+            }
+    }
+
+    @objc private func handleMapTap(_ recognizer: UITapGestureRecognizer) {
+        guard recognizer.state == .ended else { return }
+        let point = recognizer.location(in: mapView)
+        let halfTarget = Self.minimumStopTargetPoints / 2
+        let hitRect = CGRect(
+            x: point.x - halfTarget,
+            y: point.y - halfTarget,
+            width: Self.minimumStopTargetPoints,
+            height: Self.minimumStopTargetPoints
+        )
+        let features = mapView.visibleFeatures(in: hitRect, styleLayerIdentifiers: [Self.stopsLayerID])
+        guard let id = features.lazy.compactMap({ feature -> String? in
+            guard feature.attribute(forKey: Self.featureKindProperty) as? String == Self.stopFeatureKind else { return nil }
+            return feature.attribute(forKey: Self.featureIDProperty) as? String
+        }).first else { return }
+        _ = onStopTapped(id)
+    }
+
+    private func reportSettledViewport() {
+        guard !released, !mapView.bounds.isEmpty else { return }
+        let centerCoordinate = mapView.centerCoordinate
+        let center = GeoPoint(latitude: centerCoordinate.latitude, longitude: centerCoordinate.longitude)
+        guard isCoordinateValid(center), mapView.zoomLevel.isFinite else { return }
+        let corners = [
+            CGPoint(x: mapView.bounds.minX, y: mapView.bounds.minY),
+            CGPoint(x: mapView.bounds.maxX, y: mapView.bounds.minY),
+            CGPoint(x: mapView.bounds.minX, y: mapView.bounds.maxY),
+            CGPoint(x: mapView.bounds.maxX, y: mapView.bounds.maxY),
+        ]
+        let radius = corners.map { corner -> Double in
+            let coordinate = mapView.convert(corner, toCoordinateFrom: mapView)
+            return distanceMeters(
+                from: center,
+                to: GeoPoint(latitude: coordinate.latitude, longitude: coordinate.longitude)
+            )
+        }.max() ?? 0
+        guard radius.isFinite, radius > 0 else { return }
+        _ = onViewportSettled(
+            MapViewport(
+                center: center,
+                radiusMeters: Int32(min(50_000, max(1, Int(ceil(radius))))),
+                zoom: mapView.zoomLevel
+            )
+        )
+    }
+
+    private func distanceMeters(from: GeoPoint, to: GeoPoint) -> Double {
+        let latitudeDelta = (to.latitude - from.latitude) * .pi / 180
+        let longitudeDelta = (to.longitude - from.longitude) * .pi / 180
+        let firstLatitude = from.latitude * .pi / 180
+        let secondLatitude = to.latitude * .pi / 180
+        let a = pow(sin(latitudeDelta / 2), 2) +
+            cos(firstLatitude) * cos(secondLatitude) * pow(sin(longitudeDelta / 2), 2)
+        return Self.earthRadiusMeters * 2 * atan2(sqrt(a), sqrt(1 - a))
     }
 
     private func vehicleFeatures(_ markers: [MapVehicleMarker]) -> [[String: Any]] {
@@ -301,6 +411,20 @@ private final class LocalMapLibreView: UIView, MLNMapViewDelegate {
     private static let routeColorProperty = "routeColor"
     private static let bearingProperty = "bearing"
     private static let positionKindProperty = "positionKind"
+    private static let featureIDProperty = "featureId"
+    private static let featureKindProperty = "featureKind"
+    private static let accessibilityLabelProperty = "accessibilityLabel"
+    private static let markerColorProperty = "markerColor"
+    private static let markerRadiusProperty = "markerRadius"
+    private static let clusterCountProperty = "clusterCount"
+    private static let stopFeatureKind = "stop"
+    private static let clusterFeatureKind = "cluster"
+    private static let stopColor = "#2A9D8F"
+    private static let selectedStopColor = "#E76F51"
+    private static let clusterColor = "#264653"
+    private static let stopRadius = 5
+    private static let selectedStopRadius = 9
+    private static let clusterRadius = 12
     private static let maximumStopMarkers = 1_000
     private static let maximumVehicleMarkers = 2_000
     private static let maximumPolylines = 256
@@ -309,6 +433,7 @@ private final class LocalMapLibreView: UIView, MLNMapViewDelegate {
     private static let maximumZoom = 22.0
     private static let accuracySegments = 64
     private static let earthRadiusMeters = 6_371_008.8
+    private static let minimumStopTargetPoints: CGFloat = 44
 }
 
 /** The common overlay supplies localized textual state if the bundled style cannot load. */

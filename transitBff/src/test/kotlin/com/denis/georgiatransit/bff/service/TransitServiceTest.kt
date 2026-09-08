@@ -137,11 +137,11 @@ class TransitServiceTest {
         val adapter = FakeAdapter().apply { stopDirectoryResult = { listOf(far, medium, close) } }
         service(adapter).use { transit ->
             val first = transit.nearbyStops("test", GeoPoint(41.7, 44.8), radiusMeters = 200, limit = 2, locale = "en")
-            val second = transit.nearbyStops("test", GeoPoint(41.7, 44.8), radiusMeters = 20, limit = 10, locale = "en")
+            val second = transit.nearbyStops("test", GeoPoint(41.70005, 44.8), radiusMeters = 20, limit = 10, locale = "en")
 
             assertEquals(listOf(close.id, medium.id), first.map { it.id })
             assertEquals(listOf(close.id), second.map { it.id })
-            assertEquals(1, adapter.stopDirectoryCalls.get())
+            assertEquals(1, adapter.stopDirectoryCalls.get(), "Panning must reuse the cached upstream directory")
         }
     }
 

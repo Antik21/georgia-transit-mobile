@@ -1,0 +1,595 @@
+package com.denis.georgiatransit.shared.presentation.map
+
+import com.denis.georgiatransit.shared.data.repository.RuntimeTransitSession
+import com.denis.georgiatransit.shared.domain.model.CityCapabilities
+import com.denis.georgiatransit.shared.domain.model.CityId
+import com.denis.georgiatransit.shared.domain.model.GeoPoint
+import com.denis.georgiatransit.shared.domain.model.LocalizedText
+import com.denis.georgiatransit.shared.domain.model.ProviderId
+import com.denis.georgiatransit.shared.domain.model.RouteId
+import com.denis.georgiatransit.shared.domain.model.StopId
+import com.denis.georgiatransit.shared.domain.model.TransitCity
+import com.denis.georgiatransit.shared.domain.model.TransitLocale
+import com.denis.georgiatransit.shared.domain.model.TransitMode
+import com.denis.georgiatransit.shared.domain.model.TransitRoute
+import com.denis.georgiatransit.shared.domain.model.TransitStop
+import com.denis.georgiatransit.shared.domain.repository.TransitFailure
+import com.denis.georgiatransit.shared.domain.repository.TransitFreshness
+import com.denis.georgiatransit.shared.domain.repository.TransitLoadResult
+import com.denis.georgiatransit.shared.domain.repository.TransitRepository
+import com.denis.georgiatransit.shared.presentation.location.RuntimeLocationSession
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.test.advanceTimeBy
+import kotlinx.coroutines.test.resetMain
+import kotlinx.coroutines.test.runCurrent
+import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.test.setMain
+import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.withContext
+import org.orbitmvi.orbit.test.test
+import kotlin.test.Test
+import kotlin.test.AfterTest
+import kotlin.test.BeforeTest
+import kotlin.test.assertEquals
+import kotlin.test.assertIs
+import kotlin.test.assertNull
+import kotlin.test.assertTrue
+
+@OptIn(ExperimentalCoroutinesApi::class)
+class MapNearbyViewModelTest {
+    @BeforeTest
+    fun setUpMainDispatcher() {
+        Dispatchers.setMain(StandardTestDispatcher())
+    }
+
+    @AfterTest
+    fun resetMainDispatcher() {
+        Dispatchers.resetMain()
+    }
+
+    private val MapViewModel.state: ViewState
+        get() = container.stateFlow.value
+
+    @Test
+    fun initialStateIsLoadingAndViewportCallbackIsNormalizedDebouncedAndDeduplicated() = runTest {
+        val city = city("tbilisi")
+        val repository = RecordingRepository().apply { results += { data(stop("a")) } }
+        val session = RuntimeTransitSession().also { it.selectCity(city) }
+        val viewModel = MapViewModel(repository, session, RuntimeLocationSession(this))
+
+        viewModel.test(this) {
+            runOnCreate()
+            this@runTest.runCurrent()
+            assertEquals(MapContentState.Loading, viewModel.state.contentState)
+            assertEquals(MapBaseLayerState.LocalPreview, viewModel.state.baseLayerState)
+
+            val raw = MapViewport(GeoPoint(41.7000049, 44.8000051), radiusMeters = 1_001, zoom = 13.126)
+            viewModel.dispatchAction(Action.MapEventReceived(MapPlatformEvent.ViewportSettled(raw)))
+            this@runTest.runCurrent()
+            this@runTest.advanceTimeBy(349)
+            this@runTest.runCurrent()
+            assertTrue(repository.calls.isEmpty())
+
+            this@runTest.advanceTimeBy(2)
+            this@runTest.runCurrent()
+            assertEquals(
+                NearbyCall(city.id, GeoPoint(41.7, 44.80001), 1_025, 100, TransitLocale.English),
+                repository.calls.single(),
+            )
+            assertEquals(MapContentState.Ready, viewModel.state.contentState)
+            assertEquals(MapBaseLayerState.LocalPreview, viewModel.state.baseLayerState)
+
+            viewModel.dispatchAction(
+                Action.MapEventReceived(
+                    MapPlatformEvent.ViewportSettled(
+                        MapViewport(GeoPoint(41.7000001, 44.8000099), radiusMeters = 1_024, zoom = 13.129),
+                    ),
+                ),
+            )
+            this@runTest.advanceTimeBy(1_000)
+            this@runTest.runCurrent()
+            assertEquals(1, repository.calls.size, "Equivalent normalized viewport must not reload")
+
+            settle(viewModel, GeoPoint(Double.NaN, 44.8))
+            viewModel.dispatchAction(
+                Action.MapEventReceived(
+                    MapPlatformEvent.ViewportSettled(MapViewport(GeoPoint(41.7, 44.8), radiusMeters = 0, zoom = 13.0)),
+                ),
+            )
+            this@runTest.advanceTimeBy(1_000)
+            this@runTest.runCurrent()
+            assertEquals(1, repository.calls.size, "Invalid native viewport data must fail closed")
+            cancelAndIgnoreRemainingItems()
+        }
+    }
+
+    @Test
+    fun typedStopCallbackSelectsOnlyALoadedVisibleMarker() = runTest {
+        val repository = RecordingRepository().apply { results += { data(stop("visible")) } }
+        val viewModel = MapViewModel(
+            repository,
+            RuntimeTransitSession().also { it.selectCity(city("tbilisi")) },
+            RuntimeLocationSession(this),
+        )
+
+        viewModel.test(this) {
+            runOnCreate()
+            this@runTest.advanceNearby()
+            viewModel.dispatchAction(Action.MapEventReceived(MapPlatformEvent.StopTapped(StopId("unknown"))))
+            this@runTest.runCurrent()
+            assertNull(viewModel.state.selectedStop)
+
+            viewModel.dispatchAction(Action.MapEventReceived(MapPlatformEvent.StopTapped(StopId("visible"))))
+            this@runTest.runCurrent()
+            assertEquals(StopId("visible"), viewModel.state.selectedStop?.id)
+            assertTrue(requireNotNull(viewModel.state.renderState).stops.single().isSelected)
+            cancelAndIgnoreRemainingItems()
+        }
+    }
+
+    @Test
+    fun freshAndEmptyResponsesReplaceMarkersAndMapState() = runTest {
+        val city = city("tbilisi")
+        val repository = RecordingRepository().apply {
+            results += { data(stop("a"), stop("b")) }
+            results += { TransitLoadResult.Empty(TransitFreshness.Network) }
+        }
+        val viewModel = MapViewModel(
+            repository,
+            RuntimeTransitSession().also { it.selectCity(city) },
+            RuntimeLocationSession(this),
+        )
+
+        viewModel.test(this) {
+            runOnCreate()
+            this@runTest.advanceNearby()
+            assertEquals(MapContentState.Ready, viewModel.state.contentState)
+            assertEquals(listOf("a", "b"), viewModel.state.nearbyStops.map { it.id.value })
+
+            settle(viewModel, GeoPoint(41.71, 44.81))
+            this@runTest.advanceNearby()
+            assertEquals(MapContentState.Empty, viewModel.state.contentState)
+            assertTrue(viewModel.state.nearbyStops.isEmpty())
+            assertTrue(requireNotNull(viewModel.state.renderState).stops.isEmpty())
+            cancelAndIgnoreRemainingItems()
+        }
+    }
+
+    @Test
+    fun retryableFailureRetainsMarkersAndRetryActionReplacesThem() = runTest {
+        val city = city("tbilisi")
+        val repository = RecordingRepository().apply {
+            results += { data(stop("cached")) }
+            results += { TransitLoadResult.Failure(TransitFailure.Transport("offline")) }
+            results += { data(stop("recovered")) }
+        }
+        val viewModel = MapViewModel(
+            repository,
+            RuntimeTransitSession().also { it.selectCity(city) },
+            RuntimeLocationSession(this),
+        )
+
+        viewModel.test(this) {
+            runOnCreate()
+            this@runTest.advanceNearby()
+            settle(viewModel, GeoPoint(41.71, 44.81))
+            this@runTest.advanceNearby()
+
+            assertIs<MapContentState.RetryableError>(viewModel.state.contentState)
+            assertEquals(listOf("cached"), viewModel.state.nearbyStops.map { it.id.value })
+            viewModel.dispatchAction(Action.RetryNearby)
+            this@runTest.advanceNearby()
+            assertEquals(MapContentState.Ready, viewModel.state.contentState)
+            assertEquals(listOf("recovered"), viewModel.state.nearbyStops.map { it.id.value })
+            assertEquals(3, repository.calls.size)
+            cancelAndIgnoreRemainingItems()
+        }
+    }
+
+    @Test
+    fun staleOfflineResponseRetainsMarkersAndExposesOfflineState() = runTest {
+        val staleFailure = TransitFailure.UpstreamUnavailable("offline", retryAfterSeconds = 3, requestId = "req")
+        val repository = RecordingRepository().apply {
+            results += { data(stop("cached")) }
+            results += {
+                TransitLoadResult.Data(
+                    listOf(stop("cached")),
+                    TransitFreshness.StaleOffline,
+                    revalidationFailure = staleFailure,
+                )
+            }
+        }
+        val viewModel = MapViewModel(
+            repository,
+            RuntimeTransitSession().also { it.selectCity(city("tbilisi")) },
+            RuntimeLocationSession(this),
+        )
+
+        viewModel.test(this) {
+            runOnCreate()
+            this@runTest.advanceNearby()
+            settle(viewModel, GeoPoint(41.71, 44.81))
+            this@runTest.advanceNearby()
+
+            assertEquals(MapContentState.Offline(isStale = true), viewModel.state.contentState)
+            assertEquals(listOf("cached"), viewModel.state.nearbyStops.map { it.id.value })
+            cancelAndIgnoreRemainingItems()
+        }
+    }
+
+    @Test
+    fun cancellationAndGenerationGuardRejectLateNonCooperativeResultAfterCityChange() = runTest {
+        val oldCity = city("old")
+        val newCity = city("new").copy(center = GeoPoint(42.0, 43.0))
+        val repository = RecordingRepository().apply {
+            results += {
+                try {
+                    delay(1_000)
+                } catch (_: CancellationException) {
+                    withContext(NonCancellable) { delay(1_000) }
+                }
+                data(stop("late-old"))
+            }
+            results += { data(stop("new-city")) }
+        }
+        val session = RuntimeTransitSession().also { it.selectCity(oldCity) }
+        val viewModel = MapViewModel(repository, session, RuntimeLocationSession(this))
+
+        viewModel.test(this) {
+            runOnCreate()
+            this@runTest.advanceNearby()
+            assertEquals(1, repository.calls.size)
+            session.selectCity(newCity)
+            this@runTest.runCurrent()
+            assertEquals(MapContentState.Loading, viewModel.state.contentState)
+            assertTrue(viewModel.state.nearbyStops.isEmpty())
+
+            this@runTest.advanceNearby()
+            assertEquals(listOf("new-city"), viewModel.state.nearbyStops.map { it.id.value })
+            this@runTest.advanceTimeBy(1_000)
+            this@runTest.runCurrent()
+            assertEquals("New", viewModel.state.cityName)
+            assertEquals(listOf("new-city"), viewModel.state.nearbyStops.map { it.id.value })
+            cancelAndIgnoreRemainingItems()
+        }
+    }
+
+    @Test
+    fun terminalCapabilityFailureClearsIdentityAndBlocksPansUntilCapabilityFlips() = runTest {
+        val enabled = city("tbilisi")
+        val disabled = enabled.copy(capabilities = enabled.capabilities.copy(stops = false))
+        val repository = RecordingRepository().apply {
+            results += { data(stop("old")) }
+            results += {
+                TransitLoadResult.Failure(
+                    TransitFailure.CapabilityUnavailable("disabled", requestId = "req"),
+                )
+            }
+            results += { data(stop("after-flip")) }
+        }
+        val session = RuntimeTransitSession().also { it.selectCity(enabled) }
+        val viewModel = MapViewModel(repository, session, RuntimeLocationSession(this))
+
+        viewModel.test(this) {
+            runOnCreate()
+            this@runTest.advanceNearby()
+            viewModel.dispatchAction(Action.StopSelected(StopId("old")))
+            this@runTest.runCurrent()
+            settle(viewModel, GeoPoint(41.71, 44.81))
+            this@runTest.advanceNearby()
+
+            assertEquals(MapContentState.Unavailable, viewModel.state.contentState)
+            assertNull(viewModel.state.selectedStop)
+            assertTrue(viewModel.state.nearbyStops.isEmpty())
+            settle(viewModel, GeoPoint(41.72, 44.82))
+            this@runTest.advanceTimeBy(1_000)
+            assertEquals(2, repository.calls.size, "A kill switch must remain fail-closed while capability is unchanged")
+
+            session.selectCity(disabled)
+            this@runTest.runCurrent()
+            session.selectCity(enabled)
+            this@runTest.runCurrent()
+            this@runTest.advanceNearby()
+            assertEquals(listOf("after-flip"), viewModel.state.nearbyStops.map { it.id.value })
+            assertEquals(3, repository.calls.size)
+            cancelAndIgnoreRemainingItems()
+        }
+    }
+
+    @Test
+    fun localeChangeRefreshesExactQueryAndUsesLocalizedStopIdentity() = runTest {
+        val repository = RecordingRepository().apply {
+            results += { data(stop("central")) }
+            results += { data(stop("central")) }
+        }
+        val viewModel = MapViewModel(
+            repository,
+            RuntimeTransitSession().also { it.selectCity(city("tbilisi")) },
+            RuntimeLocationSession(this),
+        )
+
+        viewModel.test(this) {
+            runOnCreate()
+            this@runTest.advanceNearby()
+            assertEquals("Central", viewModel.state.nearbyStops.single().name)
+            viewModel.dispatchAction(Action.LocaleChanged(TransitLocale.Russian))
+            this@runTest.runCurrent()
+            assertEquals("Центральная", viewModel.state.nearbyStops.single().name)
+            this@runTest.advanceNearby()
+            assertEquals(listOf(TransitLocale.English, TransitLocale.Russian), repository.calls.map { it.locale })
+            cancelAndIgnoreRemainingItems()
+        }
+    }
+
+    @Test
+    fun cityNotFoundClearsOldStateThenRefreshesCatalogAndRetriesEntityExactlyOnce() = runTest {
+        val city = city("tbilisi")
+        val retryGate = CompletableDeferred<Unit>()
+        val repository = RecordingRepository().apply {
+            results += { data(stop("old")) }
+            results += { TransitLoadResult.Failure(TransitFailure.CityNotFound("missing", "first")) }
+            results += {
+                retryGate.await()
+                data(stop("new"))
+            }
+            revalidation = { TransitLoadResult.Data(listOf(city), TransitFreshness.Network) }
+        }
+        val session = RuntimeTransitSession().also { it.selectCity(city) }
+        val viewModel = MapViewModel(repository, session, RuntimeLocationSession(this))
+
+        viewModel.test(this) {
+            runOnCreate()
+            this@runTest.advanceNearby()
+            this@runTest.selectOldStop(viewModel)
+            settle(viewModel, GeoPoint(41.71, 44.81))
+            this@runTest.advanceNearby()
+
+            assertEquals(3, repository.calls.size, "Initial load, failed query, and one bounded retry")
+            assertEquals(1, repository.revalidationCalls)
+            assertRecoveryClearedOldStop(viewModel, MapContentState.Loading)
+
+            retryGate.complete(Unit)
+            this@runTest.runCurrent()
+            assertEquals(MapContentState.Ready, viewModel.state.contentState)
+            assertEquals(listOf("new"), viewModel.state.nearbyStops.map { it.id.value })
+            assertEquals(3, repository.calls.size, "Successful recovery must not start another retry")
+            assertEquals(1, repository.revalidationCalls)
+            cancelAndIgnoreRemainingItems()
+        }
+    }
+
+    @Test
+    fun cityNotFoundWithStaleCatalogClearsOldStateAndDoesNotRetryEntity() = runTest {
+        val city = city("tbilisi")
+        val repository = RecordingRepository().apply {
+            results += { data(stop("old")) }
+            results += { TransitLoadResult.Failure(TransitFailure.CityNotFound("missing", "req")) }
+            revalidation = {
+                TransitLoadResult.Data(
+                    listOf(city),
+                    TransitFreshness.StaleOffline,
+                    revalidationFailure = TransitFailure.Transport("offline"),
+                )
+            }
+        }
+        val viewModel = MapViewModel(
+            repository,
+            RuntimeTransitSession().also { it.selectCity(city) },
+            RuntimeLocationSession(this),
+        )
+
+        viewModel.test(this) {
+            runOnCreate()
+            this@runTest.advanceNearby()
+            this@runTest.selectOldStop(viewModel)
+            settle(viewModel, GeoPoint(41.71, 44.81))
+            this@runTest.advanceNearby()
+
+            assertRecoveryClearedOldStop(viewModel, MapContentState.RetryableError)
+            assertIs<MapContentState.RetryableError>(viewModel.state.contentState)
+            assertEquals(2, repository.calls.size)
+            assertEquals(1, repository.revalidationCalls)
+            this@runTest.advanceTimeBy(5_000)
+            this@runTest.runCurrent()
+            assertEquals(2, repository.calls.size, "Stale catalog recovery must not loop")
+            cancelAndIgnoreRemainingItems()
+        }
+    }
+
+    @Test
+    fun cityNotFoundWithDisabledRefreshedCapabilityClearsOldStateAndFailsClosed() = runTest {
+        val city = city("tbilisi")
+        val disabled = city.copy(capabilities = city.capabilities.copy(stops = false))
+        val repository = RecordingRepository().apply {
+            results += { data(stop("old")) }
+            results += { TransitLoadResult.Failure(TransitFailure.CityNotFound("missing", "req")) }
+            revalidation = { TransitLoadResult.Data(listOf(disabled), TransitFreshness.Network) }
+        }
+        val session = RuntimeTransitSession().also { it.selectCity(city) }
+        val viewModel = MapViewModel(repository, session, RuntimeLocationSession(this))
+
+        viewModel.test(this) {
+            runOnCreate()
+            this@runTest.advanceNearby()
+            this@runTest.selectOldStop(viewModel)
+            settle(viewModel, GeoPoint(41.71, 44.81))
+            this@runTest.advanceNearby()
+
+            assertRecoveryClearedOldStop(viewModel, MapContentState.Unavailable)
+            assertEquals(MapContentState.Unavailable, viewModel.state.contentState)
+            assertEquals(false, session.selectedCity.value?.capabilities?.stops)
+            assertEquals(2, repository.calls.size)
+            assertEquals(1, repository.revalidationCalls)
+            settle(viewModel, GeoPoint(41.72, 44.82))
+            this@runTest.advanceTimeBy(5_000)
+            assertEquals(2, repository.calls.size, "Disabled capability must remain fail-closed")
+            cancelAndIgnoreRemainingItems()
+        }
+    }
+
+    @Test
+    fun cityNotFoundClearsSelectedCityWhenForcedCatalogNoLongerContainsIt() = runTest {
+        val repository = RecordingRepository().apply {
+            results += { data(stop("old")) }
+            results += { TransitLoadResult.Failure(TransitFailure.CityNotFound("missing", "req")) }
+            revalidation = { TransitLoadResult.Empty(TransitFreshness.Network) }
+        }
+        val session = RuntimeTransitSession().also { it.selectCity(city("tbilisi")) }
+        val viewModel = MapViewModel(repository, session, RuntimeLocationSession(this))
+
+        viewModel.test(this) {
+            runOnCreate()
+            this@runTest.advanceNearby()
+            this@runTest.selectOldStop(viewModel)
+            settle(viewModel, GeoPoint(41.71, 44.81))
+            this@runTest.advanceNearby()
+            assertNull(session.selectedCity.value)
+            assertNull(viewModel.state.renderState)
+            assertEquals(MapContentState.Unavailable, viewModel.state.contentState)
+            assertNull(viewModel.state.selectedStop)
+            assertTrue(viewModel.state.nearbyStops.isEmpty())
+            assertEquals(2, repository.calls.size)
+            assertEquals(1, repository.revalidationCalls)
+            this@runTest.advanceTimeBy(5_000)
+            assertEquals(2, repository.calls.size, "Missing city recovery must not loop")
+            cancelAndIgnoreRemainingItems()
+        }
+    }
+
+    @Test
+    fun providerIdConflictClearsOldStateAndRetriesEntityExactlyOnce() = runTest {
+        val retryGate = CompletableDeferred<Unit>()
+        val repository = RecordingRepository().apply {
+            results += { data(stop("old")) }
+            results += { TransitLoadResult.Failure(TransitFailure.ProviderIdChanged("changed", "first")) }
+            results += {
+                retryGate.await()
+                data(stop("new"))
+            }
+        }
+        val viewModel = MapViewModel(
+            repository,
+            RuntimeTransitSession().also { it.selectCity(city("tbilisi")) },
+            RuntimeLocationSession(this),
+        )
+
+        viewModel.test(this) {
+            runOnCreate()
+            this@runTest.advanceNearby()
+            this@runTest.selectOldStop(viewModel)
+            settle(viewModel, GeoPoint(41.71, 44.81))
+            this@runTest.advanceNearby()
+
+            assertEquals(3, repository.calls.size, "Initial load, failed query, and one bounded retry")
+            assertEquals(0, repository.revalidationCalls)
+            assertRecoveryClearedOldStop(viewModel, MapContentState.Loading)
+
+            retryGate.complete(Unit)
+            this@runTest.runCurrent()
+            assertEquals(MapContentState.Ready, viewModel.state.contentState)
+            assertEquals(listOf("new"), viewModel.state.nearbyStops.map { it.id.value })
+            assertEquals(3, repository.calls.size, "Successful conflict recovery must not loop")
+            cancelAndIgnoreRemainingItems()
+        }
+    }
+
+    private fun kotlinx.coroutines.test.TestScope.selectOldStop(viewModel: MapViewModel) {
+        viewModel.dispatchAction(Action.StopSelected(StopId("old")))
+        runCurrent()
+        assertEquals(StopId("old"), viewModel.state.selectedStop?.id)
+        assertEquals(listOf("old"), viewModel.state.nearbyStops.map { it.id.value })
+    }
+
+    private fun assertRecoveryClearedOldStop(viewModel: MapViewModel, expectedContentState: MapContentState) {
+        assertEquals(expectedContentState, viewModel.state.contentState)
+        assertNull(viewModel.state.selectedStop)
+        assertTrue(viewModel.state.nearbyStops.isEmpty(), "Accessibility activation list must clear old identity")
+        val renderState = requireNotNull(viewModel.state.renderState)
+        assertTrue(renderState.stops.isEmpty(), "Old individual markers must clear before recovery")
+        assertTrue(renderState.stopClusters.isEmpty(), "Old clustered markers must clear before recovery")
+    }
+
+    private fun kotlinx.coroutines.test.TestScope.advanceNearby() {
+        runCurrent()
+        advanceTimeBy(351)
+        runCurrent()
+    }
+
+    private fun settle(viewModel: MapViewModel, center: GeoPoint) {
+        viewModel.dispatchAction(
+            Action.MapEventReceived(
+                MapPlatformEvent.ViewportSettled(MapViewport(center, radiusMeters = 2_000, zoom = 14.0)),
+            ),
+        )
+    }
+
+    private fun data(vararg stops: TransitStop) =
+        TransitLoadResult.Data(stops.toList(), TransitFreshness.Network)
+
+    private fun stop(id: String) = TransitStop(
+        id = StopId(id),
+        providerId = ProviderId("provider-$id"),
+        code = id,
+        name = LocalizedText(ru = "Центральная", en = "Central", ka = "ცენტრალური"),
+        position = GeoPoint(41.7, 44.8),
+        routeIds = emptyList(),
+        mode = TransitMode.Bus,
+    )
+
+    private fun city(id: String) = TransitCity(
+        id = CityId(id),
+        name = id.replaceFirstChar(Char::uppercase),
+        center = GeoPoint(41.7, 44.8),
+        capabilities = CityCapabilities(
+            stops = true,
+            vehicles = true,
+            arrivals = true,
+            routeShapes = true,
+            journeyPlanning = true,
+        ),
+        defaultZoom = 13.0,
+    )
+
+    private data class NearbyCall(
+        val cityId: CityId,
+        val center: GeoPoint,
+        val radiusMeters: Int,
+        val limit: Int,
+        val locale: TransitLocale,
+    )
+
+    private class RecordingRepository : TransitRepository {
+        val calls = mutableListOf<NearbyCall>()
+        val results = ArrayDeque<suspend () -> TransitLoadResult<List<TransitStop>>>()
+        var revalidationCalls = 0
+        var revalidation: suspend () -> TransitLoadResult<List<TransitCity>> = {
+            TransitLoadResult.Empty(TransitFreshness.Network)
+        }
+
+        override fun cities(): List<TransitCity> = emptyList()
+
+        override fun routes(cityId: CityId): List<TransitRoute> = emptyList()
+
+        override suspend fun revalidateCityCapabilities(): TransitLoadResult<List<TransitCity>> {
+            revalidationCalls += 1
+            return revalidation()
+        }
+
+        override suspend fun nearbyStops(
+            cityId: CityId,
+            center: GeoPoint,
+            radiusMeters: Int,
+            limit: Int,
+            locale: TransitLocale,
+        ): TransitLoadResult<List<TransitStop>> {
+            calls += NearbyCall(cityId, center, radiusMeters, limit, locale)
+            return results.removeFirstOrNull()?.invoke()
+                ?: TransitLoadResult.Empty(TransitFreshness.Network)
+        }
+    }
+}

@@ -87,6 +87,9 @@ interface TransitRepository {
     suspend fun refreshCityCapabilities(): TransitLoadResult<List<TransitCity>> =
         TransitLoadResult.Data(cities(), TransitFreshness.CacheValid)
 
+    /** Bypasses a valid local catalog cache when an entity response proves it may be obsolete. */
+    suspend fun revalidateCityCapabilities(): TransitLoadResult<List<TransitCity>> = refreshCityCapabilities()
+
     /** Latest in-memory snapshot for current UI. This does not initiate I/O. */
     fun routes(cityId: CityId): List<TransitRoute>
 

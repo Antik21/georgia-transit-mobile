@@ -38,10 +38,14 @@ import kotlin.time.Instant
 
 private const val CityCacheKey = "transit-bff-v1.cities"
 private const val RouteCachePrefix = "transit-bff-v1.routes."
+private const val NearbyCachePrefix = "transit-bff-v1.nearby."
 private const val CityMaxChars = 64 * 1024
 private const val RouteMaxChars = 128 * 1024
+private const val NearbyMaxChars = 128 * 1024
 private const val RouteCacheLimit = 12
+private const val NearbyCacheLimit = 24
 private const val DirectoryTtlMillis = 60L * 60L * 1_000L
+private const val NearbyTtlMillis = 5L * 60L * 1_000L
 
 private object SystemTransitClock : TransitClock {
     override fun nowEpochMillis(): Long = Clock.System.now().toEpochMilliseconds()
@@ -53,14 +57,29 @@ private data class CachedRouteList(
     val routes: List<TransitRoute>,
 )
 
+@Serializable
+private data class NearbyStopRequest(
+    val cityId: CityId,
+    val center: GeoPoint,
+    val radiusMeters: Int,
+    val limit: Int,
+    val locale: TransitLocale,
+)
+
+@Serializable
+private data class CachedNearbyStops(
+    val request: NearbyStopRequest,
+    val stops: List<TransitStop>,
+)
+
 private data class TransitSnapshot(
     val cities: List<TransitCity> = emptyList(),
     val routes: Map<RouteListRequest, List<TransitRoute>> = emptyMap(),
 )
 
 /**
- * Production repository. Durable LKG is intentionally limited to city/capability and route-list
- * catalogs; realtime, stop directories, shapes, arrivals, and journey results stay in memory.
+ * Production repository. Durable LKG covers bounded directory queries (cities, routes, nearby
+ * stops); realtime, shapes, arrivals, and journey results stay in memory.
  */
 class BffTransitRepository(
     private val client: TransitBffClient,
@@ -70,6 +89,7 @@ class BffTransitRepository(
 ) : TransitRepository {
     private val refreshMutex = Mutex()
     private val hydrationMutex = Mutex()
+    private val nearbyCacheMutex = Mutex()
     private var hydrated = false
     private val snapshots = MutableStateFlow(TransitSnapshot())
 
@@ -85,6 +105,12 @@ class BffTransitRepository(
         client.configurationFailure()?.let { return TransitLoadResult.Failure(it) }
         ensureHydrated()
         return refreshMutex.withLock { refreshCityCapabilitiesLocked() }
+    }
+
+    override suspend fun revalidateCityCapabilities(): TransitLoadResult<List<TransitCity>> {
+        client.configurationFailure()?.let { return TransitLoadResult.Failure(it) }
+        ensureHydrated()
+        return refreshMutex.withLock { refreshCityCapabilitiesLocked(forceNetwork = true) }
     }
 
     override fun routes(cityId: CityId): List<TransitRoute> =
@@ -108,8 +134,39 @@ class BffTransitRepository(
     override suspend fun vehicles(cityId: CityId, routeId: RouteId, directionId: DirectionId?): TransitLoadResult<VehiclePage> =
         client.vehicles(cityId, routeId, directionId)
 
-    override suspend fun nearbyStops(cityId: CityId, center: GeoPoint, radiusMeters: Int, limit: Int, locale: TransitLocale): TransitLoadResult<List<TransitStop>> =
-        client.nearbyStops(cityId, center, radiusMeters, limit, locale)
+    override suspend fun nearbyStops(
+        cityId: CityId,
+        center: GeoPoint,
+        radiusMeters: Int,
+        limit: Int,
+        locale: TransitLocale,
+    ): TransitLoadResult<List<TransitStop>> {
+        client.configurationFailure()?.let { return TransitLoadResult.Failure(it) }
+        val request = NearbyStopRequest(cityId, center, radiusMeters, limit, locale)
+        val now = clock.nowEpochMillis()
+        val key = nearbyCacheKey(request)
+        val cached = cachedNearby(key, request, now)
+        if (cached?.isNearbyFresh(now) == true) {
+            return cached.payload.stops.asStopResult(TransitFreshness.CacheValid, cached.validatedAtEpochMillis)
+        }
+
+        return when (val response = client.nearbyStops(cityId, center, radiusMeters, limit, locale)) {
+            is TransitLoadResult.Data -> {
+                storeNearby(key, request, response.value, now)
+                response.value.asStopResult(TransitFreshness.Network, now)
+            }
+            is TransitLoadResult.Empty -> {
+                storeNearby(key, request, emptyList(), now)
+                TransitLoadResult.Empty(TransitFreshness.Network, validatedAtEpochMillis = now)
+            }
+            is TransitLoadResult.Failure -> {
+                if (response.error is TransitFailure.ProviderIdChanged) {
+                    nearbyCacheMutex.withLock { withCache { cache.remove(key) } }
+                }
+                cached.staleNearbyOrFailure(response.error)
+            }
+        }
+    }
 
     override suspend fun arrivals(cityId: CityId, stopId: StopId, limit: Int, locale: TransitLocale): TransitLoadResult<ArrivalPage> =
         client.arrivals(cityId, stopId, limit, locale)
@@ -138,10 +195,12 @@ class BffTransitRepository(
         }
     }
 
-    private suspend fun refreshCityCapabilitiesLocked(): TransitLoadResult<List<TransitCity>> {
+    private suspend fun refreshCityCapabilitiesLocked(
+        forceNetwork: Boolean = false,
+    ): TransitLoadResult<List<TransitCity>> {
         val now = clock.nowEpochMillis()
         val cached = cachedCities(now)
-        if (cached?.isFresh(now) == true) {
+        if (!forceNetwork && cached?.isFresh(now) == true) {
             publishCities(cached.payload)
             return cached.payload.asCityResult(TransitFreshness.CacheValid, validatedAt = cached.validatedAtEpochMillis)
         }
@@ -236,6 +295,41 @@ class BffTransitRepository(
             }
     }
 
+    private suspend fun cachedNearby(
+        key: String,
+        request: NearbyStopRequest,
+        now: Long,
+    ): TransitCacheEntry<CachedNearbyStops>? = nearbyCacheMutex.withLock {
+        withCache {
+            cache.read<CachedNearbyStops>(key, NearbyMaxChars, now)
+                ?.takeIf { it.payload.request == request }
+                ?: run {
+                    cache.remove(key)
+                    null
+                }
+        }
+    }
+
+    private suspend fun storeNearby(
+        key: String,
+        request: NearbyStopRequest,
+        stops: List<TransitStop>,
+        now: Long,
+    ) = nearbyCacheMutex.withLock {
+        withCache {
+            cache.write(
+                key,
+                TransitCacheEntry(
+                    fetchedAtEpochMillis = now,
+                    validatedAtEpochMillis = now,
+                    payload = CachedNearbyStops(request, stops),
+                ),
+                NearbyMaxChars,
+            )
+            trimNearbyEntries(now)
+        }
+    }
+
     /** Runs native preferences access off the UI dispatcher and awaits synchronous commit work. */
     private suspend fun <T> withCache(operation: () -> T): T = withContext(cacheDispatcher) { operation() }
 
@@ -269,8 +363,34 @@ class BffTransitRepository(
             .forEach { (key, _) -> cache.remove(key) }
     }
 
+    /** Bounded exact-query LKG: old pans are evicted by validation time. */
+    private fun trimNearbyEntries(now: Long) {
+        val entries = cache.keys(NearbyCachePrefix).mapNotNull { key ->
+            cache.read<CachedNearbyStops>(key, NearbyMaxChars, now)?.let { key to it }
+        }
+        entries
+            .sortedBy { (_, entry) -> entry.validatedAtEpochMillis }
+            .dropLast(NearbyCacheLimit)
+            .forEach { (key, _) -> cache.remove(key) }
+    }
+
     private fun routeCacheKey(request: RouteListRequest): String =
         "$RouteCachePrefix${request.cityId.value}.${request.locale.name}.${request.mode?.name ?: "all"}"
+
+    private fun nearbyCacheKey(request: NearbyStopRequest): String = buildString {
+        append(NearbyCachePrefix)
+        append(request.cityId.value)
+        append('.')
+        append(request.center.latitude.toBits().toString(16))
+        append('.')
+        append(request.center.longitude.toBits().toString(16))
+        append('.')
+        append(request.radiusMeters)
+        append('.')
+        append(request.limit)
+        append('.')
+        append(request.locale.name)
+    }
 
     private fun TransitCacheEntry<*>.isFresh(now: Long): Boolean =
         now >= 0L &&
@@ -278,11 +398,20 @@ class BffTransitRepository(
             validatedAtEpochMillis in fetchedAtEpochMillis..now &&
             now - validatedAtEpochMillis <= DirectoryTtlMillis
 
+    private fun TransitCacheEntry<*>.isNearbyFresh(now: Long): Boolean =
+        now >= 0L && fetchedAtEpochMillis >= 0L &&
+            validatedAtEpochMillis in fetchedAtEpochMillis..now &&
+            now - validatedAtEpochMillis <= NearbyTtlMillis
+
     private fun List<TransitCity>.asCityResult(freshness: TransitFreshness, validatedAt: Long): TransitLoadResult<List<TransitCity>> =
         if (isEmpty()) TransitLoadResult.Empty(freshness, validatedAtEpochMillis = validatedAt)
         else TransitLoadResult.Data(this, freshness, validatedAtEpochMillis = validatedAt)
 
     private fun List<TransitRoute>.asRouteResult(freshness: TransitFreshness, validatedAt: Long): TransitLoadResult<List<TransitRoute>> =
+        if (isEmpty()) TransitLoadResult.Empty(freshness, validatedAtEpochMillis = validatedAt)
+        else TransitLoadResult.Data(this, freshness, validatedAtEpochMillis = validatedAt)
+
+    private fun List<TransitStop>.asStopResult(freshness: TransitFreshness, validatedAt: Long): TransitLoadResult<List<TransitStop>> =
         if (isEmpty()) TransitLoadResult.Empty(freshness, validatedAtEpochMillis = validatedAt)
         else TransitLoadResult.Data(this, freshness, validatedAtEpochMillis = validatedAt)
 
@@ -301,6 +430,14 @@ class BffTransitRepository(
         val routes = payload(this)
         publishRoutes(this.payload.request, routes)
         routes.asRouteResult(TransitFreshness.StaleOffline, validatedAtEpochMillis).withFailure(error)
+    } else {
+        TransitLoadResult.Failure(error)
+    }
+
+    private fun TransitCacheEntry<CachedNearbyStops>?.staleNearbyOrFailure(
+        error: TransitFailure,
+    ): TransitLoadResult<List<TransitStop>> = if (this != null && error.canUseLastKnownGood) {
+        payload.stops.asStopResult(TransitFreshness.StaleOffline, validatedAtEpochMillis).withFailure(error)
     } else {
         TransitLoadResult.Failure(error)
     }
