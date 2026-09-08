@@ -36,6 +36,13 @@ private final class LocalMapLibreView: UIView, MLNMapViewDelegate {
     private var pendingRenderState: MapRenderState?
     private var layersInstalled = false
     private var lastAppliedCameraRevision: Int64?
+    private var lastStops: [StopRenderInput]?
+    private var lastPolylines: [PolylineRenderInput]?
+    private var lastUserLocation: UserLocationRenderInput?
+    private var lastVehicleSourceRevision: Int64?
+    private var lastVehicleBadgeRevision: Int64?
+    private var badgeImageNames: [VehicleBadgeStyle: String] = [:]
+    private var nextBadgeImageIndex = 0
     private var released = false
     private let onViewportSettled: (MapViewport) -> KotlinUnit
     private let onStopTapped: (Any) -> KotlinUnit
@@ -88,6 +95,7 @@ private final class LocalMapLibreView: UIView, MLNMapViewDelegate {
         guard !released else { return }
         layersInstalled = false
         lastAppliedCameraRevision = nil
+        clearRenderedLayerState()
         installSourcesAndLayersIfNeeded(style: style)
         pendingRenderState.map { render($0, style: style) }
     }
@@ -104,6 +112,7 @@ private final class LocalMapLibreView: UIView, MLNMapViewDelegate {
         mapView.showsUserLocation = false
         mapView.disableLocationManager()
         mapView.removeFromSuperview()
+        clearRenderedLayerState()
     }
 
     private func installSourcesAndLayersIfNeeded(style: MLNStyle) {
@@ -139,11 +148,11 @@ private final class LocalMapLibreView: UIView, MLNMapViewDelegate {
         stopsLayer.circleStrokeWidth = NSExpression(forConstantValue: 2)
         style.addLayer(stopsLayer)
 
-        let vehiclesLayer = MLNCircleStyleLayer(identifier: Self.vehiclesLayerID, source: vehiclesSource)
-        vehiclesLayer.circleColor = NSExpression(forKeyPath: Self.routeColorProperty)
-        vehiclesLayer.circleRadius = NSExpression(forConstantValue: 7)
-        vehiclesLayer.circleStrokeColor = NSExpression(forConstantValue: UIColor(red: 0.15, green: 0.20, blue: 0.22, alpha: 1))
-        vehiclesLayer.circleStrokeWidth = NSExpression(forConstantValue: 2)
+        let vehiclesLayer = MLNSymbolStyleLayer(identifier: Self.vehiclesLayerID, source: vehiclesSource)
+        vehiclesLayer.iconImageName = NSExpression(forKeyPath: Self.vehicleBadgeImageProperty)
+        vehiclesLayer.iconOpacity = NSExpression(forKeyPath: Self.vehicleOpacityProperty)
+        vehiclesLayer.iconAllowsOverlap = NSExpression(forConstantValue: true)
+        vehiclesLayer.iconIgnoresPlacement = NSExpression(forConstantValue: true)
         style.addLayer(vehiclesLayer)
 
         let userLocationLayer = MLNCircleStyleLayer(identifier: Self.userLocationLayerID, source: userLocationSource)
@@ -157,15 +166,34 @@ private final class LocalMapLibreView: UIView, MLNMapViewDelegate {
     }
 
     private func render(_ state: MapRenderState, style: MLNStyle) {
-        updateSource(
-            style: style,
-            identifier: Self.stopsSourceID,
-            features: stopFeatures(state.stops) + clusterFeatures(state.stopClusters)
-        )
-        updateSource(style: style, identifier: Self.vehiclesSourceID, features: vehicleFeatures(state.vehicles))
-        updateSource(style: style, identifier: Self.polylinesSourceID, features: polylineFeatures(state.polylines))
-        updateSource(style: style, identifier: Self.userLocationSourceID, features: userLocationFeatures(state.userLocation))
-        updateSource(style: style, identifier: Self.userAccuracySourceID, features: userAccuracyFeatures(state.userLocation))
+        let stops = stopRenderInputs(state.stops, state.stopClusters)
+        if lastStops != stops {
+            updateSource(
+                style: style,
+                identifier: Self.stopsSourceID,
+                features: stopFeatures(state.stops) + clusterFeatures(state.stopClusters)
+            )
+            lastStops = stops
+        }
+        if lastVehicleSourceRevision != state.vehicleSourceRevision {
+            if lastVehicleBadgeRevision != state.vehicleBadgeRevision {
+                updateBadgeImages(style: style, renderInput: vehicleBadgeRenderInput(state.vehicles))
+                lastVehicleBadgeRevision = state.vehicleBadgeRevision
+            }
+            updateSource(style: style, identifier: Self.vehiclesSourceID, features: vehicleFeatures(state.vehicles))
+            lastVehicleSourceRevision = state.vehicleSourceRevision
+        }
+        let polylines = polylineRenderInputs(state.polylines)
+        if lastPolylines != polylines {
+            updateSource(style: style, identifier: Self.polylinesSourceID, features: polylineFeatures(state.polylines))
+            lastPolylines = polylines
+        }
+        let userLocation = userLocationRenderInput(state.userLocation)
+        if lastUserLocation != userLocation {
+            updateSource(style: style, identifier: Self.userLocationSourceID, features: userLocationFeatures(state.userLocation))
+            updateSource(style: style, identifier: Self.userAccuracySourceID, features: userAccuracyFeatures(state.userLocation))
+            lastUserLocation = userLocation
+        }
         applyCameraIfNeeded(state.camera)
     }
 
@@ -287,6 +315,25 @@ private final class LocalMapLibreView: UIView, MLNMapViewDelegate {
         return Self.earthRadiusMeters * 2 * atan2(sqrt(a), sqrt(1 - a))
     }
 
+    private func updateBadgeImages(style: MLNStyle, renderInput: VehicleBadgeRenderInput) {
+        let retainedStyles = Set(renderInput.styles)
+        badgeImageNames.keys.filter { !retainedStyles.contains($0) }.forEach { badgeStyle in
+            if let imageName = badgeImageNames.removeValue(forKey: badgeStyle) {
+                style.removeImage(forName: imageName)
+            }
+        }
+        renderInput.styles.forEach { badgeStyle in
+            guard badgeImageNames[badgeStyle] == nil else { return }
+            nextBadgeImageIndex += 1
+            let imageName = "gt-vehicle-badge-\(nextBadgeImageIndex)"
+            style.setImage(badgeStyle.image(), forName: imageName)
+            badgeImageNames[badgeStyle] = imageName
+        }
+        if renderInput.needsOverflow && style.image(forName: Self.overflowBadgeImageName) == nil {
+            style.setImage(VehicleBadgeStyle(label: "?", backgroundArgb: 0xFF455A64, textArgb: 0xFFFFFFFF, stale: false).image(), forName: Self.overflowBadgeImageName)
+        }
+    }
+
     private func vehicleFeatures(_ markers: [MapVehicleMarker]) -> [[String: Any]] {
         markers
             .filter { !$0.stableId.isEmpty && !$0.stableRouteId.isEmpty && isCoordinateValid($0.position) }
@@ -294,7 +341,8 @@ private final class LocalMapLibreView: UIView, MLNMapViewDelegate {
             .prefix(Self.maximumVehicleMarkers)
             .map { marker in
                 var properties: [String: Any] = [
-                    Self.routeColorProperty: mapColor(marker.routeColorArgb),
+                    Self.vehicleBadgeImageProperty: badgeImageNames[badgeStyle(marker)] ?? Self.overflowBadgeImageName,
+                    Self.vehicleOpacityProperty: marker.isStale ? Self.staleVehicleOpacity : 1.0,
                     Self.positionKindProperty: marker.positionKind.name,
                 ]
                 if let bearing = marker.bearingDegrees?.doubleValue, bearing.isFinite {
@@ -318,7 +366,7 @@ private final class LocalMapLibreView: UIView, MLNMapViewDelegate {
             })
             .prefix(Self.maximumPolylines)
             .compactMap { (polyline: MapPolyline) -> [String: Any]? in
-                let points = polyline.points.filter(isCoordinateValid)
+                let points = Array(polyline.points.filter(isCoordinateValid).prefix(Self.maximumPolylinePoints))
                 guard points.count >= 2, zip(points, points.dropFirst()).contains(where: { $0 != $1 }) else { return nil }
                 return [
                     "type": "Feature",
@@ -397,6 +445,114 @@ private final class LocalMapLibreView: UIView, MLNMapViewDelegate {
         (bearing.truncatingRemainder(dividingBy: 360) + 360).truncatingRemainder(dividingBy: 360)
     }
 
+    private func badgeStyle(_ marker: MapVehicleMarker) -> VehicleBadgeStyle {
+        VehicleBadgeStyle(
+            label: nativeBadgeLabel(marker.routeLabel),
+            backgroundArgb: marker.routeColorArgb | 0xFF000000,
+            textArgb: marker.routeTextColorArgb | 0xFF000000,
+            stale: marker.isStale
+        )
+    }
+
+    /** Exact badge inputs are separate from geometry, so interpolation never recreates bitmaps. */
+    private func vehicleBadgeRenderInput(_ markers: [MapVehicleMarker]) -> VehicleBadgeRenderInput {
+        let allStyles = Array(
+            Set(
+                markers
+                    .filter { !$0.stableId.isEmpty && !$0.stableRouteId.isEmpty && isCoordinateValid($0.position) }
+                    .map(badgeStyle)
+            )
+        )
+        .sorted { $0.sortKey < $1.sortKey }
+        return VehicleBadgeRenderInput(
+            styles: Array(allStyles.prefix(Self.maximumVehicleBadgeImages)),
+            needsOverflow: allStyles.count > Self.maximumVehicleBadgeImages
+        )
+    }
+
+    /** Exact, bounded values consumed by the stop source, including a11y labels. */
+    private func stopRenderInputs(
+        _ markers: [MapStopMarker],
+        _ clusters: [MapStopCluster]
+    ) -> [StopRenderInput] {
+        let stops = markers
+            .filter { !$0.stableId.isEmpty && isCoordinateValid($0.position) }
+            .sorted { $0.stableId < $1.stableId }
+            .prefix(Self.maximumStopMarkers)
+            .map {
+                StopRenderInput(
+                    kind: Self.stopFeatureKind,
+                    id: $0.stableId,
+                    position: RenderCoordinate($0.position),
+                    accessibilityLabel: $0.accessibilityLabel,
+                    isSelected: $0.isSelected,
+                    count: nil
+                )
+            }
+        let clusterItems = clusters
+            .filter { !$0.stableId.isEmpty && $0.stopCount > 1 && isCoordinateValid($0.position) }
+            .sorted { $0.stableId < $1.stableId }
+            .prefix(Self.maximumStopMarkers)
+            .map {
+                StopRenderInput(
+                    kind: Self.clusterFeatureKind,
+                    id: $0.stableId,
+                    position: RenderCoordinate($0.position),
+                    accessibilityLabel: $0.accessibilityLabel,
+                    isSelected: false,
+                    count: $0.stopCount
+                )
+            }
+        return stops + clusterItems
+    }
+
+    /** Exact geometry is retained only for the polylines actually emitted by the native source. */
+    private func polylineRenderInputs(_ polylines: [MapPolyline]) -> [PolylineRenderInput] {
+        polylines
+            .filter { !$0.stableRouteId.isEmpty }
+            .sorted {
+                let firstDirection = $0.stableDirectionId ?? ""
+                let secondDirection = $1.stableDirectionId ?? ""
+                return $0.stableRouteId == $1.stableRouteId ? firstDirection < secondDirection : $0.stableRouteId < $1.stableRouteId
+            }
+            .prefix(Self.maximumPolylines)
+            .compactMap { polyline in
+                let points = Array(polyline.points.filter(isCoordinateValid).prefix(Self.maximumPolylinePoints))
+                guard points.count >= 2, zip(points, points.dropFirst()).contains(where: { $0 != $1 }) else { return nil }
+                return PolylineRenderInput(
+                    routeId: polyline.stableRouteId,
+                    directionId: polyline.stableDirectionId,
+                    points: points.map(RenderCoordinate.init),
+                    colorArgb: polyline.routeColorArgb,
+                    freshness: polyline.freshness.name
+                )
+            }
+    }
+
+    private func userLocationRenderInput(_ location: UserLocationFix?) -> UserLocationRenderInput? {
+        guard
+            let location,
+            isCoordinateValid(location.point),
+            location.accuracyMeters.isFinite,
+            location.accuracyMeters >= 0
+        else { return nil }
+        return UserLocationRenderInput(
+            position: RenderCoordinate(location.point),
+            accuracyMeters: location.accuracyMeters,
+            precision: location.precision.name
+        )
+    }
+
+    private func clearRenderedLayerState() {
+        lastStops = nil
+        lastPolylines = nil
+        lastUserLocation = nil
+        lastVehicleSourceRevision = nil
+        lastVehicleBadgeRevision = nil
+        badgeImageNames.removeAll()
+        nextBadgeImageIndex = 0
+    }
+
     private static let stopsSourceID = "gt-stops-source"
     private static let vehiclesSourceID = "gt-vehicles-source"
     private static let polylinesSourceID = "gt-polylines-source"
@@ -411,6 +567,8 @@ private final class LocalMapLibreView: UIView, MLNMapViewDelegate {
     private static let routeColorProperty = "routeColor"
     private static let bearingProperty = "bearing"
     private static let positionKindProperty = "positionKind"
+    private static let vehicleBadgeImageProperty = "vehicleBadgeImage"
+    private static let vehicleOpacityProperty = "vehicleOpacity"
     private static let featureIDProperty = "featureId"
     private static let featureKindProperty = "featureKind"
     private static let accessibilityLabelProperty = "accessibilityLabel"
@@ -427,13 +585,124 @@ private final class LocalMapLibreView: UIView, MLNMapViewDelegate {
     private static let clusterRadius = 12
     private static let maximumStopMarkers = 1_000
     private static let maximumVehicleMarkers = 2_000
+    private static let maximumVehicleBadgeImages = 256
     private static let maximumPolylines = 256
+    private static let maximumPolylinePoints = 20_000
     private static let minimumPolygonPoints = 4
     private static let minimumZoom = 0.0
     private static let maximumZoom = 22.0
     private static let accuracySegments = 64
     private static let earthRadiusMeters = 6_371_008.8
     private static let minimumStopTargetPoints: CGFloat = 44
+    private static let overflowBadgeImageName = "gt-vehicle-badge-overflow"
+    private static let staleVehicleOpacity: Double = 0.62
+}
+
+private struct RenderCoordinate: Equatable {
+    let latitude: Double
+    let longitude: Double
+
+    init(_ point: GeoPoint) {
+        latitude = point.latitude
+        longitude = point.longitude
+    }
+}
+
+private struct StopRenderInput: Equatable {
+    let kind: String
+    let id: String
+    let position: RenderCoordinate
+    let accessibilityLabel: String
+    let isSelected: Bool
+    let count: Int32?
+}
+
+private struct PolylineRenderInput: Equatable {
+    let routeId: String
+    let directionId: String?
+    let points: [RenderCoordinate]
+    let colorArgb: Int64
+    let freshness: String
+}
+
+private struct UserLocationRenderInput: Equatable {
+    let position: RenderCoordinate
+    let accuracyMeters: Double
+    let precision: String
+}
+
+private struct VehicleBadgeStyle: Hashable {
+    let label: String
+    let backgroundArgb: Int64
+    let textArgb: Int64
+    let stale: Bool
+
+    var sortKey: String {
+        "\(label)|\(backgroundArgb)|\(textArgb)|\(stale)"
+    }
+
+    func image() -> UIImage {
+        let font = UIFont.boldSystemFont(ofSize: 14)
+        let textAttributes: [NSAttributedString.Key: Any] = [
+            .font: font,
+            .foregroundColor: UIColor(argb: textArgb),
+        ]
+        let textSize = (label as NSString).size(withAttributes: textAttributes)
+        let width = min(max(textSize.width + 24, 36), 104)
+        let size = CGSize(width: width, height: 32)
+        return UIGraphicsImageRenderer(size: size).image { _ in
+            UIColor(argb: backgroundArgb).setFill()
+            UIBezierPath(roundedRect: CGRect(origin: .zero, size: size), cornerRadius: size.height / 2).fill()
+            let textRect = CGRect(
+                x: 0,
+                y: (size.height - textSize.height) / 2,
+                width: size.width,
+                height: textSize.height
+            )
+            var centeredTextAttributes = textAttributes
+            centeredTextAttributes[.paragraphStyle] = centeredParagraphStyle
+            (label as NSString).draw(in: textRect, withAttributes: centeredTextAttributes)
+            if stale {
+                // Two diagonal strokes remain recognisable even when colour and opacity are unavailable.
+                let cue = UIBezierPath()
+                cue.move(to: CGPoint(x: 5, y: size.height - 5))
+                cue.addLine(to: CGPoint(x: size.height - 5, y: 5))
+                cue.move(to: CGPoint(x: size.height / 2, y: size.height - 5))
+                cue.addLine(to: CGPoint(x: size.height + size.height / 2 - 5, y: 5))
+                UIColor(argb: textArgb).withAlphaComponent(0.7).setStroke()
+                cue.lineWidth = 2
+                cue.stroke()
+            }
+        }
+    }
+}
+
+private struct VehicleBadgeRenderInput: Equatable {
+    let styles: [VehicleBadgeStyle]
+    let needsOverflow: Bool
+}
+
+private let centeredParagraphStyle: NSParagraphStyle = {
+    let style = NSMutableParagraphStyle()
+    style.alignment = .center
+    return style
+}()
+
+private func nativeBadgeLabel(_ value: String) -> String {
+    // Common presentation already removes control/provider punctuation before this native boundary.
+    let label = value.trimmingCharacters(in: .whitespacesAndNewlines)
+    return String(label.prefix(8)).isEmpty ? "?" : String(label.prefix(8))
+}
+
+private extension UIColor {
+    convenience init(argb: Int64) {
+        self.init(
+            red: CGFloat((argb >> 16) & 0xFF) / 255,
+            green: CGFloat((argb >> 8) & 0xFF) / 255,
+            blue: CGFloat(argb & 0xFF) / 255,
+            alpha: CGFloat((argb >> 24) & 0xFF) / 255
+        )
+    }
 }
 
 /** The common overlay supplies localized textual state if the bundled style cannot load. */

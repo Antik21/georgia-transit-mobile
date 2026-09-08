@@ -80,6 +80,14 @@ data class MapVehicleMarker(
     val bearingDegrees: Double?,
     val positionKind: VehiclePositionKind,
     val freshness: TransitFreshness,
+    /** Sanitized route short name used by native, local bitmap badge renderers. */
+    val routeLabel: String,
+    /** Chosen in common code to guarantee a WCAG 4.5:1 badge text contrast ratio. */
+    val routeTextColorArgb: Long,
+    /** Non-colour stale cue is rendered by each adapter in addition to reduced opacity. */
+    val isStale: Boolean,
+    /** Monotonic frame/source revision; it changes without touching [MapCameraCommand.revision]. */
+    val frameRevision: Long,
 ) {
     /** iOS-safe bridge keys; opaque typed identifiers remain available to common presentation. */
     val stableId: String get() = id.value
@@ -122,6 +130,10 @@ data class MapRenderState(
     val vehicles: PersistentList<MapVehicleMarker> = persistentListOf(),
     val polylines: PersistentList<MapPolyline> = persistentListOf(),
     val userLocation: UserLocationFix? = null,
+    /** Lets adapters replace only the grouped vehicle source during interpolation/expiry ticks. */
+    val vehicleSourceRevision: Long = 0L,
+    /** Changes only when a native route-badge bitmap style can change, never for frame geometry. */
+    val vehicleBadgeRevision: Long = 0L,
 ) {
     /**
      * Converts arbitrary caller-owned iterables into persistent snapshots, which is the convenient
@@ -135,6 +147,8 @@ data class MapRenderState(
             vehicles: Iterable<MapVehicleMarker> = emptyList(),
             polylines: Iterable<MapPolyline> = emptyList(),
             userLocation: UserLocationFix? = null,
+            vehicleSourceRevision: Long = 0L,
+            vehicleBadgeRevision: Long = 0L,
         ): MapRenderState = MapRenderState(
             camera = camera,
             stops = stops.toPersistentList(),
@@ -142,6 +156,8 @@ data class MapRenderState(
             vehicles = vehicles.toPersistentList(),
             polylines = polylines.toPersistentList(),
             userLocation = userLocation,
+            vehicleSourceRevision = vehicleSourceRevision,
+            vehicleBadgeRevision = vehicleBadgeRevision,
         )
     }
 }

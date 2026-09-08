@@ -106,6 +106,8 @@ class MapResourceContractTest {
             AutomationId.MapSelectedStop,
             AutomationId.MapNearbyStops,
             AutomationId.MapNearbyStop,
+            AutomationId.MapVehicles,
+            AutomationId.MapVehiclesLiveNonempty,
             AutomationId.MapRetry,
             AutomationId.MapAttribution,
         )
@@ -119,6 +121,8 @@ class MapResourceContractTest {
         assertEquals("map.selected-stop", AutomationId.MapSelectedStop)
         assertEquals("map.nearby-stops", AutomationId.MapNearbyStops)
         assertEquals("map.nearby-stop", AutomationId.MapNearbyStop)
+        assertEquals("map.vehicles", AutomationId.MapVehicles)
+        assertEquals("map.vehicles.live-nonempty", AutomationId.MapVehiclesLiveNonempty)
         assertEquals("map.retry", AutomationId.MapRetry)
         assertEquals("map.attribution.link.transitous", AutomationId.mapAttributionLink("transitous"))
     }
@@ -180,6 +184,71 @@ class MapResourceContractTest {
         assertTrue(denied.contains("tapOn:\n    id: ${AutomationId.MapRoutes}"))
         assertTrue(granted.contains("id: ${AutomationId.MapMyLocation}"))
         assertTrue(granted.contains("id: ${AutomationId.MapUserLocation}"))
+    }
+
+    @Test
+    fun realtimeVehicleFlowUsesOnlyStableIdsAndRequiresTheOptInDevelopmentBffFixture() {
+        val root = projectRoot()
+        val flow = root.resolve(VehicleRealtimeFlow).readText()
+        val readme = root.resolve(MaestroReadme).readText()
+
+        assertFalse(flow.contains("text:"), "Maestro selectors must not depend on localized text")
+        assertFalse(flow.contains("point:"), "Maestro selectors must not use raw coordinates")
+        assertTrue(flow.contains("id: ${AutomationId.MapScreen}"))
+        assertTrue(flow.contains("id: ${AutomationId.MapVehiclesLiveNonempty}"))
+        assertTrue(flow.contains("id: ${AutomationId.MapRoutes}"))
+        assertTrue(readme.contains("run-android-vehicle-realtime.sh"))
+        assertTrue(readme.contains("BFF_MODE=development BFF_FIXTURES_ENABLED=true"))
+        assertTrue(readme.contains("never carries"))
+        assertTrue(readme.contains("provider secret"))
+    }
+
+    @Test
+    fun realtimeVehicleAdapterSourceSmokePinsGroupedNativeLayerAndReleaseHooks() {
+        val root = projectRoot()
+        val android = root.resolve(
+            "shared/src/androidMain/kotlin/com/denis/georgiatransit/shared/presentation/map/PlatformMap.android.kt",
+        ).readText()
+        val swift = root.resolve("iosApp/iosApp/MapLibreMapViewBridge.swift").readText()
+
+        assertCodePath(
+            android,
+            "GeoJsonSource(VEHICLES_SOURCE_ID",
+            "SymbolLayer(VEHICLES_LAYER_ID, VEHICLES_SOURCE_ID)",
+            "lastVehicleSourceRevision != renderState.vehicleSourceRevision",
+            "lastVehicleBadgeRevision != renderState.vehicleBadgeRevision",
+            "MAX_VEHICLE_BADGE_IMAGES = 256",
+            "STALE_VEHICLE_OPACITY",
+        )
+        assertTrue(android.contains("clearRenderedLayerState()"))
+        assertTrue(android.contains("layersInstalled = false"))
+        assertFalse(android.contains("MarkerView"), "Source smoke: no Android per-vehicle view adapter")
+        assertCodePath(
+            swift,
+            "MLNShapeSource(identifier: Self.vehiclesSourceID",
+            "MLNSymbolStyleLayer(identifier: Self.vehiclesLayerID, source: vehiclesSource)",
+            "lastVehicleSourceRevision != state.vehicleSourceRevision",
+            "lastVehicleBadgeRevision != state.vehicleBadgeRevision",
+            "maximumVehicleBadgeImages = 256",
+            "staleVehicleOpacity",
+        )
+        assertTrue(swift.contains("func mapView(_ mapView: MLNMapView, didFinishLoading style: MLNStyle)"))
+        assertTrue(swift.contains("func releaseResources()"))
+        assertTrue(swift.contains("badgeImageNames.removeAll()"))
+        assertFalse(swift.contains("AnnotationView"), "Source smoke: no iOS per-vehicle view adapter")
+    }
+
+    @Test
+    fun sourcePathHelperIgnoresLineAndBlockComments() {
+        val source = """
+            // precondition text is not executable
+            fun checked() { /* ignored */ val actual = 1 // trailing text
+            }
+        """.trimIndent()
+
+        assertCodePath(source, "fun checked()", "val actual = 1")
+        assertFalse(source.compactWhitespace().contains("precondition text"))
+        assertFalse(source.compactWhitespace().contains("ignored"))
     }
 
     @Test
@@ -362,7 +431,10 @@ class MapResourceContractTest {
         error("No matching '$closing' for '$opening' at index $start")
     }
 
-    private fun String.compactWhitespace(): String = replace(Regex("\\s+"), " ")
+    private fun String.compactWhitespace(): String =
+        replace(Regex("(?s)/\\*.*?\\*/"), "")
+            .replace(Regex("//[^\\r\\n]*"), "")
+            .replace(Regex("\\s+"), " ")
 
     private fun assertCodePath(source: String, vararg fragments: String) {
         val compact = source.compactWhitespace()
@@ -414,6 +486,14 @@ class MapResourceContractTest {
             "map_selected_routes",
             "map_selected_stop",
             "map_nearby_stops_title",
+            "map_vehicles_summary",
+            "map_vehicle_route_summary",
+            "map_vehicle_status_loading",
+            "map_vehicle_status_live",
+            "map_vehicle_status_stale",
+            "map_vehicle_status_retryable",
+            "map_vehicle_status_unavailable",
+            "map_vehicle_status_mixed",
             "map_cluster_stops",
             "map_retry_action",
             "map_attribution_title",
@@ -421,5 +501,7 @@ class MapResourceContractTest {
         const val ShellSmokeFlow = "ui-tests/maestro/flows/shell-smoke.yaml"
         const val LocationSettingsFallbackFlow = "ui-tests/maestro/flows/location-settings-fallback-smoke.yaml"
         const val LocationGrantedFlow = "ui-tests/maestro/flows/location-granted-smoke.yaml"
+        const val VehicleRealtimeFlow = "ui-tests/maestro/flows/vehicle-realtime-smoke.yaml"
+        const val MaestroReadme = "ui-tests/maestro/README.md"
     }
 }

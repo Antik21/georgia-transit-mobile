@@ -16,10 +16,12 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -32,6 +34,9 @@ import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.intl.Locale
 import androidx.compose.ui.text.withLink
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.denis.georgiatransit.shared.domain.model.GeoPoint
 import com.denis.georgiatransit.shared.domain.model.LocalizedText
 import com.denis.georgiatransit.shared.domain.model.TransitAttribution
@@ -81,6 +86,14 @@ import georgiatransit.shared.generated.resources.map_retry_action
 import georgiatransit.shared.generated.resources.map_selected_routes
 import georgiatransit.shared.generated.resources.map_selected_stop
 import georgiatransit.shared.generated.resources.map_title
+import georgiatransit.shared.generated.resources.map_vehicle_status_live
+import georgiatransit.shared.generated.resources.map_vehicle_status_loading
+import georgiatransit.shared.generated.resources.map_vehicle_status_mixed
+import georgiatransit.shared.generated.resources.map_vehicle_status_retryable
+import georgiatransit.shared.generated.resources.map_vehicle_status_stale
+import georgiatransit.shared.generated.resources.map_vehicle_status_unavailable
+import georgiatransit.shared.generated.resources.map_vehicles_summary
+import georgiatransit.shared.generated.resources.map_vehicle_route_summary
 import org.jetbrains.compose.resources.stringResource
 import kotlinx.collections.immutable.toPersistentList
 import org.orbitmvi.orbit.compose.collectAsState
@@ -92,6 +105,9 @@ fun MapScreen(viewModel: MapViewModel, handleNavigation: suspend (NavigationEffe
     val language = Locale.current.language
     LaunchedEffect(language) {
         viewModel.dispatchAction(Action.LocaleChanged(language.toTransitLocale()))
+    }
+    MapRealtimeVisibilityEffect { visibleAndStarted ->
+        viewModel.dispatchAction(Action.RealtimeVisibilityChanged(visibleAndStarted))
     }
     var platformCommand by remember { mutableStateOf<LocationPlatformCommand?>(null) }
     viewModel.collectSideEffect { effect ->
@@ -146,6 +162,10 @@ private fun Content(state: ViewState, onAction: (Action) -> Unit) {
             verticalArrangement = Arrangement.spacedBy(TransitSpacing.Small),
         ) {
             LocationStatus(state.location)
+            VehicleAccessibility(
+                layerState = state.vehicleLayerState,
+                routes = state.vehicleRoutes,
+            )
             NearbyStopsAccessibility(
                 stops = state.nearbyStops,
                 onStopSelected = { onAction(Action.StopSelected(it)) },
@@ -177,6 +197,33 @@ private fun Content(state: ViewState, onAction: (Action) -> Unit) {
                 ) { Text(stringResource(Res.string.map_routes_action)) }
             }
             CityAttribution(state.attribution)
+        }
+    }
+}
+
+/** Common navigation/composition visibility plus the host lifecycle is the realtime ownership gate. */
+@Composable
+private fun MapRealtimeVisibilityEffect(onVisibilityChanged: (Boolean) -> Unit) {
+    val lifecycleOwner = LocalLifecycleOwner.current
+    val currentOnVisibilityChanged = rememberUpdatedState(onVisibilityChanged)
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            when (event) {
+                Lifecycle.Event.ON_START,
+                Lifecycle.Event.ON_RESUME,
+                -> currentOnVisibilityChanged.value(true)
+                Lifecycle.Event.ON_PAUSE,
+                Lifecycle.Event.ON_STOP,
+                Lifecycle.Event.ON_DESTROY,
+                -> currentOnVisibilityChanged.value(false)
+                else -> Unit
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        currentOnVisibilityChanged.value(lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED))
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+            currentOnVisibilityChanged.value(false)
         }
     }
 }
@@ -328,6 +375,62 @@ private fun MapRenderState.withLocalizedClusterLabels(): MapRenderState = copy(
         )
     }.toPersistentList(),
 )
+
+/** A concise textual equivalent of the badge layer; it intentionally does not replace stop state. */
+@Composable
+private fun VehicleAccessibility(
+    layerState: VehicleLayerState,
+    routes: List<VehicleRouteAccessibilityUi>,
+) {
+    if (layerState == VehicleLayerState.Hidden || routes.isEmpty()) return
+    val status = vehicleStatusLabel(layerState)
+    val routeCounts = routes.map { route ->
+        stringResource(
+            Res.string.map_vehicle_route_summary,
+            route.routeLabel,
+            route.vehicleCount,
+            vehicleStatusLabel(route.layerState),
+        )
+    }.joinToString(separator = " · ")
+    val summary = stringResource(Res.string.map_vehicles_summary, status, routeCounts)
+    val summaryModifier = Modifier
+        .fillMaxWidth()
+        .testTag(AutomationId.MapVehicles)
+        .semantics { liveRegion = LiveRegionMode.Polite }
+    val hasLiveNonemptyRoute = routes.any { route ->
+        route.layerState == VehicleLayerState.Live && route.vehicleCount > 0
+    }
+    if (hasLiveNonemptyRoute) {
+        // A fixed parent semantics node lets automation prove rendered live geometry, while the
+        // always-present child retains the localized accessibility summary and its existing ID.
+        Box(modifier = Modifier.fillMaxWidth().testTag(AutomationId.MapVehiclesLiveNonempty)) {
+            Text(
+                summary,
+                modifier = summaryModifier,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    } else {
+        Text(
+            summary,
+            modifier = summaryModifier,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+}
+
+@Composable
+private fun vehicleStatusLabel(layerState: VehicleLayerState): String = when (layerState) {
+    VehicleLayerState.Hidden -> ""
+    VehicleLayerState.Loading -> stringResource(Res.string.map_vehicle_status_loading)
+    VehicleLayerState.Live -> stringResource(Res.string.map_vehicle_status_live)
+    VehicleLayerState.Stale -> stringResource(Res.string.map_vehicle_status_stale)
+    VehicleLayerState.Retryable -> stringResource(Res.string.map_vehicle_status_retryable)
+    VehicleLayerState.Unavailable -> stringResource(Res.string.map_vehicle_status_unavailable)
+    VehicleLayerState.Mixed -> stringResource(Res.string.map_vehicle_status_mixed)
+}
 
 /** Screen-reader and switch-control equivalent of stop marker activation. */
 @Composable

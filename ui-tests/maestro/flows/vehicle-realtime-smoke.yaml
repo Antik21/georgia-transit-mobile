@@ -1,0 +1,26 @@
+appId: com.denis.georgiatransit
+---
+# Precondition: the Debug app reaches only the opt-in local development BFF fixture.
+- launchApp:
+    clearState: true
+- assertVisible:
+    id: city-selection.screen
+- tapOn:
+    id: city-selection.demo
+- tapOn:
+    id: city-selection.continue
+- assertVisible:
+    id: map.screen
+- tapOn:
+    id: map.routes
+- assertVisible:
+    id: routes.screen
+- tapOn:
+    id: routes.option
+    index: 0
+- tapOn:
+    id: routes.confirm
+- assertVisible:
+    id: map.screen
+- assertVisible:
+    id: map.vehicles.live-nonempty

@@ -1,0 +1,28 @@
+appId: com.denis.georgiatransit
+---
+# Precondition: vehicle-realtime-smoke.yaml selected the route in the current app process.
+# Re-enters the map without text or coordinate selectors. The selected route survives every cycle.
+- tapOn:
+    id: map.routes
+- assertVisible:
+    id: routes.screen
+- tapOn:
+    id: routes.back
+- assertVisible:
+    id: map.vehicles.live-nonempty
+- tapOn:
+    id: map.routes
+- assertVisible:
+    id: routes.screen
+- tapOn:
+    id: routes.back
+- assertVisible:
+    id: map.vehicles.live-nonempty
+- tapOn:
+    id: map.routes
+- assertVisible:
+    id: routes.screen
+- tapOn:
+    id: routes.back
+- assertVisible:
+    id: map.vehicles.live-nonempty

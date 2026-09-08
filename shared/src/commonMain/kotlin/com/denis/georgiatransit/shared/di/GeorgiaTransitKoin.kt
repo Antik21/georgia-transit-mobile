@@ -16,6 +16,10 @@ import com.denis.georgiatransit.shared.presentation.cityselection.CitySelectionV
 import com.denis.georgiatransit.shared.presentation.location.LocationSession
 import com.denis.georgiatransit.shared.presentation.location.RuntimeLocationSession
 import com.denis.georgiatransit.shared.presentation.map.MapViewModel
+import com.denis.georgiatransit.shared.presentation.map.DefaultVehicleRealtimeTickerPolicy
+import com.denis.georgiatransit.shared.presentation.map.SystemVehicleRealtimeClock
+import com.denis.georgiatransit.shared.presentation.map.VehicleRealtimeClock
+import com.denis.georgiatransit.shared.presentation.map.VehicleRealtimeTickerPolicy
 import com.denis.georgiatransit.shared.presentation.routes.RoutesViewModel
 import com.denis.georgiatransit.shared.presentation.splash.SplashViewModel
 import org.koin.core.context.startKoin
@@ -36,6 +40,8 @@ private fun appModule(
     single<TransitRepository> { BffTransitRepository(client = get(), cache = get()) }
     single<TransitSession> { RuntimeTransitSession(selectedCityStore = get()) }
     single<LocationSession> { RuntimeLocationSession() }
+    single<VehicleRealtimeClock> { SystemVehicleRealtimeClock() }
+    single<VehicleRealtimeTickerPolicy> { DefaultVehicleRealtimeTickerPolicy }
     factory {
         BootstrapTransitSession(
             repository = get(),
@@ -46,7 +52,15 @@ private fun appModule(
     }
     factory { SplashViewModel(bootstrapTransitSession = get()) }
     factory { CitySelectionViewModel(repository = get(), session = get(), locationSession = get()) }
-    factory { MapViewModel(repository = get(), session = get(), locationSession = get()) }
+    factory {
+        MapViewModel(
+            repository = get(),
+            session = get(),
+            locationSession = get(),
+            realtimeClock = get(),
+            realtimeTickerPolicy = get(),
+        )
+    }
     factory { RoutesViewModel(repository = get(), session = get()) }
 }
 

@@ -53,6 +53,15 @@
     <string name="map_selected_stop">Selected stop: %1$s</string>
     <string name="map_nearby_stops_title">Stops in this area</string>
     <string name="map_cluster_stops">%1$d nearby stops</string>
+    <string name="map_vehicles_summary">Vehicle positions: %1$s. %2$s</string>
+    <string name="map_vehicle_count">%1$s: %2$d</string>
+    <string name="map_vehicle_route_summary">%1$s: %2$d, %3$s</string>
+    <string name="map_vehicle_status_loading">loading</string>
+    <string name="map_vehicle_status_live">live</string>
+    <string name="map_vehicle_status_stale">showing older positions</string>
+    <string name="map_vehicle_status_retryable">temporarily unavailable; showing older positions</string>
+    <string name="map_vehicle_status_unavailable">unavailable</string>
+    <string name="map_vehicle_status_mixed">mixed route availability</string>
     <string name="map_retry_action">Try again</string>
     <string name="map_attribution_title">Data sources and attribution</string>
     <string name="routes_title">Routes</string>

@@ -1,6 +1,7 @@
 package com.denis.georgiatransit.shared.presentation.map
 
 import androidx.compose.runtime.Immutable
+import com.denis.georgiatransit.shared.domain.model.RouteId
 import com.denis.georgiatransit.shared.domain.model.TransitAttribution
 import com.denis.georgiatransit.shared.domain.model.StopId
 import com.denis.georgiatransit.shared.domain.model.TransitLocale
@@ -41,6 +42,34 @@ data class ViewState(
     val location: LocationState = LocationState(),
     val selectedStop: SelectedStopUi? = null,
     val nearbyStops: List<NearbyStopUi> = emptyList(),
+    /** Independent from nearby-stop loading: vehicle polling must never replace stop feedback. */
+    val vehicleLayerState: VehicleLayerState = VehicleLayerState.Hidden,
+    val vehicleRoutes: List<VehicleRouteAccessibilityUi> = emptyList(),
+)
+
+/** Product-level realtime availability. No transport or provider details reach the UI. */
+@Immutable
+sealed interface VehicleLayerState {
+    @Immutable data object Hidden : VehicleLayerState
+    @Immutable data object Loading : VehicleLayerState
+    @Immutable data object Live : VehicleLayerState
+    /** A last valid frame is visible but no longer fresh. */
+    @Immutable data object Stale : VehicleLayerState
+    /** The next normal polling interval will try again; existing tracks are held stale. */
+    @Immutable data object Retryable : VehicleLayerState
+    /** Realtime is disabled or the BFF rejected this input until selection changes. */
+    @Immutable data object Unavailable : VehicleLayerState
+    /** Selected routes disagree; route-level accessibility rows retain every individual phase. */
+    @Immutable data object Mixed : VehicleLayerState
+}
+
+/** Compact non-map equivalent for route badges, including stable typed route ownership. */
+@Immutable
+data class VehicleRouteAccessibilityUi(
+    val routeId: RouteId,
+    val routeLabel: String,
+    val vehicleCount: Int,
+    val layerState: VehicleLayerState,
 )
 
 @Immutable
@@ -65,6 +94,8 @@ sealed interface Action {
     data class StopSelected(val stopId: StopId) : Action
     data class LocaleChanged(val locale: TransitLocale) : Action
     data object RetryNearby : Action
+    /** Emitted by the common composed Map entry and its host lifecycle; it never reflects panning. */
+    data class RealtimeVisibilityChanged(val isVisibleAndStarted: Boolean) : Action
 }
 
 sealed interface SideEffect {

@@ -34,6 +34,8 @@ object AutomationId {
     const val MapSelectedStop = "map.selected-stop"
     const val MapNearbyStops = "map.nearby-stops"
     const val MapNearbyStop = "map.nearby-stop"
+    const val MapVehicles = "map.vehicles"
+    const val MapVehiclesLiveNonempty = "map.vehicles.live-nonempty"
     const val MapRetry = "map.retry"
     const val MapAttribution = "map.attribution"
     fun mapAttributionLink(id: String): String = "map.attribution.link.$id"
