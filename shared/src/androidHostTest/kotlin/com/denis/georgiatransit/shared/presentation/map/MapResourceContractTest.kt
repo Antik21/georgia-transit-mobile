@@ -204,6 +204,7 @@ class MapResourceContractTest {
         val baseLayerOverlay = screen.functionBody("private fun BaseLayerOverlay")
         val nearbyStops = screen.functionBody("private fun NearbyStopsAccessibility")
         val content = screen.functionBody("private fun Content")
+        val stopArrivalsSheet = screen.functionBody("private fun StopArrivalsSheet")
 
         assertCodePath(baseLayerOverlay, "MapBaseLayerState.LocalPreview", "map_preview_note", "MapLocalPreview")
         assertCodePath(contentOverlay, "MapContentState.Loading", "map_content_loading", "MapLoading")
@@ -224,7 +225,10 @@ class MapResourceContractTest {
         assertCodePath(canvas, "PlatformMap(", "onEvent = onMapEvent", "MapStatusOverlays(", "onRetry = onRetry", "Button(")
         assertTrue(canvas.compactWhitespace().contains("testTag(locationActionAutomationId)"))
         assertCodePath(contentOverlay, "contentState is MapContentState.RetryableError", "Button(", "onClick = onRetry", "MapRetry")
-        assertCodePath(nearbyStops, "stops.isEmpty()", "MapNearbyStops", "items(", "key = { it.id.value }", "onStopSelected(stop.id)", "MapNearbyStop")
+        assertCodePath(nearbyStops, "stops.isEmpty()", "MapNearbyStops", "items(", "key = { it.id.value }", "onStopSelected(stop)", "MapNearbyStop")
+        assertTrue(content.contains("Action.StopSelected(stop.id, stop.sourceRevision)"))
+        assertCodePath(content, "StopArrivalsSheet(", "onDismiss = { onAction(Action.StopArrivalsDismissed) }")
+        assertCodePath(stopArrivalsSheet, "onDismissRequest = onDismiss", "onClick = onDismiss")
         assertCodePath(content, "state.selectedStop?.let", "MapSelectedStop", "liveRegion = LiveRegionMode.Polite")
     }
 
@@ -349,6 +353,32 @@ class MapResourceContractTest {
     }
 
     @Test
+    fun vehicleTapEventsRouteThroughCurrentFrameAndKnownVehicleGuards() {
+        val viewModel = projectRoot().resolve(
+            "shared/src/commonMain/kotlin/com/denis/georgiatransit/shared/presentation/map/MapViewModel.kt",
+        ).readText()
+        val eventHandler = viewModel.functionBody("private fun onMapEvent")
+        val vehicleTapHandler = viewModel.functionBody("private fun acceptVehicleTap")
+        val compactVehicleTapHandler = vehicleTapHandler.compactWhitespace().trim()
+
+        assertTrue(
+            compactVehicleTapHandler.startsWith("if (sourceRevision != vehicleFrameRevision) return"),
+            "Vehicle taps must reject an obsolete source revision before inspecting marker identity.",
+        )
+        assertCodePath(
+            vehicleTapHandler,
+            "if (sourceRevision != vehicleFrameRevision) return",
+            "if (vehicleMarkers.none { it.id == vehicleId }) return",
+        )
+        assertTrue(
+            eventHandler.compactWhitespace().contains(
+                "is MapPlatformEvent.VehicleTapped -> acceptVehicleTap(event.vehicleId, event.sourceRevision)",
+            ),
+            "VehicleTapped must route both its typed ID and source revision through the guarded handler.",
+        )
+    }
+
+    @Test
     fun androidAndIosAdaptersReceiveTypedStateAndReleaseResourcesWithoutMapSdkPermissionOwnership() {
         val root = projectRoot()
         val android = root.resolve(
@@ -363,6 +393,38 @@ class MapResourceContractTest {
         val swift = root.resolve("iosApp/iosApp/MapLibreMapViewBridge.swift").readText()
         val androidHitTest = android.functionBody("private fun onMapClick")
         val iosHitTest = swift.functionBody("private func handleMapTap")
+        val androidLayers = android.functionBody("private fun installSourcesAndLayers")
+        val iosLayers = swift.functionBody("private func installSourcesAndLayersIfNeeded")
+        val androidCamera = android.functionBody("private fun applyCameraIfNeeded")
+        val iosCamera = swift.functionBody("private func applyCameraIfNeeded")
+        val androidSourceUpdates = android.functionBody("private fun updateSources")
+        val iosSourceUpdates = swift.functionBody("private func render")
+        val androidOrdinaryStopFactories = android.declarationSection(
+            "private fun ordinaryStopFeatures",
+            "private fun selectedStopFeatures",
+        )
+        val androidOrdinaryStopFeature = androidOrdinaryStopFactories.functionBody(".map { marker ->")
+        val androidClusterFeature = androidOrdinaryStopFactories.functionBody(".map { cluster ->")
+        val androidSelectedStopFeature = android.declarationSection(
+            "private fun selectedStopFeatures",
+            "private fun polylineFeatures",
+        )
+        val androidVehicleFeatures = android.declarationSection(
+            "private fun vehicleFeatures",
+            "private fun updateBadgeImages",
+        )
+        val iosOrdinaryStopFeatures = swift.functionBody(
+            "private func ordinaryStopFeatures(_ markers: [MapStopMarker], sourceRevision: Int64)",
+        )
+        val iosSelectedStopFeatures = swift.functionBody(
+            "private func selectedStopFeatures(_ markers: [MapStopMarker], sourceRevision: Int64)",
+        )
+        val iosClusterFeatures = swift.functionBody(
+            "private func clusterFeatures(_ clusters: [MapStopCluster], sourceRevision: Int64)",
+        )
+        val iosVehicleFeatures = swift.functionBody(
+            "private func vehicleFeatures(_ markers: [MapVehicleMarker], sourceRevision: Int64)",
+        )
 
         assertTrue(android.contains("actual fun PlatformMap("))
         assertTrue(android.contains("onEvent: (MapPlatformEvent) -> Unit"))
@@ -373,17 +435,62 @@ class MapResourceContractTest {
             "RectF(",
             "screenPoint.x - halfTarget",
             "screenPoint.x + halfTarget",
-            "queryRenderedFeatures(hitRect, STOPS_LAYER_ID)",
-            "FEATURE_KIND_PROPERTY) == FEATURE_KIND_STOP",
+            "findEntityFeature(currentMap, hitRect, SELECTED_STOP_LAYER_ID, FEATURE_KIND_STOP)",
             "MapPlatformEvent.StopTapped",
-            "StopId(stopId)",
+            "findEntityFeature(currentMap, hitRect, STOPS_LAYER_ID, FEATURE_KIND_STOP)",
+            "MapPlatformEvent.StopTapped",
+            "findEntityFeature(currentMap, hitRect, VEHICLES_LAYER_ID, FEATURE_KIND_VEHICLE)",
+            "MapPlatformEvent.VehicleTapped",
+        )
+        assertFalse(androidHitTest.contains("FEATURE_KIND_CLUSTER"), "Clusters must never emit StopTapped")
+        assertCodePath(
+            androidOrdinaryStopFeature,
+            "FEATURE_KIND_PROPERTY, FEATURE_KIND_STOP",
+            "SOURCE_REVISION_PROPERTY, renderState.stopSourceRevision.toString()",
+        )
+        assertCodePath(
+            androidClusterFeature,
+            "FEATURE_KIND_PROPERTY, FEATURE_KIND_CLUSTER",
+            "SOURCE_REVISION_PROPERTY, renderState.stopSourceRevision.toString()",
+        )
+        assertCodePath(
+            androidSelectedStopFeature,
+            "FEATURE_KIND_PROPERTY, FEATURE_KIND_STOP",
+            "SOURCE_REVISION_PROPERTY, renderState.stopSourceRevision.toString()",
+        )
+        assertCodePath(
+            androidVehicleFeatures,
+            "FEATURE_KIND_PROPERTY, FEATURE_KIND_VEHICLE",
+            "SOURCE_REVISION_PROPERTY, sourceRevision.toString()",
+        )
+        assertCodePath(
+            androidSourceUpdates,
+            "ordinaryStopFeatures(renderState)",
+            "selectedStopFeatures(renderState)",
+            "vehicleFeatures(renderState.vehicles, renderState.vehicleSourceRevision)",
+        )
+        assertCodePath(
+            androidLayers,
+            "CircleLayer(STOPS_LAYER_ID, STOPS_SOURCE_ID)",
+            "SymbolLayer(VEHICLES_LAYER_ID, VEHICLES_SOURCE_ID)",
+            "CircleLayer(SELECTED_STOP_LAYER_ID, SELECTED_STOP_SOURCE_ID)",
         )
         assertTrue(
             android.numericDeclaration("MIN_STOP_TARGET_DP") >= 48.0,
             "Android stop activation target must remain at least 48dp.",
         )
         assertTrue(android.contains("MapLibre.setConnected(false)"))
-        assertTrue(android.contains("lastAppliedCameraRevision == renderState.camera.revision"))
+        assertCodePath(
+            androidCamera,
+            "lastAppliedCameraRevision == renderState.camera.revision",
+            "viewportBottomPadding(command)",
+            "lastAppliedCameraRevision = command.revision",
+        )
+        assertCodePath(
+            android.functionBody("private fun viewportBottomPadding"),
+            "takeIf(Double::isFinite)",
+            "coerceIn(0.0, MAX_BOTTOM_OCCLUSION_FRACTION)",
+        )
         assertTrue(android.contains("if (destroyed) return"))
         assertTrue(
             android.compactWhitespace().contains("onRelease = { lifecycle.destroy() controller.destroy() }"),
@@ -393,9 +500,8 @@ class MapResourceContractTest {
         assertTrue(ios.contains("onEvent: (MapPlatformEvent) -> Unit"))
         assertTrue(ios.contains("UIKitInteropInteractionMode.NonCooperative"))
         assertTrue(ios.contains("onRelease = IosMapCompositionBridge::releaseMapView"))
-        assertTrue(iosBridge.contains("((MapViewport) -> Unit, (StopId) -> Unit) -> UIView"))
+        assertTrue(iosBridge.contains("((MapViewport) -> Unit, (MapPlatformEvent) -> Unit) -> UIView"))
         assertTrue(iosBridge.contains("MapPlatformEvent.ViewportSettled"))
-        assertTrue(iosBridge.contains("MapPlatformEvent.StopTapped"))
         assertTrue(iosBridge.contains("(UIView, MapRenderState) -> Unit"))
         assertTrue(iosBridge.contains("fun releaseMapView(view: UIView)"))
         assertCodePath(
@@ -404,17 +510,63 @@ class MapResourceContractTest {
             "CGRect(",
             "width: Self.minimumStopTargetPoints",
             "height: Self.minimumStopTargetPoints",
-            "visibleFeatures(in: hitRect",
-            "Self.featureKindProperty",
-            "Self.stopFeatureKind",
-            "onStopTapped(id)",
+            "entityFeature(in: hitRect, layerID: Self.selectedStopLayerID, kind: Self.stopFeatureKind)",
+            "MapPlatformEventStopTapped(stopId: stop.id, sourceRevision: stop.sourceRevision)",
+            "entityFeature(in: hitRect, layerID: Self.stopsLayerID, kind: Self.stopFeatureKind)",
+            "MapPlatformEventStopTapped(stopId: stop.id, sourceRevision: stop.sourceRevision)",
+            "entityFeature(in: hitRect, layerID: Self.vehiclesLayerID, kind: Self.vehicleFeatureKind)",
+            "MapPlatformEventVehicleTapped(vehicleId: vehicle.id, sourceRevision: vehicle.sourceRevision)",
+        )
+        assertFalse(iosHitTest.contains("clusterFeatureKind"), "Clusters must never emit StopTapped")
+        assertCodePath(
+            iosOrdinaryStopFeatures,
+            "Self.featureKindProperty: Self.stopFeatureKind",
+            "Self.sourceRevisionProperty: String(sourceRevision)",
+        )
+        assertCodePath(
+            iosSelectedStopFeatures,
+            "Self.featureKindProperty: Self.stopFeatureKind",
+            "Self.sourceRevisionProperty: String(sourceRevision)",
+        )
+        assertCodePath(
+            iosClusterFeatures,
+            "Self.featureKindProperty: Self.clusterFeatureKind",
+            "Self.sourceRevisionProperty: String(sourceRevision)",
+        )
+        assertCodePath(
+            iosVehicleFeatures,
+            "Self.featureKindProperty: Self.vehicleFeatureKind",
+            "Self.sourceRevisionProperty: String(sourceRevision)",
+        )
+        assertCodePath(
+            iosSourceUpdates,
+            "ordinaryStopFeatures(state.stops, sourceRevision: state.stopSourceRevision)",
+            "clusterFeatures(state.stopClusters, sourceRevision: state.stopSourceRevision)",
+            "selectedStopFeatures(state.stops, sourceRevision: state.stopSourceRevision)",
+            "vehicleFeatures(state.vehicles, sourceRevision: state.vehicleSourceRevision)",
+        )
+        assertCodePath(
+            iosLayers,
+            "MLNCircleStyleLayer(identifier: Self.stopsLayerID, source: stopsSource)",
+            "MLNSymbolStyleLayer(identifier: Self.vehiclesLayerID, source: vehiclesSource)",
+            "MLNCircleStyleLayer(identifier: Self.selectedStopLayerID, source: selectedStopSource)",
         )
         assertTrue(
             swift.numericDeclaration("minimumStopTargetPoints") >= 44.0,
             "iOS stop activation target must remain at least 44pt.",
         )
         assertTrue(swift.contains("func update(view: UIView, renderState: MapRenderState)"))
-        assertTrue(swift.contains("guard lastAppliedCameraRevision != command.revision"))
+        assertCodePath(
+            iosCamera,
+            "guard lastAppliedCameraRevision != command.revision",
+            "applyViewportInsets(command.viewportInsets)",
+            "lastAppliedCameraRevision = command.revision",
+        )
+        assertCodePath(
+            swift.functionBody("private func applyViewportInsets"),
+            "bottomOcclusionFraction.isFinite",
+            "min(max(insets.bottomOcclusionFraction, 0), Self.maximumBottomOcclusionFraction)",
+        )
         assertTrue(swift.contains("func releaseResources()"))
         assertTrue(swift.contains("mapView.delegate = nil"))
         assertTrue(swift.contains("mapView.shouldRequestAuthorizationToUseLocationServices = false"))
@@ -512,6 +664,12 @@ class MapResourceContractTest {
         val bodyStart = indexOf('{', declarationStart).also { check(it >= 0) }
         val bodyEnd = matchingDelimiter(bodyStart, '{', '}')
         return substring(bodyStart + 1, bodyEnd)
+    }
+
+    private fun String.declarationSection(declaration: String, nextDeclaration: String): String {
+        val declarationStart = indexOf(declaration).also { check(it >= 0) }
+        val declarationEnd = indexOf(nextDeclaration, declarationStart + declaration.length).also { check(it >= 0) }
+        return substring(declarationStart, declarationEnd)
     }
 
     private fun String.matchingDelimiter(start: Int, opening: Char, closing: Char): Int {

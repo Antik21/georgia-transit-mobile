@@ -14,10 +14,10 @@ struct ContentView: View {
 struct ComposeViewController: UIViewControllerRepresentable {
     func makeUIViewController(context: Context) -> UIViewController {
         MainViewControllerKt.MainViewController(
-            mapViewFactory: { onViewportSettled, onStopTapped in
+            mapViewFactory: { onViewportSettled, onMapEvent in
                 MapLibreMapViewBridge.makeView(
                     onViewportSettled: onViewportSettled,
-                    onStopTapped: onStopTapped
+                    onMapEvent: onMapEvent
                 )
             },
             updateMapView: { view, renderState in

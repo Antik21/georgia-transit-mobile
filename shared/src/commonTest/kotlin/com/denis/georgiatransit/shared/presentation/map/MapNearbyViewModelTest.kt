@@ -3,6 +3,7 @@ package com.denis.georgiatransit.shared.presentation.map
 import com.denis.georgiatransit.shared.data.repository.RuntimeTransitSession
 import com.denis.georgiatransit.shared.domain.model.CityCapabilities
 import com.denis.georgiatransit.shared.domain.model.CityId
+import com.denis.georgiatransit.shared.domain.model.DirectionId
 import com.denis.georgiatransit.shared.domain.model.GeoPoint
 import com.denis.georgiatransit.shared.domain.model.LocalizedText
 import com.denis.georgiatransit.shared.domain.model.ProviderId
@@ -13,6 +14,10 @@ import com.denis.georgiatransit.shared.domain.model.TransitLocale
 import com.denis.georgiatransit.shared.domain.model.TransitMode
 import com.denis.georgiatransit.shared.domain.model.TransitRoute
 import com.denis.georgiatransit.shared.domain.model.TransitStop
+import com.denis.georgiatransit.shared.domain.model.TransitVehicle
+import com.denis.georgiatransit.shared.domain.model.VehicleId
+import com.denis.georgiatransit.shared.domain.model.VehiclePage
+import com.denis.georgiatransit.shared.domain.model.VehiclePositionKind
 import com.denis.georgiatransit.shared.domain.repository.TransitFailure
 import com.denis.georgiatransit.shared.domain.repository.TransitFreshness
 import com.denis.georgiatransit.shared.domain.repository.TransitLoadResult
@@ -37,8 +42,10 @@ import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
+import kotlin.test.assertNotEquals
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
+import kotlin.time.Instant
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class MapNearbyViewModelTest {
@@ -120,14 +127,125 @@ class MapNearbyViewModelTest {
         viewModel.test(this) {
             runOnCreate()
             this@runTest.advanceNearby()
-            viewModel.dispatchAction(Action.MapEventReceived(MapPlatformEvent.StopTapped(StopId("unknown"))))
+            val sourceRevision = requireNotNull(viewModel.state.renderState).stopSourceRevision
+            viewModel.dispatchAction(
+                Action.MapEventReceived(MapPlatformEvent.StopTapped(StopId("unknown"), sourceRevision)),
+            )
             this@runTest.runCurrent()
             assertNull(viewModel.state.selectedStop)
 
-            viewModel.dispatchAction(Action.MapEventReceived(MapPlatformEvent.StopTapped(StopId("visible"))))
+            viewModel.dispatchAction(
+                Action.MapEventReceived(MapPlatformEvent.StopTapped(StopId("visible"), sourceRevision)),
+            )
             this@runTest.runCurrent()
             assertEquals(StopId("visible"), viewModel.state.selectedStop?.id)
             assertTrue(requireNotNull(viewModel.state.renderState).stops.single().isSelected)
+            cancelAndIgnoreRemainingItems()
+        }
+    }
+
+    @Test
+    fun staleStopRevisionCannotSelectAReusedIdAfterCityOrCapabilityChange() = runTest {
+        val firstCity = city("first")
+        val secondCity = city("second")
+        val repository = RecordingRepository().apply {
+            results += { data(stop("shared")) }
+            results += { data(stop("shared")) }
+        }
+        val session = RuntimeTransitSession().also { it.selectCity(firstCity) }
+        val viewModel = MapViewModel(repository, session, RuntimeLocationSession(this))
+
+        viewModel.test(this) {
+            runOnCreate()
+            this@runTest.advanceNearby()
+            val firstRevision = requireNotNull(viewModel.state.renderState).stopSourceRevision
+
+            session.selectCity(secondCity)
+            this@runTest.runCurrent()
+            this@runTest.advanceNearby()
+            val secondRevision = requireNotNull(viewModel.state.renderState).stopSourceRevision
+            assertNotEquals(firstRevision, secondRevision)
+
+            viewModel.dispatchAction(
+                Action.MapEventReceived(MapPlatformEvent.StopTapped(StopId("shared"), firstRevision)),
+            )
+            this@runTest.runCurrent()
+            assertNull(viewModel.state.selectedStop)
+
+            viewModel.dispatchAction(
+                Action.MapEventReceived(MapPlatformEvent.StopTapped(StopId("shared"), secondRevision)),
+            )
+            this@runTest.runCurrent()
+            assertEquals(StopId("shared"), viewModel.state.selectedStop?.id)
+            val selectedRevision = requireNotNull(viewModel.state.renderState).stopSourceRevision
+
+            session.selectCity(secondCity.copy(capabilities = secondCity.capabilities.copy(stops = false)))
+            this@runTest.runCurrent()
+            assertNull(viewModel.state.selectedStop)
+            assertNull(viewModel.state.stopArrivalsSheet)
+            assertTrue(viewModel.state.nearbyStops.isEmpty())
+            assertTrue(requireNotNull(viewModel.state.renderState).stops.isEmpty())
+
+            viewModel.dispatchAction(
+                Action.MapEventReceived(MapPlatformEvent.StopTapped(StopId("shared"), selectedRevision)),
+            )
+            this@runTest.runCurrent()
+            assertNull(viewModel.state.selectedStop)
+            assertNull(viewModel.state.stopArrivalsSheet)
+            cancelAndIgnoreRemainingItems()
+        }
+    }
+
+    @Test
+    fun currentVehicleTapIsNoOpAndStaleOrUnknownTapsCannotChangeStateOrCamera() = runTest {
+        val route = TransitRoute(
+            id = RouteId("route"),
+            cityId = CityId("vehicle-city"),
+            shortName = "10",
+            name = "Route 10",
+            colorArgb = 0xFF0057B8,
+        )
+        val repository = VehicleTapRepository(route)
+        val session = RuntimeTransitSession().also {
+            it.selectCity(repository.city)
+            it.selectRoutes(setOf(route.id))
+        }
+        val clock = object : VehicleRealtimeClock {
+            override fun wallNow(): Instant = VehicleTapRepository.Now
+            override fun monotonicNowMillis(): Long = 0L
+        }
+        val ticker = object : VehicleRealtimeTickerPolicy {
+            override val pollIntervalMillis: Long = 60_000L
+            override val frameIntervalMillis: Long = 60_000L
+        }
+        val viewModel = MapViewModel(repository, session, RuntimeLocationSession(this), clock, ticker)
+
+        viewModel.test(this) {
+            runOnCreate()
+            this@runTest.runCurrent()
+            viewModel.dispatchAction(
+                Action.MapEventReceived(MapPlatformEvent.ViewportSettled(MapViewport(repository.city.center, 2_000, 14.0))),
+            )
+            this@runTest.runCurrent()
+            val cameraBeforeRealtime = requireNotNull(viewModel.state.renderState).camera
+            viewModel.dispatchAction(Action.RealtimeVisibilityChanged(true))
+            this@runTest.runCurrent()
+            val before = viewModel.state
+            val renderState = requireNotNull(before.renderState)
+            val vehicle = renderState.vehicles.single()
+            assertEquals(cameraBeforeRealtime, renderState.camera)
+
+            listOf(
+                MapPlatformEvent.VehicleTapped(vehicle.id, renderState.vehicleSourceRevision),
+                MapPlatformEvent.VehicleTapped(VehicleId("unknown"), renderState.vehicleSourceRevision),
+                MapPlatformEvent.VehicleTapped(vehicle.id, renderState.vehicleSourceRevision - 1),
+            ).forEach { event ->
+                viewModel.dispatchAction(Action.MapEventReceived(event))
+                this@runTest.runCurrent()
+                assertEquals(before, viewModel.state)
+            }
+            viewModel.dispatchAction(Action.RealtimeVisibilityChanged(false))
+            this@runTest.runCurrent()
             cancelAndIgnoreRemainingItems()
         }
     }
@@ -152,10 +270,12 @@ class MapNearbyViewModelTest {
             assertEquals(listOf("a", "b"), viewModel.state.nearbyStops.map { it.id.value })
 
             settle(viewModel, GeoPoint(41.71, 44.81))
+            val cameraBeforeRefresh = requireNotNull(viewModel.state.renderState).camera
             this@runTest.advanceNearby()
             assertEquals(MapContentState.Empty, viewModel.state.contentState)
             assertTrue(viewModel.state.nearbyStops.isEmpty())
             assertTrue(requireNotNull(viewModel.state.renderState).stops.isEmpty())
+            assertEquals(cameraBeforeRefresh, requireNotNull(viewModel.state.renderState).camera)
             cancelAndIgnoreRemainingItems()
         }
     }
@@ -278,7 +398,7 @@ class MapNearbyViewModelTest {
         viewModel.test(this) {
             runOnCreate()
             this@runTest.advanceNearby()
-            viewModel.dispatchAction(Action.StopSelected(StopId("old")))
+            viewModel.selectCurrentStop(StopId("old"))
             this@runTest.runCurrent()
             settle(viewModel, GeoPoint(41.71, 44.81))
             this@runTest.advanceNearby()
@@ -317,11 +437,15 @@ class MapNearbyViewModelTest {
             runOnCreate()
             this@runTest.advanceNearby()
             assertEquals("Central", viewModel.state.nearbyStops.single().name)
+            settle(viewModel, GeoPoint(41.705, 44.805))
+            this@runTest.runCurrent()
+            val cameraBeforeLocaleRefresh = requireNotNull(viewModel.state.renderState).camera
             viewModel.dispatchAction(Action.LocaleChanged(TransitLocale.Russian))
             this@runTest.runCurrent()
             assertEquals("Центральная", viewModel.state.nearbyStops.single().name)
             this@runTest.advanceNearby()
             assertEquals(listOf(TransitLocale.English, TransitLocale.Russian), repository.calls.map { it.locale })
+            assertEquals(cameraBeforeLocaleRefresh, requireNotNull(viewModel.state.renderState).camera)
             cancelAndIgnoreRemainingItems()
         }
     }
@@ -499,7 +623,7 @@ class MapNearbyViewModelTest {
     }
 
     private fun kotlinx.coroutines.test.TestScope.selectOldStop(viewModel: MapViewModel) {
-        viewModel.dispatchAction(Action.StopSelected(StopId("old")))
+        viewModel.selectCurrentStop(StopId("old"))
         runCurrent()
         assertEquals(StopId("old"), viewModel.state.selectedStop?.id)
         assertEquals(listOf("old"), viewModel.state.nearbyStops.map { it.id.value })
@@ -518,6 +642,10 @@ class MapNearbyViewModelTest {
         runCurrent()
         advanceTimeBy(351)
         runCurrent()
+    }
+
+    private fun MapViewModel.selectCurrentStop(stopId: StopId) {
+        dispatchAction(Action.StopSelected(stopId, requireNotNull(state.renderState).stopSourceRevision))
     }
 
     private fun settle(viewModel: MapViewModel, center: GeoPoint) {
@@ -590,6 +718,56 @@ class MapNearbyViewModelTest {
             calls += NearbyCall(cityId, center, radiusMeters, limit, locale)
             return results.removeFirstOrNull()?.invoke()
                 ?: TransitLoadResult.Empty(TransitFreshness.Network)
+        }
+    }
+
+    private class VehicleTapRepository(private val route: TransitRoute) : TransitRepository {
+        val city = TransitCity(
+            id = CityId("vehicle-city"),
+            name = "Vehicle city",
+            center = GeoPoint(41.7, 44.8),
+            capabilities = CityCapabilities(
+                stops = true,
+                vehicles = true,
+                arrivals = false,
+                routeShapes = false,
+                journeyPlanning = false,
+            ),
+            defaultZoom = 13.0,
+        )
+
+        override fun cities(): List<TransitCity> = listOf(city)
+
+        override fun routes(cityId: CityId): List<TransitRoute> = listOf(route)
+
+        override suspend fun vehicles(
+            cityId: CityId,
+            routeId: RouteId,
+            directionId: DirectionId?,
+        ): TransitLoadResult<VehiclePage> = TransitLoadResult.Data(
+            VehiclePage(
+                items = listOf(
+                    TransitVehicle(
+                        id = VehicleId("vehicle"),
+                        routeId = route.id,
+                        directionId = DirectionId("outbound"),
+                        position = city.center,
+                        bearing = 90.0,
+                        nextStopId = null,
+                        observedAt = Now,
+                        ageSeconds = 0,
+                        positionKind = VehiclePositionKind.Gps,
+                    ),
+                ),
+                observedAt = Now,
+                maxAgeSeconds = 30,
+                stale = false,
+            ),
+            TransitFreshness.Network,
+        )
+
+        companion object {
+            val Now: Instant = Instant.parse("2030-01-01T00:00:00Z")
         }
     }
 }

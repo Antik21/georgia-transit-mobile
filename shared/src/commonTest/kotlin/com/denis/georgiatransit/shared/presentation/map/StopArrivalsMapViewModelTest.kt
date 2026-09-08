@@ -207,6 +207,99 @@ class StopArrivalsMapViewModelTest {
     }
 
     @Test
+    fun selectionFocusAndDismissalUpdateMarkerSheetAndCameraAtomicallyAndIdempotently() = runTest {
+        val fixture = fixture()
+        val session = RuntimeTransitSession().also { it.selectCity(fixture.city) }
+        val viewModel = MapViewModel(fixture, session, RuntimeLocationSession(scope = this))
+
+        viewModel.test(this) {
+            runOnCreate()
+            this@runTest.advanceTimeBy(350)
+            this@runTest.runCurrent()
+            val beforeSelection = requireNotNull(viewModel.container.stateFlow.value.renderState)
+
+            viewModel.selectCurrentStop(fixture.stopA.id)
+            this@runTest.runCurrent()
+            val selected = viewModel.container.stateFlow.value
+            val selectedRender = requireNotNull(selected.renderState)
+            assertEquals(fixture.stopA.id, selected.selectedStop?.id)
+            assertEquals(fixture.stopA.id, selected.stopArrivalsSheet?.stopId)
+            assertEquals(listOf(fixture.stopA.id), selected.nearbyStops.filter { it.isSelected }.map { it.id })
+            assertEquals(listOf(fixture.stopA.id), selectedRender.stops.filter { it.isSelected }.map { it.id })
+            assertEquals(fixture.stopA.position, selectedRender.camera.center)
+            assertEquals(MapViewportInsets.StopArrivalsSheet, selectedRender.camera.viewportInsets)
+            assertEquals(beforeSelection.camera.revision + 1, selectedRender.camera.revision)
+
+            viewModel.dispatchAction(Action.MapViewportInsetsChanged(MapViewportInsets.StopArrivalsSheet))
+            this@runTest.runCurrent()
+            assertEquals(selectedRender.camera, requireNotNull(viewModel.container.stateFlow.value.renderState).camera)
+
+            viewModel.dispatchAction(Action.StopArrivalsDismissed)
+            this@runTest.runCurrent()
+            val dismissed = viewModel.container.stateFlow.value
+            val dismissedRender = requireNotNull(dismissed.renderState)
+            assertNull(dismissed.selectedStop)
+            assertNull(dismissed.stopArrivalsSheet)
+            assertTrue(dismissed.nearbyStops.none { it.isSelected })
+            assertTrue(dismissedRender.stops.none { it.isSelected })
+            assertEquals(MapViewportInsets.None, dismissedRender.camera.viewportInsets)
+            assertEquals(selectedRender.camera.revision + 1, dismissedRender.camera.revision)
+
+            viewModel.dispatchAction(Action.StopArrivalsDismissed)
+            this@runTest.runCurrent()
+            assertEquals(dismissed, viewModel.container.stateFlow.value)
+            cancelAndIgnoreRemainingItems()
+        }
+    }
+
+    @Test
+    fun rapidSelectionKeepsOnlyBAndLateAResultCannotReviveA() = runTest {
+        val fixture = fixture()
+        val lateA = CompletableDeferred<TransitLoadResult<ArrivalPage>>()
+        fixture.arrivalResponder = { withContext(NonCancellable) { lateA.await() } }
+        val session = RuntimeTransitSession().also { it.selectCity(fixture.city) }
+        val viewModel = MapViewModel(fixture, session, RuntimeLocationSession(scope = this))
+
+        viewModel.test(this) {
+            runOnCreate()
+            this@runTest.advanceTimeBy(350)
+            this@runTest.runCurrent()
+            viewModel.dispatchAction(Action.RealtimeVisibilityChanged(true))
+            viewModel.selectCurrentStop(fixture.stopA.id)
+            this@runTest.runCurrent()
+            assertEquals(1, fixture.arrivalsRequests)
+            val cameraAfterA = requireNotNull(viewModel.container.stateFlow.value.renderState).camera
+
+            fixture.arrivalResponder = null
+            fixture.arrivalResults += data(
+                page(fixture.stopB, listOf(arrival(fixture.stopB, fixture.routeB, 1, ArrivalSource.Schedule))),
+            )
+            viewModel.selectCurrentStop(fixture.stopB.id)
+            this@runTest.runCurrent()
+            val selectedB = viewModel.container.stateFlow.value
+            assertEquals(fixture.stopB.id, selectedB.selectedStop?.id)
+            assertEquals(fixture.stopB.id, selectedB.stopArrivalsSheet?.stopId)
+            assertEquals(listOf(fixture.stopB.id), selectedB.renderState?.stops.orEmpty().filter { it.isSelected }.map { it.id })
+            assertEquals(fixture.stopB.position, selectedB.renderState?.camera?.center)
+            assertEquals(cameraAfterA.revision + 1, selectedB.renderState?.camera?.revision)
+
+            lateA.complete(
+                data(page(fixture.stopA, listOf(arrival(fixture.stopA, fixture.routeA, 1, ArrivalSource.OfficialRealtime)))),
+            )
+            this@runTest.runCurrent()
+            val afterLateA = viewModel.container.stateFlow.value
+            assertEquals(fixture.stopB.id, afterLateA.selectedStop?.id)
+            assertEquals(fixture.stopB.id, afterLateA.stopArrivalsSheet?.stopId)
+            assertEquals(selectedB.renderState?.camera, afterLateA.renderState?.camera)
+            assertTrue(afterLateA.stopArrivalsSheet?.rows.orEmpty().none { it.source == ArrivalSourceUi.OfficialRealtime })
+
+            viewModel.dispatchAction(Action.RealtimeVisibilityChanged(false))
+            this@runTest.runCurrent()
+            cancelAndIgnoreRemainingItems()
+        }
+    }
+
+    @Test
     fun lateResponseAfterDismissCannotPublish() = runTest {
         assertLateResponseIsIgnored("dismiss") { viewModel, fixture, session ->
             viewModel.dispatchAction(Action.StopArrivalsDismissed)
@@ -222,7 +315,7 @@ class StopArrivalsMapViewModelTest {
             // completes normally so test teardown cannot retain a hidden perpetual poll.
             fixture.arrivalResponder = null
             fixture.arrivalResults += data(page(fixture.stopB, listOf(arrival(fixture.stopB, fixture.routeB, 1, ArrivalSource.Schedule))))
-            viewModel.dispatchAction(Action.StopSelected(fixture.stopB.id))
+            viewModel.selectCurrentStop(fixture.stopB.id)
             runCurrent()
             assertEquals(fixture.stopB.id, viewModel.container.stateFlow.value.stopArrivalsSheet?.stopId)
         }
@@ -266,6 +359,7 @@ class StopArrivalsMapViewModelTest {
         withOpenedSheet(fixture) { viewModel, _ ->
             assertEquals(1, fixture.arrivalsRequests)
             assertEquals(1, fixture.maxConcurrentArrivalRequests)
+            val cameraAfterOpen = requireNotNull(viewModel.container.stateFlow.value.renderState).camera
             advanceTimeBy(19_999)
             runCurrent()
             assertEquals(1, fixture.arrivalsRequests)
@@ -273,12 +367,14 @@ class StopArrivalsMapViewModelTest {
             runCurrent()
             assertEquals(2, fixture.arrivalsRequests)
             assertEquals(1, fixture.maxConcurrentArrivalRequests)
+            assertEquals(cameraAfterOpen, requireNotNull(viewModel.container.stateFlow.value.renderState).camera)
 
             viewModel.dispatchAction(Action.RealtimeVisibilityChanged(false))
             runCurrent()
             advanceTimeBy(40_000)
             runCurrent()
             assertEquals(2, fixture.arrivalsRequests)
+            assertEquals(cameraAfterOpen, requireNotNull(viewModel.container.stateFlow.value.renderState).camera)
         }
     }
 
@@ -329,6 +425,10 @@ class StopArrivalsMapViewModelTest {
             advanceTimeBy(350)
             runCurrent()
             assertEquals(fixture.stopA.id, viewModel.container.stateFlow.value.stopArrivalsSheet?.stopId)
+            assertTrue(viewModel.container.stateFlow.value.nearbyStops.isEmpty())
+            val retainedMarker = requireNotNull(viewModel.container.stateFlow.value.renderState).stops.single()
+            assertEquals(fixture.stopA.id, retainedMarker.id)
+            assertTrue(retainedMarker.isSelected)
 
             advanceTimeBy(20_000)
             runCurrent()
@@ -337,6 +437,10 @@ class StopArrivalsMapViewModelTest {
             assertFalse(recovered.hasUnavailableRouteDetails)
             assertEquals(2, fixture.routeRefreshRequests)
             assertEquals(1, fixture.maxConcurrentRouteRefreshes)
+
+            viewModel.dispatchAction(Action.StopArrivalsDismissed)
+            runCurrent()
+            assertTrue(requireNotNull(viewModel.container.stateFlow.value.renderState).stops.isEmpty())
         }
     }
 
@@ -351,7 +455,7 @@ class StopArrivalsMapViewModelTest {
             this@withOpenedSheet.advanceTimeBy(350)
             this@withOpenedSheet.runCurrent()
             viewModel.dispatchAction(Action.RealtimeVisibilityChanged(true))
-            viewModel.dispatchAction(Action.StopSelected(fixture.stopA.id))
+            viewModel.selectCurrentStop(fixture.stopA.id)
             this@withOpenedSheet.runCurrent()
             assertion(viewModel, session)
             // MapViewModel intentionally owns a perpetual 20s visible polling loop. Explicitly
@@ -376,7 +480,7 @@ class StopArrivalsMapViewModelTest {
             this@assertLateResponseIsIgnored.advanceTimeBy(350)
             this@assertLateResponseIsIgnored.runCurrent()
             viewModel.dispatchAction(Action.RealtimeVisibilityChanged(true))
-            viewModel.dispatchAction(Action.StopSelected(fixture.stopA.id))
+            viewModel.selectCurrentStop(fixture.stopA.id)
             this@assertLateResponseIsIgnored.runCurrent()
             assertEquals(1, fixture.arrivalsRequests, "The $description case must begin an owned request.")
 
@@ -416,8 +520,19 @@ class StopArrivalsMapViewModelTest {
         val routeA = route(city.id, "route:10", "10")
         val routeB = route(city.id, "route:37", "37")
         val stopA = stop(city.id, "stop:central", "TB-001", listOf(routeA.id, routeB.id))
-        val stopB = stop(city.id, "stop:harbor", "TB-002", listOf(routeB.id))
+        val stopB = stop(
+            city.id,
+            "stop:harbor",
+            "TB-002",
+            listOf(routeB.id),
+            position = GeoPoint(41.7251, 44.8371),
+        )
         return ArrivalsFixtureRepository(city, stopA, stopB, routeA, routeB, initialRoutes ?: listOf(routeA, routeB))
+    }
+
+    private fun MapViewModel.selectCurrentStop(stopId: StopId) {
+        val sourceRevision = requireNotNull(container.stateFlow.value.renderState).stopSourceRevision
+        dispatchAction(Action.StopSelected(stopId, sourceRevision))
     }
 
     private fun route(cityId: CityId, localId: String, shortName: String) = TransitRoute(
@@ -428,12 +543,18 @@ class StopArrivalsMapViewModelTest {
         colorArgb = 0xFF0057B8,
     )
 
-    private fun stop(cityId: CityId, localId: String, code: String, routeIds: List<RouteId>) = TransitStop(
+    private fun stop(
+        cityId: CityId,
+        localId: String,
+        code: String,
+        routeIds: List<RouteId>,
+        position: GeoPoint = GeoPoint(41.7151, 44.8271),
+    ) = TransitStop(
         id = StopId("${cityId.value}:fixture:$localId"),
         providerId = ProviderId(localId),
         code = code,
         name = LocalizedText(ru = "Центр ${cityId.value}", en = "${cityId.value.replaceFirstChar(Char::uppercase)} Central", ka = "თბილისის ცენტრი"),
-        position = GeoPoint(41.7151, 44.8271),
+        position = position,
         routeIds = routeIds,
         mode = TransitMode.Bus,
     )

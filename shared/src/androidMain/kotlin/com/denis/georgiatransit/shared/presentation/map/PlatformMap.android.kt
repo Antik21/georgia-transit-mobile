@@ -6,6 +6,7 @@ import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.RectF
 import android.graphics.Typeface
+import android.view.View
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.remember
@@ -17,10 +18,13 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.denis.georgiatransit.shared.domain.model.GeoPoint
+import com.denis.georgiatransit.shared.domain.model.StopId
+import com.denis.georgiatransit.shared.domain.model.VehicleId
 import com.denis.georgiatransit.shared.presentation.location.LocationPrecision
 import com.denis.georgiatransit.shared.presentation.location.UserLocationFix
 import com.denis.georgiatransit.shared.presentation.location.accuracyPolygon
 import org.maplibre.android.MapLibre
+import org.maplibre.android.camera.CameraPosition
 import org.maplibre.android.camera.CameraUpdateFactory
 import org.maplibre.android.geometry.LatLng
 import org.maplibre.android.maps.MapLibreMap
@@ -174,6 +178,7 @@ private class LocalMapController(
     private var lastAppliedCameraRevision: Long? = null
     private var lastStops: List<MapStopMarker>? = null
     private var lastStopClusters: List<MapStopCluster>? = null
+    private var lastStopSourceRevision: Long? = null
     private var lastPolylines: List<MapPolyline>? = null
     private var lastUserLocation: UserLocationFix? = null
     private var lastVehicleSourceRevision: Long? = null
@@ -183,8 +188,14 @@ private class LocalMapController(
     private var destroyed = false
     private val cameraIdleListener = MapLibreMap.OnCameraIdleListener { notifyViewportSettled() }
     private val mapClickListener = MapLibreMap.OnMapClickListener { point -> onMapClick(point) }
+    private val layoutChangeListener = View.OnLayoutChangeListener { _, _, _, _, _, _, _, _, _ ->
+        latestState?.camera?.let { command ->
+            map?.moveCamera(CameraUpdateFactory.paddingTo(0.0, 0.0, 0.0, viewportBottomPadding(command)))
+        }
+    }
 
     init {
+        mapView.addOnLayoutChangeListener(layoutChangeListener)
         mapView.getMapAsync { mapLibreMap ->
             if (destroyed) return@getMapAsync
             map = mapLibreMap
@@ -212,6 +223,7 @@ private class LocalMapController(
         destroyed = true
         map?.removeOnCameraIdleListener(cameraIdleListener)
         map?.removeOnMapClickListener(mapClickListener)
+        mapView.removeOnLayoutChangeListener(layoutChangeListener)
         map = null
         style = null
         latestState = null
@@ -232,6 +244,7 @@ private class LocalMapController(
 
     private fun installSourcesAndLayers(loadedStyle: Style) {
         loadedStyle.addSource(GeoJsonSource(STOPS_SOURCE_ID, FeatureCollection.fromFeatures(emptyList())))
+        loadedStyle.addSource(GeoJsonSource(SELECTED_STOP_SOURCE_ID, FeatureCollection.fromFeatures(emptyList())))
         loadedStyle.addSource(GeoJsonSource(VEHICLES_SOURCE_ID, FeatureCollection.fromFeatures(emptyList())))
         loadedStyle.addSource(GeoJsonSource(POLYLINES_SOURCE_ID, FeatureCollection.fromFeatures(emptyList())))
         loadedStyle.addSource(GeoJsonSource(USER_LOCATION_SOURCE_ID, FeatureCollection.fromFeatures(emptyList())))
@@ -274,6 +287,14 @@ private class LocalMapController(
             ),
         )
         loadedStyle.addLayer(
+            CircleLayer(SELECTED_STOP_LAYER_ID, SELECTED_STOP_SOURCE_ID).withProperties(
+                circleColor(SELECTED_STOP_COLOR),
+                circleRadius(SELECTED_STOP_RADIUS.toFloat()),
+                circleStrokeColor("#FFFFFF"),
+                circleStrokeWidth(2f),
+            ),
+        )
+        loadedStyle.addLayer(
             CircleLayer(USER_LOCATION_LAYER_ID, USER_LOCATION_SOURCE_ID).withProperties(
                 circleColor("#1565C0"),
                 circleRadius(7f),
@@ -285,17 +306,24 @@ private class LocalMapController(
 
     /** Vehicle animation replaces only its grouped GeoJSON source; bitmap badge styles are cached separately. */
     private fun updateSources(loadedStyle: Style, renderState: MapRenderState) {
-        if (lastStops != renderState.stops || lastStopClusters != renderState.stopClusters) {
-            loadedStyle.getSourceAs<GeoJsonSource>(STOPS_SOURCE_ID)?.setGeoJson(stopFeatures(renderState))
+        if (
+            lastStops != renderState.stops || lastStopClusters != renderState.stopClusters ||
+            lastStopSourceRevision != renderState.stopSourceRevision
+        ) {
+            loadedStyle.getSourceAs<GeoJsonSource>(STOPS_SOURCE_ID)?.setGeoJson(ordinaryStopFeatures(renderState))
+            loadedStyle.getSourceAs<GeoJsonSource>(SELECTED_STOP_SOURCE_ID)?.setGeoJson(selectedStopFeatures(renderState))
             lastStops = renderState.stops
             lastStopClusters = renderState.stopClusters
+            lastStopSourceRevision = renderState.stopSourceRevision
         }
         if (lastVehicleSourceRevision != renderState.vehicleSourceRevision) {
             if (lastVehicleBadgeRevision != renderState.vehicleBadgeRevision) {
                 updateBadgeImages(loadedStyle, renderState.vehicles.badgeRenderInput())
                 lastVehicleBadgeRevision = renderState.vehicleBadgeRevision
             }
-            loadedStyle.getSourceAs<GeoJsonSource>(VEHICLES_SOURCE_ID)?.setGeoJson(vehicleFeatures(renderState.vehicles))
+            loadedStyle.getSourceAs<GeoJsonSource>(VEHICLES_SOURCE_ID)?.setGeoJson(
+                vehicleFeatures(renderState.vehicles, renderState.vehicleSourceRevision),
+            )
             lastVehicleSourceRevision = renderState.vehicleSourceRevision
         }
         if (lastPolylines != renderState.polylines) {
@@ -313,14 +341,29 @@ private class LocalMapController(
         if (lastAppliedCameraRevision == renderState.camera.revision) return
         val command = renderState.camera
         if (!command.center.isMapCoordinate() || !command.zoom.isFinite()) return
+        if (mapView.height <= 0) {
+            mapView.post { latestState?.let(::applyCameraIfNeeded) }
+            return
+        }
         map?.moveCamera(
-            CameraUpdateFactory.newLatLngZoom(
-                LatLng(command.center.latitude, command.center.longitude),
-                command.zoom.coerceIn(MIN_ZOOM, MAX_ZOOM),
+            CameraUpdateFactory.newCameraPosition(
+                CameraPosition.Builder()
+                    .target(LatLng(command.center.latitude, command.center.longitude))
+                    .zoom(command.zoom.coerceIn(MIN_ZOOM, MAX_ZOOM))
+                    .padding(0.0, 0.0, 0.0, viewportBottomPadding(command))
+                    .build(),
             ),
         )
         lastAppliedCameraRevision = command.revision
         mapView.post { notifyViewportSettled() }
+    }
+
+    private fun viewportBottomPadding(command: MapCameraCommand): Double {
+        val fraction = command.viewportInsets.bottomOcclusionFraction
+            .takeIf(Double::isFinite)
+            ?.coerceIn(0.0, MAX_BOTTOM_OCCLUSION_FRACTION)
+            ?: 0.0
+        return mapView.height * fraction
     }
 
     private fun notifyViewportSettled() {
@@ -354,17 +397,40 @@ private class LocalMapController(
             screenPoint.x + halfTarget,
             screenPoint.y + halfTarget,
         )
-        val stopId = currentMap.queryRenderedFeatures(hitRect, STOPS_LAYER_ID)
-            .asSequence()
-            .filter { it.getStringProperty(FEATURE_KIND_PROPERTY) == FEATURE_KIND_STOP }
-            .mapNotNull { it.getStringProperty(FEATURE_ID_PROPERTY)?.takeIf(String::isNotBlank) }
-            .firstOrNull()
-            ?: return false
-        onEvent(MapPlatformEvent.StopTapped(com.denis.georgiatransit.shared.domain.model.StopId(stopId)))
-        return true
+        findEntityFeature(currentMap, hitRect, SELECTED_STOP_LAYER_ID, FEATURE_KIND_STOP)?.let { feature ->
+            onEvent(MapPlatformEvent.StopTapped(StopId(feature.first), feature.second))
+            return true
+        }
+        findEntityFeature(currentMap, hitRect, STOPS_LAYER_ID, FEATURE_KIND_STOP)?.let { feature ->
+            onEvent(MapPlatformEvent.StopTapped(StopId(feature.first), feature.second))
+            return true
+        }
+        findEntityFeature(currentMap, hitRect, VEHICLES_LAYER_ID, FEATURE_KIND_VEHICLE)?.let { feature ->
+            onEvent(MapPlatformEvent.VehicleTapped(VehicleId(feature.first), feature.second))
+            return true
+        }
+        return false
     }
 
-    private fun vehicleFeatures(vehicles: List<MapVehicleMarker>): FeatureCollection = FeatureCollection.fromFeatures(
+    private fun findEntityFeature(
+        currentMap: MapLibreMap,
+        hitRect: RectF,
+        layerId: String,
+        expectedKind: String,
+    ): Pair<String, Long>? = currentMap.queryRenderedFeatures(hitRect, layerId)
+        .asSequence()
+        .filter { it.getStringProperty(FEATURE_KIND_PROPERTY) == expectedKind }
+        .mapNotNull { feature ->
+            val id = feature.getStringProperty(FEATURE_ID_PROPERTY)?.takeIf(String::isNotBlank) ?: return@mapNotNull null
+            val revision = feature.getStringProperty(SOURCE_REVISION_PROPERTY)?.toLongOrNull() ?: return@mapNotNull null
+            id to revision
+        }
+        .firstOrNull()
+
+    private fun vehicleFeatures(
+        vehicles: List<MapVehicleMarker>,
+        sourceRevision: Long,
+    ): FeatureCollection = FeatureCollection.fromFeatures(
         vehicles.asSequence()
             .filter { it.id.value.isNotBlank() && it.routeId.value.isNotBlank() && it.position.isMapCoordinate() }
             .sortedBy { it.id.value }
@@ -372,6 +438,8 @@ private class LocalMapController(
             .map { marker ->
                 Feature.fromGeometry(marker.position.asMapPoint()).also { feature ->
                     feature.addStringProperty(FEATURE_ID_PROPERTY, marker.id.value)
+                    feature.addStringProperty(FEATURE_KIND_PROPERTY, FEATURE_KIND_VEHICLE)
+                    feature.addStringProperty(SOURCE_REVISION_PROPERTY, sourceRevision.toString())
                     feature.addStringProperty(VEHICLE_BADGE_IMAGE_PROPERTY, badgeImageIds[marker.badgeStyle()] ?: OVERFLOW_BADGE_IMAGE_ID)
                     feature.addNumberProperty(VEHICLE_OPACITY_PROPERTY, if (marker.isStale) STALE_VEHICLE_OPACITY else 1.0)
                     feature.addStringProperty(POSITION_KIND_PROPERTY, marker.positionKind.name)
@@ -402,6 +470,7 @@ private class LocalMapController(
     private fun clearRenderedLayerState() {
         lastStops = null
         lastStopClusters = null
+        lastStopSourceRevision = null
         lastPolylines = null
         lastUserLocation = null
         lastVehicleSourceRevision = null
@@ -411,19 +480,20 @@ private class LocalMapController(
     }
 }
 
-private fun stopFeatures(renderState: MapRenderState): FeatureCollection = FeatureCollection.fromFeatures(
+private fun ordinaryStopFeatures(renderState: MapRenderState): FeatureCollection = FeatureCollection.fromFeatures(
     (
         renderState.stops.asSequence()
-        .filter { it.id.value.isNotBlank() && it.position.isMapCoordinate() }
+        .filter { !it.isSelected && it.id.value.isNotBlank() && it.position.isMapCoordinate() }
         .sortedBy { it.id.value }
         .take(MAX_STOP_MARKERS)
         .map { marker ->
             Feature.fromGeometry(marker.position.asMapPoint()).also { feature ->
                 feature.addStringProperty(FEATURE_ID_PROPERTY, marker.id.value)
                 feature.addStringProperty(FEATURE_KIND_PROPERTY, FEATURE_KIND_STOP)
+                feature.addStringProperty(SOURCE_REVISION_PROPERTY, renderState.stopSourceRevision.toString())
                 feature.addStringProperty(ACCESSIBILITY_LABEL_PROPERTY, marker.accessibilityLabel)
-                feature.addStringProperty(MARKER_COLOR_PROPERTY, if (marker.isSelected) SELECTED_STOP_COLOR else STOP_COLOR)
-                feature.addNumberProperty(MARKER_RADIUS_PROPERTY, if (marker.isSelected) SELECTED_STOP_RADIUS else STOP_RADIUS)
+                feature.addStringProperty(MARKER_COLOR_PROPERTY, STOP_COLOR)
+                feature.addNumberProperty(MARKER_RADIUS_PROPERTY, STOP_RADIUS)
             }
         }
         + renderState.stopClusters.asSequence()
@@ -434,6 +504,7 @@ private fun stopFeatures(renderState: MapRenderState): FeatureCollection = Featu
                 Feature.fromGeometry(cluster.position.asMapPoint()).also { feature ->
                     feature.addStringProperty(FEATURE_ID_PROPERTY, cluster.stableId)
                     feature.addStringProperty(FEATURE_KIND_PROPERTY, FEATURE_KIND_CLUSTER)
+                    feature.addStringProperty(SOURCE_REVISION_PROPERTY, renderState.stopSourceRevision.toString())
                     feature.addStringProperty(ACCESSIBILITY_LABEL_PROPERTY, cluster.accessibilityLabel)
                     feature.addStringProperty(MARKER_COLOR_PROPERTY, CLUSTER_COLOR)
                     feature.addNumberProperty(MARKER_RADIUS_PROPERTY, CLUSTER_RADIUS)
@@ -441,6 +512,22 @@ private fun stopFeatures(renderState: MapRenderState): FeatureCollection = Featu
                 }
             }
     ).toList(),
+)
+
+private fun selectedStopFeatures(renderState: MapRenderState): FeatureCollection = FeatureCollection.fromFeatures(
+    renderState.stops.asSequence()
+        .filter { it.isSelected && it.id.value.isNotBlank() && it.position.isMapCoordinate() }
+        .sortedBy { it.id.value }
+        .take(1)
+        .map { marker ->
+            Feature.fromGeometry(marker.position.asMapPoint()).also { feature ->
+                feature.addStringProperty(FEATURE_ID_PROPERTY, marker.id.value)
+                feature.addStringProperty(FEATURE_KIND_PROPERTY, FEATURE_KIND_STOP)
+                feature.addStringProperty(SOURCE_REVISION_PROPERTY, renderState.stopSourceRevision.toString())
+                feature.addStringProperty(ACCESSIBILITY_LABEL_PROPERTY, marker.accessibilityLabel)
+            }
+        }
+        .toList(),
 )
 
 private fun polylineFeatures(polylines: List<MapPolyline>): FeatureCollection = FeatureCollection.fromFeatures(
@@ -567,11 +654,13 @@ private fun Long.asMapColor(): String = "#%06X".format(this and 0xFFFFFF)
 private fun Double.normalizedBearing(): Double = ((this % 360.0) + 360.0) % 360.0
 
 private const val STOPS_SOURCE_ID = "gt-stops-source"
+private const val SELECTED_STOP_SOURCE_ID = "gt-selected-stop-source"
 private const val VEHICLES_SOURCE_ID = "gt-vehicles-source"
 private const val POLYLINES_SOURCE_ID = "gt-polylines-source"
 private const val USER_LOCATION_SOURCE_ID = "gt-user-location-source"
 private const val USER_ACCURACY_SOURCE_ID = "gt-user-accuracy-source"
 private const val STOPS_LAYER_ID = "gt-stops-layer"
+private const val SELECTED_STOP_LAYER_ID = "gt-selected-stop-layer"
 private const val VEHICLES_LAYER_ID = "gt-vehicles-layer"
 private const val POLYLINES_LAYER_ID = "gt-polylines-layer"
 private const val USER_LOCATION_LAYER_ID = "gt-user-location-layer"
@@ -579,12 +668,14 @@ private const val USER_ACCURACY_FILL_LAYER_ID = "gt-user-accuracy-fill-layer"
 private const val USER_ACCURACY_STROKE_LAYER_ID = "gt-user-accuracy-stroke-layer"
 private const val FEATURE_ID_PROPERTY = "featureId"
 private const val FEATURE_KIND_PROPERTY = "featureKind"
+private const val SOURCE_REVISION_PROPERTY = "sourceRevision"
 private const val ACCESSIBILITY_LABEL_PROPERTY = "accessibilityLabel"
 private const val MARKER_COLOR_PROPERTY = "markerColor"
 private const val MARKER_RADIUS_PROPERTY = "markerRadius"
 private const val CLUSTER_COUNT_PROPERTY = "clusterCount"
 private const val FEATURE_KIND_STOP = "stop"
 private const val FEATURE_KIND_CLUSTER = "cluster"
+private const val FEATURE_KIND_VEHICLE = "vehicle"
 private const val STOP_COLOR = "#2A9D8F"
 private const val SELECTED_STOP_COLOR = "#E76F51"
 private const val CLUSTER_COLOR = "#264653"
@@ -603,6 +694,7 @@ private const val MAX_POLYLINES = 256
 private const val MIN_POLYGON_POINTS = 4
 private const val MIN_ZOOM = 0.0
 private const val MAX_ZOOM = 22.0
+private const val MAX_BOTTOM_OCCLUSION_FRACTION = 0.75
 private const val MIN_STOP_TARGET_DP = 48f
 private const val EARTH_RADIUS_METERS = 6_371_008.8
 private const val OVERFLOW_BADGE_IMAGE_ID = "gt-vehicle-badge-overflow"
