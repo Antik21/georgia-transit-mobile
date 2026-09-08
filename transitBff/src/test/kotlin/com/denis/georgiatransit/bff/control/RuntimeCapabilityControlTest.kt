@@ -14,6 +14,8 @@ import com.denis.georgiatransit.bff.direction
 import com.denis.georgiatransit.bff.route
 import com.denis.georgiatransit.bff.stop
 import com.denis.georgiatransit.bff.config.BffConfig
+import com.denis.georgiatransit.bff.config.BffConfigurationException
+import com.denis.georgiatransit.bff.observability.TelemetryCapability
 import com.denis.georgiatransit.bff.provider.JourneyQuery
 import com.denis.georgiatransit.bff.provider.ProviderRegistry
 import com.denis.georgiatransit.bff.service.TransitService
@@ -347,6 +349,238 @@ class RuntimeCapabilityControlTest {
         assertFalse(auditText.contains(files.controlPath.toString()))
         assertTrue(audits.all { it.startsWith("capability_control event=") })
     }
+
+    @Test
+    fun `schema drift latch persists across restart and needs a newer explicit acknowledgement to recover`() =
+        withControlFiles { files ->
+            files.writeControl(capabilityDocument(revision = "schema-1"))
+            val adapter = fixtureAdapter()
+            val config = files.config(schemaInterlockEnabled = true)
+            val audits = synchronizedAudits()
+            RuntimeCapabilityControl(config, ProviderRegistry(listOf(adapter)), audits::add).use { control ->
+                control.start()
+                assertFalse(control.observeSchemaDrift("test", TelemetryCapability.ARRIVALS))
+                assertFalse(control.observeSchemaDrift("test", TelemetryCapability.ARRIVALS))
+                assertTrue(control.observeSchemaDrift("test", TelemetryCapability.ARRIVALS))
+                assertTrue(control.isSchemaInterlocked("test", TelemetryCapability.ARRIVALS))
+                assertFalse(control.current().city("test").city.capabilities.arrivals)
+
+                files.writeControl(
+                    capabilityDocument(
+                        revision = "schema-1",
+                        acknowledgements = listOf("test" to "arrivals"),
+                    ),
+                )
+                awaitAudit(audits, "reason=duplicate_revision")
+                assertFalse(control.current().city("test").city.capabilities.arrivals, "old revision cannot clear a latch")
+
+                files.writeControl(capabilityDocument(revision = "schema-2"))
+                awaitRevision(control, "schema-2")
+                assertFalse(control.current().city("test").city.capabilities.arrivals, "unacknowledged new revision remains latched")
+            }
+
+            RuntimeCapabilityControl(config, ProviderRegistry(listOf(fixtureAdapter())), {}).use { restored ->
+                restored.start()
+                assertEquals("schema-2", restored.current().revision)
+                assertTrue(restored.isSchemaInterlocked("test", TelemetryCapability.ARRIVALS))
+                assertFalse(restored.current().city("test").city.capabilities.arrivals, "restart must not clear latch")
+
+                files.writeControl(
+                    capabilityDocument(
+                        revision = "schema-3",
+                        acknowledgements = listOf("test" to "arrivals"),
+                    ),
+                )
+                awaitRevision(restored, "schema-3")
+                assertFalse(restored.isSchemaInterlocked("test", TelemetryCapability.ARRIVALS))
+                assertTrue(restored.current().city("test").city.capabilities.arrivals)
+            }
+        }
+
+    @Test
+    fun `historical rollback acknowledgement cannot clear a later durable latch`() = withControlFiles { files ->
+        val historicalAcknowledgement = capabilityDocument(
+            revision = "schema-ack-history",
+            acknowledgements = listOf("test" to "arrivals"),
+        )
+        val laterRevision = capabilityDocument(revision = "schema-later")
+        val config = files.config(schemaInterlockEnabled = true)
+        val audits = synchronizedAudits()
+        files.writeControl(historicalAcknowledgement)
+
+        RuntimeCapabilityControl(config, ProviderRegistry(listOf(fixtureAdapter())), audits::add).use { control ->
+            control.start()
+            awaitRevision(control, "schema-ack-history")
+            files.writeControl(laterRevision)
+            awaitRevision(control, "schema-later")
+            repeat(2) { assertFalse(control.observeSchemaDrift("test", TelemetryCapability.ARRIVALS)) }
+            assertTrue(control.observeSchemaDrift("test", TelemetryCapability.ARRIVALS))
+            assertTrue(control.isSchemaInterlocked("test", TelemetryCapability.ARRIVALS))
+        }
+
+        val restoredAdapter = fixtureAdapter()
+        RuntimeCapabilityControl(config, ProviderRegistry(listOf(restoredAdapter)), audits::add).use { restored ->
+            restored.start()
+            assertEquals("schema-later", restored.current().revision)
+            assertTrue(restored.isSchemaInterlocked("test", TelemetryCapability.ARRIVALS), "restore retains latch")
+            assertFalse(restored.current().city("test").city.capabilities.arrivals)
+
+            files.writeControl(historicalAcknowledgement)
+            awaitRevision(restored, "schema-ack-history")
+            assertTrue(restored.isSchemaInterlocked("test", TelemetryCapability.ARRIVALS), "rollback must retain latch")
+            assertFalse(restored.current().city("test").city.capabilities.arrivals)
+            service(restored).use { transit ->
+                assertFailsWith<CapabilityNotAvailable> { runBlocking { transit.arrivals("test", stop.id, 1, "en") } }
+            }
+            assertEquals(0, restoredAdapter.arrivalsCalls.get(), "latched capability must block provider work")
+
+            files.writeControl(
+                capabilityDocument(
+                    revision = "schema-new-acknowledgement",
+                    acknowledgements = listOf("test" to "arrivals"),
+                ),
+            )
+            awaitRevision(restored, "schema-new-acknowledgement")
+            assertFalse(restored.isSchemaInterlocked("test", TelemetryCapability.ARRIVALS))
+            assertTrue(restored.current().city("test").city.capabilities.arrivals)
+        }
+
+        assertEquals(
+            2,
+            audits.count { it.contains("event=schema_interlock_recovery_skipped") },
+            "restore and rollback emit one bounded recovery-skipped audit each",
+        )
+        assertTrue(audits.any { it.contains("transition=restored revision=schema-later") })
+        assertTrue(audits.any { it.contains("transition=rollback revision=schema-ack-history") })
+        assertTrue(audits.all { it.startsWith("capability_control event=") })
+    }
+
+    @Test
+    fun `module startup publishes restored latch gauges before traffic while probes remain disabled`() = withControlFiles { files ->
+        val document = capabilityDocument(
+            revision = "startup-latched",
+            cityEntries = listOf(cityDocument("demo")),
+        )
+        val config = files.config(schemaInterlockEnabled = true)
+        val stateAdapter = FakeAdapter(
+            city = FakeAdapter().city.copy(id = "demo", availability = fixtureAvailability),
+        )
+        files.writeControl(document)
+        RuntimeCapabilityControl(config, ProviderRegistry(listOf(stateAdapter)), {}).use { control ->
+            control.start()
+            repeat(2) { assertFalse(control.observeSchemaDrift("demo", TelemetryCapability.ARRIVALS)) }
+            assertTrue(control.observeSchemaDrift("demo", TelemetryCapability.ARRIVALS))
+        }
+
+        assertFalse(config.probesEnabled)
+        testApplication {
+            application { transitBffModule(config) }
+
+            val firstScrape = client.get("/metrics")
+            assertEquals(HttpStatusCode.OK, firstScrape.status)
+            val initialMetrics = firstScrape.bodyAsText()
+            assertTrue(
+                initialMetrics.contains(
+                    "bff_provider_capability_enabled{city=\"demo\",provider=\"fixture\",capability=\"arrivals\"} 0",
+                ),
+            )
+            assertTrue(
+                initialMetrics.contains(
+                    "bff_provider_schema_interlock_latched{city=\"demo\",provider=\"fixture\",capability=\"arrivals\"} 1",
+                ),
+            )
+            assertFalse(initialMetrics.contains("bff_provider_requests_total{"), "startup and scrape must not call a provider")
+
+            assertEquals(HttpStatusCode.OK, client.get("/healthz").status)
+            val blocked = client.get("/v1/cities/demo/stops/demo:fixture:stop:center/arrivals?limit=1")
+            assertEquals(HttpStatusCode.NotImplemented, blocked.status)
+            val afterHealthAndBlockedRequest = client.get("/metrics").bodyAsText()
+            assertFalse(afterHealthAndBlockedRequest.contains("bff_provider_requests_total{"), "health and a latched call stay provider-free")
+        }
+    }
+
+    @Test
+    fun `acknowledged recovery republishes latch gauges without user or probe traffic`() = withControlFiles { files ->
+        val latchedDocument = capabilityDocument(
+            revision = "recovery-latched",
+            cityEntries = listOf(cityDocument("demo")),
+        )
+        val config = files.config(schemaInterlockEnabled = true)
+        val stateAdapter = FakeAdapter(
+            city = FakeAdapter().city.copy(id = "demo", availability = fixtureAvailability),
+        )
+        files.writeControl(latchedDocument)
+        RuntimeCapabilityControl(config, ProviderRegistry(listOf(stateAdapter)), {}).use { control ->
+            control.start()
+            repeat(2) { assertFalse(control.observeSchemaDrift("demo", TelemetryCapability.ARRIVALS)) }
+            assertTrue(control.observeSchemaDrift("demo", TelemetryCapability.ARRIVALS))
+        }
+
+        assertFalse(config.probesEnabled)
+        testApplication {
+            application { transitBffModule(config) }
+
+            val beforeAcknowledgement = client.get("/metrics").bodyAsText()
+            assertTrue(
+                beforeAcknowledgement.contains(
+                    "bff_provider_schema_interlock_latched{city=\"demo\",provider=\"fixture\",capability=\"arrivals\"} 1",
+                ),
+            )
+            assertTrue(
+                beforeAcknowledgement.contains(
+                    "bff_provider_capability_enabled{city=\"demo\",provider=\"fixture\",capability=\"arrivals\"} 0",
+                ),
+            )
+            assertFalse(beforeAcknowledgement.contains("bff_provider_requests_total{"))
+            assertFalse(beforeAcknowledgement.contains("bff_provider_cache_lookups_total{"))
+
+            files.writeControl(
+                capabilityDocument(
+                    revision = "recovery-acknowledged",
+                    cityEntries = listOf(cityDocument("demo")),
+                    acknowledgements = listOf("demo" to "arrivals"),
+                ),
+            )
+
+            val recoveredMetrics = awaitMetrics(scrape = { client.get("/metrics").bodyAsText() }) { metrics ->
+                metrics.contains(
+                    "bff_provider_schema_interlock_latched{city=\"demo\",provider=\"fixture\",capability=\"arrivals\"} 0",
+                ) && metrics.contains(
+                    "bff_provider_capability_enabled{city=\"demo\",provider=\"fixture\",capability=\"arrivals\"} 1",
+                )
+            }
+            assertFalse(recoveredMetrics.contains("bff_provider_requests_total{"), "metrics-only recovery must not call a provider")
+            assertFalse(recoveredMetrics.contains("bff_provider_cache_lookups_total{"), "metrics-only recovery must not populate caches")
+        }
+    }
+
+    @Test
+    fun `schema interlock state rejects duplicate JSON keys and control symlinks fail closed`() = withControlFiles { files ->
+        files.writeControl(capabilityDocument(revision = "schema-1"))
+        val config = files.config(schemaInterlockEnabled = true)
+        RuntimeCapabilityControl(config, ProviderRegistry(listOf(fixtureAdapter())), {}).use { control ->
+            control.start()
+            repeat(3) { control.observeSchemaDrift("test", TelemetryCapability.ARRIVALS) }
+        }
+        Files.writeString(
+            files.stateDirectory.resolve("schema-interlocks.json"),
+            """{"latches":[{"cityId":"test","cityId":"test","capability":"arrivals","latchedRevision":"schema-1"}]}""",
+        )
+        RuntimeCapabilityControl(config, ProviderRegistry(listOf(fixtureAdapter())), {}).use { corrupted ->
+            assertFailsWith<BffConfigurationException> { corrupted.start() }
+        }
+
+        withControlFiles { symlinkFiles ->
+            val target = symlinkFiles.rootDirectory.resolve("target.json")
+            Files.writeString(target, capabilityDocument(revision = "target"))
+            Files.setPosixFilePermissions(target, privateFilePermissions)
+            Files.createSymbolicLink(symlinkFiles.controlPath, target.fileName)
+            RuntimeCapabilityControl(symlinkFiles.config(), ProviderRegistry(listOf(fixtureAdapter())), {}).use { control ->
+                control.start()
+                assertClosed(control)
+            }
+        }
+    }
 }
 
 private data class FeatureCase(
@@ -446,13 +680,14 @@ private data class ControlFiles(
     val controlPath: Path,
     val stateDirectory: Path,
 ) {
-    fun config(historyLimit: Int = 20): BffConfig = BffConfig.fromEnvironment(
+    fun config(historyLimit: Int = 20, schemaInterlockEnabled: Boolean = false): BffConfig = BffConfig.fromEnvironment(
         mapOf(
             "BFF_FIXTURES_ENABLED" to "true",
             "BFF_CAPABILITY_CONTROL_PATH" to controlPath.toString(),
             "BFF_CAPABILITY_CONTROL_STATE_DIR" to stateDirectory.toString(),
             "BFF_CAPABILITY_CONTROL_POLL_SECONDS" to "5",
             "BFF_CAPABILITY_CONTROL_HISTORY_LIMIT" to historyLimit.toString(),
+            "BFF_SCHEMA_INTERLOCK_ENABLED" to schemaInterlockEnabled.toString(),
         ),
     )
 
@@ -512,11 +747,15 @@ private fun capabilityDocument(
     availability: CityAvailability = fixtureAvailability,
     capabilityValues: CityCapabilities = capabilities(),
     cityEntries: List<String>? = null,
+    acknowledgements: List<Pair<String, String>> = emptyList(),
 ): String =
     """
     {
       "revision": "$revision",
-      "cities": [${cityEntries?.joinToString(",") ?: cityDocument("test", enabled, availability, capabilityValues)}]
+      "cities": [${cityEntries?.joinToString(",") ?: cityDocument("test", enabled, availability, capabilityValues)}],
+      "schemaInterlockAcknowledgements": [${acknowledgements.joinToString(",") { (cityId, capability) ->
+        "{\"cityId\":\"$cityId\",\"capability\":\"$capability\"}"
+    }}]
     }
     """.trimIndent()
 
@@ -560,6 +799,18 @@ private fun awaitRevision(control: RuntimeCapabilityControl, expected: String) {
         Thread.sleep(50)
     }
     fail("Timed out waiting for capability revision $expected; was ${control.current().revision}")
+}
+
+private suspend fun awaitMetrics(
+    scrape: suspend () -> String,
+    expected: (String) -> Boolean,
+): String {
+    repeat(160) {
+        val metrics = scrape()
+        if (expected(metrics)) return metrics
+        Thread.sleep(50)
+    }
+    fail("Timed out waiting for expected metrics state")
 }
 
 private fun awaitAudit(audits: List<String>, expectedFragment: String) {

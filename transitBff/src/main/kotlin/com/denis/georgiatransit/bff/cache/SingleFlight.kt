@@ -28,14 +28,19 @@ class SingleFlight<K, V>(
     private val inFlight = mutableMapOf<K, Deferred<V>>()
     private var isClosed = false
 
-    suspend fun get(key: K, loader: suspend () -> V): V {
-        val deferred = synchronized(lock) {
+    suspend fun get(key: K, loader: suspend () -> V): V = get(key, {}, loader)
+
+    /** Observer payload is a finite ownership category, deliberately not a request cache key. */
+    suspend fun get(key: K, observer: (SingleFlightLookupOutcome) -> Unit, loader: suspend () -> V): V {
+        val lookup = synchronized(lock) {
             checkOpenLocked()
             pruneCompletedLocked()
             checkOpenLocked()
-            inFlight[key] ?: createDeferred(key, loader)
+            inFlight[key]?.let { Lookup(it, SingleFlightLookupOutcome.COALESCED) }
+                ?: Lookup(createDeferred(key, loader), SingleFlightLookupOutcome.MISS_OWNER)
         }
-        return deferred.await()
+        observer(lookup.outcome)
+        return lookup.deferred.await()
     }
 
     private fun createDeferred(key: K, loader: suspend () -> V): Deferred<V> {
@@ -83,4 +88,11 @@ class SingleFlight<K, V>(
     private fun checkOpenLocked() {
         if (isClosed) throw CancellationException("SingleFlight is closed")
     }
+
+    private data class Lookup<V>(val deferred: Deferred<V>, val outcome: SingleFlightLookupOutcome)
+}
+
+enum class SingleFlightLookupOutcome {
+    MISS_OWNER,
+    COALESCED,
 }

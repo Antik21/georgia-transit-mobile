@@ -147,6 +147,32 @@ surfaces use accessible link semantics and stable city-scoped automation IDs.
 Do not replace the visible credits with a hidden legal page or add a provider
 DTO to mobile code.
 
+## Observability, probes, and safety latches
+
+Use [the BFF observability runbook](bff-observability.md) before enabling
+scrapes or probes. `/metrics` is private deployment infrastructure, never a
+public client endpoint; it exports only finite labels and no contact,
+approval, target ID, URL, query, coordinate, request ID, response body, or
+error text. The monitoring backend/receiver, private ingress rule, production
+probe target, hosted-use approval, and multi-replica aggregate traffic limit
+are external operator inputs, not defaults supplied by this repository.
+
+`BFF_PROBES_ENABLED` remains false by default. An enabled Transitous probe must
+use `TRANSITOUS_PROBE_STOP_ID`, an already operator-approved server-only member
+of `TRANSITOUS_TBILISI_STOP_IDS`; it shares the exact retry/rate/circuit path
+and bypasses LKG for fresh-success evaluation. Set
+`TRANSITOUS_PROBE_REALTIME_EXPECTED=false` for schedule-only arrivals; the
+generic `officialArrivals=false` contract must not cause a perpetual realtime
+alarm.
+
+Production Transitous activation also requires a durable
+`BFF_SCHEMA_INTERLOCK_ENABLED=true`. Repeated synthetic-probe JSON decode or
+normalized-schema failures atomically latch only that capability, preventing
+further provider calls. It does not silently recover after restart. Follow the
+new-revision acknowledgement/evidence procedure in
+[bff-observability.md](bff-observability.md) to recover, or use a new control
+revision as the immediate kill switch/rollback.
+
 ## Operating checks
 
 Before enabling real traffic, validate only through an operator-approved manual

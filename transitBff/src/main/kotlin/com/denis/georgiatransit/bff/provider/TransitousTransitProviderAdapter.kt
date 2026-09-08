@@ -21,6 +21,13 @@ import com.denis.georgiatransit.bff.api.Shape
 import com.denis.georgiatransit.bff.api.Stop
 import com.denis.georgiatransit.bff.api.Vehicle
 import com.denis.georgiatransit.bff.config.TransitousActivationConfig
+import com.denis.georgiatransit.bff.observability.NoopProviderCallObservability
+import com.denis.georgiatransit.bff.observability.ProviderCallObservability
+import com.denis.georgiatransit.bff.observability.ProviderEvent
+import com.denis.georgiatransit.bff.observability.ProviderTelemetryLabels
+import com.denis.georgiatransit.bff.observability.TelemetryCapability
+import com.denis.georgiatransit.bff.observability.TelemetryOperation
+import com.denis.georgiatransit.bff.observability.TelemetryProvider
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.cio.CIO
 import io.ktor.client.plugins.HttpRequestTimeoutException
@@ -135,7 +142,7 @@ internal class TransitousTransitProviderAdapter(
     private val activation: TransitousActivationConfig,
     private val client: TransitousClient = TransitousClient(activation),
     private val clock: Clock = Clock.systemUTC(),
-) : CityTransitProviderAdapter, AutoCloseable {
+) : CityTransitProviderAdapter, ProviderCircuitProtectedAdapter, SyntheticProbeProvider, AutoCloseable {
     init {
         require(activation.isActivated) {
             "Transitous adapter construction requires explicit eligibility and contact activation"
@@ -181,6 +188,8 @@ internal class TransitousTransitProviderAdapter(
         ),
     )
 
+    override val telemetryProvider: TelemetryProvider = TelemetryProvider.TRANSITOUS
+
     private val stopCatalog = TransitousStopCatalog(activation.approvedStopIds)
     private val arrivalLastKnownGood = LastKnownGood<ArrivalRequestKey, RealtimeArrivals>(
         maximumEntries = 64,
@@ -192,6 +201,19 @@ internal class TransitousTransitProviderAdapter(
         maximumAgeMillis = TransitousLastKnownGoodMillis,
         clock = clock,
     )
+
+    override val probeTargets: List<SyntheticProbeTarget> = activation.probeStopId?.let { rawStopId ->
+        listOf(
+            SyntheticProbeTarget(
+                cityId = TransitousCityId,
+                provider = telemetryProvider,
+                capability = TelemetryCapability.ARRIVALS,
+                operation = TelemetryOperation.PROBE_ARRIVALS,
+                expectedRealtime = activation.probeRealtimeExpected,
+                privateTarget = rawStopId,
+            ),
+        )
+    } ?: emptyList()
 
     override suspend fun routes(locale: String, mode: String?): List<Route> = unsupported()
 
@@ -213,48 +235,77 @@ internal class TransitousTransitProviderAdapter(
         stopCatalog.requireAllowed(upstreamStopId)
         val key = ArrivalRequestKey(upstreamStopId, boundedLimit, normalizedLocale)
         return try {
-            val requestTime = clock.instant()
-            val response = client.stopTimes(
-                stopId = upstreamStopId,
-                limit = boundedLimit,
-                language = normalizedLocale,
-                time = requestTime,
-            )
-            if (!TbilisiBounds.contains(response.place) || !response.place.hasExactStopId(upstreamStopId)) {
-                throw ProviderBadGateway("The transit provider returned an invalid response")
-            }
-            val arrivals = response.stopTimes.take(boundedLimit).map { stopTime ->
-                if (!TbilisiBounds.contains(stopTime.place) || !stopTime.place.hasExactStopId(upstreamStopId)) {
-                    throw ProviderBadGateway("The provider returned an invalid response")
-                }
-                stopTime.toArrival(stopId)
-            }
-            val source = arrivals.pageSource()
-            NormalizedResponseValidator.arrivalPage(
-                cityId = TransitousCityId,
-                stopId = stopId,
-                page = ArrivalPage(
-                    items = arrivals,
-                    source = source,
-                    observedAt = requestTime.toString(),
-                    stale = false,
-                ),
-            )
-            // This timestamp is intentionally taken after the bounded body has fully decoded and
-            // its normalized output has been validated, so LKG age means "last good result".
-            val observedAt = clock.instant()
-            val page = RealtimeArrivals(
-                items = arrivals,
-                source = source,
-                observedAt = observedAt,
-                stale = false,
-            )
-            arrivalLastKnownGood.put(key, page, observedAt)
+            val page = freshArrivals(upstreamStopId, stopId, boundedLimit, normalizedLocale)
+            arrivalLastKnownGood.put(key, page, page.observedAt)
             page
         } catch (failure: ProviderFailure) {
-            arrivalLastKnownGood.stale(key, failure)?.let { return it.copy(stale = true) }
+            failure.takeIf(ProviderFailure::isEligibleForLastKnownGood)?.let { eligible ->
+                arrivalLastKnownGood.stale(key, eligible)?.let { return it.copy(stale = true) }
+            }
             throw failure
         }
+    }
+
+    override suspend fun probe(target: SyntheticProbeTarget): SyntheticProbeResult {
+        require(target in probeTargets) { "Unknown synthetic probe target" }
+        val publicStopId = TransitousIds.stopId(target.privateTarget)
+        val page = freshArrivals(
+            upstreamStopId = target.privateTarget,
+            publicStopId = publicStopId,
+            boundedLimit = 1,
+            normalizedLocale = "en",
+            operation = TelemetryOperation.PROBE_ARRIVALS,
+        )
+        return SyntheticProbeResult(
+            observedAt = page.observedAt,
+            itemCount = page.items.size,
+            realtime = page.items.any(Arrival::realtime),
+            stale = page.stale,
+        )
+    }
+
+    private suspend fun freshArrivals(
+        upstreamStopId: String,
+        publicStopId: String,
+        boundedLimit: Int,
+        normalizedLocale: String,
+        operation: TelemetryOperation = TelemetryOperation.ARRIVALS,
+    ): RealtimeArrivals {
+        val requestTime = clock.instant()
+        val response = client.stopTimes(
+            stopId = upstreamStopId,
+            limit = boundedLimit,
+            language = normalizedLocale,
+            time = requestTime,
+            operation = operation,
+        )
+        if (!TbilisiBounds.contains(response.place) || !response.place.hasExactStopId(upstreamStopId)) {
+            invalidTransitousResponse()
+        }
+        val arrivals = response.stopTimes.take(boundedLimit).map { stopTime ->
+            if (!TbilisiBounds.contains(stopTime.place) || !stopTime.place.hasExactStopId(upstreamStopId)) {
+                invalidTransitousResponse()
+            }
+            stopTime.toArrival(publicStopId)
+        }
+        val source = arrivals.pageSource()
+        NormalizedResponseValidator.arrivalPage(
+            cityId = TransitousCityId,
+            stopId = publicStopId,
+            page = ArrivalPage(
+                items = arrivals,
+                source = source,
+                observedAt = requestTime.toString(),
+                stale = false,
+            ),
+        )
+        val observedAt = clock.instant()
+        return RealtimeArrivals(
+            items = arrivals,
+            source = source,
+            observedAt = observedAt,
+            stale = false,
+        )
     }
 
     override suspend fun journeys(query: JourneyQuery): List<Journey> = journeyPage(query).items
@@ -321,7 +372,9 @@ internal class TransitousTransitProviderAdapter(
             journeyLastKnownGood.put(key, page, observedAt)
             page
         } catch (failure: ProviderFailure) {
-            journeyLastKnownGood.stale(key, failure)?.let { return it.copy(stale = true) }
+            failure.takeIf(ProviderFailure::isEligibleForLastKnownGood)?.let { eligible ->
+                journeyLastKnownGood.stale(key, eligible)?.let { return it.copy(stale = true) }
+            }
             throw failure
         }
     }
@@ -338,9 +391,9 @@ private fun TransitousStopTime.toArrival(publicStopId: String): Arrival {
     val realtime = realTime
     return Arrival(
         stopId = publicStopId,
-        routeId = TransitousIds.routeId(routeId.requireNonBlank("route id")),
-        tripId = TransitousIds.tripId(tripId.requireNonBlank("trip id")),
-        headsign = headsign.requireNonBlank("headsign").asLocalizedText(),
+        routeId = TransitousIds.routeId(routeId.requireNonBlank()),
+        tripId = TransitousIds.tripId(tripId.requireNonBlank()),
+        headsign = headsign.requireNonBlank().asLocalizedText(),
         scheduledAt = scheduledAt,
         expectedAt = expectedAt,
         expectedInMinutes = null,
@@ -385,7 +438,7 @@ private fun TransitousItinerary.toJourney(maxTransfers: Int): MappedJourney {
         mapped
     }
     val journey = Journey(
-        id = TransitousIds.journeyId(id.requireNonBlank("itinerary id")),
+        id = TransitousIds.journeyId(id.requireNonBlank()),
         departureAt = journeyDeparture.toString(),
         arrivalAt = journeyArrival.toString(),
         transfers = transfers,
@@ -512,7 +565,7 @@ private fun String?.toUtcTimestampOrNull(): String? = this?.let { value ->
     try {
         Instant.parse(value).toString()
     } catch (_: Exception) {
-        throw ProviderBadGateway("The provider returned an invalid response")
+        invalidTransitousResponse()
     }
 }
 
@@ -522,15 +575,18 @@ private fun String.toUpstreamInstant(): Instant = try {
     invalidTransitousResponse()
 }
 
-private fun String.requireNonBlank(field: String): String = takeIf(String::isNotBlank)
-    ?: throw ProviderBadGateway("The provider returned an invalid $field")
+private fun String.requireNonBlank(): String = takeIf(String::isNotBlank)
+    ?: invalidTransitousResponse()
 
 private fun String.asLocalizedText(): LocalizedText = LocalizedText(ru = this, en = this, ka = this)
 
 private fun String.normalizedTransitousLocale(): String = lowercase(Locale.ROOT)
 
 private fun invalidTransitousResponse(): Nothing =
-    throw ProviderBadGateway("The transit provider returned an invalid response")
+    throw ProviderNormalizedSchemaFailure("The transit provider returned an invalid response")
+
+private fun ProviderFailure.isEligibleForLastKnownGood(): Boolean =
+    this is ProviderUnavailable || this is ProviderTimeout || this is ProviderRateLimited
 
 private object TransitousIds {
     private const val Prefix = "$TransitousCityId:$TransitousProvider"
@@ -714,14 +770,23 @@ internal class TransitousClient(
             socketTimeoutMillis = TransitousRequestTimeoutMillis
         }
     },
+    private val observability: ProviderCallObservability = NoopProviderCallObservability,
 ) : AutoCloseable {
     init {
         require(activation.isActivated) { "Transitous client requires explicit activation" }
     }
 
-    suspend fun stopTimes(stopId: String, limit: Int, language: String, time: Instant): TransitousStopTimesResponse =
+    suspend fun stopTimes(
+        stopId: String,
+        limit: Int,
+        language: String,
+        time: Instant,
+        operation: TelemetryOperation = TelemetryOperation.ARRIVALS,
+    ): TransitousStopTimesResponse =
         get(
             endpoint = "stoptimes",
+            capability = TelemetryCapability.ARRIVALS,
+            operation = operation,
             query = listOf(
                 "stopId" to stopId,
                 "time" to time.toString(),
@@ -743,6 +808,8 @@ internal class TransitousClient(
         language: String,
     ): TransitousPlanResponse = get(
         endpoint = "plan",
+        capability = TelemetryCapability.TRIP_PLANNING,
+        operation = TelemetryOperation.JOURNEYS,
         query = listOf(
             "fromPlace" to "${from.latitude},${from.longitude}",
             "toPlace" to "${to.latitude},${to.longitude}",
@@ -773,14 +840,39 @@ internal class TransitousClient(
 
     private suspend inline fun <reified T> get(
         endpoint: String,
+        capability: TelemetryCapability,
+        operation: TelemetryOperation,
         query: List<Pair<String, String>>,
         crossinline missing: () -> ProviderFailure,
+    ): T = observability.protectProviderCall(
+        ProviderTelemetryLabels(
+            city = TransitousCityId,
+            provider = TelemetryProvider.TRANSITOUS,
+            capability = capability,
+            operation = operation,
+        ),
+    ) {
+        getWithRetry(endpoint, query, missing, capability, operation)
+    }
+
+    private suspend inline fun <reified T> getWithRetry(
+        endpoint: String,
+        query: List<Pair<String, String>>,
+        crossinline missing: () -> ProviderFailure,
+        capability: TelemetryCapability,
+        operation: TelemetryOperation,
     ): T {
+        val labels = ProviderTelemetryLabels(
+            city = TransitousCityId,
+            provider = TelemetryProvider.TRANSITOUS,
+            capability = capability,
+            operation = operation,
+        )
         var retry = 0
         while (true) {
             try {
                 when (
-                    val attempt: TransitousAttempt<T> = TransitousUpstreamBudget.execute {
+                    val attempt: TransitousAttempt<T> = TransitousUpstreamBudget.execute(labels, observability) {
                         val response = httpClient.get {
                             url(requireNotNull(activation.baseUrl).toString())
                             url {
@@ -813,6 +905,7 @@ internal class TransitousClient(
                     is TransitousAttempt.Complete -> return attempt.value
                     is TransitousAttempt.Retry -> {
                         retry += 1
+                        observability.recordEvent(labels, ProviderEvent.RETRY)
                         delay(attempt.delayMillis)
                     }
                 }
@@ -823,6 +916,7 @@ internal class TransitousClient(
             } catch (failure: Throwable) {
                 if (failure.isRetryableTransport() && retry < TransitousMaximumRetries) {
                     retry += 1
+                    observability.recordEvent(labels, ProviderEvent.RETRY)
                     delay(retryDelayMillis(retry, null))
                     continue
                 }
@@ -840,8 +934,10 @@ internal class TransitousClient(
             TransitousResponseJson.decodeFromString<T>(readBodyWithinLimit())
         } catch (failure: CancellationException) {
             throw failure
+        } catch (failure: ProviderFailure) {
+            throw failure
         } catch (_: Throwable) {
-            throw ProviderBadGateway("The transit provider returned an invalid response")
+            throw ProviderJsonDecodeFailure("The transit provider returned an invalid response")
         }
         status == HttpStatusCode.NotFound -> discardAndThrow(missing())
         status == HttpStatusCode.RequestTimeout -> discardAndThrow(
@@ -926,24 +1022,26 @@ private object TransitousUpstreamBudget {
     private val starts = ArrayDeque<Long>()
     private val mutex = Mutex()
 
-    suspend fun <T> execute(block: suspend () -> T): T {
+    suspend fun <T> execute(labels: ProviderTelemetryLabels, observability: ProviderCallObservability, block: suspend () -> T): T {
         if (!permits.tryAcquire()) {
+            observability.recordEvent(labels, ProviderEvent.RATE_BUDGET_REJECTED)
             throw ProviderRateLimited("The transit provider is rate limited", 1)
         }
         try {
-            reserveRequestStart()
+            reserveRequestStart(labels, observability)
             return block()
         } finally {
             permits.release()
         }
     }
 
-    private suspend fun reserveRequestStart() = mutex.withLock {
+    private suspend fun reserveRequestStart(labels: ProviderTelemetryLabels, observability: ProviderCallObservability) = mutex.withLock {
         val now = System.currentTimeMillis()
         while (starts.firstOrNull()?.let { now - it >= TransitousUpstreamRateWindowMillis } == true) {
             starts.removeFirst()
         }
         if (starts.size >= TransitousMaximumUpstreamRequestsPerMinute) {
+            observability.recordEvent(labels, ProviderEvent.RATE_BUDGET_REJECTED)
             val retryAfterSeconds = ceil(
                 (starts.first() + TransitousUpstreamRateWindowMillis - now) / 1_000.0,
             ).toInt().coerceIn(1, 60)

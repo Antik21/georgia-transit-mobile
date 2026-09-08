@@ -14,10 +14,16 @@ import com.denis.georgiatransit.bff.api.UpstreamBadGateway
 import com.denis.georgiatransit.bff.api.UpstreamTimeout
 import com.denis.georgiatransit.bff.api.UpstreamUnavailable
 import com.denis.georgiatransit.bff.capabilities
+import com.denis.georgiatransit.bff.config.BffConfig
+import com.denis.georgiatransit.bff.control.IntrinsicCapabilitySnapshotSource
+import com.denis.georgiatransit.bff.observability.BffObservability
+import com.denis.georgiatransit.bff.observability.TelemetryProvider
 import com.denis.georgiatransit.bff.provider.ProviderBadGateway
 import com.denis.georgiatransit.bff.provider.ProviderCapabilityUnavailable
 import com.denis.georgiatransit.bff.provider.ProviderConflict
 import com.denis.georgiatransit.bff.provider.ProviderInvalidArgument
+import com.denis.georgiatransit.bff.provider.ProviderJsonDecodeFailure
+import com.denis.georgiatransit.bff.provider.ProviderNormalizedSchemaFailure
 import com.denis.georgiatransit.bff.provider.ProviderRateLimited
 import com.denis.georgiatransit.bff.provider.ProviderRegistry
 import com.denis.georgiatransit.bff.provider.ProviderRouteNotFound
@@ -108,6 +114,22 @@ class TransitServiceTest {
     }
 
     @Test
+    fun `JSON decode and normalized schema classifications remain internal safe 502 responses`() = runTest {
+        listOf(
+            ProviderJsonDecodeFailure("raw-json-provider-payload"),
+            ProviderNormalizedSchemaFailure("raw-normalized-provider-payload"),
+        ).forEach { providerFailure ->
+            val adapter = FakeAdapter().apply { routesResult = { throw providerFailure } }
+            service(adapter).use { transit ->
+                val failure = assertFailsWith<UpstreamBadGateway> { transit.routes("test", "en", null) }
+                assertEquals("UPSTREAM_BAD_RESPONSE", failure.errorCode)
+                assertEquals("The provider returned an invalid response", failure.message)
+                assertFalse(failure.message.contains("raw-"))
+            }
+        }
+    }
+
+    @Test
     fun `nearby stops use cached directory with Haversine radius ordering and limit`() = runTest {
         val close = stop.copy(id = "test:provider:stop:close", providerId = "close", position = GeoPoint(41.7001, 44.8))
         val medium = stop.copy(id = "test:provider:stop:medium", providerId = "medium", position = GeoPoint(41.701, 44.8))
@@ -173,6 +195,25 @@ class TransitServiceTest {
     }
 
     @Test
+    fun `generic adapters are circuit protected before further upstream calls`() = runTest {
+        val adapter = FakeAdapter().apply { routesResult = { throw ProviderUnavailable("upstream failure") } }
+        val observability = BffObservability(
+            config = BffConfig.fromEnvironment(
+                mapOf(
+                    "BFF_FIXTURES_ENABLED" to "true",
+                    "BFF_CIRCUIT_FAILURE_THRESHOLD" to "2",
+                ),
+            ),
+            allowedProviders = setOf("test" to TelemetryProvider.FIXTURE),
+        )
+        instrumentedService(adapter, observability).use { transit ->
+            repeat(3) { assertFailsWith<UpstreamUnavailable> { transit.routes("test", "en", null) } }
+            assertEquals(2, adapter.routesCalls.get(), "open circuit must block the generic adapter")
+            assertTrue(observability.render().contains("event=\"circuit_rejected\""))
+        }
+    }
+
+    @Test
     fun `single flight timeout maps to 504`() = runTest {
         val adapter = FakeAdapter().apply {
             vehiclesResult = {
@@ -195,3 +236,11 @@ private fun service(adapter: FakeAdapter, realtimeSeconds: Long = 15): TransitSe
         shapeCacheTtlSeconds = 3_600,
         realtimeSingleFlightSeconds = realtimeSeconds,
     )
+
+private fun instrumentedService(adapter: FakeAdapter, observability: BffObservability): TransitService = TransitService(
+    capabilitySnapshots = IntrinsicCapabilitySnapshotSource(ProviderRegistry(listOf(adapter))),
+    directoryCacheTtlSeconds = 3_600,
+    shapeCacheTtlSeconds = 3_600,
+    realtimeSingleFlightSeconds = 15,
+    observability = observability,
+)

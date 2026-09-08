@@ -7,7 +7,9 @@ import java.time.ZoneId
 import java.time.ZoneOffset
 import java.util.concurrent.CancellationException
 import java.util.concurrent.atomic.AtomicInteger
+import java.util.Collections
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.async
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.supervisorScope
@@ -19,6 +21,42 @@ import kotlin.test.assertSame
 import kotlin.time.Duration.Companion.seconds
 
 class BoundedKeyedTtlCacheTest {
+    @Test
+    fun `bounded observer reports one owner a coalesced follower and a subsequent hit`() = runTest {
+        val cache = BoundedKeyedTtlCache<String, Int>(60.seconds, 2)
+        val started = CompletableDeferred<Unit>()
+        val release = CompletableDeferred<Unit>()
+        val loads = AtomicInteger()
+        val outcomes = Collections.synchronizedList(mutableListOf<CacheLookupOutcome>())
+
+        cache.use {
+            supervisorScope {
+                val owner = async {
+                    cache.getOrLoad("key", outcomes::add) {
+                        loads.incrementAndGet()
+                        started.complete(Unit)
+                        release.await()
+                        9
+                    }
+                }
+                started.await()
+                val follower = async(start = CoroutineStart.UNDISPATCHED) {
+                    cache.getOrLoad("key", outcomes::add) { error("coalesced follower ran loader") }
+                }
+                release.complete(Unit)
+
+                assertEquals(9, owner.await())
+                assertEquals(9, follower.await())
+            }
+            assertEquals(9, cache.getOrLoad("key", outcomes::add) { error("ready value was reloaded") })
+            assertEquals(1, loads.get(), "followers are lookups, not another upstream attempt")
+            assertEquals(
+                listOf(CacheLookupOutcome.MISS_OWNER, CacheLookupOutcome.COALESCED, CacheLookupOutcome.HIT),
+                outcomes,
+            )
+        }
+    }
+
     @Test
     fun `same key waiters share the initial failed generation and retry starts a new one`() = runTest {
         val cache = BoundedKeyedTtlCache<String, Int>(60.seconds, 2)

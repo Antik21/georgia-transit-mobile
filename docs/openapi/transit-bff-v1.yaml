@@ -27,6 +27,22 @@ paths:
           headers: {X-Request-ID: {$ref: '#/components/headers/RequestId'}}
           content: {application/json: {schema: {$ref: '#/components/schemas/HealthResponse'}, example: {status: not_ready, mode: development}}}
         '500': {$ref: '#/components/responses/InternalError'}
+  /metrics:
+    get:
+      operationId: internalMetrics
+      summary: Internal Prometheus 0.0.4 exposition for deployment-private scraping.
+      description: |
+        This route is not a mobile/client API. Deployment ingress or ACL must isolate it. It
+        contains only bounded privacy-safe dimensions and never triggers provider requests,
+        probes, caches, or circuit transitions.
+      responses:
+        '200':
+          description: UTF-8 Prometheus 0.0.4 text exposition with LF line endings.
+          content:
+            text/plain; version=0.0.4; charset=utf-8:
+              schema: {type: string}
+        '404':
+          description: Exporter disabled by BFF_METRICS_ENABLED=false.
   /v1/cities:
     get:
       operationId: listCities

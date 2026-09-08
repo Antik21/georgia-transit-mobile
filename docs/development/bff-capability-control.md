@@ -85,6 +85,15 @@ array to kill all cities deliberately. Kutaisi has no registered reviewed
 adapter in this repository and is therefore absent by default; attempting to
 name it is rejected rather than enabling it.
 
+`schemaInterlockAcknowledgements` is an optional, explicit recovery-only top-level
+field. It may contain bounded normalized entries such as
+`{"cityId":"tbilisi","capability":"arrivals"}`. It never carries a provider
+URL, stop ID, probe target, credential, request detail, or free-form note. A
+new revision with a matching acknowledgement is the only way to clear that
+city/capability's durable synthetic-probe schema-drift latch; a restart never
+clears it. See [bff-observability.md](bff-observability.md) for the required
+evidence and recovery sequence.
+
 Write the next document to a temporary file in the same operator-owned
 directory, validate its ownership and permissions locally, then atomically
 rename it over `BFF_CAPABILITY_CONTROL_PATH`. The runtime requires an absolute,
@@ -139,6 +148,12 @@ restored, rollback, and rejected transitions. They contain only event type,
 safe revision, generation/count, and fixed failure classification—never the
 control path, document body, provider information, headers, or secrets.
 
+Schema-interlock audit records use only the normalized city/capability and a
+fixed durability classification. The interlock state is written in the same
+private state directory with the same no-follow, ownership, POSIX mode, atomic
+rename, file-force, and directory-force safeguards. If those safeguards cannot
+be met while the interlock is configured, the BFF fails closed.
+
 If a later file update is missing or malformed, the BFF keeps the accepted
 in-memory snapshot and its persisted last-known-good document. An initial
 production failure remains closed. To roll back, atomically restore the exact
@@ -147,6 +162,14 @@ revision with its exact stored digest is accepted as an atomic `rollback`
 transition. Reusing a revision with modified content is rejected; issue a new
 revision for a new change. Do not edit history files by hand—restore a document
 through the control path and let the BFF maintain the bounded index.
+
+A startup `restored` snapshot and a historical `rollback` may restore ordinary
+capability configuration, but they never clear a durable schema-interlock latch,
+even if the older document contains an acknowledgement. Only a newly accepted
+control revision after the latch, with its exact explicit acknowledgement, can
+clear that latch. The BFF emits a fixed `schema_interlock_recovery_skipped`
+audit event for restored/rollback transitions; it contains only event,
+transition, and revision fields.
 
 On `ApplicationStopped`, the watcher scope is cancelled; ordinary file reads
 and writes have no long-lived handles. The read path uses no-follow access and

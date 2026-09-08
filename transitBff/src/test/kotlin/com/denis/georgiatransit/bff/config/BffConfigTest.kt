@@ -23,6 +23,11 @@ class BffConfigTest {
         assertFalse(config.transitous.enabled)
         assertFalse(config.transitous.isActivated)
         assertFalse(config.transitous.isRoutingApproved)
+        assertTrue(config.metricsEnabled)
+        assertFalse(config.probesEnabled)
+        assertEquals(60, config.probeIntervalSeconds)
+        assertEquals(3, config.circuitFailureThreshold)
+        assertEquals(300, config.schemaDriftWindowSeconds)
     }
 
     @Test
@@ -67,6 +72,41 @@ class BffConfigTest {
         assertFailsWith<BffConfigurationException> {
             BffConfig.fromEnvironment(mapOf("BFF_MODE" to "production", "BFF_FIXTURES_ENABLED" to "true"))
         }
+    }
+
+    @Test
+    fun `observability and interlock settings have strict bounds and production activation fails closed`() {
+        val invalid = listOf(
+            mapOf("BFF_METRICS_ENABLED" to "yes"),
+            mapOf("BFF_PROBES_ENABLED" to "yes"),
+            mapOf("BFF_PROBE_INTERVAL_SECONDS" to "59"),
+            mapOf("BFF_PROBE_INTERVAL_SECONDS" to "301"),
+            mapOf("BFF_CIRCUIT_FAILURE_THRESHOLD" to "1"),
+            mapOf("BFF_CIRCUIT_FAILURE_THRESHOLD" to "11"),
+            mapOf("BFF_CIRCUIT_WINDOW_SECONDS" to "9"),
+            mapOf("BFF_CIRCUIT_WINDOW_SECONDS" to "3601"),
+            mapOf("BFF_CIRCUIT_OPEN_SECONDS" to "4"),
+            mapOf("BFF_CIRCUIT_OPEN_SECONDS" to "601"),
+            mapOf("BFF_SCHEMA_DRIFT_THRESHOLD" to "1"),
+            mapOf("BFF_SCHEMA_DRIFT_THRESHOLD" to "11"),
+            mapOf("BFF_SCHEMA_DRIFT_WINDOW_SECONDS" to "59"),
+            mapOf("BFF_SCHEMA_DRIFT_WINDOW_SECONDS" to "3601"),
+        )
+        invalid.forEach { environment ->
+            assertFailsWith<BffConfigurationException> { BffConfig.fromEnvironment(environment) }
+        }
+
+        val productionTransitous = transitousEnvironment() + mapOf(
+            "BFF_MODE" to "production",
+            "BFF_FIXTURES_ENABLED" to "false",
+            "BFF_CAPABILITY_CONTROL_PATH" to "/private/control.json",
+            "BFF_CAPABILITY_CONTROL_STATE_DIR" to "/private/state",
+        )
+        assertFailsWith<BffConfigurationException> { BffConfig.fromEnvironment(productionTransitous) }
+        assertTrue(
+            BffConfig.fromEnvironment(productionTransitous + ("BFF_SCHEMA_INTERLOCK_ENABLED" to "true"))
+                .schemaInterlockEnabled,
+        )
     }
 
     @Test

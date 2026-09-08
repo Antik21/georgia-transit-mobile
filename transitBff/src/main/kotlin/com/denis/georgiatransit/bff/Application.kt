@@ -18,18 +18,26 @@ import com.denis.georgiatransit.bff.config.BffConfig
 import com.denis.georgiatransit.bff.config.BffConfigurationException
 import com.denis.georgiatransit.bff.config.RuntimeMode
 import com.denis.georgiatransit.bff.control.RuntimeCapabilityControl
+import com.denis.georgiatransit.bff.observability.BffObservability
+import com.denis.georgiatransit.bff.observability.HttpOperation
+import com.denis.georgiatransit.bff.observability.ProbeRunner
+import com.denis.georgiatransit.bff.observability.TelemetryProvider
 import com.denis.georgiatransit.bff.provider.DemoFixtureTransitProviderAdapter
 import com.denis.georgiatransit.bff.provider.JourneyQuery
 import com.denis.georgiatransit.bff.provider.ProviderRegistry
+import com.denis.georgiatransit.bff.provider.SyntheticProbeProvider
 import com.denis.georgiatransit.bff.provider.TransitousTransitProviderAdapter
+import com.denis.georgiatransit.bff.provider.TransitousClient
 import com.denis.georgiatransit.bff.service.TransitService
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
+import io.ktor.http.ContentType
 import io.ktor.serialization.kotlinx.json.json
 import io.ktor.server.application.Application
 import io.ktor.server.application.ApplicationCall
 import io.ktor.server.application.ApplicationStopped
 import io.ktor.server.application.createApplicationPlugin
+import io.ktor.server.application.hooks.ResponseSent
 import io.ktor.server.application.install
 import io.ktor.server.engine.embeddedServer
 import io.ktor.server.netty.Netty
@@ -41,6 +49,7 @@ import io.ktor.server.request.httpMethod
 import io.ktor.server.request.path
 import io.ktor.server.response.header
 import io.ktor.server.response.respond
+import io.ktor.server.response.respondText
 import io.ktor.server.routing.get
 import io.ktor.server.routing.route
 import io.ktor.server.routing.routing
@@ -50,15 +59,47 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.serialization.json.Json
 
 private val RequestIdAttribute = AttributeKey<String>("request-id")
+private val HttpOperationAttribute = AttributeKey<HttpOperation>("http-operation")
+private val HttpStartedAtNanosAttribute = AttributeKey<Long>("http-started-at-nanos")
+private val HttpMetricsRecordedAttribute = AttributeKey<Unit>("http-metrics-recorded")
 private val safeRequestId = Regex("[A-Za-z0-9][A-Za-z0-9._-]{0,127}")
 
 private val RequestId = createApplicationPlugin("RequestId") {
     onCall { call ->
+        // Metrics is an internal scrape body, not a client API response; do not echo or create a
+        // per-scrape request identifier that could be mistaken for an exported telemetry label.
+        if (call.request.path() == "/metrics") return@onCall
         val requestId = call.request.header(HttpHeaders.XRequestId)
             ?.takeIf(safeRequestId::matches)
             ?: UUID.randomUUID().toString()
         call.attributes.put(RequestIdAttribute, requestId)
         call.response.header(HttpHeaders.XRequestId, requestId)
+    }
+}
+
+private class HttpMetricsConfiguration {
+    lateinit var observability: BffObservability
+}
+
+private val HttpMetrics = createApplicationPlugin("HttpMetrics", ::HttpMetricsConfiguration) {
+    val observability = pluginConfig.observability
+    onCall { call ->
+        call.attributes.put(HttpStartedAtNanosAttribute, System.nanoTime())
+    }
+    // ResponseSent proceeds through the engine send phase first, so the status is the final
+    // response status rather than the nullable value visible while a route is still responding.
+    on(ResponseSent) { call ->
+        if (!call.attributes.contains(HttpOperationAttribute) || !call.attributes.contains(HttpStartedAtNanosAttribute)) {
+            return@on
+        }
+        if (call.attributes.contains(HttpMetricsRecordedAttribute)) return@on
+        val finalStatus = call.response.status() ?: return@on
+        call.attributes.put(HttpMetricsRecordedAttribute, Unit)
+        observability.recordHttp(
+            operation = call.attributes[HttpOperationAttribute],
+            statusCode = finalStatus.value,
+            durationNanos = System.nanoTime() - call.attributes[HttpStartedAtNanosAttribute],
+        )
     }
 }
 
@@ -70,6 +111,15 @@ fun main() {
 }
 
 fun Application.transitBffModule(config: BffConfig = BffConfig.fromEnvironment()) {
+    val observability = BffObservability(
+        config = config,
+        allowedProviders = buildSet {
+            if (config.mode == RuntimeMode.DEVELOPMENT && config.fixturesEnabled) {
+                add("demo" to TelemetryProvider.FIXTURE)
+            }
+            if (config.transitous.isActivated) add("tbilisi" to TelemetryProvider.TRANSITOUS)
+        },
+    )
     val adapters = buildList {
         if (config.mode == RuntimeMode.DEVELOPMENT && config.fixturesEnabled) {
             add(DemoFixtureTransitProviderAdapter())
@@ -77,7 +127,12 @@ fun Application.transitBffModule(config: BffConfig = BffConfig.fromEnvironment()
         // Construction is the final activation gate: no Transitous HTTP client exists before the
         // explicit policy/contact prerequisites pass. It performs no startup probe.
         if (config.transitous.isActivated) {
-            add(TransitousTransitProviderAdapter(config.transitous))
+            add(
+                TransitousTransitProviderAdapter(
+                    activation = config.transitous,
+                    client = TransitousClient(config.transitous, observability = observability),
+                ),
+            )
         }
     }
     val registry = ProviderRegistry(adapters)
@@ -90,15 +145,26 @@ fun Application.transitBffModule(config: BffConfig = BffConfig.fromEnvironment()
         config = config,
         registry = registry,
         audit = environment.log::info,
+        capabilityTelemetryObserver = observability::recordCapabilitySnapshot,
     ).also(RuntimeCapabilityControl::start)
     val service = TransitService(
         capabilitySnapshots = capabilityControl,
         directoryCacheTtlSeconds = config.directoryCacheTtlSeconds,
         shapeCacheTtlSeconds = config.shapeCacheTtlSeconds,
         realtimeSingleFlightSeconds = config.realtimeSingleFlightSeconds,
+        observability = observability,
+        schemaDriftObserver = capabilityControl::observeSchemaDrift,
     )
+    val probeRunner = ProbeRunner(
+        config = config,
+        service = service,
+        targets = adapters.filterIsInstance<SyntheticProbeProvider>().flatMap(SyntheticProbeProvider::probeTargets),
+        observability = observability,
+        audit = environment.log::info,
+    ).also(ProbeRunner::start)
 
     install(RequestId)
+    install(HttpMetrics) { this.observability = observability }
     install(CallLogging) {
         format { call ->
             val requestId = if (call.attributes.contains(RequestIdAttribute)) {
@@ -128,6 +194,7 @@ fun Application.transitBffModule(config: BffConfig = BffConfig.fromEnvironment()
         }
     }
     monitor.subscribe(ApplicationStopped) {
+        probeRunner.close()
         capabilityControl.close()
         service.close()
         adapters.filterIsInstance<AutoCloseable>().forEach(AutoCloseable::close)
@@ -135,6 +202,7 @@ fun Application.transitBffModule(config: BffConfig = BffConfig.fromEnvironment()
 
     routing {
         get("/healthz") {
+            call.markHttpOperation(HttpOperation.HEALTH)
             val ready = service.isReady
             val status = if (ready) "ready" else "not_ready"
             call.respond(
@@ -143,13 +211,26 @@ fun Application.transitBffModule(config: BffConfig = BffConfig.fromEnvironment()
             )
         }
 
+        if (config.metricsEnabled) {
+            get("/metrics") {
+                // This route intentionally has no HttpOperation marker: scraping must not create
+                // telemetry feedback or exercise provider/cache/circuit paths.
+                call.respondText(
+                    text = observability.render(),
+                    contentType = ContentType.parse("text/plain; version=0.0.4; charset=utf-8"),
+                )
+            }
+        }
+
         route("/v1/cities") {
             get {
+                call.markHttpOperation(HttpOperation.CITIES)
                 call.respond(service.cities())
             }
 
             route("/{cityId}") {
                 get("/routes") {
+                    call.markHttpOperation(HttpOperation.LIST_ROUTES)
                     val cityId = call.pathCityId()
                     val page = service.routes(cityId, call.locale(), call.mode())
                     val etag = service.routeEtag(page)
@@ -161,23 +242,27 @@ fun Application.transitBffModule(config: BffConfig = BffConfig.fromEnvironment()
                     }
                 }
                 get("/routes/{routeId}") {
+                    call.markHttpOperation(HttpOperation.ROUTE)
                     val cityId = call.pathCityId()
                     val routeId = call.requiredPathPublicId("routeId", cityId, "route")
                     call.respond(service.route(cityId, routeId, call.locale()))
                 }
                 get("/routes/{routeId}/directions/{directionId}/stops") {
+                    call.markHttpOperation(HttpOperation.DIRECTION_STOPS)
                     val cityId = call.pathCityId()
                     val routeId = call.requiredPathPublicId("routeId", cityId, "route")
                     val directionId = call.requiredPathPublicId("directionId", cityId, "direction")
                     call.respond(service.directionStops(cityId, routeId, directionId, call.locale()))
                 }
                 get("/routes/{routeId}/directions/{directionId}/shape") {
+                    call.markHttpOperation(HttpOperation.SHAPE)
                     val cityId = call.pathCityId()
                     val routeId = call.requiredPathPublicId("routeId", cityId, "route")
                     val directionId = call.requiredPathPublicId("directionId", cityId, "direction")
                     call.respond(service.shape(cityId, routeId, directionId))
                 }
                 get("/vehicles") {
+                    call.markHttpOperation(HttpOperation.VEHICLES)
                     val cityId = call.pathCityId()
                     val routeId = call.requiredQueryPublicId("routeId", cityId, "route")
                     val directionId = call.request.queryParameters["directionId"]?.also {
@@ -186,6 +271,7 @@ fun Application.transitBffModule(config: BffConfig = BffConfig.fromEnvironment()
                     call.respond(service.vehicles(cityId, routeId, directionId))
                 }
                 get("/stops/nearby") {
+                    call.markHttpOperation(HttpOperation.NEARBY_STOPS)
                     val cityId = call.pathCityId()
                     val location = GeoPoint(
                         latitude = call.requiredQueryDouble("lat", -90.0, 90.0),
@@ -196,12 +282,14 @@ fun Application.transitBffModule(config: BffConfig = BffConfig.fromEnvironment()
                     call.respond(service.nearbyStops(cityId, location, radiusMeters, limit, call.locale()))
                 }
                 get("/stops/{stopId}/arrivals") {
+                    call.markHttpOperation(HttpOperation.ARRIVALS)
                     val cityId = call.pathCityId()
                     val stopId = call.requiredPathPublicId("stopId", cityId, "stop")
                     val limit = call.requiredQueryInt("limit", 1, 100)
                     call.respond(service.arrivals(cityId, stopId, limit, call.locale()))
                 }
                 get("/journeys") {
+                    call.markHttpOperation(HttpOperation.JOURNEYS)
                     val cityId = call.pathCityId()
                     val query = JourneyQuery(
                         from = GeoPoint(
@@ -221,6 +309,10 @@ fun Application.transitBffModule(config: BffConfig = BffConfig.fromEnvironment()
             }
         }
     }
+}
+
+private fun ApplicationCall.markHttpOperation(operation: HttpOperation) {
+    if (!attributes.contains(HttpOperationAttribute)) attributes.put(HttpOperationAttribute, operation)
 }
 
 private suspend fun ApplicationCall.respondFailure(failure: ServiceFailure) {
