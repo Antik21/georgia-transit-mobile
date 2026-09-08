@@ -195,3 +195,21 @@ data class JourneyPage(
     val realtime: Boolean = false,
     val stale: Boolean = false,
 )
+
+/** A normalized walking estimate never contains a route geometry or the request's coordinates. */
+@Serializable
+data class WalkingEstimate(
+    val distanceMeters: Double,
+    val durationSeconds: Long,
+    val observedAt: Instant,
+)
+
+/** Routed results use a direct walking leg; fallback remains explicit in product state. */
+@Serializable
+enum class WalkingEstimateSource { Routed, Approximate }
+
+@Serializable
+data class WalkingEstimateResult(
+    val estimate: WalkingEstimate,
+    val source: WalkingEstimateSource,
+)

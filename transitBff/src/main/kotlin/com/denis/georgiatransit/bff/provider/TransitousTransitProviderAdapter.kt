@@ -20,6 +20,7 @@ import com.denis.georgiatransit.bff.api.Route
 import com.denis.georgiatransit.bff.api.Shape
 import com.denis.georgiatransit.bff.api.Stop
 import com.denis.georgiatransit.bff.api.Vehicle
+import com.denis.georgiatransit.bff.api.WalkingEstimate
 import com.denis.georgiatransit.bff.config.TransitousActivationConfig
 import com.denis.georgiatransit.bff.observability.NoopProviderCallObservability
 import com.denis.georgiatransit.bff.observability.ProviderCallObservability
@@ -77,6 +78,8 @@ private const val TransitousConnectTimeoutMillis = 2_000L
 private const val TransitousMaximumRetries = 2
 private const val TransitousMaximumRetryAfterSeconds = 2
 private const val TransitousLastKnownGoodMillis = 10 * 60 * 1_000L
+/** MOTIS v2.10.2 documents this value in seconds; it bounds a nearby-stop walking envelope. */
+private const val TransitousWalkingMaximumDirectSeconds = 1_800
 private const val TransitousMaximumPlanPastSeconds = 5 * 60L
 private const val TransitousMaximumPlanAdvanceSeconds = 24 * 60 * 60L
 private const val TransitousRoutingRadiusMeters = 500
@@ -193,11 +196,6 @@ internal class TransitousTransitProviderAdapter(
     private val stopCatalog = TransitousStopCatalog(activation.approvedStopIds)
     private val arrivalLastKnownGood = LastKnownGood<ArrivalRequestKey, RealtimeArrivals>(
         maximumEntries = 64,
-        maximumAgeMillis = TransitousLastKnownGoodMillis,
-        clock = clock,
-    )
-    private val journeyLastKnownGood = LastKnownGood<JourneyRequestKey, RealtimeJourneys>(
-        maximumEntries = 32,
         maximumAgeMillis = TransitousLastKnownGoodMillis,
         clock = clock,
     )
@@ -326,15 +324,7 @@ internal class TransitousTransitProviderAdapter(
         }
         val normalizedLocale = query.locale.normalizedTransitousLocale()
         val effectiveMaxTransfers = query.maxTransfers.coerceAtMost(TransitousMaximumTransfers)
-        val key = JourneyRequestKey(
-            from = query.from,
-            to = query.to,
-            departureAt = query.departureAt,
-            locale = normalizedLocale,
-            requestedMaxTransfers = query.maxTransfers,
-            effectiveMaxTransfers = effectiveMaxTransfers,
-        )
-        return try {
+        return run {
             val response = client.plan(
                 from = query.from,
                 to = query.to,
@@ -369,14 +359,35 @@ internal class TransitousTransitProviderAdapter(
                 observedAt = observedAt,
                 stale = false,
             )
-            journeyLastKnownGood.put(key, page, observedAt)
             page
-        } catch (failure: ProviderFailure) {
-            failure.takeIf(ProviderFailure::isEligibleForLastKnownGood)?.let { eligible ->
-                journeyLastKnownGood.stale(key, eligible)?.let { return it.copy(stale = true) }
-            }
-            throw failure
         }
+    }
+
+    /**
+     * Dedicated direct-only MOTIS request. The `direct` response member is intentionally not
+     * merged into journeys: a walking estimate must never inherit journey caching or semantics.
+     */
+    override suspend fun walkingEstimate(query: WalkingQuery): WalkingEstimate {
+        if (!activation.isRoutingApproved) {
+            throw ProviderCapabilityUnavailable("Transitous routing is not approved")
+        }
+        if (!TbilisiBounds.contains(query.from) || !TbilisiBounds.contains(query.to)) {
+            throw ProviderInvalidArgument("Routing coordinates are outside the configured city boundary")
+        }
+        val response = client.planWalking(
+            from = query.from,
+            to = query.to,
+            departureAt = clock.instant(),
+            language = query.locale.normalizedTransitousLocale(),
+        )
+        val observedAt = clock.instant()
+        val candidates = response.direct
+            .asSequence()
+            .mapNotNull { itinerary -> itinerary.toWalkingEstimateOrNull(observedAt) }
+            .toList()
+        return candidates.minWithOrNull(
+            compareBy<WalkingEstimate> { it.durationSeconds }.thenBy { it.distanceMeters },
+        ) ?: throw ProviderCapabilityUnavailable("Direct walking is not available")
     }
 
     override fun close() = client.close()
@@ -660,15 +671,6 @@ private data class ArrivalRequestKey(
     val normalizedLocale: String,
 )
 
-private data class JourneyRequestKey(
-    val from: GeoPoint,
-    val to: GeoPoint,
-    val departureAt: Instant,
-    val locale: String,
-    val requestedMaxTransfers: Int,
-    val effectiveMaxTransfers: Int,
-)
-
 private object TbilisiBounds {
     private const val MinimumLatitude = 41.55
     private const val MaximumLatitude = 42.0
@@ -725,10 +727,14 @@ internal data class TransitousStopTime(
 )
 
 @Serializable
-internal data class TransitousPlanResponse(val itineraries: List<TransitousItinerary>)
+internal data class TransitousPlanResponse(
+    val itineraries: List<TransitousItinerary> = emptyList(),
+    val direct: List<TransitousItinerary> = emptyList(),
+)
 
 @Serializable
 internal data class TransitousItinerary(
+    val duration: Int = 0,
     val startTime: String,
     val endTime: String,
     val transfers: Int,
@@ -744,6 +750,8 @@ internal data class TransitousLeg(
     val startTime: String,
     val endTime: String,
     val realTime: Boolean,
+    val duration: Int = 0,
+    val distance: Double? = null,
     val routeId: String? = null,
     val directionId: String? = null,
 )
@@ -758,6 +766,20 @@ internal data class TransitousPlace(
     val scheduledDeparture: String? = null,
     val cancelled: Boolean? = null,
 )
+
+/** Direct MOTIS results are accepted only when they are wholly walk legs with valid metrics. */
+private fun TransitousItinerary.toWalkingEstimateOrNull(observedAt: Instant): WalkingEstimate? {
+    if (duration <= 0 || legs.isEmpty() || legs.any { it.mode != "WALK" }) return null
+    val distanceMeters = legs.sumOf { leg ->
+        leg.distance?.takeIf { it.isFinite() && it >= 0.0 } ?: return null
+    }
+    if (!distanceMeters.isFinite() || distanceMeters < 0.0) return null
+    return WalkingEstimate(
+        distanceMeters = distanceMeters,
+        durationSeconds = duration.toLong(),
+        observedAt = observedAt.toString(),
+    )
+}
 
 /** Typed HTTP client with bounded load, redacted errors, and no provider payload logging. */
 internal class TransitousClient(
@@ -830,6 +852,36 @@ internal class TransitousClient(
             "numItineraries" to TransitousMaximumItineraries.toString(),
             "maxItineraries" to TransitousMaximumItineraries.toString(),
             "numLegAlternatives" to "0",
+            "timeout" to "3",
+            "language" to language,
+        ),
+        missing = { ProviderUnavailable("The transit provider is unavailable") },
+    )
+
+    /** One direct-only plan request; no transit timetable search is allowed in this path. */
+    suspend fun planWalking(
+        from: GeoPoint,
+        to: GeoPoint,
+        departureAt: Instant,
+        language: String,
+    ): TransitousPlanResponse = get(
+        endpoint = "plan",
+        capability = TelemetryCapability.TRIP_PLANNING,
+        operation = TelemetryOperation.WALKING_ESTIMATE,
+        query = listOf(
+            "fromPlace" to "${from.latitude},${from.longitude}",
+            "toPlace" to "${to.latitude},${to.longitude}",
+            "time" to departureAt.toString(),
+            "arriveBy" to "false",
+            // Explicit empty list is required by MOTIS to disable transit routing.
+            "transitModes" to "",
+            "directModes" to "WALK",
+            "maxDirectTime" to TransitousWalkingMaximumDirectSeconds.toString(),
+            "maxMatchingDistance" to "250",
+            "detailedLegs" to "false",
+            "detailedTransfers" to "false",
+            "numItineraries" to "0",
+            "maxItineraries" to "0",
             "timeout" to "3",
             "language" to language,
         ),

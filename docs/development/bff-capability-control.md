@@ -35,6 +35,7 @@ city and returns `CAPABILITY_NOT_AVAILABLE` (501) before any provider call.
 | vehicles | `vehiclePositions` and `routes` |
 | arrivals | `arrivals` (`officialArrivals` only controls an official-source claim) |
 | journeys | `tripPlanning` |
+| walking estimate | `tripPlanning` |
 
 Each request captures one immutable snapshot. A newly accepted revision clears
 the BFF's directory/shape caches and changes cache generations, so the former

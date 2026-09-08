@@ -5,7 +5,9 @@ import com.denis.georgiatransit.bff.api.ErrorEnvelope
 import com.denis.georgiatransit.bff.api.GeoPoint
 import com.denis.georgiatransit.bff.api.HealthResponse
 import com.denis.georgiatransit.bff.api.InternalServerError
+import com.denis.georgiatransit.bff.api.InvalidArgument
 import com.denis.georgiatransit.bff.api.ServiceFailure
+import com.denis.georgiatransit.bff.api.WalkingEstimateRequest
 import com.denis.georgiatransit.bff.api.locale
 import com.denis.georgiatransit.bff.api.mode
 import com.denis.georgiatransit.bff.api.pathCityId
@@ -14,6 +16,8 @@ import com.denis.georgiatransit.bff.api.requiredPathPublicId
 import com.denis.georgiatransit.bff.api.requiredQueryDouble
 import com.denis.georgiatransit.bff.api.requiredQueryInt
 import com.denis.georgiatransit.bff.api.requiredQueryPublicId
+import com.denis.georgiatransit.bff.api.validateGeoPoint
+import com.denis.georgiatransit.bff.api.validateLocale
 import com.denis.georgiatransit.bff.config.BffConfig
 import com.denis.georgiatransit.bff.config.BffConfigurationException
 import com.denis.georgiatransit.bff.config.RuntimeMode
@@ -24,6 +28,7 @@ import com.denis.georgiatransit.bff.observability.ProbeRunner
 import com.denis.georgiatransit.bff.observability.TelemetryProvider
 import com.denis.georgiatransit.bff.provider.DemoFixtureTransitProviderAdapter
 import com.denis.georgiatransit.bff.provider.JourneyQuery
+import com.denis.georgiatransit.bff.provider.WalkingQuery
 import com.denis.georgiatransit.bff.provider.ProviderRegistry
 import com.denis.georgiatransit.bff.provider.SyntheticProbeProvider
 import com.denis.georgiatransit.bff.provider.TransitousTransitProviderAdapter
@@ -43,19 +48,24 @@ import io.ktor.server.engine.embeddedServer
 import io.ktor.server.netty.Netty
 import io.ktor.server.plugins.calllogging.CallLogging
 import io.ktor.server.plugins.contentnegotiation.ContentNegotiation
+import io.ktor.server.plugins.BadRequestException
+import io.ktor.server.plugins.ContentTransformationException
 import io.ktor.server.plugins.statuspages.StatusPages
 import io.ktor.server.request.header
 import io.ktor.server.request.httpMethod
 import io.ktor.server.request.path
+import io.ktor.server.request.receive
 import io.ktor.server.response.header
 import io.ktor.server.response.respond
 import io.ktor.server.response.respondText
 import io.ktor.server.routing.get
+import io.ktor.server.routing.post
 import io.ktor.server.routing.route
 import io.ktor.server.routing.routing
 import io.ktor.util.AttributeKey
 import java.util.UUID
 import kotlinx.coroutines.CancellationException
+import io.ktor.serialization.ContentConvertException
 import kotlinx.serialization.json.Json
 
 private val RequestIdAttribute = AttributeKey<String>("request-id")
@@ -305,6 +315,32 @@ fun Application.transitBffModule(config: BffConfig = BffConfig.fromEnvironment()
                         maxTransfers = call.requiredQueryInt("maxTransfers", 0, 6),
                     )
                     call.respond(service.journeys(cityId, query))
+                }
+                post("/walking-estimate") {
+                    call.markHttpOperation(HttpOperation.WALKING_ESTIMATE)
+                    // Set before decoding so documented privacy cache directives also cover
+                    // normalized failures. Ktor's CallLogging logs path/status only.
+                    call.response.header(HttpHeaders.CacheControl, "no-store, no-cache, max-age=0")
+                    call.response.header(HttpHeaders.Pragma, "no-cache")
+                    val cityId = call.pathCityId()
+                    val request = try {
+                        call.receive<WalkingEstimateRequest>()
+                    } catch (_: BadRequestException) {
+                        throw InvalidArgument("walking estimate request must be valid JSON")
+                    } catch (_: ContentTransformationException) {
+                        throw InvalidArgument("walking estimate request must use application/json")
+                    } catch (_: ContentConvertException) {
+                        throw InvalidArgument("walking estimate request must be valid JSON")
+                    }
+                    val estimate = service.walkingEstimate(
+                        cityId = cityId,
+                        query = WalkingQuery(
+                            from = validateGeoPoint(request.from),
+                            to = validateGeoPoint(request.to),
+                            locale = validateLocale(request.locale),
+                        ),
+                    )
+                    call.respond(estimate)
                 }
             }
         }

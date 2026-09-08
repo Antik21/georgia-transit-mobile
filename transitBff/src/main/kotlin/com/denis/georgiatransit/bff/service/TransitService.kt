@@ -13,6 +13,7 @@ import com.denis.georgiatransit.bff.api.Stop
 import com.denis.georgiatransit.bff.api.StopNotFound
 import com.denis.georgiatransit.bff.api.UpstreamTimeout
 import com.denis.georgiatransit.bff.api.VehiclePage
+import com.denis.georgiatransit.bff.api.WalkingEstimate
 import com.denis.georgiatransit.bff.cache.BoundedKeyedTtlCache
 import com.denis.georgiatransit.bff.cache.CacheLookupOutcome
 import com.denis.georgiatransit.bff.cache.SingleFlight
@@ -23,6 +24,7 @@ import com.denis.georgiatransit.bff.control.EffectiveCity
 import com.denis.georgiatransit.bff.control.IntrinsicCapabilitySnapshotSource
 import com.denis.georgiatransit.bff.geo.haversineMeters
 import com.denis.georgiatransit.bff.provider.JourneyQuery
+import com.denis.georgiatransit.bff.provider.WalkingQuery
 import com.denis.georgiatransit.bff.provider.NormalizedResponseValidator
 import com.denis.georgiatransit.bff.provider.ProviderBadGateway
 import com.denis.georgiatransit.bff.provider.ProviderCapabilityUnavailable
@@ -258,32 +260,54 @@ class TransitService(
         val effectiveCity = snapshot.city(cityId)
         requireCapability(cityId, effectiveCity.city.capabilities.tripPlanning, "Trip planning")
         val labels = telemetry(effectiveCity, TelemetryOperation.JOURNEYS)
-        val page = realtime(
-            snapshot,
-            "journey|$cityId|${query.from.latitude},${query.from.longitude}|" +
-                "${query.to.latitude},${query.to.longitude}|" +
-                "${query.departureAt}|${query.locale}|${query.maxTransfers}",
-            labels,
-        ) {
-            providerCall(
-                adapter = effectiveCity.adapter,
-                labels = labels,
-                loader = {
-                    effectiveCity.adapter.journeyPage(query).let {
-                        JourneyPage(
-                            items = it.items,
-                            observedAt = it.observedAt.toString(),
-                            source = it.source,
-                            realtime = it.realtime,
-                            stale = it.stale,
-                        )
-                    }
-                },
-                validator = { NormalizedResponseValidator.journeyPage(cityId, it) },
-            )
-        }
+        // Journey coordinates are sensitive: do not turn them into a SingleFlight/LKG key.
+        // They are retained only by the executing request/provider call.
+        val page = providerCall(
+            adapter = effectiveCity.adapter,
+            labels = labels,
+            loader = {
+                effectiveCity.adapter.journeyPage(query).let {
+                    JourneyPage(
+                        items = it.items,
+                        observedAt = it.observedAt.toString(),
+                        source = it.source,
+                        realtime = it.realtime,
+                        stale = it.stale,
+                    )
+                }
+            },
+            validator = { NormalizedResponseValidator.journeyPage(cityId, it) },
+        )
         recordData(labels, Instant.parse(page.observedAt), page.stale, page.items.size, page.realtime)
         return page
+    }
+
+    /**
+     * Direct walking is intentionally request-scoped: no TTL, SingleFlight, LKG, disk cache, or
+     * coordinate-bearing telemetry key may be used here.
+     */
+    suspend fun walkingEstimate(cityId: String, query: WalkingQuery): WalkingEstimate {
+        val snapshot = snapshot()
+        val effectiveCity = snapshot.city(cityId)
+        requireCapability(cityId, effectiveCity.city.capabilities.tripPlanning, "Trip planning")
+        val labels = telemetry(effectiveCity, TelemetryOperation.WALKING_ESTIMATE)
+        val estimate = providerCall(
+            adapter = effectiveCity.adapter,
+            labels = labels,
+            loader = { effectiveCity.adapter.walkingEstimate(query) },
+            validator = { result ->
+                if (!result.distanceMeters.isFinite() || result.distanceMeters < 0.0 || result.durationSeconds <= 0L) {
+                    throw ProviderNormalizedSchemaFailure("The transit provider returned an invalid walking response")
+                }
+                try {
+                    Instant.parse(result.observedAt)
+                } catch (_: Exception) {
+                    throw ProviderNormalizedSchemaFailure("The transit provider returned an invalid walking response")
+                }
+            },
+        )
+        recordData(labels, Instant.parse(estimate.observedAt), stale = false, itemCount = 1, realtime = false)
+        return estimate
     }
 
     fun routeEtag(routes: List<Route>): String {

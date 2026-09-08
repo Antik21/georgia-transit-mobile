@@ -83,6 +83,22 @@ data class GeoPoint(
     val longitude: Double,
 )
 
+/** Coordinate-bearing input is request-scoped and never occurs in the response. */
+@Serializable
+data class WalkingEstimateRequest(
+    val from: GeoPoint,
+    val to: GeoPoint,
+    val locale: String,
+)
+
+/** Normalized direct-walking result with no geometry or endpoint coordinates. */
+@Serializable
+data class WalkingEstimate(
+    val distanceMeters: Double,
+    val durationSeconds: Long,
+    val observedAt: String,
+)
+
 @Serializable
 data class Direction(
     val id: String,

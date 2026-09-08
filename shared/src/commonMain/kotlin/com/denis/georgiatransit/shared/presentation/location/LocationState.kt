@@ -3,6 +3,7 @@ package com.denis.georgiatransit.shared.presentation.location
 import androidx.compose.runtime.Immutable
 import com.denis.georgiatransit.shared.domain.model.GeoPoint
 import kotlinx.coroutines.flow.StateFlow
+import kotlin.time.Clock
 
 @Immutable
 enum class LocationPrecision {
@@ -69,3 +70,10 @@ interface LocationSession {
 internal const val MAX_FIX_AGE_MILLIS = 120_000L
 internal const val MAX_PRECISE_ACCURACY_METERS = 250.0
 internal const val MAX_APPROXIMATE_ACCURACY_METERS = 5_000.0
+
+/** Injectable wall clock for product features that must re-check fix freshness before I/O. */
+fun interface LocationFreshnessClock { fun nowEpochMillis(): Long }
+
+object SystemLocationFreshnessClock : LocationFreshnessClock {
+    override fun nowEpochMillis(): Long = Clock.System.now().toEpochMilliseconds()
+}

@@ -35,6 +35,21 @@ fun ApplicationCall.locale(): String {
         ?: throw InvalidArgument("locale must be one of ka, en, ru")
 }
 
+/** Validates a POST-body locale without reflecting request values into errors or telemetry. */
+fun validateLocale(value: String): String = value.takeIf(locales::contains)
+    ?: throw InvalidArgument("locale must be one of ka, en, ru")
+
+/** Coordinates are accepted only at the request boundary and are not retained after the call. */
+fun validateGeoPoint(point: GeoPoint): GeoPoint {
+    if (!point.latitude.isFinite() || point.latitude !in -90.0..90.0) {
+        throw InvalidArgument("latitude must be between -90.0 and 90.0")
+    }
+    if (!point.longitude.isFinite() || point.longitude !in -180.0..180.0) {
+        throw InvalidArgument("longitude must be between -180.0 and 180.0")
+    }
+    return point
+}
+
 fun ApplicationCall.mode(): String? {
     val mode = request.queryParameters["mode"] ?: return null
     return mode.takeIf(modes::contains)

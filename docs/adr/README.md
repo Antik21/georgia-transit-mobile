@@ -12,3 +12,5 @@ recorded in [ADR 0006](0006-transitous-best-effort-fallback.md).
 Privacy-safe BFF observability, circuit protection, synthetic probes, and the
 durable schema-drift capability interlock are recorded in
 [ADR 0007](0007-bff-observability-and-schema-safety.md).
+The additive direct-walking API, local fallback, and coordinate privacy
+boundary are recorded in [ADR 0008](0008-direct-walking-estimate-privacy-boundary.md).

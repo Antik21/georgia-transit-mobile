@@ -17,6 +17,7 @@ import com.denis.georgiatransit.bff.api.Route
 import com.denis.georgiatransit.bff.api.Shape
 import com.denis.georgiatransit.bff.api.Stop
 import com.denis.georgiatransit.bff.api.Vehicle
+import com.denis.georgiatransit.bff.api.WalkingEstimate
 import com.denis.georgiatransit.bff.observability.TelemetryProvider
 import java.time.Instant
 
@@ -190,4 +191,11 @@ class DemoFixtureTransitProviderAdapter : CityTransitProviderAdapter {
             ),
         )
     }
+
+    /** Deterministic development-only value; production routing never depends on this fixture. */
+    override suspend fun walkingEstimate(query: WalkingQuery): WalkingEstimate = WalkingEstimate(
+        distanceMeters = 400.0,
+        durationSeconds = 300L,
+        observedAt = "2030-01-01T00:00:00Z",
+    )
 }

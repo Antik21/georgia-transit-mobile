@@ -21,7 +21,7 @@
     <key>CADisableMinimumFrameDurationOnPhone</key>
     <true/>
     <key>NSLocationWhenInUseUsageDescription</key>
-    <string>Georgia Transit uses your location to center the map and show nearby transit stops.</string>
+    <string>Georgia Transit uses your location to center the map, show nearby stops, and, if you choose, request an approximate walking estimate to a selected stop from the Georgia Transit service.</string>
     <key>NSAppTransportSecurity</key>
     <dict>
         <!-- Debug simulator BFF only; Release uses Info.plist with no ATS exception. -->

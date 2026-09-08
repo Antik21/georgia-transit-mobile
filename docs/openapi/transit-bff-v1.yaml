@@ -241,6 +241,41 @@ paths:
         '503': {$ref: '#/components/responses/UpstreamUnavailable'}
         '504': {$ref: '#/components/responses/UpstreamTimeout'}
         '500': {$ref: '#/components/responses/InternalError'}
+  /v1/cities/{cityId}/walking-estimate:
+    post:
+      operationId: estimateWalking
+      summary: Request one direct walking estimate for a live position and stop.
+      description: >-
+        Additive, privacy-sensitive operation. `from` and `to` coordinates are used only for this
+        request and never appear in the response, logs, caches, telemetry labels, LKG, or durable
+        storage. Every response, including documented error responses, sends `Cache-Control:
+        no-store, no-cache, max-age=0`. Clients must send it only for a fresh, sufficiently
+        accurate current position.
+      parameters:
+        - {$ref: '#/components/parameters/CityId'}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/WalkingEstimateRequest'}
+      responses:
+        '200':
+          description: Direct walking estimate without coordinate or geometry retention.
+          headers:
+            X-Request-ID: {$ref: '#/components/headers/RequestId'}
+            Cache-Control: {$ref: '#/components/headers/NoStoreCacheControl'}
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/WalkingEstimate'}
+              example: {distanceMeters: 420, durationSeconds: 360, observedAt: '2030-01-01T00:00:00Z'}
+        '400': {$ref: '#/components/responses/InvalidArgument'}
+        '404': {$ref: '#/components/responses/CityNotFound'}
+        '429': {$ref: '#/components/responses/RateLimited'}
+        '501': {$ref: '#/components/responses/CapabilityNotAvailable'}
+        '502': {$ref: '#/components/responses/UpstreamBadResponse'}
+        '503': {$ref: '#/components/responses/UpstreamUnavailable'}
+        '504': {$ref: '#/components/responses/UpstreamTimeout'}
+        '500': {$ref: '#/components/responses/InternalError'}
 components:
   headers:
     RequestId:
@@ -249,6 +284,9 @@ components:
     RouteEtag:
       description: Strong entity tag for the complete serialized route-list representation.
       schema: {type: string}
+    NoStoreCacheControl:
+      description: Privacy response directive. Implementations send `no-store, no-cache, max-age=0`.
+      schema: {type: string, example: 'no-store, no-cache, max-age=0'}
   parameters:
     CityId: {name: cityId, in: path, required: true, schema: {$ref: '#/components/schemas/CityId'}}
     RouteId: {name: routeId, in: path, required: true, schema: {$ref: '#/components/schemas/RouteId'}}
@@ -497,6 +535,22 @@ components:
         source: {$ref: '#/components/schemas/ArrivalSource'}
         realtime: {type: boolean}
         stale: {type: boolean}
+    WalkingEstimateRequest:
+      type: object
+      description: Coordinate-bearing, request-scoped input. It is never cacheable or retained by the BFF.
+      required: [from, to, locale]
+      properties:
+        from: {$ref: '#/components/schemas/GeoPoint'}
+        to: {$ref: '#/components/schemas/GeoPoint'}
+        locale: {type: string, enum: [ka, en, ru]}
+    WalkingEstimate:
+      type: object
+      description: Normalized direct walking result. It intentionally omits coordinates, geometry, and provider details.
+      required: [distanceMeters, durationSeconds, observedAt]
+      properties:
+        distanceMeters: {type: number, minimum: 0}
+        durationSeconds: {type: integer, minimum: 1}
+        observedAt: {$ref: '#/components/schemas/UtcTimestamp'}
     Cities: {type: array, items: {$ref: '#/components/schemas/City'}}
     Routes: {type: array, items: {$ref: '#/components/schemas/Route'}}
     Stops: {type: array, items: {$ref: '#/components/schemas/Stop'}}

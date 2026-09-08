@@ -1,5 +1,21 @@
 # Transitous Tbilisi fallback operator runbook
 
+## Direct walking estimate
+
+`POST /v1/cities/{cityId}/walking-estimate` is deliberately separate from
+`/journeys`. MOTIS v2.10.2 returns walking-only results in `plan.direct`; a
+journey request with `maxTransfers=0` instead means direct transit. The BFF
+issues a dedicated direct-only plan call with empty `transitModes`,
+`directModes=WALK`, and `maxDirectTime=1800` seconds, then accepts only
+all-WALK `direct` itineraries with finite nonnegative distance and positive
+duration. It neither uses nor populates Transitous journey LKG.
+
+The normalized walking endpoint is request-scoped: no BFF SingleFlight, TTL,
+LKG, disk cache, coordinate telemetry label, body logging, or response cache
+is permitted. It returns `Cache-Control: no-store, no-cache, max-age=0`; the
+mobile client has a documented straight-line fallback when routing is disabled
+or unavailable.
+
 ## Status and policy gate
 
 This repository includes a server-only, best-effort Tbilisi adapter for the

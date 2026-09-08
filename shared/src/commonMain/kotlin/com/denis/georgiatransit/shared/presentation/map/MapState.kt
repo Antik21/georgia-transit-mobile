@@ -5,6 +5,7 @@ import com.denis.georgiatransit.shared.domain.model.RouteId
 import com.denis.georgiatransit.shared.domain.model.TransitAttribution
 import com.denis.georgiatransit.shared.domain.model.StopId
 import com.denis.georgiatransit.shared.domain.model.TransitLocale
+import com.denis.georgiatransit.shared.domain.model.WalkingEstimateSource
 import com.denis.georgiatransit.shared.presentation.location.LocationPlatformCommand
 import com.denis.georgiatransit.shared.presentation.location.LocationPlatformEvent
 import com.denis.georgiatransit.shared.presentation.location.LocationState
@@ -104,7 +105,33 @@ data class StopArrivalsSheetUi(
     val isStale: Boolean = false,
     /** Kept separate so a poll retains the rendered header and row order. */
     val isRefreshing: Boolean = false,
+    /** Independent walking feedback; arrivals are never blocked or replaced by this state. */
+    val walkingEstimate: WalkingEstimateUi = WalkingEstimateUi.Unavailable(WalkingEstimateUnavailableReason.NoAccurateFix),
 )
+
+@Immutable
+sealed interface WalkingEstimateUi {
+    @Immutable data object Loading : WalkingEstimateUi
+    @Immutable data class Ready(
+        val source: WalkingEstimateSource,
+        val distanceMeters: Double,
+        val durationSeconds: Long,
+        val locale: TransitLocale,
+    ) : WalkingEstimateUi
+    @Immutable data class Unavailable(val reason: WalkingEstimateUnavailableReason) : WalkingEstimateUi
+}
+
+/** User-facing reason without leaking provider/network internals into the sheet. */
+@Immutable
+enum class WalkingEstimateUnavailableReason {
+    PermissionRequired,
+    PermissionDenied,
+    SettingsRequired,
+    Restricted,
+    ServicesDisabled,
+    LocationUnavailable,
+    NoAccurateFix,
+}
 
 @Immutable
 data class StopArrivalRowUi(

@@ -1,1 +1,1 @@
-"NSLocationWhenInUseUsageDescription" = "Georgia Transit uses your location to center the map and show nearby transit stops.";
+"NSLocationWhenInUseUsageDescription" = "Georgia Transit uses your location to center the map, show nearby stops, and, if you choose, request an approximate walking estimate to a selected stop from the Georgia Transit service.";

@@ -8,6 +8,7 @@ import com.denis.georgiatransit.shared.data.network.createTransitHttpClient
 import com.denis.georgiatransit.shared.data.repository.BffTransitRepository
 import com.denis.georgiatransit.shared.domain.config.RuntimeBootstrapConfigurationSource
 import com.denis.georgiatransit.shared.domain.interactor.BootstrapTransitSession
+import com.denis.georgiatransit.shared.domain.interactor.EstimateWalkingToStop
 import com.denis.georgiatransit.shared.domain.repository.SelectedCityStore
 import com.denis.georgiatransit.shared.data.repository.RuntimeTransitSession
 import com.denis.georgiatransit.shared.domain.repository.TransitRepository
@@ -50,6 +51,7 @@ private fun appModule(
             runtimeConfigurationSource = get(),
         )
     }
+    factory { EstimateWalkingToStop(repository = get()) }
     factory { SplashViewModel(bootstrapTransitSession = get()) }
     factory { CitySelectionViewModel(repository = get(), session = get(), locationSession = get()) }
     factory {
@@ -57,6 +59,7 @@ private fun appModule(
             repository = get(),
             session = get(),
             locationSession = get(),
+            estimateWalkingToStop = get(),
             realtimeClock = get(),
             realtimeTickerPolicy = get(),
         )

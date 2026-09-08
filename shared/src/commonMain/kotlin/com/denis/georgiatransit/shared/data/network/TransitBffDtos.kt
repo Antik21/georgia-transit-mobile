@@ -18,6 +18,21 @@ internal data class CityDto(
 @Serializable internal data class LocalizedTextDto(val ru: String, val en: String, val ka: String)
 @Serializable internal data class GeoPointDto(val latitude: Double, val longitude: Double)
 
+/** POST body for the request-scoped walking endpoint. It is never persisted by the data layer. */
+@Serializable
+internal data class WalkingEstimateRequestDto(
+    val from: GeoPointDto,
+    val to: GeoPointDto,
+    val locale: String,
+)
+
+@Serializable
+internal data class WalkingEstimateDto(
+    val distanceMeters: Double,
+    val durationSeconds: Long,
+    val observedAt: String,
+)
+
 @Serializable
 internal data class CityCapabilitiesDto(
     val routes: Boolean,

@@ -407,6 +407,10 @@ private enum NetworkInspectorSanitizer {
         "refreshtoken",
         "idtoken",
     ]
+    // Coordinate fields sent to BFF location endpoints. Keep values out of local Debug history.
+    private static let exactLocationNames: Set<String> = [
+        "lat", "lon", "fromlat", "fromlon", "tolat", "tolon", "latitude", "longitude",
+    ]
     private static let credentialHeaders: Set<String> = [
         "authorization",
         "proxy-authorization",
@@ -442,7 +446,7 @@ private enum NetworkInspectorSanitizer {
         components.user = nil
         components.password = nil
         components.queryItems = components.queryItems?.map { item in
-            guard isCredentialName(item.name) else { return item }
+            guard isSensitiveName(item.name) else { return item }
             var redacted = item
             redacted.value = redactedValue
             return redacted
@@ -505,9 +509,17 @@ private enum NetworkInspectorSanitizer {
             userInfoRedacted,
             pattern: "(?i)([?&](?:[^=&?#]*?(?:token|secret|password|credential|api[_-]?key|auth|session)[^=&?#]*)=)[^&#\\s]+"
         )
-        return replacing(
+        let locationQueryRedacted = replacing(
             queryRedacted,
+            pattern: "(?i)([?&](?:lat|lon|fromlat|fromlon|tolat|tolon|latitude|longitude)=)[^&#\\s]+"
+        )
+        let credentialKeyRedacted = replacing(
+            locationQueryRedacted,
             pattern: "(?i)(\\b(?:authorization|proxy-authorization|x-api-key|api-key|cookie|set-cookie|x-auth-token|x-access-token|access[_-]?token|refresh[_-]?token|id[_-]?token|api[_-]?key|password|secret|credential|session(?:[_-]?id)?)\\b\\s*[:=]\\s*)(?:\\\"(?:\\\\.|[^\\\"])*\\\"|'(?:\\\\.|[^'])*'|[^,\\s&;}\\]]+)"
+        )
+        return replacing(
+            credentialKeyRedacted,
+            pattern: "(?i)(\\b(?:lat|lon|fromlat|fromlon|tolat|tolon|latitude|longitude)\\b\\s*[:=]\\s*)(?:\\\"(?:\\\\.|[^\\\"])*\\\"|'(?:\\\\.|[^'])*'|[^,\\s&;}\\]]+)"
         )
     }
 
@@ -530,7 +542,7 @@ private enum NetworkInspectorSanitizer {
     private static func redactJSONValue(_ value: Any) -> Any {
         if let object = value as? [String: Any] {
             return Dictionary(uniqueKeysWithValues: object.map { key, value in
-                (key, isCredentialName(key) ? redactedValue : redactJSONValue(value))
+                (key, isSensitiveName(key) ? redactedValue : redactJSONValue(value))
             })
         }
         if let array = value as? [Any] {
@@ -551,6 +563,11 @@ private enum NetworkInspectorSanitizer {
             ["token", "secret", "password", "credential", "apikey", "auth", "session"].contains {
                 normalized.contains($0)
             }
+    }
+
+    private static func isSensitiveName(_ name: String) -> Bool {
+        let normalized = name.lowercased().components(separatedBy: CharacterSet.alphanumerics.inverted).joined()
+        return isCredentialName(name) || exactLocationNames.contains(normalized)
     }
 
     private static func isSupportedText(_ mediaType: String) -> Bool {

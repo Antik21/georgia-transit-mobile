@@ -15,6 +15,7 @@ import com.denis.georgiatransit.shared.domain.model.TransitRoute
 import com.denis.georgiatransit.shared.domain.model.TransitShape
 import com.denis.georgiatransit.shared.domain.model.TransitStop
 import com.denis.georgiatransit.shared.domain.model.VehiclePage
+import com.denis.georgiatransit.shared.domain.model.WalkingEstimate
 import com.denis.georgiatransit.shared.domain.repository.TransitFailure
 import com.denis.georgiatransit.shared.domain.repository.TransitFreshness
 import com.denis.georgiatransit.shared.domain.repository.TransitLoadResult
@@ -23,13 +24,16 @@ import io.ktor.client.call.body
 import io.ktor.client.plugins.HttpRequestTimeoutException
 import io.ktor.client.plugins.timeout
 import io.ktor.client.request.get
+import io.ktor.client.request.post
 import io.ktor.client.request.header
+import io.ktor.client.request.setBody
 import io.ktor.client.request.url
 import io.ktor.client.statement.HttpResponse
 import io.ktor.client.statement.bodyAsText
 import io.ktor.client.network.sockets.ConnectTimeoutException
 import io.ktor.client.network.sockets.SocketTimeoutException
 import io.ktor.http.HttpStatusCode
+import io.ktor.http.ContentType
 import io.ktor.http.appendPathSegments
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.cancel
@@ -185,6 +189,29 @@ class TransitBffClient(
         ).map(JourneyPageDto::toDomain)
     }
 
+    /** One-shot privacy-sensitive POST. It intentionally has no retry, ETag, or cache path. */
+    suspend fun walkingEstimate(
+        cityId: CityId,
+        from: GeoPoint,
+        to: GeoPoint,
+        locale: TransitLocale,
+    ): TransitLoadResult<WalkingEstimate> {
+        val invalid = invalidWalkingArguments(from, to)
+        if (invalid != null) return TransitLoadResult.Failure(invalid)
+        configurationFailure()?.let { return TransitLoadResult.Failure(it) }
+        val configuredEndpoint = requireNotNull(endpoint)
+        val response = executePost(
+            configuredEndpoint = configuredEndpoint,
+            path = listOf("v1", "cities", cityId.value, "walking-estimate"),
+            body = WalkingEstimateRequestDto(from.toDto(), to.toDto(), locale.toWire()),
+            timeoutMillis = RealtimeTimeoutMillis,
+        )
+        return when (response) {
+            is RequestOutcome.Failure -> TransitLoadResult.Failure(response.error)
+            is RequestOutcome.Response -> decodeResponse<WalkingEstimateDto>(response.value).map(WalkingEstimateDto::toDomain)
+        }
+    }
+
     private suspend inline fun <reified T> get(
         path: List<String>,
         query: List<Pair<String, String>> = emptyList(),
@@ -247,6 +274,35 @@ class TransitBffClient(
         }
     }
 
+    /** POST retries could repeat precise-location handling; callers get exactly one request. */
+    private suspend fun executePost(
+        configuredEndpoint: BffEndpointConfiguration,
+        path: List<String>,
+        body: WalkingEstimateRequestDto,
+        timeoutMillis: Long,
+    ): RequestOutcome = try {
+        RequestOutcome.Response(
+            httpClient.post {
+                url(configuredEndpoint.baseUrl)
+                url { appendPathSegments(*path.toTypedArray(), encodeSlash = true) }
+                header("Cache-Control", "no-store")
+                header("Content-Type", ContentType.Application.Json.toString())
+                setBody(body)
+                timeout {
+                    connectTimeoutMillis = ConnectTimeoutMillis
+                    requestTimeoutMillis = timeoutMillis
+                    socketTimeoutMillis = timeoutMillis
+                }
+            },
+        )
+    } catch (failure: CancellationException) {
+        throw failure
+    } catch (failure: Throwable) {
+        RequestOutcome.Failure(
+            if (failure.isTimeoutTransport()) TransitFailure.Timeout() else TransitFailure.Transport("BFF transport failed"),
+        )
+    }
+
     private suspend inline fun <reified T> decodeResponse(response: HttpResponse): BffResponse<T> = when (response.status) {
         HttpStatusCode.OK -> try {
             BffResponse.Data(response.body<T>(), response.headers["ETag"])
@@ -300,6 +356,9 @@ class TransitBffClient(
     private fun invalidJourneyArguments(from: GeoPoint, to: GeoPoint, maxTransfers: Int): TransitFailure? =
         invalidNearbyArguments(from, 1, 1) ?: invalidNearbyArguments(to, 1, 1) ?: maxTransfers.takeIf { it !in 0..6 }
             ?.let { TransitFailure.InvalidArgument("maxTransfers is invalid", null) }
+
+    private fun invalidWalkingArguments(from: GeoPoint, to: GeoPoint): TransitFailure? =
+        invalidNearbyArguments(from, 1, 1) ?: invalidNearbyArguments(to, 1, 1)
 
     private fun TransitLocale.toWire(): String = when (this) {
         TransitLocale.Georgian -> "ka"
