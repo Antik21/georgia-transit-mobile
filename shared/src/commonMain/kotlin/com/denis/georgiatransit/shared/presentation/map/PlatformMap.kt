@@ -29,7 +29,25 @@ data class MapCameraCommand(
     val center: GeoPoint,
     val zoom: Double,
     val revision: Long,
+    /** Semantic map occlusion; native adapters convert it to their own pixel/point padding. */
+    val viewportInsets: MapViewportInsets = MapViewportInsets.None,
 )
+
+/**
+ * SDK-free viewport padding expressed as a stable fraction of the map height. Fractions avoid
+ * leaking Android pixels or UIKit points and remain deterministic across density and font scale.
+ */
+@Immutable
+data class MapViewportInsets(
+    val bottomOcclusionFraction: Double,
+) {
+    companion object {
+        val None = MapViewportInsets(bottomOcclusionFraction = 0.0)
+
+        /** ModalBottomSheet does not expose portable settled bounds, so use one semantic inset. */
+        val StopArrivalsSheet = MapViewportInsets(bottomOcclusionFraction = 0.42)
+    }
+}
 
 /** The settled visible area reported by a native map without leaking an SDK viewport type. */
 @Immutable
@@ -39,10 +57,11 @@ data class MapViewport(
     val zoom: Double,
 )
 
-/** Native map input is reduced to product-level viewport and typed stop interactions. */
+/** Native map input is reduced to product-level viewport and revision-bound entity interactions. */
 sealed interface MapPlatformEvent {
     data class ViewportSettled(val viewport: MapViewport) : MapPlatformEvent
-    data class StopTapped(val stopId: StopId) : MapPlatformEvent
+    data class StopTapped(val stopId: StopId, val sourceRevision: Long) : MapPlatformEvent
+    data class VehicleTapped(val vehicleId: VehicleId, val sourceRevision: Long) : MapPlatformEvent
 }
 
 /** A compact SDK-free map marker; labels and stop details stay in future product flows. */
@@ -130,6 +149,8 @@ data class MapRenderState(
     val vehicles: PersistentList<MapVehicleMarker> = persistentListOf(),
     val polylines: PersistentList<MapPolyline> = persistentListOf(),
     val userLocation: UserLocationFix? = null,
+    /** Identifies the exact stop/cluster source currently safe for native hit callbacks. */
+    val stopSourceRevision: Long = 0L,
     /** Lets adapters replace only the grouped vehicle source during interpolation/expiry ticks. */
     val vehicleSourceRevision: Long = 0L,
     /** Changes only when a native route-badge bitmap style can change, never for frame geometry. */
@@ -147,6 +168,7 @@ data class MapRenderState(
             vehicles: Iterable<MapVehicleMarker> = emptyList(),
             polylines: Iterable<MapPolyline> = emptyList(),
             userLocation: UserLocationFix? = null,
+            stopSourceRevision: Long = 0L,
             vehicleSourceRevision: Long = 0L,
             vehicleBadgeRevision: Long = 0L,
         ): MapRenderState = MapRenderState(
@@ -156,6 +178,7 @@ data class MapRenderState(
             vehicles = vehicles.toPersistentList(),
             polylines = polylines.toPersistentList(),
             userLocation = userLocation,
+            stopSourceRevision = stopSourceRevision,
             vehicleSourceRevision = vehicleSourceRevision,
             vehicleBadgeRevision = vehicleBadgeRevision,
         )

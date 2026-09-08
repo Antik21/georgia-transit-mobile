@@ -12,6 +12,7 @@ import com.denis.georgiatransit.shared.domain.model.TransitCity
 import com.denis.georgiatransit.shared.domain.model.TransitLocale
 import com.denis.georgiatransit.shared.domain.model.TransitRoute
 import com.denis.georgiatransit.shared.domain.model.TransitStop
+import com.denis.georgiatransit.shared.domain.model.VehicleId
 import com.denis.georgiatransit.shared.domain.repository.TransitFailure
 import com.denis.georgiatransit.shared.domain.repository.TransitFreshness
 import com.denis.georgiatransit.shared.domain.repository.TransitLoadResult
@@ -58,6 +59,8 @@ class MapViewModel(
     private var lastViewport: MapViewport? = null
     private var rawStops: List<TransitStop> = emptyList()
     private var selectedStopId: StopId? = null
+    private var stopSourceRevision = 0L
+    private var mapViewportInsets = MapViewportInsets.None
     private var nearbyJob: Job? = null
     private var nearbyGeneration = 0L
     private var capabilityBlockedCityId: CityId? = null
@@ -161,8 +164,13 @@ class MapViewModel(
             Action.RetryNearby -> retryNearby()
             is Action.LocationEventReceived -> onLocationEvent(action.event)
             is Action.MapEventReceived -> onMapEvent(action.event)
-            is Action.StopSelected -> selectStop(action.stopId, requireVisibleMarker = false)
+            is Action.StopSelected -> selectStop(
+                stopId = action.stopId,
+                sourceRevision = action.sourceRevision,
+                requireVisibleMarker = false,
+            )
             Action.StopArrivalsDismissed -> dismissStopArrivals()
+            is Action.MapViewportInsetsChanged -> onMapViewportInsetsChanged(action.insets)
             Action.RetryStopArrivals -> retryStopArrivals()
             is Action.LocaleChanged -> onLocaleChanged(action.locale)
             is Action.RealtimeVisibilityChanged -> onRealtimeVisibilityChanged(action.isVisibleAndStarted)
@@ -171,12 +179,23 @@ class MapViewModel(
 
     /** Clears every stop-derived value and invalidates any non-cooperative in-flight result. */
     private fun resetNearbyState() {
+        val previousCamera = cameraCommand
+        val previousViewport = lastViewport
         nearbyJob?.cancel()
         nearbyJob = null
         nearbyGeneration++
         lastViewport = null
         rawStops = emptyList()
         selectedStopId = null
+        mapViewportInsets = MapViewportInsets.None
+        if (previousCamera != null && previousCamera.viewportInsets != MapViewportInsets.None) {
+            cameraCommand = nextCameraCommand(
+                center = previousViewport?.center ?: previousCamera.center,
+                zoom = previousViewport?.zoom ?: previousCamera.zoom,
+                viewportInsets = MapViewportInsets.None,
+            )
+        }
+        nextStopSourceRevision()
         capabilityBlockedCityId = null
         resetStopArrivalsState()
     }
@@ -220,7 +239,9 @@ class MapViewModel(
             cameraCommand = nextCameraCommand(center = fix.point, zoom = USER_LOCATION_ZOOM)
         }
         val camera = checkNotNull(cameraCommand)
-        val markers = rawStops.map { stop ->
+        val selectedSnapshot = stopArrivalsStop
+            ?.takeIf { selected -> selected.id == selectedStopId && rawStops.none { it.id == selected.id } }
+        val markers = (rawStops + listOfNotNull(selectedSnapshot)).map { stop ->
             MapStopMarker(
                 id = stop.id,
                 position = stop.position,
@@ -235,13 +256,22 @@ class MapViewModel(
             stopClusters = clustered.clusters,
             vehicles = vehicleMarkers,
             userLocation = fix,
+            stopSourceRevision = stopSourceRevision,
             vehicleSourceRevision = vehicleFrameRevision,
             vehicleBadgeRevision = vehicleBadgeRevision,
         )
     }
 
-    private fun nextCameraCommand(center: GeoPoint, zoom: Double): MapCameraCommand =
-        MapCameraCommand(center = center, zoom = zoom, revision = ++nextCameraRevision)
+    private fun nextCameraCommand(
+        center: GeoPoint,
+        zoom: Double,
+        viewportInsets: MapViewportInsets = mapViewportInsets,
+    ): MapCameraCommand = MapCameraCommand(
+        center = center,
+        zoom = zoom,
+        revision = ++nextCameraRevision,
+        viewportInsets = viewportInsets,
+    )
 
     private fun onRealtimeVisibilityChanged(isVisibleAndStarted: Boolean) {
         if (realtimeVisibleAndStarted == isVisibleAndStarted) return
@@ -573,13 +603,28 @@ class MapViewModel(
     private fun onMapEvent(event: MapPlatformEvent) {
         when (event) {
             is MapPlatformEvent.ViewportSettled -> acceptViewport(event.viewport)
-            is MapPlatformEvent.StopTapped -> selectStop(event.stopId, requireVisibleMarker = true)
+            is MapPlatformEvent.StopTapped -> selectStop(
+                stopId = event.stopId,
+                sourceRevision = event.sourceRevision,
+                requireVisibleMarker = true,
+            )
+            is MapPlatformEvent.VehicleTapped -> acceptVehicleTap(event.vehicleId, event.sourceRevision)
         }
+    }
+
+    /**
+     * DEN-60 establishes stale-safe vehicle hit testing but no vehicle-detail product outcome.
+     * Keep the validated event as an explicit forward-compatible no-op until such a flow exists.
+     */
+    private fun acceptVehicleTap(vehicleId: VehicleId, sourceRevision: Long) {
+        if (sourceRevision != vehicleFrameRevision) return
+        if (vehicleMarkers.none { it.id == vehicleId }) return
     }
 
     private fun onLocaleChanged(locale: TransitLocale) = intent {
         if (locale == currentLocale) return@intent
         currentLocale = locale
+        nextStopSourceRevision()
         val city = currentCity
         val localizedStopArrivals = restartStopArrivalsForLocale(state.stopArrivalsSheet)
         reduce {
@@ -615,6 +660,7 @@ class MapViewModel(
         val viewport = candidate.normalized()
         if (!force && lastViewport == viewport) return
         lastViewport = viewport
+        nextStopSourceRevision()
         val locale = currentLocale
         val generation = ++nearbyGeneration
         nearbyJob?.cancel()
@@ -625,6 +671,8 @@ class MapViewModel(
                     state.copy(
                         renderState = renderStateFor(city, state.location.fix, viewport.zoom),
                         contentState = MapContentState.Loading,
+                        selectedStop = selectedStopUi(),
+                        nearbyStops = nearbyStopItems(),
                     )
                 }
             }
@@ -777,9 +825,11 @@ class MapViewModel(
                 // A viewport page describes only that viewport. Its absence of a selected stop is
                 // not an authoritative deletion, so the independent sheet snapshot remains open.
                 rawStops = result.value.take(NEARBY_STOP_LIMIT)
+                nextStopSourceRevision()
             }
             is TransitLoadResult.Empty -> if (result.freshness != TransitFreshness.StaleOffline) {
                 rawStops = emptyList()
+                nextStopSourceRevision()
             }
             is TransitLoadResult.Failure -> when (result.error) {
                 is TransitFailure.CapabilityUnavailable -> {
@@ -816,16 +866,38 @@ class MapViewModel(
     }
 
     private fun clearStopDerivedState() {
+        val previousCamera = cameraCommand
+        val viewport = lastViewport
         rawStops = emptyList()
         selectedStopId = null
+        mapViewportInsets = MapViewportInsets.None
+        if (previousCamera != null && previousCamera.viewportInsets != MapViewportInsets.None) {
+            cameraCommand = nextCameraCommand(
+                center = viewport?.center ?: previousCamera.center,
+                zoom = viewport?.zoom ?: previousCamera.zoom,
+                viewportInsets = MapViewportInsets.None,
+            )
+        }
+        nextStopSourceRevision()
         resetStopArrivalsState()
     }
 
-    private fun selectStop(stopId: StopId, requireVisibleMarker: Boolean) = intent {
+    private fun selectStop(
+        stopId: StopId,
+        sourceRevision: Long,
+        requireVisibleMarker: Boolean,
+    ) = intent {
+        if (sourceRevision != stopSourceRevision) return@intent
         val stop = rawStops.firstOrNull { it.id == stopId } ?: return@intent
         if (requireVisibleMarker && state.renderState?.stops?.none { it.id == stopId } != false) return@intent
         selectedStopId = stopId
         val city = currentCity ?: return@intent
+        mapViewportInsets = MapViewportInsets.StopArrivalsSheet
+        cameraCommand = nextCameraCommand(
+            center = stop.position,
+            zoom = lastViewport?.zoom ?: cameraCommand?.zoom ?: city.defaultZoom,
+        )
+        nextStopSourceRevision()
         openStopArrivals(stop, city)
         reduce {
             state.copy(
@@ -862,10 +934,47 @@ class MapViewModel(
         )
     }
 
-    /** Dismissal owns only arrivals. Map-marker selection intentionally remains untouched. */
+    /** Every sheet dismissal atomically invalidates arrivals and clears its marker selection. */
     private fun dismissStopArrivals() = intent {
+        if (selectedStopId == null && stopArrivalsStop == null && state.stopArrivalsSheet == null) return@intent
+        val previousCamera = cameraCommand
+        val viewport = lastViewport
         resetStopArrivalsState()
-        reduce { state.copy(stopArrivalsSheet = null) }
+        selectedStopId = null
+        mapViewportInsets = MapViewportInsets.None
+        if (previousCamera != null) {
+            cameraCommand = nextCameraCommand(
+                center = viewport?.center ?: previousCamera.center,
+                zoom = viewport?.zoom ?: previousCamera.zoom,
+                viewportInsets = MapViewportInsets.None,
+            )
+        }
+        nextStopSourceRevision()
+        val city = currentCity
+        reduce {
+            state.copy(
+                renderState = city?.let { renderStateFor(it, state.location.fix, viewport?.zoom) },
+                selectedStop = null,
+                nearbyStops = nearbyStopItems(),
+                stopArrivalsSheet = null,
+            )
+        }
+    }
+
+    private fun onMapViewportInsetsChanged(insets: MapViewportInsets) = intent {
+        val normalizedInsets = insets.normalized()
+        if (normalizedInsets == mapViewportInsets) return@intent
+        val selected = selectedStopId?.let { id ->
+            rawStops.firstOrNull { it.id == id } ?: stopArrivalsStop?.takeIf { it.id == id }
+        } ?: return@intent
+        if (state.stopArrivalsSheet == null) return@intent
+        val city = currentCity ?: return@intent
+        mapViewportInsets = normalizedInsets
+        cameraCommand = nextCameraCommand(
+            center = selected.position,
+            zoom = lastViewport?.zoom ?: cameraCommand?.zoom ?: city.defaultZoom,
+        )
+        reduce { state.copy(renderState = renderStateFor(city, state.location.fix, lastViewport?.zoom)) }
     }
 
     private fun retryStopArrivals() = intent {
@@ -1285,7 +1394,9 @@ class MapViewModel(
 
     private fun selectedStopUi(): SelectedStopUi? {
         val selected = selectedStopId ?: return null
-        val stop = rawStops.firstOrNull { it.id == selected } ?: return null
+        val stop = rawStops.firstOrNull { it.id == selected }
+            ?: stopArrivalsStop?.takeIf { it.id == selected }
+            ?: return null
         return SelectedStopUi(selected, stop.displayName(currentLocale))
     }
 
@@ -1294,6 +1405,7 @@ class MapViewModel(
             id = stop.id,
             name = stop.displayName(currentLocale),
             isSelected = stop.id == selectedStopId,
+            sourceRevision = stopSourceRevision,
         )
     }
 
@@ -1379,6 +1491,18 @@ class MapViewModel(
         return round(this * factor) / factor
     }
 
+    private fun MapViewportInsets.normalized(): MapViewportInsets = MapViewportInsets(
+        bottomOcclusionFraction = bottomOcclusionFraction
+            .takeIf(Double::isFinite)
+            ?.coerceIn(0.0, MAX_BOTTOM_OCCLUSION_FRACTION)
+            ?: 0.0,
+    )
+
+    private fun nextStopSourceRevision(): Long {
+        stopSourceRevision = if (stopSourceRevision == Long.MAX_VALUE) 1L else stopSourceRevision + 1L
+        return stopSourceRevision
+    }
+
     private companion object {
         const val USER_LOCATION_ZOOM = 15.0
         const val VIEWPORT_DEBOUNCE_MILLIS = 350L
@@ -1390,6 +1514,7 @@ class MapViewModel(
         const val VIEWPORT_COORDINATE_DECIMALS = 5
         const val VIEWPORT_ZOOM_DECIMALS = 2
         const val VIEWPORT_RADIUS_STEP_METERS = 25
+        const val MAX_BOTTOM_OCCLUSION_FRACTION = 0.75
         /** Must match the common reducer cap so adapters never receive a larger transient page. */
         const val MAX_COMMON_VEHICLE_MARKERS = 1_000
         const val MAX_SMOOTHLY_ANIMATED_VEHICLES = 250

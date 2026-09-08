@@ -25,6 +25,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestScope
+import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.setMain
@@ -100,6 +101,32 @@ class MapViewModelTest {
                     contentState = MapContentState.Loading,
                 ),
             )
+            this@runTest.advanceTimeBy(351)
+            this@runTest.runCurrent()
+            expectState(
+                ViewState(
+                    cityName = tbilisi.name,
+                    renderState = renderState(
+                        center = tbilisi.center,
+                        zoom = 13.5,
+                        revision = 1,
+                        stopSourceRevision = 2,
+                    ),
+                    contentState = MapContentState.Loading,
+                ),
+            )
+            expectState(
+                ViewState(
+                    cityName = tbilisi.name,
+                    renderState = renderState(
+                        center = tbilisi.center,
+                        zoom = tbilisi.defaultZoom,
+                        revision = 1,
+                        stopSourceRevision = 2,
+                    ),
+                    contentState = MapContentState.Unavailable,
+                ),
+            )
             // The local renderer foundation must not manufacture stops, vehicles, or shapes.
             // All layers stay empty until a reviewed BFF-backed map contract supplies them.
             val initialRenderState = requireNotNull(viewModel.container.stateFlow.value.renderState)
@@ -113,7 +140,12 @@ class MapViewModelTest {
             expectState(
                 ViewState(
                     cityName = batumi.name,
-                    renderState = renderState(center = batumi.center, zoom = 12.5, revision = 2),
+                    renderState = renderState(
+                        center = batumi.center,
+                        zoom = 12.5,
+                        revision = 2,
+                        stopSourceRevision = 3,
+                    ),
                     contentState = MapContentState.Loading,
                 ),
             )
@@ -162,6 +194,32 @@ class MapViewModelTest {
                     contentState = MapContentState.Loading,
                 ),
             )
+            this@runTest.advanceTimeBy(351)
+            this@runTest.runCurrent()
+            expectState(
+                ViewState(
+                    cityName = tbilisi.name,
+                    renderState = renderState(
+                        center = tbilisi.center,
+                        zoom = tbilisi.defaultZoom,
+                        revision = 1,
+                        stopSourceRevision = 2,
+                    ),
+                    contentState = MapContentState.Loading,
+                ),
+            )
+            expectState(
+                ViewState(
+                    cityName = tbilisi.name,
+                    renderState = renderState(
+                        center = tbilisi.center,
+                        zoom = tbilisi.defaultZoom,
+                        revision = 1,
+                        stopSourceRevision = 2,
+                    ),
+                    contentState = MapContentState.Unavailable,
+                ),
+            )
 
             session.selectCity(batumi)
             this@runTest.runCurrent()
@@ -169,7 +227,12 @@ class MapViewModelTest {
             expectState(
                 ViewState(
                     cityName = batumi.name,
-                    renderState = renderState(center = batumi.center, zoom = batumi.defaultZoom, revision = 2),
+                    renderState = renderState(
+                        center = batumi.center,
+                        zoom = batumi.defaultZoom,
+                        revision = 2,
+                        stopSourceRevision = 3,
+                    ),
                     contentState = MapContentState.Loading,
                 ),
             )
@@ -215,6 +278,13 @@ class MapViewModelTest {
             runOnCreate()
             this@runTest.runCurrent()
             expectState(expectedCityState(repository, transitSession, locationSession))
+            this@runTest.advanceTimeBy(351)
+            this@runTest.runCurrent()
+            expectState(expectedCityState(repository, transitSession, locationSession, stopSourceRevision = 2))
+            expectState(
+                expectedCityState(repository, transitSession, locationSession, stopSourceRevision = 2)
+                    .copy(contentState = MapContentState.Unavailable),
+            )
 
             viewModel.dispatchAction(Action.LocationEventReceived(LocationPlatformEvent.PermissionChanged(PRECISE)))
             this@runTest.runCurrent()
@@ -240,6 +310,13 @@ class MapViewModelTest {
             runOnCreate()
             this@runTest.runCurrent()
             expectState(expectedCityState(repository, transitSession, locationSession))
+            this@runTest.advanceTimeBy(351)
+            this@runTest.runCurrent()
+            expectState(expectedCityState(repository, transitSession, locationSession, stopSourceRevision = 2))
+            expectState(
+                expectedCityState(repository, transitSession, locationSession, stopSourceRevision = 2)
+                    .copy(contentState = MapContentState.Unavailable),
+            )
 
             viewModel.dispatchAction(Action.LocationEventReceived(LocationPlatformEvent.PermissionChanged(PRECISE)))
             this@runTest.runCurrent()
@@ -349,6 +426,13 @@ class MapViewModelTest {
             runOnCreate()
             this@runTest.runCurrent()
             expectState(expectedCityState(repository, transitSession, locationSession))
+            this@runTest.advanceTimeBy(351)
+            this@runTest.runCurrent()
+            expectState(expectedCityState(repository, transitSession, locationSession, stopSourceRevision = 2))
+            expectState(
+                expectedCityState(repository, transitSession, locationSession, stopSourceRevision = 2)
+                    .copy(contentState = MapContentState.Unavailable),
+            )
 
             viewModel.dispatchAction(Action.LocationEventReceived(LocationPlatformEvent.PermissionChanged(PRECISE)))
             this@runTest.runCurrent()
@@ -409,6 +493,7 @@ class MapViewModelTest {
         repository: PreviewTransitRepository,
         transitSession: RuntimeTransitSession,
         locationSession: RuntimeLocationSession,
+        stopSourceRevision: Long = 1L,
     ): ViewState {
         val city = requireNotNull(transitSession.selectedCity.value)
         val fix = locationSession.state.value.fix
@@ -419,6 +504,7 @@ class MapViewModelTest {
                 zoom = if (fix == null) city.defaultZoom else 15.0,
                 revision = if (fix == null) 1 else 2,
                 userLocation = fix,
+                stopSourceRevision = stopSourceRevision,
             ),
             contentState = MapContentState.Loading,
             selectedRouteNames = repository.routes(city.id)
@@ -571,9 +657,11 @@ class MapViewModelTest {
         zoom: Double,
         revision: Long,
         userLocation: com.denis.georgiatransit.shared.presentation.location.UserLocationFix? = null,
+        stopSourceRevision: Long = 1L,
     ) = MapRenderState(
         camera = MapCameraCommand(center = center, zoom = zoom, revision = revision),
         userLocation = userLocation,
+        stopSourceRevision = stopSourceRevision,
     )
 
     private suspend fun OrbitTestContext<ViewState, SideEffect, MapViewModel>.awaitLocationCommand():

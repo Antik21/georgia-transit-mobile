@@ -158,6 +158,14 @@ fun MapScreen(viewModel: MapViewModel, handleNavigation: suspend (NavigationEffe
 
 @Composable
 private fun Content(state: ViewState, onAction: (Action) -> Unit) {
+    val mapViewportInsets = if (state.stopArrivalsSheet == null) {
+        MapViewportInsets.None
+    } else {
+        MapViewportInsets.StopArrivalsSheet
+    }
+    LaunchedEffect(mapViewportInsets) {
+        onAction(Action.MapViewportInsetsChanged(mapViewportInsets))
+    }
     Box(modifier = Modifier.fillMaxSize().testTag(AutomationId.MapScreen)) {
         Column(modifier = Modifier.fillMaxSize()) {
             Column(
@@ -201,7 +209,7 @@ private fun Content(state: ViewState, onAction: (Action) -> Unit) {
                 )
                 NearbyStopsAccessibility(
                     stops = state.nearbyStops,
-                    onStopSelected = { onAction(Action.StopSelected(it)) },
+                    onStopSelected = { stop -> onAction(Action.StopSelected(stop.id, stop.sourceRevision)) },
                 )
                 state.selectedStop?.let { selectedStop ->
                     Text(
@@ -664,7 +672,7 @@ private fun vehicleStatusLabel(layerState: VehicleLayerState): String = when (la
 @Composable
 private fun NearbyStopsAccessibility(
     stops: List<NearbyStopUi>,
-    onStopSelected: (com.denis.georgiatransit.shared.domain.model.StopId) -> Unit,
+    onStopSelected: (NearbyStopUi) -> Unit,
 ) {
     if (stops.isEmpty()) return
     Column(
@@ -680,12 +688,12 @@ private fun NearbyStopsAccessibility(
             items(items = stops, key = { it.id.value }) { stop ->
                 if (stop.isSelected) {
                     Button(
-                        onClick = { onStopSelected(stop.id) },
+                        onClick = { onStopSelected(stop) },
                         modifier = Modifier.testTag(AutomationId.MapNearbyStop),
                     ) { Text(stop.name) }
                 } else {
                     OutlinedButton(
-                        onClick = { onStopSelected(stop.id) },
+                        onClick = { onStopSelected(stop) },
                         modifier = Modifier.testTag(AutomationId.MapNearbyStop),
                     ) { Text(stop.name) }
                 }

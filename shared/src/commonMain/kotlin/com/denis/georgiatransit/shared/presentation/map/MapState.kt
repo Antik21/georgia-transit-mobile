@@ -85,6 +85,7 @@ data class NearbyStopUi(
     val id: StopId,
     val name: String,
     val isSelected: Boolean,
+    val sourceRevision: Long = 0L,
 )
 
 /** A selected-stop snapshot that is safe to render without exposing opaque provider identifiers. */
@@ -143,8 +144,9 @@ sealed interface Action {
     data object MyLocationClicked : Action
     data class LocationEventReceived(val event: LocationPlatformEvent) : Action
     data class MapEventReceived(val event: MapPlatformEvent) : Action
-    data class StopSelected(val stopId: StopId) : Action
+    data class StopSelected(val stopId: StopId, val sourceRevision: Long) : Action
     data object StopArrivalsDismissed : Action
+    data class MapViewportInsetsChanged(val insets: MapViewportInsets) : Action
     data object RetryStopArrivals : Action
     data class LocaleChanged(val locale: TransitLocale) : Action
     data object RetryNearby : Action
