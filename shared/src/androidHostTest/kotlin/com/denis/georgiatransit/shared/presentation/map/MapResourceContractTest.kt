@@ -1,13 +1,16 @@
 package com.denis.georgiatransit.shared.presentation.map
 
 import com.denis.georgiatransit.shared.presentation.ui.automation.AutomationId
+import java.io.InputStream
 import java.nio.file.Files
 import java.nio.file.Path
+import javax.xml.parsers.DocumentBuilderFactory
 import kotlin.io.path.readText
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
+import org.w3c.dom.Element
 
 /**
  * Resource and native-boundary checks that are deliberately host tests: Compose UI test APIs are
@@ -17,13 +20,72 @@ class MapResourceContractTest {
     @Test
     fun englishGeorgianAndRussianMapResourcesStayInParity() {
         val resourceRoot = projectRoot().resolve("shared/src/commonMain/composeResources")
-        val english = stringKeys(resourceRoot.resolve("values/strings.xml"))
-        val georgian = stringKeys(resourceRoot.resolve("values-ka/strings.xml"))
-        val russian = stringKeys(resourceRoot.resolve("values-ru/strings.xml"))
+        val english = stringValues(resourceRoot.resolve("values/strings.xml"))
+        val georgian = stringValues(resourceRoot.resolve("values-ka/strings.xml"))
+        val russian = stringValues(resourceRoot.resolve("values-ru/strings.xml"))
 
-        assertEquals(english, georgian, "Georgian string keys must match the default resource set")
-        assertEquals(english, russian, "Russian string keys must match the default resource set")
-        assertTrue(MapResourceKeys.all { it in english })
+        assertEquals(english.keys, georgian.keys, "Georgian string keys must match the default resource set")
+        assertEquals(english.keys, russian.keys, "Russian string keys must match the default resource set")
+        assertTrue(MapResourceKeys.all { it in english.keys })
+        english.keys.forEach { key ->
+            val expected = placeholderSignature(english.getValue(key))
+            assertEquals(
+                expected,
+                placeholderSignature(georgian.getValue(key)),
+                "Georgian placeholder indexes and conversion types must match for '$key'",
+            )
+            assertEquals(
+                expected,
+                placeholderSignature(russian.getValue(key)),
+                "Russian placeholder indexes and conversion types must match for '$key'",
+            )
+        }
+    }
+
+    @Test
+    fun indexedPlaceholderContractsIgnoreOrderButPreserveIndexesAndConversionTypes() {
+        val english = ResourceString("%1\$s has %2\$04d arrivals")
+        val reordered = ResourceString("%2\$04d arrivals — %1\$S")
+        val wrongIndexType = ResourceString("%1\$d arrivals — %2\$s")
+
+        assertEquals(
+            mapOf(1 to setOf("s"), 2 to setOf("d")),
+            placeholderSignature(english),
+        )
+        assertEquals(placeholderSignature(english), placeholderSignature(reordered))
+        assertFalse(
+            placeholderSignature(english) == placeholderSignature(wrongIndexType),
+            "Moving a conversion type to another argument index must change the contract.",
+        )
+    }
+
+    @Test
+    fun repeatedArgumentIndexMayUseMultipleConversionsInAnyOrder() {
+        val dateThenTime = ResourceString("%1\$tF %1\$tT")
+        val timeThenDate = ResourceString("%1\$tT %1\$tF")
+        val decimalAndHex = ResourceString("%1\$d (%1\$x)")
+
+        assertEquals(mapOf(1 to setOf("tf", "tt")), placeholderSignature(dateThenTime))
+        assertEquals(placeholderSignature(dateThenTime), placeholderSignature(timeThenDate))
+        assertEquals(mapOf(1 to setOf("d", "x")), placeholderSignature(decimalAndHex))
+    }
+
+    @Test
+    fun resourceParserAcceptsAdditionalXmlAttributesAndHonorsFormattedFalse() {
+        val resources = stringValues(
+            """
+            <resources>
+                <string translatable="false" product="default" name="sample">%2${'$'}04d / %1${'$'}s</string>
+                <string product="default" name="literal_percent" formatted="false">100% ready</string>
+            </resources>
+            """.trimIndent(),
+        )
+
+        assertEquals(
+            mapOf(1 to setOf("s"), 2 to setOf("d")),
+            placeholderSignature(resources.getValue("sample")),
+        )
+        assertEquals(emptyMap(), placeholderSignature(resources.getValue("literal_percent")))
     }
 
     @Test
@@ -195,8 +257,89 @@ class MapResourceContractTest {
         assertFalse(swift.contains("https://"))
     }
 
-    private fun stringKeys(path: Path): Set<String> =
-        StringKey.findAll(path.readText()).map { it.groupValues[1] }.toSet()
+    private fun stringValues(path: Path): Map<String, ResourceString> =
+        Files.newInputStream(path).use(::stringValues)
+
+    private fun stringValues(xml: String): Map<String, ResourceString> =
+        xml.byteInputStream().use(::stringValues)
+
+    private fun stringValues(input: InputStream): Map<String, ResourceString> {
+        val factory = DocumentBuilderFactory.newInstance().apply {
+            setFeature("http://apache.org/xml/features/disallow-doctype-decl", true)
+            setFeature("http://xml.org/sax/features/external-general-entities", false)
+            setFeature("http://xml.org/sax/features/external-parameter-entities", false)
+            setFeature("http://apache.org/xml/features/nonvalidating/load-external-dtd", false)
+            setAttribute("http://javax.xml.XMLConstants/property/accessExternalDTD", "")
+            setAttribute("http://javax.xml.XMLConstants/property/accessExternalSchema", "")
+            isXIncludeAware = false
+            isExpandEntityReferences = false
+        }
+        val nodes = factory.newDocumentBuilder().parse(input).getElementsByTagName("string")
+        return buildMap {
+            for (index in 0 until nodes.length) {
+                val element = nodes.item(index) as Element
+                val name = element.getAttribute("name")
+                require(name.isNotBlank()) { "Every <string> resource must have a non-blank name." }
+                val previous = put(
+                    name,
+                    ResourceString(
+                        value = element.textContent,
+                        formatted = element.getAttribute("formatted") != "false",
+                    ),
+                )
+                require(previous == null) { "Duplicate <string> resource '$name'." }
+            }
+        }
+    }
+
+    private fun placeholderSignature(resource: ResourceString): Map<Int, Set<String>> {
+        if (!resource.formatted) return emptyMap()
+
+        val signature = sortedMapOf<Int, MutableSet<String>>()
+        var cursor = 0
+        var nextOrdinaryIndex = 1
+        var previousArgumentIndex: Int? = null
+        while (true) {
+            val tokenStart = resource.value.indexOf('%', cursor)
+            if (tokenStart < 0) break
+            val token = FormatterToken.matchAt(resource.value, tokenStart)
+                ?: error("Malformed formatter token at index $tokenStart in '${resource.value}'.")
+            val flags = token.groupValues[2]
+            val dateTimePrefix = token.groupValues[5]
+            val conversion = token.groupValues[6].single()
+            val normalizedConversion = when {
+                dateTimePrefix.isNotEmpty() -> {
+                    require(conversion in DateTimeConversions) {
+                        "Unsupported date/time conversion '${token.value}'."
+                    }
+                    "t${conversion.lowercaseChar()}"
+                }
+
+                conversion in NoArgumentConversions -> null
+                conversion in ArgumentConversions -> conversion.lowercaseChar().toString()
+                else -> error("Unsupported formatter conversion '${token.value}'.")
+            }
+
+            if (normalizedConversion == null) {
+                require(token.groupValues[1].isEmpty() && '<' !in flags) {
+                    "Non-argument formatter token '${token.value}' cannot select an argument."
+                }
+            } else {
+                val argumentIndex = when {
+                    token.groupValues[1].isNotEmpty() -> token.groupValues[1].toInt()
+                    '<' in flags -> requireNotNull(previousArgumentIndex) {
+                        "Relative formatter token '${token.value}' has no previous argument."
+                    }
+
+                    else -> nextOrdinaryIndex++
+                }
+                signature.getOrPut(argumentIndex, ::sortedSetOf).add(normalizedConversion)
+                previousArgumentIndex = argumentIndex
+            }
+            cursor = token.range.last + 1
+        }
+        return signature
+    }
 
     private fun String.functionBody(declaration: String): String {
         val declarationStart = indexOf(declaration).also { check(it >= 0) }
@@ -245,7 +388,17 @@ class MapResourceContractTest {
             ?: error("Could not locate the project root from ${Path.of("").toAbsolutePath()}")
 
     private companion object {
-        val StringKey = Regex("""<string\s+name="([^"]+)">""")
+        data class ResourceString(
+            val value: String,
+            val formatted: Boolean = true,
+        )
+
+        val FormatterToken = Regex(
+            """%(?:(\d+)\$)?([-#+ 0,(<]*)(\d+)?(?:\.(\d+))?([tT])?([A-Za-z%])""",
+        )
+        val ArgumentConversions = "bBhHsScCdoxXeEfgGaA".toSet()
+        val DateTimeConversions = "HIklMSLNpzZsQBbhAaCYyjmdeRTrDFc".toSet()
+        val NoArgumentConversions = setOf('%', 'n')
         val MapResourceKeys = setOf(
             "map_title",
             "map_preview_note",

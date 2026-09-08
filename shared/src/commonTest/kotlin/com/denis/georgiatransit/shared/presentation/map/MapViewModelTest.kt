@@ -21,13 +21,17 @@ import com.denis.georgiatransit.shared.presentation.location.LocationPlatformEve
 import com.denis.georgiatransit.shared.presentation.location.LocationPrecision
 import com.denis.georgiatransit.shared.presentation.location.RuntimeLocationSession
 import com.denis.georgiatransit.shared.presentation.ui.automation.AutomationId
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestScope
+import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runCurrent
-import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.test.setMain
 import org.orbitmvi.orbit.test.Item
 import org.orbitmvi.orbit.test.OrbitTestContext
 import org.orbitmvi.orbit.test.test
+import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -36,6 +40,16 @@ import kotlin.test.assertTrue
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class MapViewModelTest {
+    @AfterTest
+    fun resetMainDispatcher() {
+        Dispatchers.resetMain()
+    }
+
+    private fun runTest(block: suspend TestScope.() -> Unit) = kotlinx.coroutines.test.runTest {
+        Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+        block(this)
+    }
+
     @Test
     fun selectedCityAttributionIsExposedToCommonMapStateWithStableAutomationSelectors() = runTest {
         val attribution = TransitAttribution(
