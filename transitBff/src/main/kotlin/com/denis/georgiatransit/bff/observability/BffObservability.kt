@@ -37,6 +37,7 @@ enum class TelemetryOperation(val wireValue: String, val capability: TelemetryCa
     VEHICLES("vehicles", TelemetryCapability.VEHICLE_POSITIONS),
     ARRIVALS("arrivals", TelemetryCapability.ARRIVALS),
     JOURNEYS("journeys", TelemetryCapability.TRIP_PLANNING),
+    WALKING_ESTIMATE("walking_estimate", TelemetryCapability.TRIP_PLANNING),
     PROBE_ARRIVALS("probe_arrivals", TelemetryCapability.ARRIVALS),
     PROBE_JOURNEYS("probe_journeys", TelemetryCapability.TRIP_PLANNING),
 }
@@ -52,6 +53,7 @@ enum class HttpOperation(val wireValue: String) {
     NEARBY_STOPS("nearby_stops"),
     ARRIVALS("arrivals"),
     JOURNEYS("journeys"),
+    WALKING_ESTIMATE("walking_estimate"),
 }
 
 enum class CacheOutcome(val wireValue: String) {

@@ -96,8 +96,13 @@ logger, analytics service, or cloud collector.
   replaced before persistence/display. URLs remove user-info (`user:password@`)
   and redact credential-like query values. Supported JSON/form/plain-text
   bodies redact credential-like keys such as token, secret, password, API key,
-  auth, credential, and session before storage. XML is omitted rather than
-  parsed. The production BFF contract must continue to avoid secrets in URLs.
+  auth, credential, and session before storage. Exact location fields `lat`,
+  `lon`, `fromLat`, `fromLon`, `toLat`, `toLon`, `latitude`, and `longitude`
+  are also redacted from URLs, JSON/form bodies, and supported plain-text
+  previews, including nested walking-estimate request bodies. XML is omitted
+  rather than parsed. The walking-estimate BFF operation keeps precise locations
+  in its POST body rather than a URL. Existing coordinate-query routes remain
+  sensitive and must remain redacted by the inspectors.
 
 ## Dependency and Release review
 

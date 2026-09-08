@@ -14,6 +14,7 @@ import com.denis.georgiatransit.shared.domain.model.TransitRoute
 import com.denis.georgiatransit.shared.domain.model.TransitShape
 import com.denis.georgiatransit.shared.domain.model.TransitStop
 import com.denis.georgiatransit.shared.domain.model.VehiclePage
+import com.denis.georgiatransit.shared.domain.model.WalkingEstimate
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.serialization.Serializable
 import kotlin.time.Instant
@@ -122,6 +123,15 @@ interface TransitRepository {
         locale: TransitLocale = TransitLocale.English,
         maxTransfers: Int,
     ): TransitLoadResult<JourneyPage> = TransitLoadResult.Failure(TransitFailure.Configuration("Journey planning is not configured"))
+
+    /** Never cache or persist this request: both input points can be a precise live location. */
+    suspend fun walkingEstimate(
+        cityId: CityId,
+        from: GeoPoint,
+        to: GeoPoint,
+        locale: TransitLocale = TransitLocale.English,
+    ): TransitLoadResult<WalkingEstimate> =
+        TransitLoadResult.Failure(TransitFailure.Configuration("Walking estimates are not configured"))
 }
 
 interface TransitSession {

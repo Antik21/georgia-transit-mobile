@@ -1,5 +1,21 @@
 # Transitous Tbilisi fallback operator runbook
 
+## Direct walking estimate
+
+`POST /v1/cities/{cityId}/walking-estimate` is deliberately separate from
+`/journeys`. MOTIS v2.10.2 returns walking-only results in `plan.direct`; a
+journey request with `maxTransfers=0` instead means direct transit. The BFF
+issues a dedicated direct-only plan call with empty `transitModes`,
+`directModes=WALK`, and `maxDirectTime=1800` seconds, then accepts only
+all-WALK `direct` itineraries with finite nonnegative distance and positive
+duration. It neither uses nor populates Transitous journey LKG.
+
+The normalized walking endpoint is request-scoped: no BFF SingleFlight, TTL,
+LKG, disk cache, coordinate telemetry label, body logging, or response cache
+is permitted. It returns `Cache-Control: no-store, no-cache, max-age=0`; the
+mobile client has a documented straight-line fallback when routing is disabled
+or unavailable.
+
 ## Status and policy gate
 
 This repository includes a server-only, best-effort Tbilisi adapter for the
@@ -118,14 +134,13 @@ are rethrown. Safe normalized errors become the BFF's documented
 400/404/429/502/503/504 responses.
 
 For an eligible outage (network/timeout/429/5xx), the server may return a
-bounded in-memory last-known-good arrivals or journey page for the exact same
-effective request for up to ten minutes. Arrival keys include the raw catalog
-stop ID, effective bounded limit, and normalized locale; journey keys include
-both points, departure instant, locale, requested/effective transfer bounds.
-Only that response has `stale: true`; its `observedAt` stays the timestamp taken
-after the successful body read, decode, mapping, and validation. LKG age is
-measured from that same timestamp. A malformed upstream success is a 502 and is
-never converted to stale data.
+bounded in-memory last-known-good arrivals page for the exact same effective
+request for up to ten minutes. Arrival keys include the raw catalog stop ID,
+effective bounded limit, and normalized locale. Only that response has
+`stale: true`; its `observedAt` stays the timestamp taken after the successful
+body read, decode, mapping, and validation. LKG age is measured from that same
+timestamp. A malformed upstream success is a 502 and is never converted to
+stale data.
 
 Arrival mapping is intentionally conservative: because this query uses
 `arriveBy=false`, `expectedAt` comes only from MOTIS `place.departure` and

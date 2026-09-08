@@ -261,7 +261,7 @@ class TransitousTransitProviderAdapterTest {
     }
 
     @Test
-    fun `journey LKG requires the full normalized query key`() = runTest {
+    fun `journey coordinates are request scoped and never use last known good`() = runTest {
         val attempts = AtomicInteger()
         val adapter = adapter(
             RecordingEngine {
@@ -272,19 +272,56 @@ class TransitousTransitProviderAdapterTest {
         )
         try {
             assertFalse(adapter.journeyPage(journeyQuery()).stale)
-            assertTrue(adapter.journeyPage(journeyQuery()).stale)
-            assertFailsWith<ProviderRateLimited> {
-                adapter.journeyPage(journeyQuery(to = GeoPoint(41.81, 44.91)))
-            }
-            assertFailsWith<ProviderRateLimited> {
-                adapter.journeyPage(journeyQuery(departureAt = NOW.plusSeconds(120)))
-            }
-            assertFailsWith<ProviderRateLimited> {
-                adapter.journeyPage(journeyQuery(maxTransfers = 2))
-            }
-            assertEquals(5, attempts.get())
+            assertFailsWith<ProviderRateLimited> { adapter.journeyPage(journeyQuery()) }
+            assertEquals(2, attempts.get())
         } finally {
             adapter.close()
+        }
+    }
+
+    @Test
+    fun `walking plan is direct WALK only and picks fastest valid candidate`() = runTest {
+        val requests = Collections.synchronizedList(mutableListOf<HttpRequestData>())
+        val response = """{"direct":[
+            {"duration":360,"startTime":"2030-01-01T00:00:00Z","endTime":"2030-01-01T00:06:00Z","transfers":0,"id":"walk/slow","legs":[{"mode":"WALK","from":$fromPlace,"to":$toPlace,"startTime":"2030-01-01T00:00:00Z","endTime":"2030-01-01T00:06:00Z","realTime":false,"duration":360,"distance":430.5}]},
+            {"duration":300,"startTime":"2030-01-01T00:00:00Z","endTime":"2030-01-01T00:05:00Z","transfers":0,"id":"walk/fast","legs":[{"mode":"WALK","from":$fromPlace,"to":$toPlace,"startTime":"2030-01-01T00:00:00Z","endTime":"2030-01-01T00:05:00Z","realTime":false,"duration":300,"distance":410.0}]},
+            {"duration":120,"startTime":"2030-01-01T00:00:00Z","endTime":"2030-01-01T00:02:00Z","transfers":0,"id":"bus","legs":[{"mode":"BUS","from":$fromPlace,"to":$toPlace,"startTime":"2030-01-01T00:00:00Z","endTime":"2030-01-01T00:02:00Z","realTime":false,"duration":120,"distance":500.0}]}
+        ]}"""
+        val adapter = adapter(RecordingEngine { request -> requests += request; jsonResponse(response) }, routingApproved = true)
+        try {
+            val estimate = adapter.walkingEstimate(WalkingQuery(GeoPoint(41.7, 44.8), GeoPoint(41.8, 44.9), "RU"))
+
+            assertEquals(410.0, estimate.distanceMeters)
+            assertEquals(300L, estimate.durationSeconds)
+            assertEquals(NOW.toString(), estimate.observedAt)
+            val request = requests.single()
+            assertEquals("/api/v6/plan", request.url.encodedPath)
+            assertEquals("", request.url.parameters["transitModes"])
+            assertEquals("WALK", request.url.parameters["directModes"])
+            assertEquals("1800", request.url.parameters["maxDirectTime"])
+            assertEquals("0", request.url.parameters["numItineraries"])
+            assertEquals("ru", request.url.parameters["language"])
+        } finally {
+            adapter.close()
+        }
+    }
+
+    @Test
+    fun `walking plan rejects non-walk invalid and absent direct candidates`() = runTest {
+        val bodies = listOf(
+            """{"direct":[]}""",
+            """{"direct":[{"duration":0,"startTime":"2030-01-01T00:00:00Z","endTime":"2030-01-01T00:00:00Z","transfers":0,"id":"bad","legs":[{"mode":"WALK","from":$fromPlace,"to":$toPlace,"startTime":"2030-01-01T00:00:00Z","endTime":"2030-01-01T00:00:00Z","realTime":false,"distance":0}]}]}""",
+            """{"direct":[{"duration":100,"startTime":"2030-01-01T00:00:00Z","endTime":"2030-01-01T00:02:00Z","transfers":0,"id":"bike","legs":[{"mode":"BIKE","from":$fromPlace,"to":$toPlace,"startTime":"2030-01-01T00:00:00Z","endTime":"2030-01-01T00:02:00Z","realTime":false,"distance":500}]}]}""",
+        )
+        bodies.forEach { body ->
+            val adapter = adapter(RecordingEngine { jsonResponse(body) }, routingApproved = true)
+            try {
+                assertFailsWith<ProviderCapabilityUnavailable> {
+                    adapter.walkingEstimate(WalkingQuery(GeoPoint(41.7, 44.8), GeoPoint(41.8, 44.9), "en"))
+                }
+            } finally {
+                adapter.close()
+            }
         }
     }
 

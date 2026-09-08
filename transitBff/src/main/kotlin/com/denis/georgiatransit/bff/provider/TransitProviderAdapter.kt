@@ -10,6 +10,7 @@ import com.denis.georgiatransit.bff.api.Route
 import com.denis.georgiatransit.bff.api.Shape
 import com.denis.georgiatransit.bff.api.Stop
 import com.denis.georgiatransit.bff.api.Vehicle
+import com.denis.georgiatransit.bff.api.WalkingEstimate
 import com.denis.georgiatransit.bff.observability.TelemetryCapability
 import com.denis.georgiatransit.bff.observability.TelemetryOperation
 import com.denis.georgiatransit.bff.observability.TelemetryProvider
@@ -40,6 +41,10 @@ interface CityTransitProviderAdapter {
     suspend fun arrivals(stopId: String, limit: Int, locale: String): RealtimeArrivals
 
     suspend fun journeys(query: JourneyQuery): List<Journey>
+
+    /** Separate provider boundary so transit journeys are never mistaken for walking directions. */
+    suspend fun walkingEstimate(query: WalkingQuery): WalkingEstimate =
+        throw ProviderCapabilityUnavailable("Direct walking is not available")
 
     /** Additive realtime metadata seam; older adapters retain schedule-only journey behavior. */
     suspend fun journeyPage(query: JourneyQuery): RealtimeJourneys = RealtimeJourneys(
@@ -115,6 +120,12 @@ data class JourneyQuery(
     val departureAt: Instant,
     val locale: String,
     val maxTransfers: Int,
+)
+
+data class WalkingQuery(
+    val from: GeoPoint,
+    val to: GeoPoint,
+    val locale: String,
 )
 
 sealed class ProviderFailure(message: String) : RuntimeException(message)

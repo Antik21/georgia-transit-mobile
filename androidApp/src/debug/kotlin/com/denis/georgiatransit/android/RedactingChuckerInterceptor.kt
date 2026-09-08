@@ -239,7 +239,7 @@ internal class RedactingChuckerInterceptor(context: Context) : Interceptor {
                 password("")
                 for (index in 0 until url.querySize) {
                     val name = url.queryParameterName(index)
-                    if (name.isCredentialQueryName()) setQueryParameter(name, REDACTED_VALUE)
+                    if (name.isCredentialQueryName() || name.isLocationQueryName()) setQueryParameter(name, REDACTED_VALUE)
                 }
             }.build()
 
@@ -247,6 +247,11 @@ internal class RedactingChuckerInterceptor(context: Context) : Interceptor {
             val normalized = lowercase(Locale.ROOT).replace(NON_ALPHANUMERIC, "")
             return normalized in EXACT_CREDENTIAL_NAMES || CREDENTIAL_NAME_FRAGMENT.containsMatchIn(normalized)
         }
+
+        fun String.isLocationQueryName(): Boolean = normalizedInspectionName() in EXACT_LOCATION_NAMES
+
+        private fun String.normalizedInspectionName(): String =
+            lowercase(Locale.ROOT).replace(NON_ALPHANUMERIC, "")
 
         fun String.isCredentialHeaderName(): Boolean {
             val normalized = lowercase(Locale.ROOT).replace(NON_ALPHANUMERIC, "")
@@ -269,6 +274,8 @@ internal class RedactingChuckerInterceptor(context: Context) : Interceptor {
                 "refreshtoken",
                 "idtoken",
             )
+        /** Exact coordinate fields used by BFF location APIs; never retain debug values locally. */
+        val EXACT_LOCATION_NAMES = setOf("lat", "lon", "fromlat", "fromlon", "tolat", "tolon", "latitude", "longitude")
         val CREDENTIAL_NAME_FRAGMENT = Regex("token|secret|password|credential|apikey|auth|session")
         val NON_ALPHANUMERIC = Regex("[^a-z0-9]")
         val INSPECTION_REDACTED_HEADER_NAMES = REDACTED_HEADERS.map { name ->
@@ -327,7 +334,7 @@ private object RedactingBodyDecoder : BodyDecoder {
             source.keys().forEach { key ->
                 target.put(
                     key,
-                    if (key.isCredentialName()) REDACTED_VALUE else redactJsonValue(source.opt(key)),
+                    if (key.isCredentialName() || key.isLocationName()) REDACTED_VALUE else redactJsonValue(source.opt(key)),
                 )
             }
         }
@@ -350,7 +357,7 @@ private object RedactingBodyDecoder : BodyDecoder {
         FORM_FIELD.replace(text) { match ->
             val rawName = match.groupValues[2]
             val decodedName = runCatching { URLDecoder.decode(rawName, Charsets.UTF_8.name()) }.getOrDefault(rawName)
-            if (decodedName.isCredentialName()) {
+            if (decodedName.isCredentialName() || decodedName.isLocationName()) {
                 "${match.groupValues[1]}$rawName=$REDACTED_VALUE"
             } else {
                 match.value
@@ -364,7 +371,11 @@ private object RedactingBodyDecoder : BodyDecoder {
             }
             .replace(CREDENTIAL_QUERY_VALUE) { match ->
                 "${match.groupValues[1]}$REDACTED_VALUE"
+            }.replace(LOCATION_QUERY_VALUE) { match ->
+                "${match.groupValues[1]}$REDACTED_VALUE"
             }.replace(CREDENTIAL_KEY_VALUE) { match ->
+                "${match.groupValues[1]}${match.groupValues[2]}$REDACTED_VALUE"
+            }.replace(LOCATION_KEY_VALUE) { match ->
                 "${match.groupValues[1]}${match.groupValues[2]}$REDACTED_VALUE"
             }
 
@@ -372,6 +383,9 @@ private object RedactingBodyDecoder : BodyDecoder {
         val normalized = lowercase(Locale.ROOT).replace(NON_ALPHANUMERIC, "")
         return normalized in EXACT_CREDENTIAL_NAMES || CREDENTIAL_NAME_FRAGMENT.containsMatchIn(normalized)
     }
+
+    private fun String.isLocationName(): Boolean =
+        lowercase(Locale.ROOT).replace(NON_ALPHANUMERIC, "") in EXACT_LOCATION_NAMES
 
     private fun String.isSupportedText(): Boolean =
         !contains("xml") && (startsWith("text/") || isJson() || contains("x-www-form-urlencoded"))
@@ -393,14 +407,22 @@ private object RedactingBodyDecoder : BodyDecoder {
             "refreshtoken",
             "idtoken",
         )
+    private val EXACT_LOCATION_NAMES =
+        setOf("lat", "lon", "fromlat", "fromlon", "tolat", "tolon", "latitude", "longitude")
     private val CREDENTIAL_NAME_FRAGMENT = Regex("token|secret|password|credential|apikey|auth|session")
     private val NON_ALPHANUMERIC = Regex("[^a-z0-9]")
     private val FORM_FIELD = Regex("(?i)(^|[&;])([^=&;]+)=([^&;]*)")
     private val CREDENTIAL_QUERY_VALUE =
         Regex("(?i)([?&](?:[^=&?#]*?(?:token|secret|password|credential|api[_-]?key|auth|session)[^=&?#]*)=)[^&#\\s]+")
+    private val LOCATION_QUERY_VALUE =
+        Regex("(?i)([?&](?:lat|lon|fromlat|fromlon|tolat|tolon|latitude|longitude)=)[^&#\\s]+")
     private val CREDENTIAL_URL_USER_INFO = Regex("(?i)(https?://)(?:[^/@\\s]+@)")
     private val CREDENTIAL_KEY_VALUE =
         Regex(
             "(?i)\\b(authorization|proxy-authorization|x-api-key|api-key|cookie|set-cookie|x-auth-token|x-access-token|access[_-]?token|refresh[_-]?token|id[_-]?token|api[_-]?key|password|secret|credential|session(?:[_-]?id)?)(\\s*[:=]\\s*)(?:\\\"(?:\\\\.|[^\\\"])*\\\"|'(?:\\\\.|[^'])*'|[^,\\s&;}\\]]+)",
+        )
+    private val LOCATION_KEY_VALUE =
+        Regex(
+            "(?i)\\b(lat|lon|fromlat|fromlon|tolat|tolon|latitude|longitude)(\\s*[:=]\\s*)(?:\\\"(?:\\\\.|[^\\\"])*\\\"|'(?:\\\\.|[^'])*'|[^,\\s&;}\\]]+)",
         )
 }
