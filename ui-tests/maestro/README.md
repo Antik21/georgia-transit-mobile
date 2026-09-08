@@ -109,3 +109,23 @@ runtime exposes no Core Animation/FPS `xctrace` template; its Time Profiler comm
 honor a ten-second limit in the verification run, so do not infer an iOS FPS or jank number from
 the simulator evidence. Native source checks are only adapter-wiring smoke tests; 250/1000 runtime
 flows and their captured artifacts are the behavior and memory evidence.
+
+## Stop arrivals
+
+`run-stop-arrivals-smoke.sh` starts a handwritten, test-only BFF fake on loopback port 8080,
+checks its PID and exact health response before and after the flow, then stops only that owned
+process. The fake is not a production BFF adapter, has no provider credentials, and never enables release behavior.
+It returns a known demo stop, route label, official source, and arriving row
+after a short delay so the flow proves the accessible sheet's loading, content, close, and reopen
+states using only stable IDs.
+
+Use only an explicit emulator or booted iOS Simulator:
+
+```shell
+ui-tests/maestro/run-stop-arrivals-smoke.sh android emulator-5554 \
+  androidApp/build/outputs/apk/debug/androidApp-debug.apk
+
+ui-tests/maestro/run-stop-arrivals-smoke.sh ios \
+  19C4B36C-E2E9-43C3-BB33-B762FFDA5A08 \
+  /absolute/path/to/Build/Products/Debug-iphonesimulator/iosApp.app
+```

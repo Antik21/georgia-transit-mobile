@@ -7,14 +7,19 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Button
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -34,6 +39,7 @@ import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.intl.Locale
 import androidx.compose.ui.text.withLink
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
@@ -48,6 +54,7 @@ import com.denis.georgiatransit.shared.presentation.location.LocationPrecision
 import com.denis.georgiatransit.shared.presentation.location.LocationState
 import com.denis.georgiatransit.shared.presentation.location.PlatformLocationEffect
 import com.denis.georgiatransit.shared.presentation.ui.automation.AutomationId
+import com.denis.georgiatransit.shared.presentation.ui.automation.enableAutomationResourceIds
 import com.denis.georgiatransit.shared.presentation.ui.theme.GeorgiaTransitTheme
 import com.denis.georgiatransit.shared.presentation.ui.theme.TransitColors
 import com.denis.georgiatransit.shared.presentation.ui.theme.TransitShapes
@@ -85,6 +92,31 @@ import georgiatransit.shared.generated.resources.map_nearby_stops_title
 import georgiatransit.shared.generated.resources.map_retry_action
 import georgiatransit.shared.generated.resources.map_selected_routes
 import georgiatransit.shared.generated.resources.map_selected_stop
+import georgiatransit.shared.generated.resources.map_stop_arrivals_arriving
+import georgiatransit.shared.generated.resources.map_stop_arrivals_close
+import georgiatransit.shared.generated.resources.map_stop_arrivals_empty
+import georgiatransit.shared.generated.resources.map_stop_arrivals_error
+import georgiatransit.shared.generated.resources.map_stop_arrivals_headsign_unavailable
+import georgiatransit.shared.generated.resources.map_stop_arrivals_loading
+import georgiatransit.shared.generated.resources.map_stop_arrivals_minutes
+import georgiatransit.shared.generated.resources.map_stop_arrivals_offline
+import georgiatransit.shared.generated.resources.map_stop_arrivals_page_source
+import georgiatransit.shared.generated.resources.map_stop_arrivals_partial
+import georgiatransit.shared.generated.resources.map_stop_arrivals_refreshing
+import georgiatransit.shared.generated.resources.map_stop_arrivals_retry
+import georgiatransit.shared.generated.resources.map_stop_arrivals_route_details_unavailable
+import georgiatransit.shared.generated.resources.map_stop_arrivals_route_unavailable
+import georgiatransit.shared.generated.resources.map_stop_arrivals_routes
+import georgiatransit.shared.generated.resources.map_stop_arrivals_source_aggregator
+import georgiatransit.shared.generated.resources.map_stop_arrivals_source_approximate
+import georgiatransit.shared.generated.resources.map_stop_arrivals_source_official
+import georgiatransit.shared.generated.resources.map_stop_arrivals_source_schedule
+import georgiatransit.shared.generated.resources.map_stop_arrivals_stale
+import georgiatransit.shared.generated.resources.map_stop_arrivals_stop_code
+import georgiatransit.shared.generated.resources.map_stop_arrivals_stop_details_unavailable
+import georgiatransit.shared.generated.resources.map_stop_arrivals_time_unavailable
+import georgiatransit.shared.generated.resources.map_stop_arrivals_title
+import georgiatransit.shared.generated.resources.map_stop_arrivals_unavailable
 import georgiatransit.shared.generated.resources.map_title
 import georgiatransit.shared.generated.resources.map_vehicle_status_live
 import georgiatransit.shared.generated.resources.map_vehicle_status_loading
@@ -126,79 +158,275 @@ fun MapScreen(viewModel: MapViewModel, handleNavigation: suspend (NavigationEffe
 
 @Composable
 private fun Content(state: ViewState, onAction: (Action) -> Unit) {
-    Column(modifier = Modifier.fillMaxSize().testTag(AutomationId.MapScreen)) {
-        Column(
-            modifier = Modifier.fillMaxWidth().padding(TransitSpacing.Large),
-            verticalArrangement = Arrangement.spacedBy(TransitSpacing.Small),
-        ) {
-            Text(stringResource(Res.string.map_title), style = MaterialTheme.typography.headlineSmall)
-            Text(state.cityName, color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.titleMedium)
-        }
-        val mapModifier = Modifier.fillMaxWidth().weight(1f)
-        state.renderState?.let { renderState ->
-            MapCanvas(
-                renderState = renderState,
+    Box(modifier = Modifier.fillMaxSize().testTag(AutomationId.MapScreen)) {
+        Column(modifier = Modifier.fillMaxSize()) {
+            Column(
+                modifier = Modifier.fillMaxWidth().padding(TransitSpacing.Large),
+                verticalArrangement = Arrangement.spacedBy(TransitSpacing.Small),
+            ) {
+                Text(stringResource(Res.string.map_title), style = MaterialTheme.typography.headlineSmall)
+                Text(state.cityName, color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.titleMedium)
+            }
+            val mapModifier = Modifier.fillMaxWidth().weight(1f)
+            state.renderState?.let { renderState ->
+                MapCanvas(
+                    renderState = renderState,
+                    contentState = state.contentState,
+                    baseLayerState = state.baseLayerState,
+                    locationActionLabel = locationActionLabel(state.location.permission),
+                    locationActionAutomationId = if (state.location.permission == LocationPermissionState.SettingsRequired) {
+                        AutomationId.MapLocationSettings
+                    } else {
+                        AutomationId.MapMyLocation
+                    },
+                    locationActionEnabled = locationActionEnabled(state.location.permission) && !state.location.isLocating,
+                    onMyLocationClick = { onAction(Action.MyLocationClicked) },
+                    onMapEvent = { onAction(Action.MapEventReceived(it)) },
+                    onRetry = { onAction(Action.RetryNearby) },
+                    modifier = mapModifier,
+                )
+            } ?: MapContentPlaceholder(
                 contentState = state.contentState,
                 baseLayerState = state.baseLayerState,
-                locationActionLabel = locationActionLabel(state.location.permission),
-                locationActionAutomationId = if (state.location.permission == LocationPermissionState.SettingsRequired) {
-                    AutomationId.MapLocationSettings
-                } else {
-                    AutomationId.MapMyLocation
-                },
-                locationActionEnabled = locationActionEnabled(state.location.permission) && !state.location.isLocating,
-                onMyLocationClick = { onAction(Action.MyLocationClicked) },
-                onMapEvent = { onAction(Action.MapEventReceived(it)) },
-                onRetry = { onAction(Action.RetryNearby) },
                 modifier = mapModifier,
             )
-        } ?: MapContentPlaceholder(
-            contentState = state.contentState,
-            baseLayerState = state.baseLayerState,
-            modifier = mapModifier,
-        )
-        Column(
-            modifier = Modifier.fillMaxWidth().padding(TransitSpacing.Medium),
-            verticalArrangement = Arrangement.spacedBy(TransitSpacing.Small),
-        ) {
-            LocationStatus(state.location)
-            VehicleAccessibility(
-                layerState = state.vehicleLayerState,
-                routes = state.vehicleRoutes,
-            )
-            NearbyStopsAccessibility(
-                stops = state.nearbyStops,
-                onStopSelected = { onAction(Action.StopSelected(it)) },
-            )
-            state.selectedStop?.let { selectedStop ->
-                Text(
-                    stringResource(Res.string.map_selected_stop, selectedStop.name),
-                    modifier = Modifier
-                        .testTag(AutomationId.MapSelectedStop)
-                        .semantics { liveRegion = LiveRegionMode.Polite },
-                    style = MaterialTheme.typography.labelLarge,
-                    color = MaterialTheme.colorScheme.primary,
+            Column(
+                modifier = Modifier.fillMaxWidth().padding(TransitSpacing.Medium),
+                verticalArrangement = Arrangement.spacedBy(TransitSpacing.Small),
+            ) {
+                LocationStatus(state.location)
+                VehicleAccessibility(
+                    layerState = state.vehicleLayerState,
+                    routes = state.vehicleRoutes,
                 )
-            }
-            if (state.selectedRouteNames.isNotEmpty()) {
-                Text(
-                    stringResource(Res.string.map_selected_routes, state.selectedRouteNames.joinToString()),
-                    style = MaterialTheme.typography.labelLarge,
+                NearbyStopsAccessibility(
+                    stops = state.nearbyStops,
+                    onStopSelected = { onAction(Action.StopSelected(it)) },
                 )
+                state.selectedStop?.let { selectedStop ->
+                    Text(
+                        stringResource(Res.string.map_selected_stop, selectedStop.name),
+                        modifier = Modifier
+                            .testTag(AutomationId.MapSelectedStop)
+                            .semantics { liveRegion = LiveRegionMode.Polite },
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.primary,
+                    )
+                }
+                if (state.selectedRouteNames.isNotEmpty()) {
+                    Text(
+                        stringResource(Res.string.map_selected_routes, state.selectedRouteNames.joinToString()),
+                        style = MaterialTheme.typography.labelLarge,
+                    )
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(TransitSpacing.Small)) {
+                    OutlinedButton(
+                        onClick = { onAction(Action.ChangeCityClicked) },
+                        modifier = Modifier.weight(1f).testTag(AutomationId.MapChangeCity),
+                    ) { Text(stringResource(Res.string.map_change_city_action)) }
+                    Button(
+                        onClick = { onAction(Action.RoutesClicked) },
+                        modifier = Modifier.weight(1f).testTag(AutomationId.MapRoutes),
+                    ) { Text(stringResource(Res.string.map_routes_action)) }
+                }
+                CityAttribution(state.attribution)
             }
-            Row(horizontalArrangement = Arrangement.spacedBy(TransitSpacing.Small)) {
-                OutlinedButton(
-                    onClick = { onAction(Action.ChangeCityClicked) },
-                    modifier = Modifier.weight(1f).testTag(AutomationId.MapChangeCity),
-                ) { Text(stringResource(Res.string.map_change_city_action)) }
-                Button(
-                    onClick = { onAction(Action.RoutesClicked) },
-                    modifier = Modifier.weight(1f).testTag(AutomationId.MapRoutes),
-                ) { Text(stringResource(Res.string.map_routes_action)) }
-            }
-            CityAttribution(state.attribution)
+        }
+        state.stopArrivalsSheet?.let { sheet ->
+            StopArrivalsSheet(
+                sheet = sheet,
+                onDismiss = { onAction(Action.StopArrivalsDismissed) },
+                onRetry = { onAction(Action.RetryStopArrivals) },
+            )
         }
     }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun StopArrivalsSheet(
+    sheet: StopArrivalsSheetUi,
+    onDismiss: () -> Unit,
+    onRetry: () -> Unit,
+) {
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+    ) {
+        Column(
+            // ModalBottomSheet owns a separate Android semantics tree. Re-enable the bridge on
+            // this in-sheet root so descendants retain their stable resource IDs on Android.
+            modifier = Modifier.fillMaxWidth()
+                .enableAutomationResourceIds()
+                .testTag(AutomationId.MapStopArrivalsSheet)
+                .padding(horizontal = TransitSpacing.Medium),
+            verticalArrangement = Arrangement.spacedBy(TransitSpacing.Small),
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        stringResource(Res.string.map_stop_arrivals_title),
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Text(
+                        sheet.stopName.ifBlank { stringResource(Res.string.map_stop_arrivals_stop_details_unavailable) },
+                        style = MaterialTheme.typography.titleLarge,
+                    )
+                    sheet.stopCode?.let { code ->
+                        Text(
+                            stringResource(Res.string.map_stop_arrivals_stop_code, code),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
+                TextButton(
+                    onClick = onDismiss,
+                    modifier = Modifier.heightIn(min = 48.dp).testTag(AutomationId.MapStopArrivalsClose),
+                ) {
+                    Text(stringResource(Res.string.map_stop_arrivals_close))
+                }
+            }
+            if (sheet.passingRouteShortNames.isNotEmpty()) {
+                Text(
+                    stringResource(Res.string.map_stop_arrivals_routes),
+                    style = MaterialTheme.typography.labelLarge,
+                )
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(TransitSpacing.ExtraSmall)) {
+                    items(sheet.passingRouteShortNames, key = { it }) { shortName ->
+                        Surface(shape = TransitShapes.Small, color = MaterialTheme.colorScheme.secondaryContainer) {
+                            Text(
+                                shortName,
+                                modifier = Modifier.padding(TransitSpacing.ExtraSmall),
+                                style = MaterialTheme.typography.labelLarge,
+                            )
+                        }
+                    }
+                }
+            }
+            if (sheet.hasUnavailableRouteDetails) {
+                Text(
+                    stringResource(Res.string.map_stop_arrivals_route_details_unavailable),
+                    modifier = Modifier.testTag(AutomationId.MapStopArrivalsRouteDetailsUnavailable),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            if (sheet.isRefreshing) {
+                Text(
+                    stringResource(Res.string.map_stop_arrivals_refreshing),
+                    modifier = Modifier.testTag(AutomationId.MapStopArrivalsRefreshing),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            if (sheet.isStale) {
+                Text(
+                    stringResource(Res.string.map_stop_arrivals_stale),
+                    modifier = Modifier.testTag(AutomationId.MapStopArrivalsStale),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error,
+                )
+            }
+            sheet.pageSource?.let { source ->
+                Text(
+                    stringResource(Res.string.map_stop_arrivals_page_source, arrivalSourceLabel(source)),
+                    modifier = Modifier.testTag(AutomationId.MapStopArrivalsSource),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            StopArrivalsStatus(sheet = sheet, onRetry = onRetry)
+            if (sheet.rows.isNotEmpty()) {
+                LazyColumn(
+                    modifier = Modifier.fillMaxWidth().weight(1f, fill = false)
+                        .testTag(AutomationId.MapStopArrivalsRows),
+                    verticalArrangement = Arrangement.spacedBy(TransitSpacing.Small),
+                ) {
+                    items(sheet.rows) { row -> StopArrivalRow(row) }
+                }
+            }
+        }
+    }
+}
+
+/** Status is a polite summary only; repeated row/source refreshes are deliberately not live regions. */
+@Composable
+private fun StopArrivalsStatus(sheet: StopArrivalsSheetUi, onRetry: () -> Unit) {
+    val status = when (sheet.state) {
+        StopArrivalsSheetState.Loading -> stringResource(Res.string.map_stop_arrivals_loading) to AutomationId.MapStopArrivalsLoading
+        StopArrivalsSheetState.NoArrivals -> stringResource(Res.string.map_stop_arrivals_empty) to AutomationId.MapStopArrivalsEmpty
+        StopArrivalsSheetState.PartialData -> stringResource(Res.string.map_stop_arrivals_partial) to AutomationId.MapStopArrivalsPartial
+        StopArrivalsSheetState.Offline -> stringResource(Res.string.map_stop_arrivals_offline) to AutomationId.MapStopArrivalsOffline
+        StopArrivalsSheetState.UpstreamError -> stringResource(Res.string.map_stop_arrivals_error) to AutomationId.MapStopArrivalsError
+        StopArrivalsSheetState.Unavailable -> stringResource(Res.string.map_stop_arrivals_unavailable) to AutomationId.MapStopArrivalsUnavailable
+        StopArrivalsSheetState.Ready -> null
+    } ?: return
+    Surface(
+        modifier = Modifier.fillMaxWidth().testTag(status.second)
+            .semantics { liveRegion = LiveRegionMode.Polite },
+        shape = TransitShapes.Small,
+        color = MaterialTheme.colorScheme.surfaceVariant,
+    ) {
+        Column(
+            modifier = Modifier.padding(TransitSpacing.Small),
+            verticalArrangement = Arrangement.spacedBy(TransitSpacing.ExtraSmall),
+        ) {
+            Text(status.first, style = MaterialTheme.typography.bodyMedium)
+            if (sheet.state is StopArrivalsSheetState.Offline || sheet.state is StopArrivalsSheetState.UpstreamError) {
+                Button(
+                    onClick = onRetry,
+                    modifier = Modifier.testTag(AutomationId.MapStopArrivalsRetry),
+                ) { Text(stringResource(Res.string.map_stop_arrivals_retry)) }
+            }
+        }
+    }
+}
+
+@Composable
+private fun StopArrivalRow(row: StopArrivalRowUi) {
+    Row(
+        modifier = Modifier.fillMaxWidth().testTag(AutomationId.MapStopArrivalsRow),
+        horizontalArrangement = Arrangement.spacedBy(TransitSpacing.Small),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                row.routeShortName ?: stringResource(Res.string.map_stop_arrivals_route_unavailable),
+                style = MaterialTheme.typography.titleMedium,
+            )
+            Text(
+                row.headsign.ifBlank { stringResource(Res.string.map_stop_arrivals_headsign_unavailable) },
+                style = MaterialTheme.typography.bodyMedium,
+            )
+            Text(
+                arrivalSourceLabel(row.source),
+                modifier = Modifier.testTag(AutomationId.MapStopArrivalsSource),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        Text(arrivalTimeLabel(row.time), style = MaterialTheme.typography.titleMedium)
+    }
+}
+
+@Composable
+private fun arrivalTimeLabel(time: StopArrivalTimeUi): String = when (time) {
+    StopArrivalTimeUi.Arriving -> stringResource(Res.string.map_stop_arrivals_arriving)
+    is StopArrivalTimeUi.Minutes -> stringResource(Res.string.map_stop_arrivals_minutes, time.value)
+    StopArrivalTimeUi.Unavailable -> stringResource(Res.string.map_stop_arrivals_time_unavailable)
+}
+
+@Composable
+private fun arrivalSourceLabel(source: ArrivalSourceUi): String = when (source) {
+    ArrivalSourceUi.OfficialRealtime -> stringResource(Res.string.map_stop_arrivals_source_official)
+    ArrivalSourceUi.AggregatorRealtime -> stringResource(Res.string.map_stop_arrivals_source_aggregator)
+    ArrivalSourceUi.Schedule -> stringResource(Res.string.map_stop_arrivals_source_schedule)
+    ArrivalSourceUi.Approximate -> stringResource(Res.string.map_stop_arrivals_source_approximate)
 }
 
 /** Common navigation/composition visibility plus the host lifecycle is the realtime ownership gate. */
