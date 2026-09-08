@@ -102,6 +102,7 @@ private fun Content(state: ViewState, onAction: (Action) -> Unit) {
             Text(stringResource(Res.string.map_title), style = MaterialTheme.typography.headlineSmall)
             Text(state.cityName, color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.titleMedium)
         }
+        val mapModifier = Modifier.fillMaxWidth().weight(1f)
         state.renderState?.let { renderState ->
             MapCanvas(
                 renderState = renderState,
@@ -114,9 +115,9 @@ private fun Content(state: ViewState, onAction: (Action) -> Unit) {
                 },
                 locationActionEnabled = locationActionEnabled(state.location.permission) && !state.location.isLocating,
                 onMyLocationClick = { onAction(Action.MyLocationClicked) },
-                modifier = Modifier.fillMaxWidth().weight(1f),
+                modifier = mapModifier,
             )
-        }
+        } ?: MapContentPlaceholder(contentState = state.contentState, modifier = mapModifier)
         Column(
             modifier = Modifier.fillMaxWidth().padding(TransitSpacing.Medium),
             verticalArrangement = Arrangement.spacedBy(TransitSpacing.Small),
@@ -140,6 +141,20 @@ private fun Content(state: ViewState, onAction: (Action) -> Unit) {
             }
             CityAttribution(state.attribution)
         }
+    }
+}
+
+/** Retains the current typed status when a renderer state has not been supplied yet. */
+@Composable
+private fun MapContentPlaceholder(
+    contentState: MapContentState,
+    modifier: Modifier = Modifier,
+) {
+    Box(modifier = modifier.background(TransitColors.MapLand)) {
+        MapContentOverlay(
+            contentState = contentState,
+            modifier = Modifier.align(Alignment.TopCenter).padding(TransitSpacing.Medium),
+        )
     }
 }
 

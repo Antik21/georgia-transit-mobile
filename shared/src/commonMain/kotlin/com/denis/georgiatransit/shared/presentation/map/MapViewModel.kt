@@ -62,10 +62,14 @@ class MapViewModel(
         city: TransitCity,
         fix: UserLocationFix?,
     ): MapRenderState {
+        val isCityChange = lastCityId != null && lastCityId != city.id
         if (lastCityId != city.id || cameraCommand == null) {
             lastCityId = city.id
-            lastAcceptedFix = null
             cameraCommand = nextCameraCommand(center = city.center, zoom = city.defaultZoom)
+            // A city change deliberately centers on that city. Record an unchanged existing fix
+            // only for comparison so it remains a marker instead of immediately overriding the
+            // city camera; a new/refreshed fix below still recenters as intended.
+            lastAcceptedFix = if (isCityChange) fix else null
         }
         if (fix == null) {
             // Losing an old fix changes the marker only. It must never recenter a user-panned map.

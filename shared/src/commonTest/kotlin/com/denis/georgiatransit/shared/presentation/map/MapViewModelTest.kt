@@ -472,6 +472,44 @@ class MapViewModelTest {
     }
 
     @Test
+    fun cityChangeKeepsAcceptedLocationMarkerButUsesTheNewCityCamera() = runTest {
+        val tbilisi = city("tbilisi", defaultZoom = 13.25).copy(center = GeoPoint(41.7151, 44.8271))
+        val batumi = city("batumi", defaultZoom = 11.75).copy(center = GeoPoint(41.6168, 41.6367))
+        val transitSession = RuntimeTransitSession().also { it.selectCity(tbilisi) }
+        val locationSession = testLocationSessionWithFix()
+        val acceptedFix = requireNotNull(locationSession.state.value.fix)
+        val viewModel = MapViewModel(MapRepository(), transitSession, locationSession)
+
+        viewModel.test(this) {
+            runOnCreate()
+            this@runTest.runCurrent()
+            expectState(
+                ViewState(
+                    cityName = tbilisi.name,
+                    renderState = renderState(
+                        center = acceptedFix.point,
+                        zoom = 15.0,
+                        revision = 2,
+                        userLocation = acceptedFix,
+                    ),
+                    location = locationSession.state.value,
+                ),
+            )
+
+            val cameraBeforeCityChange = requireNotNull(viewModel.container.stateFlow.value.renderState).camera
+            transitSession.selectCity(batumi)
+            this@runTest.runCurrent()
+
+            val switchedState = requireNotNull(viewModel.container.stateFlow.value.renderState)
+            assertEquals(acceptedFix, switchedState.userLocation)
+            assertEquals(batumi.center, switchedState.camera.center)
+            assertEquals(batumi.defaultZoom, switchedState.camera.zoom)
+            assertEquals(cameraBeforeCityChange.revision + 1, switchedState.camera.revision)
+            cancelAndIgnoreRemainingItems()
+        }
+    }
+
+    @Test
     fun mapRenderStateSnapshotsCallerOwnedLayersAndDefaultsToNoTransitData() {
         val camera = MapCameraCommand(center = GeoPoint(41.7151, 44.8271), zoom = 13.0, revision = 1)
         val callerStops = mutableListOf(MapStopMarker(StopId("stop-1"), GeoPoint(41.7151, 44.8271)))
