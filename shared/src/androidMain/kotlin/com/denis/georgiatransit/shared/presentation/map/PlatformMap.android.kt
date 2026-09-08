@@ -1,6 +1,11 @@
 package com.denis.georgiatransit.shared.presentation.map
 
+import android.graphics.Bitmap
+import android.graphics.Canvas
+import android.graphics.Color
+import android.graphics.Paint
 import android.graphics.RectF
+import android.graphics.Typeface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.remember
@@ -25,12 +30,17 @@ import org.maplibre.android.style.expressions.Expression
 import org.maplibre.android.style.layers.CircleLayer
 import org.maplibre.android.style.layers.FillLayer
 import org.maplibre.android.style.layers.LineLayer
+import org.maplibre.android.style.layers.SymbolLayer
 import org.maplibre.android.style.layers.PropertyFactory.circleColor
 import org.maplibre.android.style.layers.PropertyFactory.circleRadius
 import org.maplibre.android.style.layers.PropertyFactory.circleStrokeColor
 import org.maplibre.android.style.layers.PropertyFactory.circleStrokeWidth
 import org.maplibre.android.style.layers.PropertyFactory.fillColor
 import org.maplibre.android.style.layers.PropertyFactory.fillOpacity
+import org.maplibre.android.style.layers.PropertyFactory.iconAllowOverlap
+import org.maplibre.android.style.layers.PropertyFactory.iconIgnorePlacement
+import org.maplibre.android.style.layers.PropertyFactory.iconImage
+import org.maplibre.android.style.layers.PropertyFactory.iconOpacity
 import org.maplibre.android.style.layers.PropertyFactory.lineColor
 import org.maplibre.android.style.layers.PropertyFactory.lineOpacity
 import org.maplibre.android.style.layers.PropertyFactory.lineWidth
@@ -162,6 +172,14 @@ private class LocalMapController(
     private var latestState: MapRenderState? = null
     private var layersInstalled = false
     private var lastAppliedCameraRevision: Long? = null
+    private var lastStops: List<MapStopMarker>? = null
+    private var lastStopClusters: List<MapStopCluster>? = null
+    private var lastPolylines: List<MapPolyline>? = null
+    private var lastUserLocation: UserLocationFix? = null
+    private var lastVehicleSourceRevision: Long? = null
+    private var lastVehicleBadgeRevision: Long? = null
+    private val badgeImageIds = linkedMapOf<VehicleBadgeStyle, String>()
+    private var nextBadgeImageIndex = 0L
     private var destroyed = false
     private val cameraIdleListener = MapLibreMap.OnCameraIdleListener { notifyViewportSettled() }
     private val mapClickListener = MapLibreMap.OnMapClickListener { point -> onMapClick(point) }
@@ -177,6 +195,7 @@ private class LocalMapController(
                 style = loadedStyle
                 layersInstalled = false
                 lastAppliedCameraRevision = null
+                clearRenderedLayerState()
                 latestState?.let(::installAndRender)
             }
         }
@@ -198,6 +217,7 @@ private class LocalMapController(
         latestState = null
         layersInstalled = false
         lastAppliedCameraRevision = null
+        clearRenderedLayerState()
     }
 
     private fun installAndRender(renderState: MapRenderState) {
@@ -246,11 +266,11 @@ private class LocalMapController(
             ),
         )
         loadedStyle.addLayer(
-            CircleLayer(VEHICLES_LAYER_ID, VEHICLES_SOURCE_ID).withProperties(
-                circleColor(Expression.get(ROUTE_COLOR_PROPERTY)),
-                circleRadius(7f),
-                circleStrokeColor("#263238"),
-                circleStrokeWidth(2f),
+            SymbolLayer(VEHICLES_LAYER_ID, VEHICLES_SOURCE_ID).withProperties(
+                iconImage(Expression.get(VEHICLE_BADGE_IMAGE_PROPERTY)),
+                iconOpacity(Expression.get(VEHICLE_OPACITY_PROPERTY)),
+                iconAllowOverlap(true),
+                iconIgnorePlacement(true),
             ),
         )
         loadedStyle.addLayer(
@@ -263,13 +283,30 @@ private class LocalMapController(
         )
     }
 
-    /** Updates each stable, grouped source once per state; no native view is created per feature. */
+    /** Vehicle animation replaces only its grouped GeoJSON source; bitmap badge styles are cached separately. */
     private fun updateSources(loadedStyle: Style, renderState: MapRenderState) {
-        loadedStyle.getSourceAs<GeoJsonSource>(STOPS_SOURCE_ID)?.setGeoJson(stopFeatures(renderState))
-        loadedStyle.getSourceAs<GeoJsonSource>(VEHICLES_SOURCE_ID)?.setGeoJson(vehicleFeatures(renderState.vehicles))
-        loadedStyle.getSourceAs<GeoJsonSource>(POLYLINES_SOURCE_ID)?.setGeoJson(polylineFeatures(renderState.polylines))
-        loadedStyle.getSourceAs<GeoJsonSource>(USER_LOCATION_SOURCE_ID)?.setGeoJson(userLocationFeatures(renderState.userLocation))
-        loadedStyle.getSourceAs<GeoJsonSource>(USER_ACCURACY_SOURCE_ID)?.setGeoJson(userAccuracyFeatures(renderState.userLocation))
+        if (lastStops != renderState.stops || lastStopClusters != renderState.stopClusters) {
+            loadedStyle.getSourceAs<GeoJsonSource>(STOPS_SOURCE_ID)?.setGeoJson(stopFeatures(renderState))
+            lastStops = renderState.stops
+            lastStopClusters = renderState.stopClusters
+        }
+        if (lastVehicleSourceRevision != renderState.vehicleSourceRevision) {
+            if (lastVehicleBadgeRevision != renderState.vehicleBadgeRevision) {
+                updateBadgeImages(loadedStyle, renderState.vehicles.badgeRenderInput())
+                lastVehicleBadgeRevision = renderState.vehicleBadgeRevision
+            }
+            loadedStyle.getSourceAs<GeoJsonSource>(VEHICLES_SOURCE_ID)?.setGeoJson(vehicleFeatures(renderState.vehicles))
+            lastVehicleSourceRevision = renderState.vehicleSourceRevision
+        }
+        if (lastPolylines != renderState.polylines) {
+            loadedStyle.getSourceAs<GeoJsonSource>(POLYLINES_SOURCE_ID)?.setGeoJson(polylineFeatures(renderState.polylines))
+            lastPolylines = renderState.polylines
+        }
+        if (lastUserLocation != renderState.userLocation) {
+            loadedStyle.getSourceAs<GeoJsonSource>(USER_LOCATION_SOURCE_ID)?.setGeoJson(userLocationFeatures(renderState.userLocation))
+            loadedStyle.getSourceAs<GeoJsonSource>(USER_ACCURACY_SOURCE_ID)?.setGeoJson(userAccuracyFeatures(renderState.userLocation))
+            lastUserLocation = renderState.userLocation
+        }
     }
 
     private fun applyCameraIfNeeded(renderState: MapRenderState) {
@@ -326,6 +363,52 @@ private class LocalMapController(
         onEvent(MapPlatformEvent.StopTapped(com.denis.georgiatransit.shared.domain.model.StopId(stopId)))
         return true
     }
+
+    private fun vehicleFeatures(vehicles: List<MapVehicleMarker>): FeatureCollection = FeatureCollection.fromFeatures(
+        vehicles.asSequence()
+            .filter { it.id.value.isNotBlank() && it.routeId.value.isNotBlank() && it.position.isMapCoordinate() }
+            .sortedBy { it.id.value }
+            .take(MAX_VEHICLE_MARKERS)
+            .map { marker ->
+                Feature.fromGeometry(marker.position.asMapPoint()).also { feature ->
+                    feature.addStringProperty(FEATURE_ID_PROPERTY, marker.id.value)
+                    feature.addStringProperty(VEHICLE_BADGE_IMAGE_PROPERTY, badgeImageIds[marker.badgeStyle()] ?: OVERFLOW_BADGE_IMAGE_ID)
+                    feature.addNumberProperty(VEHICLE_OPACITY_PROPERTY, if (marker.isStale) STALE_VEHICLE_OPACITY else 1.0)
+                    feature.addStringProperty(POSITION_KIND_PROPERTY, marker.positionKind.name)
+                    marker.bearingDegrees?.takeIf(Double::isFinite)?.let { feature.addNumberProperty(BEARING_PROPERTY, it.normalizedBearing()) }
+                }
+            }
+            .toList(),
+    )
+
+    private fun updateBadgeImages(style: Style, renderInput: VehicleBadgeRenderInput) {
+        val styles = renderInput.styles
+        val obsolete = badgeImageIds.keys.filter { it !in styles }
+        obsolete.forEach { badgeStyle ->
+            badgeImageIds.remove(badgeStyle)?.let(style::removeImage)
+        }
+        styles.forEach { badgeStyle ->
+            if (badgeStyle !in badgeImageIds) {
+                val imageId = "gt-vehicle-badge-${++nextBadgeImageIndex}"
+                style.addImage(imageId, badgeStyle.toBitmap())
+                badgeImageIds[badgeStyle] = imageId
+            }
+        }
+        if (renderInput.needsOverflow && badgeImageIds.values.none { it == OVERFLOW_BADGE_IMAGE_ID }) {
+            style.addImage(OVERFLOW_BADGE_IMAGE_ID, VehicleBadgeStyle("?", 0xFF455A64, 0xFFFFFFFF, false).toBitmap())
+        }
+    }
+
+    private fun clearRenderedLayerState() {
+        lastStops = null
+        lastStopClusters = null
+        lastPolylines = null
+        lastUserLocation = null
+        lastVehicleSourceRevision = null
+        lastVehicleBadgeRevision = null
+        badgeImageIds.clear()
+        nextBadgeImageIndex = 0L
+    }
 }
 
 private fun stopFeatures(renderState: MapRenderState): FeatureCollection = FeatureCollection.fromFeatures(
@@ -360,22 +443,6 @@ private fun stopFeatures(renderState: MapRenderState): FeatureCollection = Featu
     ).toList(),
 )
 
-private fun vehicleFeatures(vehicles: List<MapVehicleMarker>): FeatureCollection = FeatureCollection.fromFeatures(
-    vehicles.asSequence()
-        .filter { it.id.value.isNotBlank() && it.routeId.value.isNotBlank() && it.position.isMapCoordinate() }
-        .sortedBy { it.id.value }
-        .take(MAX_VEHICLE_MARKERS)
-        .map { marker ->
-            Feature.fromGeometry(marker.position.asMapPoint()).also { feature ->
-                feature.addStringProperty(FEATURE_ID_PROPERTY, marker.id.value)
-                feature.addStringProperty(ROUTE_COLOR_PROPERTY, marker.routeColorArgb.asMapColor())
-                feature.addStringProperty(POSITION_KIND_PROPERTY, marker.positionKind.name)
-                marker.bearingDegrees?.takeIf(Double::isFinite)?.let { feature.addNumberProperty(BEARING_PROPERTY, it.normalizedBearing()) }
-            }
-        }
-        .toList(),
-)
-
 private fun polylineFeatures(polylines: List<MapPolyline>): FeatureCollection = FeatureCollection.fromFeatures(
     polylines.asSequence()
         .filter { it.routeId.value.isNotBlank() }
@@ -407,6 +474,81 @@ private fun userAccuracyFeatures(location: UserLocationFix?): FeatureCollection 
 )
 
 private fun GeoPoint.asMapPoint(): Point = Point.fromLngLat(longitude, latitude)
+
+private data class VehicleBadgeStyle(
+    val label: String,
+    val backgroundArgb: Long,
+    val textArgb: Long,
+    val stale: Boolean,
+)
+
+/** Exact badge inputs are independent from geometry so animation frames never rebuild bitmaps. */
+private data class VehicleBadgeRenderInput(
+    val styles: Set<VehicleBadgeStyle>,
+    val needsOverflow: Boolean,
+)
+
+private fun List<MapVehicleMarker>.badgeRenderInput(): VehicleBadgeRenderInput {
+    val allStyles = asSequence()
+        .filter { it.id.value.isNotBlank() && it.routeId.value.isNotBlank() && it.position.isMapCoordinate() }
+        .map(MapVehicleMarker::badgeStyle)
+        .distinct()
+        .sortedWith(compareBy<VehicleBadgeStyle> { it.label }.thenBy { it.backgroundArgb }.thenBy { it.textArgb }.thenBy { it.stale })
+        .toList()
+    return VehicleBadgeRenderInput(
+        styles = allStyles.take(MAX_VEHICLE_BADGE_IMAGES).toSet(),
+        needsOverflow = allStyles.size > MAX_VEHICLE_BADGE_IMAGES,
+    )
+}
+
+private fun MapVehicleMarker.badgeStyle(): VehicleBadgeStyle = VehicleBadgeStyle(
+    label = routeLabel.asNativeBadgeLabel(),
+    backgroundArgb = routeColorArgb or 0xFF000000L,
+    textArgb = routeTextColorArgb or 0xFF000000L,
+    stale = isStale,
+)
+
+private fun String.asNativeBadgeLabel(): String = asSequence()
+    .filter { it.isLetterOrDigit() || it == ' ' || it == '-' }
+    .joinToString(separator = "")
+    .trim()
+    .take(MAX_BADGE_LABEL_LENGTH)
+    .ifBlank { "?" }
+
+private fun VehicleBadgeStyle.toBitmap(): Bitmap {
+    val textPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = textArgb.toInt()
+        textSize = BADGE_TEXT_SIZE_PX
+        typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+        textAlign = Paint.Align.CENTER
+    }
+    val width = (textPaint.measureText(label) + BADGE_HORIZONTAL_PADDING_PX * 2).toInt()
+        .coerceIn(MIN_BADGE_WIDTH_PX, MAX_BADGE_WIDTH_PX)
+    val bitmap = Bitmap.createBitmap(width, BADGE_HEIGHT_PX, Bitmap.Config.ARGB_8888)
+    val canvas = Canvas(bitmap)
+    val background = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = backgroundArgb.toInt() }
+    val bounds = RectF(0f, 0f, width.toFloat(), BADGE_HEIGHT_PX.toFloat())
+    canvas.drawRoundRect(bounds, BADGE_HEIGHT_PX / 2f, BADGE_HEIGHT_PX / 2f, background)
+    val baseline = BADGE_HEIGHT_PX / 2f - (textPaint.ascent() + textPaint.descent()) / 2f
+    canvas.drawText(label, width / 2f, baseline, textPaint)
+    if (stale) {
+        // Hatching is deliberately shape-based, so stale is not communicated by opacity/color alone.
+        val cue = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = textArgb.toInt()
+            alpha = STALE_CUE_ALPHA
+            strokeWidth = STALE_CUE_STROKE_PX
+        }
+        canvas.drawLine(BADGE_STALE_INSET_PX, BADGE_HEIGHT_PX - BADGE_STALE_INSET_PX, BADGE_HEIGHT_PX - BADGE_STALE_INSET_PX, BADGE_STALE_INSET_PX, cue)
+        canvas.drawLine(
+            BADGE_HEIGHT_PX / 2f,
+            BADGE_HEIGHT_PX - BADGE_STALE_INSET_PX,
+            BADGE_HEIGHT_PX + BADGE_HEIGHT_PX / 2f - BADGE_STALE_INSET_PX,
+            BADGE_STALE_INSET_PX,
+            cue,
+        )
+    }
+    return bitmap
+}
 
 private fun GeoPoint.distanceMetersTo(other: GeoPoint): Double {
     val latitudeDelta = Math.toRadians(other.latitude - latitude)
@@ -452,14 +594,28 @@ private const val CLUSTER_RADIUS = 12
 private const val ROUTE_COLOR_PROPERTY = "routeColor"
 private const val BEARING_PROPERTY = "bearing"
 private const val POSITION_KIND_PROPERTY = "positionKind"
+private const val VEHICLE_BADGE_IMAGE_PROPERTY = "vehicleBadgeImage"
+private const val VEHICLE_OPACITY_PROPERTY = "vehicleOpacity"
 private const val MAX_STOP_MARKERS = 1_000
 private const val MAX_VEHICLE_MARKERS = 2_000
+private const val MAX_VEHICLE_BADGE_IMAGES = 256
 private const val MAX_POLYLINES = 256
 private const val MIN_POLYGON_POINTS = 4
 private const val MIN_ZOOM = 0.0
 private const val MAX_ZOOM = 22.0
 private const val MIN_STOP_TARGET_DP = 48f
 private const val EARTH_RADIUS_METERS = 6_371_008.8
+private const val OVERFLOW_BADGE_IMAGE_ID = "gt-vehicle-badge-overflow"
+private const val MAX_BADGE_LABEL_LENGTH = 8
+private const val BADGE_TEXT_SIZE_PX = 18f
+private const val BADGE_HORIZONTAL_PADDING_PX = 12f
+private const val BADGE_HEIGHT_PX = 32
+private const val MIN_BADGE_WIDTH_PX = 36
+private const val MAX_BADGE_WIDTH_PX = 104
+private const val BADGE_STALE_INSET_PX = 5f
+private const val STALE_CUE_STROKE_PX = 2f
+private const val STALE_CUE_ALPHA = 180
+private const val STALE_VEHICLE_OPACITY = 0.62
 
 /** A deliberately asset-free, local-only MapLibre style. */
 private const val LOCAL_STYLE_JSON = """

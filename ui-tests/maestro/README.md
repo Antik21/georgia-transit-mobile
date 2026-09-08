@@ -59,3 +59,53 @@ ui-tests/maestro/run-ios-tbilisi-attribution-disabled.sh \
 The injected latitude/longitude are setup data, not selector coordinates. Maestro assertions use
 only locale-independent automation IDs. Do not substitute a physical Android device or Apple
 device for either argument.
+
+## Realtime vehicles
+
+This flow is intentionally limited to the opt-in local development BFF fixture. Start the BFF on
+the host before launching either Debug app; production configuration has no fallback endpoint:
+
+```shell
+BFF_MODE=development BFF_FIXTURES_ENABLED=true ./gradlew :transitBff:run
+```
+
+Then run the vehicle flow on an explicitly selected emulator or booted Simulator:
+
+```shell
+ui-tests/maestro/run-android-vehicle-realtime.sh \
+  emulator-5554 \
+  androidApp/build/outputs/apk/debug/androidApp-debug.apk
+
+ui-tests/maestro/run-ios-vehicle-realtime.sh \
+  19C4B36C-E2E9-43C3-BB33-B762FFDA5A08 \
+  /absolute/path/to/Build/Products/Debug-iphonesimulator/iosApp.app
+```
+
+The flow asserts only fixed automation IDs, including `map.vehicles.live-nonempty`; it cannot
+pass on a loading, timeout, stale, or fresh-empty vehicle state. It has no localized text or
+coordinate selector. The fixture contains only handwritten development data and never carries a
+provider secret.
+
+### Repeatable 250 / 1000 vehicle samples
+
+`run-vehicle-load-sample.sh` starts a separate loopback-only handwritten test fake (never the
+production BFF), captures a post-first-render baseline, then records evidence after three and six
+map enter/leave cycles in one verified app process. It accepts only an Android `emulator-*`
+target or an explicitly booted iOS Simulator, and only the required 250 or 1000 fixture sizes.
+The output directory is deliberately caller-owned so generated evidence is not tracked as source.
+
+```shell
+ui-tests/maestro/run-vehicle-load-sample.sh android emulator-5554 \
+  androidApp/build/outputs/apk/debug/androidApp-debug.apk 250 /tmp/den-61-android-250
+
+ui-tests/maestro/run-vehicle-load-sample.sh ios \
+  19C4B36C-E2E9-43C3-BB33-B762FFDA5A08 \
+  /absolute/path/to/Build/Products/Debug-iphonesimulator/iosApp.app 1000 /tmp/den-61-ios-1000
+```
+
+Android captures `dumpsys gfxinfo` (frame percentiles and jank) plus `meminfo`. iOS captures
+the Simulator app host process with `vmmap` (physical footprint) and `ps` (RSS). This Xcode 26.6
+runtime exposes no Core Animation/FPS `xctrace` template; its Time Profiler command also failed to
+honor a ten-second limit in the verification run, so do not infer an iOS FPS or jank number from
+the simulator evidence. Native source checks are only adapter-wiring smoke tests; 250/1000 runtime
+flows and their captured artifacts are the behavior and memory evidence.
