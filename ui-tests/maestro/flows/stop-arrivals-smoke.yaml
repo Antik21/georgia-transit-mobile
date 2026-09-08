@@ -1,0 +1,47 @@
+appId: com.denis.georgiatransit
+---
+# Precondition: run-stop-arrivals-smoke.sh started the explicit loopback-only test fixture.
+# Every assertion targets a locale-independent automation ID; no text or screen coordinates are
+# part of this cross-platform contract.
+- launchApp:
+    clearState: true
+- assertVisible:
+    id: city-selection.screen
+- tapOn:
+    id: city-selection.demo
+- tapOn:
+    id: city-selection.continue
+- assertVisible:
+    id: map.screen
+- extendedWaitUntil:
+    visible:
+        id: map.nearby-stop
+    timeout: 15000
+- tapOn:
+    id: map.nearby-stop
+    index: 0
+- assertVisible:
+    id: map.stop-arrivals.sheet
+- assertVisible:
+    id: map.stop-arrivals.loading
+- extendedWaitUntil:
+    visible:
+        id: map.stop-arrivals.rows
+    timeout: 15000
+- assertVisible:
+    id: map.stop-arrivals.row
+- assertVisible:
+    id: map.stop-arrivals.source
+- tapOn:
+    id: map.stop-arrivals.close
+- assertNotVisible:
+    id: map.stop-arrivals.sheet
+- tapOn:
+    id: map.nearby-stop
+    index: 0
+- assertVisible:
+    id: map.stop-arrivals.sheet
+- extendedWaitUntil:
+    visible:
+        id: map.stop-arrivals.rows
+    timeout: 15000

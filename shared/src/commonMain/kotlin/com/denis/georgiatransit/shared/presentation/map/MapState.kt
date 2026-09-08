@@ -42,6 +42,8 @@ data class ViewState(
     val location: LocationState = LocationState(),
     val selectedStop: SelectedStopUi? = null,
     val nearbyStops: List<NearbyStopUi> = emptyList(),
+    /** Independent stop-arrivals content; nearby viewport refreshes never replace this sheet. */
+    val stopArrivalsSheet: StopArrivalsSheetUi? = null,
     /** Independent from nearby-stop loading: vehicle polling must never replace stop feedback. */
     val vehicleLayerState: VehicleLayerState = VehicleLayerState.Hidden,
     val vehicleRoutes: List<VehicleRouteAccessibilityUi> = emptyList(),
@@ -85,6 +87,56 @@ data class NearbyStopUi(
     val isSelected: Boolean,
 )
 
+/** A selected-stop snapshot that is safe to render without exposing opaque provider identifiers. */
+@Immutable
+data class StopArrivalsSheetUi(
+    val stopId: StopId,
+    val stopName: String,
+    val stopCode: String? = null,
+    val passingRouteShortNames: List<String> = emptyList(),
+    /** True when the stop or page references routes that the common route catalogue cannot name. */
+    val hasUnavailableRouteDetails: Boolean = false,
+    val rows: List<StopArrivalRowUi> = emptyList(),
+    val state: StopArrivalsSheetState = StopArrivalsSheetState.Loading,
+    val pageSource: ArrivalSourceUi? = null,
+    /** Separate from page/source state: stale data must never appear current. */
+    val isStale: Boolean = false,
+    /** Kept separate so a poll retains the rendered header and row order. */
+    val isRefreshing: Boolean = false,
+)
+
+@Immutable
+data class StopArrivalRowUi(
+    /** Null deliberately renders a localized unavailable label, never an opaque route ID. */
+    val routeShortName: String?,
+    val headsign: String,
+    val time: StopArrivalTimeUi,
+    val source: ArrivalSourceUi,
+)
+
+@Immutable
+sealed interface StopArrivalTimeUi {
+    @Immutable data object Arriving : StopArrivalTimeUi
+    @Immutable data class Minutes(val value: Int) : StopArrivalTimeUi
+    @Immutable data object Unavailable : StopArrivalTimeUi
+}
+
+/** Explicit presentation labels; [Approximate] is never rendered as an official source. */
+@Immutable
+enum class ArrivalSourceUi { OfficialRealtime, AggregatorRealtime, Schedule, Approximate }
+
+/** Initial loading is intentionally distinct from all honest terminal/content states. */
+@Immutable
+sealed interface StopArrivalsSheetState {
+    @Immutable data object Loading : StopArrivalsSheetState
+    @Immutable data object NoArrivals : StopArrivalsSheetState
+    @Immutable data object PartialData : StopArrivalsSheetState
+    @Immutable data object Offline : StopArrivalsSheetState
+    @Immutable data object UpstreamError : StopArrivalsSheetState
+    @Immutable data object Unavailable : StopArrivalsSheetState
+    @Immutable data object Ready : StopArrivalsSheetState
+}
+
 sealed interface Action {
     data object RoutesClicked : Action
     data object ChangeCityClicked : Action
@@ -92,6 +144,8 @@ sealed interface Action {
     data class LocationEventReceived(val event: LocationPlatformEvent) : Action
     data class MapEventReceived(val event: MapPlatformEvent) : Action
     data class StopSelected(val stopId: StopId) : Action
+    data object StopArrivalsDismissed : Action
+    data object RetryStopArrivals : Action
     data class LocaleChanged(val locale: TransitLocale) : Action
     data object RetryNearby : Action
     /** Emitted by the common composed Map entry and its host lifecycle; it never reflects panning. */

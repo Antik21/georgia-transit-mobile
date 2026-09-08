@@ -80,6 +80,40 @@ class TransitBffMapperTest {
     }
 
     @Test
+    fun tbilisiAndBatumiNormalizedArrivalPayloadsMapAllSourcesAndHonestTimeVariants() {
+        val cases = listOf(
+            ArrivalCase("tbilisi", "OFFICIAL_REALTIME", ArrivalSource.OfficialRealtime, 0, true),
+            ArrivalCase("batumi", "AGGREGATOR_REALTIME", ArrivalSource.AggregatorRealtime, 4, true),
+            ArrivalCase("tbilisi", "SCHEDULE", ArrivalSource.Schedule, null, false),
+            ArrivalCase("batumi", "CLIENT_ESTIMATE", ArrivalSource.ClientEstimate, 9, false),
+        )
+
+        cases.forEach { case ->
+            val stopId = "${case.cityId}:fixture:stop:center"
+            val routeId = "${case.cityId}:fixture:route:line"
+            val minutes = case.minutes?.toString() ?: "null"
+            val arrival = json.decodeFromString<ArrivalPageDto>(
+                """{"items":[{"stopId":"$stopId","routeId":"$routeId","headsign":{"ru":"Центр","en":"Center","ka":"ცენტრი"},"expectedInMinutes":$minutes,"realtime":${case.realtime},"cancelled":false,"source":"${case.wireSource}"}],"source":"${case.wireSource}","observedAt":"2030-01-01T00:00:00Z","stale":false}""",
+            ).toDomain()
+
+            assertEquals(case.domainSource, arrival.source, case.cityId)
+            assertEquals(case.domainSource, arrival.items.single().source, case.cityId)
+            assertEquals(case.minutes, arrival.items.single().expectedInMinutes, case.cityId)
+            assertEquals(stopId, arrival.items.single().stopId.value, case.cityId)
+            assertEquals(routeId, arrival.items.single().routeId.value, case.cityId)
+        }
+    }
+
+    @Test
+    fun mapperRejectsNegativeArrivalCountdownBeforeItCanReachPresentation() {
+        assertFails {
+            json.decodeFromString<ArrivalPageDto>(
+                """{"items":[{"stopId":"tbilisi:fixture:stop:center","routeId":"tbilisi:fixture:route:line","headsign":{"ru":"Центр","en":"Center","ka":"ცენტრი"},"expectedInMinutes":-1,"realtime":false,"cancelled":false,"source":"SCHEDULE"}],"source":"SCHEDULE","observedAt":"2030-01-01T00:00:00Z","stale":false}""",
+            ).toDomain()
+        }
+    }
+
+    @Test
     fun cityAttributionAndCompleteJourneySegmentsMapThroughSharedDomainWithoutProviderTypes() {
         val city = json.decodeFromString<CityDto>(
             """{"id":"tbilisi","name":{"ru":"Тбилиси","en":"Tbilisi","ka":"თბილისი"},"center":{"latitude":41.715137,"longitude":44.827096},"defaultZoom":12.5,"capabilities":{"routes":false,"stops":false,"routeGeometry":false,"vehiclePositions":false,"officialArrivals":false,"tripPlanning":true,"arrivals":true},"availability":{"readiness":"PRODUCTION_READY","source":"REVIEWED_ADAPTER"},"attribution":[{"id":"transitous","label":{"ru":"Источники","en":"Sources","ka":"წყაროები"},"url":"https://transitous.org/sources/"}]}""",
@@ -150,4 +184,12 @@ class TransitBffMapperTest {
             ).toDomain()
         }
     }
+
+    private data class ArrivalCase(
+        val cityId: String,
+        val wireSource: String,
+        val domainSource: ArrivalSource,
+        val minutes: Int?,
+        val realtime: Boolean,
+    )
 }

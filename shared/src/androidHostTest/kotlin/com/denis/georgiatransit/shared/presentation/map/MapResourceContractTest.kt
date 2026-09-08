@@ -110,6 +110,21 @@ class MapResourceContractTest {
             AutomationId.MapVehiclesLiveNonempty,
             AutomationId.MapRetry,
             AutomationId.MapAttribution,
+            AutomationId.MapStopArrivalsSheet,
+            AutomationId.MapStopArrivalsLoading,
+            AutomationId.MapStopArrivalsEmpty,
+            AutomationId.MapStopArrivalsPartial,
+            AutomationId.MapStopArrivalsRouteDetailsUnavailable,
+            AutomationId.MapStopArrivalsOffline,
+            AutomationId.MapStopArrivalsError,
+            AutomationId.MapStopArrivalsUnavailable,
+            AutomationId.MapStopArrivalsRetry,
+            AutomationId.MapStopArrivalsClose,
+            AutomationId.MapStopArrivalsRows,
+            AutomationId.MapStopArrivalsRow,
+            AutomationId.MapStopArrivalsSource,
+            AutomationId.MapStopArrivalsStale,
+            AutomationId.MapStopArrivalsRefreshing,
         )
 
         assertEquals(mapIds.size, mapIds.toSet().size)
@@ -125,6 +140,55 @@ class MapResourceContractTest {
         assertEquals("map.vehicles.live-nonempty", AutomationId.MapVehiclesLiveNonempty)
         assertEquals("map.retry", AutomationId.MapRetry)
         assertEquals("map.attribution.link.transitous", AutomationId.mapAttributionLink("transitous"))
+        assertEquals("map.stop-arrivals.sheet", AutomationId.MapStopArrivalsSheet)
+        assertEquals("map.stop-arrivals.close", AutomationId.MapStopArrivalsClose)
+        assertEquals("map.stop-arrivals.row", AutomationId.MapStopArrivalsRow)
+    }
+
+    @Test
+    fun commonStopArrivalsSheetContractUsesLocalizedLabelsAndNeverRendersOpaqueIds() {
+        val screen = projectRoot().resolve(
+            "shared/src/commonMain/kotlin/com/denis/georgiatransit/shared/presentation/map/MapScreen.kt",
+        ).readText()
+        val sheet = screen.functionBody("private fun StopArrivalsSheet")
+        val status = screen.functionBody("private fun StopArrivalsStatus")
+        val row = screen.functionBody("private fun StopArrivalRow")
+
+        assertCodePath(
+            sheet,
+            "MapStopArrivalsSheet",
+            "sheet.stopName",
+            "map_stop_arrivals_stop_code",
+            "MapStopArrivalsClose",
+            "passingRouteShortNames",
+            "MapStopArrivalsRows",
+        )
+        assertCodePath(
+            status,
+            "StopArrivalsSheetState.Loading",
+            "MapStopArrivalsLoading",
+            "StopArrivalsSheetState.NoArrivals",
+            "MapStopArrivalsEmpty",
+            "StopArrivalsSheetState.PartialData",
+            "MapStopArrivalsPartial",
+            "StopArrivalsSheetState.Offline",
+            "MapStopArrivalsOffline",
+            "StopArrivalsSheetState.UpstreamError",
+            "MapStopArrivalsError",
+            "StopArrivalsSheetState.Unavailable",
+            "MapStopArrivalsUnavailable",
+            "StopArrivalsSheetState.Ready",
+        )
+        assertCodePath(
+            row,
+            "row.routeShortName ?: stringResource",
+            "row.headsign.ifBlank",
+            "arrivalSourceLabel(row.source)",
+            "MapStopArrivalsSource",
+            "arrivalTimeLabel(row.time)",
+        )
+        assertFalse(row.contains("routeId"), "Rows must render catalogue labels, never opaque route IDs.")
+        assertFalse(row.contains("stopId"), "Rows must never surface opaque stop IDs.")
     }
 
     @Test
@@ -201,6 +265,39 @@ class MapResourceContractTest {
         assertTrue(readme.contains("BFF_MODE=development BFF_FIXTURES_ENABLED=true"))
         assertTrue(readme.contains("never carries"))
         assertTrue(readme.contains("provider secret"))
+    }
+
+    @Test
+    fun stopArrivalsFlowUsesOnlyStableIdsAndItsLoopbackFixtureIsExplicitAndPidOwned() {
+        val root = projectRoot()
+        val flow = root.resolve(StopArrivalsFlow).readText()
+        val harness = root.resolve(StopArrivalsHarness).readText()
+        val fixture = root.resolve(StopArrivalsFixture).readText()
+        val readme = root.resolve(MaestroReadme).readText()
+
+        assertFalse(flow.contains("text:"), "Maestro selectors must not depend on localized text")
+        assertFalse(flow.contains("point:"), "Maestro selectors must not use raw coordinates")
+        listOf(
+            AutomationId.MapScreen,
+            AutomationId.MapNearbyStop,
+            AutomationId.MapStopArrivalsSheet,
+            AutomationId.MapStopArrivalsLoading,
+            AutomationId.MapStopArrivalsRows,
+            AutomationId.MapStopArrivalsRow,
+            AutomationId.MapStopArrivalsSource,
+            AutomationId.MapStopArrivalsClose,
+        ).forEach { id -> assertTrue(flow.contains("id: $id"), "Missing stable stop-arrivals selector '$id'") }
+        assertTrue(flow.contains("tapOn:\n    id: ${AutomationId.MapStopArrivalsClose}"))
+        assertTrue(harness.contains("fixture_is_our_process"))
+        assertTrue(harness.contains("verify_owned_fixture"))
+        assertTrue(harness.contains("kill \"\$fixture_pid\""))
+        assertTrue(harness.contains("emulator-*"))
+        assertTrue(harness.contains("simctl list devices booted"))
+        assertTrue(fixture.contains("127.0.0.1"))
+        assertTrue(fixture.contains("test-only-stop-arrivals-fixture"))
+        assertFalse(fixture.contains("provider secret"))
+        assertTrue(readme.contains("run-stop-arrivals-smoke.sh"))
+        assertTrue(readme.contains("never enables release"))
     }
 
     @Test
@@ -485,6 +582,31 @@ class MapResourceContractTest {
             "map_my_location_action",
             "map_selected_routes",
             "map_selected_stop",
+            "map_stop_arrivals_title",
+            "map_stop_arrivals_stop_details_unavailable",
+            "map_stop_arrivals_stop_code",
+            "map_stop_arrivals_routes",
+            "map_stop_arrivals_route_details_unavailable",
+            "map_stop_arrivals_loading",
+            "map_stop_arrivals_empty",
+            "map_stop_arrivals_partial",
+            "map_stop_arrivals_offline",
+            "map_stop_arrivals_error",
+            "map_stop_arrivals_unavailable",
+            "map_stop_arrivals_retry",
+            "map_stop_arrivals_close",
+            "map_stop_arrivals_refreshing",
+            "map_stop_arrivals_stale",
+            "map_stop_arrivals_route_unavailable",
+            "map_stop_arrivals_headsign_unavailable",
+            "map_stop_arrivals_arriving",
+            "map_stop_arrivals_minutes",
+            "map_stop_arrivals_time_unavailable",
+            "map_stop_arrivals_source_official",
+            "map_stop_arrivals_source_aggregator",
+            "map_stop_arrivals_source_schedule",
+            "map_stop_arrivals_source_approximate",
+            "map_stop_arrivals_page_source",
             "map_nearby_stops_title",
             "map_vehicles_summary",
             "map_vehicle_route_summary",
@@ -502,6 +624,9 @@ class MapResourceContractTest {
         const val LocationSettingsFallbackFlow = "ui-tests/maestro/flows/location-settings-fallback-smoke.yaml"
         const val LocationGrantedFlow = "ui-tests/maestro/flows/location-granted-smoke.yaml"
         const val VehicleRealtimeFlow = "ui-tests/maestro/flows/vehicle-realtime-smoke.yaml"
+        const val StopArrivalsFlow = "ui-tests/maestro/flows/stop-arrivals-smoke.yaml"
+        const val StopArrivalsHarness = "ui-tests/maestro/run-stop-arrivals-smoke.sh"
+        const val StopArrivalsFixture = "ui-tests/maestro/fixtures/stop-arrivals-fixture-server.mjs"
         const val MaestroReadme = "ui-tests/maestro/README.md"
     }
 }
