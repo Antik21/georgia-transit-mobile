@@ -5,6 +5,7 @@ import java.nio.file.Path
 import kotlin.io.path.readText
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 import org.yaml.snakeyaml.Yaml
@@ -27,7 +28,7 @@ class OpenApiContractTest {
             "/v1/cities/{cityId}/journeys" to "JourneyPage",
         )
 
-        assertEquals(expectedSchemas.keys, paths.keys)
+        assertEquals(expectedSchemas.keys + "/metrics", paths.keys)
         expectedSchemas.forEach { (path, schema) ->
             val get = paths.map(path).map("get")
             val success = get.map("responses").map("200")
@@ -44,6 +45,18 @@ class OpenApiContractTest {
                 path,
             )
         }
+
+        val metrics = paths.map("/metrics").map("get")
+        val success = metrics.map("responses").map("200")
+        assertEquals(
+            "string",
+            success.map("content").map("text/plain; version=0.0.4; charset=utf-8").map("schema")["type"],
+        )
+        assertEquals(
+            "Exporter disabled by BFF_METRICS_ENABLED=false.",
+            metrics.map("responses").map("404")["description"],
+        )
+        assertFalse(success.containsKey("headers"), "internal metrics never carries a client request ID")
     }
 
     @Test

@@ -7,7 +7,11 @@ import com.denis.georgiatransit.bff.api.CityNotFound
 import com.denis.georgiatransit.bff.api.CityReadiness
 import com.denis.georgiatransit.bff.api.CitySource
 import com.denis.georgiatransit.bff.config.BffConfig
+import com.denis.georgiatransit.bff.config.BffConfigurationException
 import com.denis.georgiatransit.bff.config.RuntimeMode
+import com.denis.georgiatransit.bff.observability.CapabilityTelemetrySnapshot
+import com.denis.georgiatransit.bff.observability.CapabilityTelemetryState
+import com.denis.georgiatransit.bff.observability.TelemetryCapability
 import com.denis.georgiatransit.bff.provider.CityTransitProviderAdapter
 import com.denis.georgiatransit.bff.provider.NormalizedResponseValidator
 import com.denis.georgiatransit.bff.provider.ProviderRegistry
@@ -25,6 +29,7 @@ import java.nio.file.attribute.PosixFileAttributes
 import java.nio.file.attribute.PosixFilePermission
 import java.nio.file.attribute.PosixFilePermissions
 import java.security.MessageDigest
+import java.time.Instant
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicLong
 import java.util.concurrent.atomic.AtomicReference
@@ -75,6 +80,8 @@ data class EffectiveCity(
 
 interface CapabilitySnapshotSource : AutoCloseable {
     fun current(): EffectiveCapabilitySnapshot
+
+    fun isSchemaInterlocked(cityId: String, capability: TelemetryCapability): Boolean = false
 }
 
 /** Preserves intrinsic adapter behavior for local service construction and isolated tests. */
@@ -104,14 +111,26 @@ class RuntimeCapabilityControl(
     private val config: BffConfig,
     private val registry: ProviderRegistry,
     private val audit: (String) -> Unit,
+    private val capabilityTelemetryObserver: (CapabilityTelemetrySnapshot) -> Unit = {},
 ) : CapabilitySnapshotSource {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val started = AtomicBoolean(false)
     private val closed = AtomicBoolean(false)
     private val generation = AtomicLong(0)
-    private val snapshot = AtomicReference(initialSnapshot())
+    private val initialSnapshot = initialSnapshot()
+    private val baseCities = AtomicReference(initialSnapshot.cities)
+    private val snapshot = AtomicReference(initialSnapshot)
     private val history = config.capabilityControlStateDirectory?.let {
         CapabilityControlHistory(it, config.capabilityControlHistoryLimit)
+    }
+    private val schemaInterlocks = if (config.schemaInterlockEnabled) {
+        SchemaDriftInterlocks(
+            stateDirectory = config.capabilityControlStateDirectory,
+            failureThreshold = config.schemaDriftThreshold,
+            windowSeconds = config.schemaDriftWindowSeconds,
+        )
+    } else {
+        null
     }
 
     @Volatile
@@ -126,8 +145,18 @@ class RuntimeCapabilityControl(
     /** Loads persisted state first, then polls the operator-owned document at a bounded interval. */
     fun start() {
         if (!started.compareAndSet(false, true)) return
-        restoreLastKnownGood()
-        reloadConfiguredDocument()
+        try {
+            schemaInterlocks?.load()
+        } catch (_: Exception) {
+            throw BffConfigurationException("Schema interlock durable state is unavailable")
+        }
+        // Loading durable latches can change the effective initial/closed snapshot. Build its
+        // generation-tagged telemetry state before restore/reload so a no-history startup still
+        // publishes coherent disabled/latch gauges without waiting for traffic.
+        val startupTelemetrySnapshot = publishSnapshot(snapshot.get().revision, baseCities.get())
+        val restored = restoreLastKnownGood()
+        val reloaded = reloadConfiguredDocument()
+        if (!restored && !reloaded) publishCapabilityTelemetry(startupTelemetrySnapshot)
         if (config.capabilityControlPath != null) {
             scope.launch {
                 while (isActive) {
@@ -144,87 +173,141 @@ class RuntimeCapabilityControl(
         if (closed.compareAndSet(false, true)) scope.cancel()
     }
 
-    @Synchronized
-    private fun restoreLastKnownGood() {
-        val historyStore = history ?: return
-        val records = try {
-            historyStore.load()
-        } catch (_: Exception) {
-            auditRejected(revision = "unavailable", reason = "history_unavailable", fingerprint = "history")
-            return
-        }
-        records.asReversed().firstNotNullOfOrNull { record ->
-            try {
-                val document = parseDocument(record.document)
-                if (document.revision != record.revision || fingerprint(record.document) != record.digest) {
-                    null
-                } else {
-                    SnapshotCandidate(document, effectiveCities(document), record.digest)
-                }
+    /**
+     * Synthetic-probe-only safety hook. A durable latch is committed before its reduced snapshot
+     * is published, so no request can call the affected provider capability after observation.
+     */
+    fun observeSchemaDrift(cityId: String, capability: TelemetryCapability): Boolean {
+        val outcome = synchronized(this) {
+            val interlocks = schemaInterlocks ?: return@synchronized SchemaDriftOutcome(latched = false)
+            val city = baseCities.get()[cityId] ?: return@synchronized SchemaDriftOutcome(latched = false)
+            if (!city.city.capabilities.capabilityEnabled(capability)) return@synchronized SchemaDriftOutcome(latched = false)
+            val revision = snapshot.get().revision
+            val latched = try {
+                interlocks.observe(cityId, capability, revision)
             } catch (_: Exception) {
-                null
+                baseCities.set(emptyMap())
+                val telemetrySnapshot = publishSnapshot(revision, emptyMap())
+                audit("capability_control event=schema_interlock_persist_failed classification=durability_failure")
+                return@synchronized SchemaDriftOutcome(latched = false, telemetrySnapshot = telemetrySnapshot)
             }
-        }?.let { candidate ->
-            currentDigest = candidate.digest
-            replaceSnapshot(candidate, transition = "restored")
+            if (!latched) return@synchronized SchemaDriftOutcome(latched = false)
+            val telemetrySnapshot = publishSnapshot(revision, baseCities.get())
+            audit(
+                "capability_control event=schema_interlock_latched city=$cityId capability=${capability.wireValue}",
+            )
+            SchemaDriftOutcome(latched = true, telemetrySnapshot = telemetrySnapshot)
         }
+        outcome.telemetrySnapshot?.let(::publishCapabilityTelemetry)
+        return outcome.latched
     }
 
-    @Synchronized
-    private fun reloadConfiguredDocument() {
-        val controlPath = config.capabilityControlPath ?: return
-        val rawDocument = try {
-            readControlDocument(controlPath)
-        } catch (_: Exception) {
-            auditRejected(revision = "unavailable", reason = "unreadable", fingerprint = "unreadable")
-            return
-        }
-        val documentFingerprint = fingerprint(rawDocument)
-        if (documentFingerprint == lastStableInputDigest) return
+    override fun isSchemaInterlocked(cityId: String, capability: TelemetryCapability): Boolean =
+        schemaInterlocks?.isLatched(cityId, capability) == true
 
-        val document = try {
-            parseDocument(rawDocument)
-        } catch (_: Exception) {
-            auditRejected(revision = "unavailable", reason = "invalid_document", fingerprint = documentFingerprint)
-            return
+    private fun restoreLastKnownGood(): Boolean {
+        val telemetrySnapshot = synchronized(this) {
+            val historyStore = history ?: return@synchronized null
+            val records = try {
+                historyStore.load()
+            } catch (_: Exception) {
+                auditRejected(revision = "unavailable", reason = "history_unavailable", fingerprint = "history")
+                return@synchronized null
+            }
+            records.asReversed().firstNotNullOfOrNull { record ->
+                try {
+                    val document = parseDocument(record.document)
+                    if (document.revision != record.revision || fingerprint(record.document) != record.digest) {
+                        null
+                    } else {
+                        SnapshotCandidate(document, effectiveCities(document), record.digest)
+                    }
+                } catch (_: Exception) {
+                    null
+                }
+            }?.let { candidate ->
+                try {
+                    replaceSnapshot(candidate, transition = SnapshotTransition.RESTORED).also {
+                        currentDigest = candidate.digest
+                    }
+                } catch (_: Exception) {
+                    baseCities.set(emptyMap())
+                    audit("capability_control event=schema_interlock_persist_failed classification=durability_failure")
+                    publishSnapshot("closed", emptyMap())
+                }
+            }
         }
-        val candidate = try {
-            SnapshotCandidate(document, effectiveCities(document), documentFingerprint)
-        } catch (_: Exception) {
-            auditRejected(revision = document.revision, reason = "invalid_document", fingerprint = documentFingerprint)
-            return
-        }
+        telemetrySnapshot?.let(::publishCapabilityTelemetry)
+        return telemetrySnapshot != null
+    }
 
-        val current = snapshot.get()
-        if (current.revision == document.revision && currentDigest == documentFingerprint) {
+    private fun reloadConfiguredDocument(): Boolean {
+        val telemetrySnapshot = synchronized(this) {
+            val controlPath = config.capabilityControlPath ?: return@synchronized null
+            val rawDocument = try {
+                readControlDocument(controlPath)
+            } catch (_: Exception) {
+                auditRejected(revision = "unavailable", reason = "unreadable", fingerprint = "unreadable")
+                return@synchronized null
+            }
+            val documentFingerprint = fingerprint(rawDocument)
+            if (documentFingerprint == lastStableInputDigest) return@synchronized null
+
+            val document = try {
+                parseDocument(rawDocument)
+            } catch (_: Exception) {
+                auditRejected(revision = "unavailable", reason = "invalid_document", fingerprint = documentFingerprint)
+                return@synchronized null
+            }
+            val candidate = try {
+                SnapshotCandidate(document, effectiveCities(document), documentFingerprint)
+            } catch (_: Exception) {
+                auditRejected(revision = document.revision, reason = "invalid_document", fingerprint = documentFingerprint)
+                return@synchronized null
+            }
+
+            val current = snapshot.get()
+            if (current.revision == document.revision && currentDigest == documentFingerprint) {
+                lastStableInputDigest = documentFingerprint
+                return@synchronized null
+            }
+            val previouslyAcceptedDigest = history?.digestFor(document.revision)
+            if (previouslyAcceptedDigest != null && previouslyAcceptedDigest != documentFingerprint) {
+                auditRejected(revision = document.revision, reason = "duplicate_revision", fingerprint = documentFingerprint)
+                return@synchronized null
+            }
+            if (current.revision == document.revision && currentDigest != null) {
+                auditRejected(revision = document.revision, reason = "duplicate_revision", fingerprint = documentFingerprint)
+                return@synchronized null
+            }
+            val historyCleanupDeferred = try {
+                history?.persist(document, rawDocument, documentFingerprint) == true
+            } catch (_: Exception) {
+                auditRejected(revision = document.revision, reason = "history_persist_failed", fingerprint = documentFingerprint)
+                return@synchronized null
+            }
+
+            val transition = if (previouslyAcceptedDigest == documentFingerprint) {
+                SnapshotTransition.ROLLBACK
+            } else {
+                SnapshotTransition.ACCEPTED
+            }
+            val published = try {
+                replaceSnapshot(candidate, transition)
+            } catch (_: Exception) {
+                baseCities.set(emptyMap())
+                audit("capability_control event=schema_interlock_persist_failed classification=durability_failure")
+                return@synchronized publishSnapshot("closed", emptyMap())
+            }
+            currentDigest = documentFingerprint
             lastStableInputDigest = documentFingerprint
-            return
+            if (historyCleanupDeferred) {
+                audit("capability_control event=history_cleanup_deferred revision=${document.revision}")
+            }
+            published
         }
-        val previouslyAcceptedDigest = history?.digestFor(document.revision)
-        if (previouslyAcceptedDigest != null && previouslyAcceptedDigest != documentFingerprint) {
-            auditRejected(revision = document.revision, reason = "duplicate_revision", fingerprint = documentFingerprint)
-            return
-        }
-        if (current.revision == document.revision && currentDigest != null) {
-            auditRejected(revision = document.revision, reason = "duplicate_revision", fingerprint = documentFingerprint)
-            return
-        }
-        val historyCleanupDeferred = try {
-            history?.persist(document, rawDocument, documentFingerprint) == true
-        } catch (_: Exception) {
-            auditRejected(revision = document.revision, reason = "history_persist_failed", fingerprint = documentFingerprint)
-            return
-        }
-
-        currentDigest = documentFingerprint
-        lastStableInputDigest = documentFingerprint
-        replaceSnapshot(
-            candidate,
-            transition = if (previouslyAcceptedDigest == documentFingerprint) "rollback" else "accepted",
-        )
-        if (historyCleanupDeferred) {
-            audit("capability_control event=history_cleanup_deferred revision=${document.revision}")
-        }
+        telemetrySnapshot?.let(::publishCapabilityTelemetry)
+        return telemetrySnapshot != null
     }
 
     private fun initialSnapshot(): EffectiveCapabilitySnapshot {
@@ -256,6 +339,7 @@ class RuntimeCapabilityControl(
 
     private fun effectiveCities(document: CapabilityControlDocument): Map<String, EffectiveCity> {
         val adapters = registry.registeredAdapters()
+        validateSchemaInterlockAcknowledgements(document, adapters)
         val effective = linkedMapOf<String, EffectiveCity>()
         document.cities.forEach { control ->
             val adapter = adapters[control.id] ?: invalidControlDocument()
@@ -290,19 +374,93 @@ class RuntimeCapabilityControl(
         }
     }
 
-    private fun replaceSnapshot(candidate: SnapshotCandidate, transition: String) {
-        val nextGeneration = generation.incrementAndGet()
-        snapshot.set(
-            EffectiveCapabilitySnapshot(
+    private fun replaceSnapshot(
+        candidate: SnapshotCandidate,
+        transition: SnapshotTransition,
+    ): CapabilityTelemetrySnapshot {
+        if (transition == SnapshotTransition.ACCEPTED) {
+            schemaInterlocks?.recoverAcknowledgedOnAcceptedRevision(
                 revision = candidate.document.revision,
-                generation = nextGeneration,
-                cities = candidate.cities,
-            ),
-        )
+                acknowledgements = candidate.document.schemaInterlockAcknowledgements,
+            )
+        } else if (schemaInterlocks != null) {
+            // Replaying a persisted document must retain every current durable latch, even if
+            // that older document contains an acknowledgement intended for an earlier state.
+            audit(
+                "capability_control event=schema_interlock_recovery_skipped " +
+                    "transition=${transition.auditValue} revision=${candidate.document.revision}",
+            )
+        }
+        baseCities.set(candidate.cities)
+        val telemetrySnapshot = publishSnapshot(candidate.document.revision, candidate.cities)
         audit(
-            "capability_control event=accepted transition=$transition revision=${candidate.document.revision} " +
-                "generation=$nextGeneration enabledCities=${candidate.cities.size}",
+            "capability_control event=accepted transition=${transition.auditValue} revision=${candidate.document.revision} " +
+                "generation=${snapshot.get().generation} enabledCities=${snapshot.get().cities.size}",
         )
+        return telemetrySnapshot
+    }
+
+    private fun publishSnapshot(
+        revision: String,
+        cities: Map<String, EffectiveCity>,
+    ): CapabilityTelemetrySnapshot {
+        val nextGeneration = generation.incrementAndGet()
+        val overlay = schemaInterlocks?.overlay(cities) ?: SchemaInterlockOverlay(cities, emptySet())
+        val effectiveSnapshot = EffectiveCapabilitySnapshot(
+            revision = revision,
+            generation = nextGeneration,
+            cities = overlay.cities,
+        )
+        val telemetrySnapshot = capabilityTelemetrySnapshot(effectiveSnapshot, overlay.latches)
+        snapshot.set(effectiveSnapshot)
+        return telemetrySnapshot
+    }
+
+    private fun capabilityTelemetrySnapshot(
+        effectiveSnapshot: EffectiveCapabilitySnapshot,
+        latches: Set<SchemaInterlockKey>,
+    ): CapabilityTelemetrySnapshot {
+        val states = linkedMapOf<CapabilityTelemetryKey, CapabilityTelemetryState>()
+        effectiveSnapshot.cities.values.forEach { effectiveCity ->
+            TelemetryCapability.entries.forEach { capability ->
+                val key = CapabilityTelemetryKey(
+                    city = effectiveCity.city.id,
+                    provider = effectiveCity.adapter.telemetryProvider,
+                    capability = capability,
+                )
+                states[key] = CapabilityTelemetryState(
+                    city = key.city,
+                    provider = key.provider,
+                    capability = capability,
+                    enabled = effectiveCity.city.capabilities.capabilityEnabled(capability),
+                    schemaInterlocked = SchemaInterlockKey(key.city, capability) in latches,
+                )
+            }
+        }
+        latches.forEach { key ->
+            val adapter = registry.registeredAdapters()[key.cityId] ?: return@forEach
+            val telemetryKey = CapabilityTelemetryKey(key.cityId, adapter.telemetryProvider, key.capability)
+            val existing = states[telemetryKey]
+            states[telemetryKey] = CapabilityTelemetryState(
+                city = telemetryKey.city,
+                provider = telemetryKey.provider,
+                capability = telemetryKey.capability,
+                enabled = existing?.enabled ?: false,
+                schemaInterlocked = true,
+            )
+        }
+        return CapabilityTelemetrySnapshot(
+            generation = effectiveSnapshot.generation,
+            states = states.values.toList(),
+        )
+    }
+
+    private fun publishCapabilityTelemetry(telemetrySnapshot: CapabilityTelemetrySnapshot) {
+        try {
+            capabilityTelemetryObserver(telemetrySnapshot)
+        } catch (_: Exception) {
+            audit("capability_control event=telemetry_publish_failed classification=observer_failure")
+        }
     }
 
     private fun auditRejected(revision: String, reason: String, fingerprint: String) {
@@ -316,12 +474,30 @@ class RuntimeCapabilityControl(
         val cities: Map<String, EffectiveCity>,
         val digest: String,
     )
+
+    private data class SchemaDriftOutcome(
+        val latched: Boolean,
+        val telemetrySnapshot: CapabilityTelemetrySnapshot? = null,
+    )
+
+    private data class CapabilityTelemetryKey(
+        val city: String,
+        val provider: com.denis.georgiatransit.bff.observability.TelemetryProvider,
+        val capability: TelemetryCapability,
+    )
+
+    private enum class SnapshotTransition(val auditValue: String) {
+        RESTORED("restored"),
+        ACCEPTED("accepted"),
+        ROLLBACK("rollback"),
+    }
 }
 
 @Serializable
 private data class CapabilityControlDocument(
     val revision: String,
     val cities: List<CityCapabilityControl>,
+    val schemaInterlockAcknowledgements: List<SchemaInterlockAcknowledgement> = emptyList(),
 )
 
 @Serializable
@@ -331,6 +507,178 @@ private data class CityCapabilityControl(
     val availability: CityAvailability,
     val capabilities: CityCapabilities,
 )
+
+@Serializable
+private data class SchemaInterlockAcknowledgement(
+    val cityId: String,
+    val capability: String,
+)
+
+private fun validateSchemaInterlockAcknowledgements(
+    document: CapabilityControlDocument,
+    adapters: Map<String, CityTransitProviderAdapter>,
+) {
+    val acknowledged = document.schemaInterlockAcknowledgements.map { acknowledgement ->
+        val capability = acknowledgement.capability.toTelemetryCapabilityOrNull() ?: invalidControlDocument()
+        if (acknowledgement.cityId !in adapters) invalidControlDocument()
+        acknowledgement.cityId to capability
+    }
+    if (acknowledged.distinct().size != acknowledged.size) invalidControlDocument()
+}
+
+private fun String.toTelemetryCapabilityOrNull(): TelemetryCapability? =
+    TelemetryCapability.entries.firstOrNull { it.wireValue == this }
+
+/**
+ * Durable, bounded overlay owned by the capability-control authority. Only synthetic probe
+ * schema classifications are allowed to add a latch. Operators clear one only in a newer
+ * capability-control revision carrying an explicit matching acknowledgement.
+ */
+private class SchemaDriftInterlocks(
+    private val stateDirectory: Path?,
+    private val failureThreshold: Int,
+    private val windowSeconds: Long,
+) {
+    private val lock = Any()
+    private val observations = mutableMapOf<SchemaInterlockKey, ArrayDeque<Instant>>()
+    private var latches: Map<SchemaInterlockKey, SchemaInterlockLatch> = emptyMap()
+    private val statePath: Path? = stateDirectory?.resolve("schema-interlocks.json")
+
+    fun load() = synchronized(lock) {
+        val path = statePath ?: return@synchronized
+        SecureCapabilityFiles.requirePrivateDirectory(requireNotNull(path.parent))
+        if (!Files.exists(path, NOFOLLOW_LINKS)) return@synchronized
+        val rawState = SecureCapabilityFiles.readPrivateRegularFile(path, MaximumCapabilityDocumentBytes)
+        // Serialized state is operator-impacting durable control data too: reject duplicate
+        // member names before kotlinx.serialization can collapse one and silently lose a latch.
+        DuplicateJsonKeyDetector(rawState).validate()
+        val stored = controlJson.decodeFromString<SchemaInterlockState>(rawState)
+        if (stored.latches.size > MaximumSchemaInterlockLatches) invalidControlDocument()
+        val loaded = stored.latches.associate { record ->
+            val key = SchemaInterlockKey(record.cityId, record.capability.toTelemetryCapabilityOrNull() ?: invalidControlDocument())
+            if (!revisionPattern.matches(record.latchedRevision)) invalidControlDocument()
+            key to SchemaInterlockLatch(record.latchedRevision)
+        }
+        if (loaded.size != stored.latches.size) invalidControlDocument()
+        latches = loaded.toSortedMap()
+    }
+
+    fun observe(cityId: String, capability: TelemetryCapability, revision: String): Boolean = synchronized(lock) {
+        val key = SchemaInterlockKey(cityId, capability)
+        if (key in latches) return@synchronized false
+        val now = Instant.now()
+        val timestamps = observations.getOrPut(key, ::ArrayDeque)
+        while (timestamps.firstOrNull()?.let { java.time.Duration.between(it, now).seconds >= windowSeconds } == true) {
+            timestamps.removeFirst()
+        }
+        timestamps.addLast(now)
+        if (timestamps.size < failureThreshold) return@synchronized false
+        val updated = (latches + (key to SchemaInterlockLatch(revision))).toSortedMap()
+        persist(updated)
+        latches = updated
+        observations.remove(key)
+        true
+    }
+
+    /**
+     * Recovery is callable only for a newly accepted control document. Startup restore and
+     * historical rollback intentionally retain latches, regardless of acknowledgements they hold.
+     */
+    fun recoverAcknowledgedOnAcceptedRevision(
+        revision: String,
+        acknowledgements: List<SchemaInterlockAcknowledgement>,
+    ) = synchronized(lock) {
+        val acknowledgementKeys = acknowledgements.map { acknowledgement ->
+            SchemaInterlockKey(
+                acknowledgement.cityId,
+                acknowledgement.capability.toTelemetryCapabilityOrNull() ?: invalidControlDocument(),
+            )
+        }.toSet()
+        val updated = latches.filter { (key, latch) ->
+            key !in acknowledgementKeys || latch.latchedRevision == revision
+        }.toSortedMap()
+        if (updated != latches) {
+            persist(updated)
+            latches = updated
+        }
+    }
+
+    fun overlay(cities: Map<String, EffectiveCity>): SchemaInterlockOverlay = synchronized(lock) {
+        val currentLatches = latches.keys.toSet()
+        val overlaidCities = currentLatches.fold(cities) { current, key ->
+            val city = current[key.cityId] ?: return@fold current
+            current + (key.cityId to city.copy(city = city.city.copy(capabilities = city.city.capabilities.disabled(key.capability))))
+        }.toSortedMap()
+        SchemaInterlockOverlay(overlaidCities, currentLatches)
+    }
+
+    fun isLatched(cityId: String, capability: TelemetryCapability): Boolean = synchronized(lock) {
+        SchemaInterlockKey(cityId, capability) in latches
+    }
+
+    private fun persist(updated: Map<SchemaInterlockKey, SchemaInterlockLatch>) {
+        val path = statePath ?: return
+        SecureCapabilityFiles.requirePrivateDirectory(requireNotNull(path.parent))
+        SecureCapabilityFiles.atomicWritePrivateFile(
+            target = path,
+            content = controlJson.encodeToString(
+                SchemaInterlockState(
+                    latches = updated.entries.map { (key, latch) ->
+                        SchemaInterlockRecord(key.cityId, key.capability.wireValue, latch.latchedRevision)
+                    },
+                ),
+            ),
+            temporaryPrefix = "schema-interlock-",
+        )
+    }
+
+    private companion object {
+        const val MaximumSchemaInterlockLatches = 64
+    }
+}
+
+private data class SchemaInterlockOverlay(
+    val cities: Map<String, EffectiveCity>,
+    val latches: Set<SchemaInterlockKey>,
+)
+
+private data class SchemaInterlockKey(
+    val cityId: String,
+    val capability: TelemetryCapability,
+) : Comparable<SchemaInterlockKey> {
+    override fun compareTo(other: SchemaInterlockKey): Int =
+        compareValuesBy(this, other, SchemaInterlockKey::cityId, { it.capability.wireValue })
+}
+
+private data class SchemaInterlockLatch(val latchedRevision: String)
+
+@Serializable
+private data class SchemaInterlockState(val latches: List<SchemaInterlockRecord>)
+
+@Serializable
+private data class SchemaInterlockRecord(
+    val cityId: String,
+    val capability: String,
+    val latchedRevision: String,
+)
+
+private fun CityCapabilities.capabilityEnabled(capability: TelemetryCapability): Boolean = when (capability) {
+    TelemetryCapability.ROUTES -> routes
+    TelemetryCapability.STOPS -> stops
+    TelemetryCapability.ROUTE_GEOMETRY -> routeGeometry
+    TelemetryCapability.VEHICLE_POSITIONS -> vehiclePositions
+    TelemetryCapability.ARRIVALS -> arrivals
+    TelemetryCapability.TRIP_PLANNING -> tripPlanning
+}
+
+private fun CityCapabilities.disabled(capability: TelemetryCapability): CityCapabilities = when (capability) {
+    TelemetryCapability.ROUTES -> copy(routes = false)
+    TelemetryCapability.STOPS -> copy(stops = false)
+    TelemetryCapability.ROUTE_GEOMETRY -> copy(routeGeometry = false)
+    TelemetryCapability.VEHICLE_POSITIONS -> copy(vehiclePositions = false)
+    TelemetryCapability.ARRIVALS -> copy(arrivals = false, officialArrivals = false)
+    TelemetryCapability.TRIP_PLANNING -> copy(tripPlanning = false)
+}
 
 private val developmentFixtureAvailability = CityAvailability(
     readiness = CityReadiness.DEVELOPMENT_FIXTURE,
@@ -579,35 +927,7 @@ private class CapabilityControlHistory(
         }
 
     private fun atomicWrite(target: Path, content: String) {
-        SecureCapabilityFiles.requirePrivateDirectory(target.parent)
-        SecureCapabilityFiles.requireWritablePrivateRegularFileIfPresent(target)
-        val temporary = Files.createTempFile(
-            target.parent,
-            "capability-control-",
-            ".tmp",
-            PosixFilePermissions.asFileAttribute(PrivateFilePermissions),
-        )
-        try {
-            SecureCapabilityFiles.requireWritablePrivateRegularFileIfPresent(temporary)
-            Files.writeString(
-                temporary,
-                content,
-                StandardCharsets.UTF_8,
-                StandardOpenOption.TRUNCATE_EXISTING,
-                StandardOpenOption.WRITE,
-            )
-            FileChannel.open(temporary, StandardOpenOption.WRITE).use { channel -> channel.force(true) }
-            Files.move(
-                temporary,
-                target,
-                StandardCopyOption.ATOMIC_MOVE,
-                StandardCopyOption.REPLACE_EXISTING,
-            )
-            SecureCapabilityFiles.requireWritablePrivateRegularFileIfPresent(target)
-            SecureCapabilityFiles.forcePrivateDirectory(target.parent)
-        } finally {
-            SecureCapabilityFiles.deletePrivateRegularFileIfPresent(temporary)
-        }
+        SecureCapabilityFiles.atomicWritePrivateFile(target, content, "capability-control-")
     }
 }
 
@@ -698,6 +1018,39 @@ private object SecureCapabilityFiles {
         } catch (_: Exception) {
             false
         }
+
+    fun atomicWritePrivateFile(target: Path, content: String, temporaryPrefix: String) {
+        require(temporaryPrefix.matches(Regex("[a-z-]{3,32}"))) { "Invalid private temporary prefix" }
+        requirePrivateDirectory(target.parent)
+        requireWritablePrivateRegularFileIfPresent(target)
+        val temporary = Files.createTempFile(
+            target.parent,
+            temporaryPrefix,
+            ".tmp",
+            PosixFilePermissions.asFileAttribute(PrivateFilePermissions),
+        )
+        try {
+            requireWritablePrivateRegularFileIfPresent(temporary)
+            Files.writeString(
+                temporary,
+                content,
+                StandardCharsets.UTF_8,
+                StandardOpenOption.TRUNCATE_EXISTING,
+                StandardOpenOption.WRITE,
+            )
+            FileChannel.open(temporary, StandardOpenOption.WRITE).use { channel -> channel.force(true) }
+            Files.move(
+                temporary,
+                target,
+                StandardCopyOption.ATOMIC_MOVE,
+                StandardCopyOption.REPLACE_EXISTING,
+            )
+            requireWritablePrivateRegularFileIfPresent(target)
+            forcePrivateDirectory(target.parent)
+        } finally {
+            deletePrivateRegularFileIfPresent(temporary)
+        }
+    }
 
     private fun privateRegularAttributes(path: Path, writable: Boolean): PosixFileAttributes {
         requireSafeParents(path)

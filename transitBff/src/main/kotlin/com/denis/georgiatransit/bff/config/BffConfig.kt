@@ -9,6 +9,12 @@ private const val DefaultShapeCacheTtlSeconds = 86_400L
 private const val DefaultRealtimeSingleFlightSeconds = 15L
 private const val DefaultCapabilityControlPollSeconds = 30L
 private const val DefaultCapabilityControlHistoryLimit = 20
+private const val DefaultProbeIntervalSeconds = 60L
+private const val DefaultCircuitFailureThreshold = 3
+private const val DefaultCircuitWindowSeconds = 60L
+private const val DefaultCircuitOpenSeconds = 30L
+private const val DefaultSchemaDriftThreshold = 3
+private const val DefaultSchemaDriftWindowSeconds = 300L
 
 enum class RuntimeMode {
     DEVELOPMENT,
@@ -30,6 +36,15 @@ data class BffConfig(
     val capabilityControlPollSeconds: Long,
     val capabilityControlHistoryLimit: Int,
     val transitous: TransitousActivationConfig = TransitousActivationConfig.disabled(),
+    val metricsEnabled: Boolean = true,
+    val probesEnabled: Boolean = false,
+    val probeIntervalSeconds: Long = DefaultProbeIntervalSeconds,
+    val circuitFailureThreshold: Int = DefaultCircuitFailureThreshold,
+    val circuitWindowSeconds: Long = DefaultCircuitWindowSeconds,
+    val circuitOpenSeconds: Long = DefaultCircuitOpenSeconds,
+    val schemaInterlockEnabled: Boolean = false,
+    val schemaDriftThreshold: Int = DefaultSchemaDriftThreshold,
+    val schemaDriftWindowSeconds: Long = DefaultSchemaDriftWindowSeconds,
 ) {
     init {
         require(host.isNotBlank()) { "BFF_HOST must not be blank" }
@@ -54,6 +69,30 @@ data class BffConfig(
         }
         require(capabilityControlHistoryLimit in 2..50) {
             "BFF_CAPABILITY_CONTROL_HISTORY_LIMIT must be between 2 and 50"
+        }
+        require(probeIntervalSeconds in 60L..300L) {
+            "BFF_PROBE_INTERVAL_SECONDS must be between 60 and 300"
+        }
+        require(circuitFailureThreshold in 2..10) {
+            "BFF_CIRCUIT_FAILURE_THRESHOLD must be between 2 and 10"
+        }
+        require(circuitWindowSeconds in 10L..3_600L) {
+            "BFF_CIRCUIT_WINDOW_SECONDS must be between 10 and 3600"
+        }
+        require(circuitOpenSeconds in 5L..600L) {
+            "BFF_CIRCUIT_OPEN_SECONDS must be between 5 and 600"
+        }
+        require(schemaDriftThreshold in 2..10) {
+            "BFF_SCHEMA_DRIFT_THRESHOLD must be between 2 and 10"
+        }
+        require(schemaDriftWindowSeconds in 60L..3_600L) {
+            "BFF_SCHEMA_DRIFT_WINDOW_SECONDS must be between 60 and 3600"
+        }
+        require(!schemaInterlockEnabled || capabilityControlStateDirectory != null || mode == RuntimeMode.DEVELOPMENT) {
+            "BFF_SCHEMA_INTERLOCK_ENABLED requires BFF_CAPABILITY_CONTROL_STATE_DIR outside development"
+        }
+        require(mode != RuntimeMode.PRODUCTION || !transitous.isActivated || schemaInterlockEnabled) {
+            "BFF_SCHEMA_INTERLOCK_ENABLED must be true for a production Transitous activation"
         }
     }
 
@@ -98,6 +137,43 @@ data class BffConfig(
                         50,
                     ),
                     transitous = TransitousActivationConfig.fromEnvironment(environment),
+                    metricsEnabled = parseBoolean(environment, "BFF_METRICS_ENABLED", true),
+                    probesEnabled = parseBoolean(environment, "BFF_PROBES_ENABLED", false),
+                    probeIntervalSeconds = parseLong(
+                        environment,
+                        "BFF_PROBE_INTERVAL_SECONDS",
+                        DefaultProbeIntervalSeconds,
+                    ),
+                    circuitFailureThreshold = parseInt(
+                        environment,
+                        "BFF_CIRCUIT_FAILURE_THRESHOLD",
+                        DefaultCircuitFailureThreshold,
+                        2,
+                        10,
+                    ),
+                    circuitWindowSeconds = parseLong(
+                        environment,
+                        "BFF_CIRCUIT_WINDOW_SECONDS",
+                        DefaultCircuitWindowSeconds,
+                    ),
+                    circuitOpenSeconds = parseLong(
+                        environment,
+                        "BFF_CIRCUIT_OPEN_SECONDS",
+                        DefaultCircuitOpenSeconds,
+                    ),
+                    schemaInterlockEnabled = parseBoolean(environment, "BFF_SCHEMA_INTERLOCK_ENABLED", false),
+                    schemaDriftThreshold = parseInt(
+                        environment,
+                        "BFF_SCHEMA_DRIFT_THRESHOLD",
+                        DefaultSchemaDriftThreshold,
+                        2,
+                        10,
+                    ),
+                    schemaDriftWindowSeconds = parseLong(
+                        environment,
+                        "BFF_SCHEMA_DRIFT_WINDOW_SECONDS",
+                        DefaultSchemaDriftWindowSeconds,
+                    ),
                 )
             } catch (exception: IllegalArgumentException) {
                 throw BffConfigurationException(exception.message ?: "Invalid BFF configuration")
@@ -173,6 +249,9 @@ data class TransitousActivationConfig(
     val routingApprovalReference: String?,
     /** Operator-approved, raw upstream IDs used only to seed the server-side stop catalog. */
     val approvedStopIds: Set<String> = emptySet(),
+    /** One explicitly provisioned, server-only probe stop; never exposed in metrics or logs. */
+    val probeStopId: String? = null,
+    val probeRealtimeExpected: Boolean = false,
 ) {
     val isActivated: Boolean
         get() = enabled && baseUrl != null && contact != null && eligibilityAcknowledged &&
@@ -193,6 +272,10 @@ data class TransitousActivationConfig(
             "TRANSITOUS_TBILISI_STOP_IDS must contain at most $MaximumApprovedStopIds IDs"
         }
         approvedStopIds.forEach(::requireApprovedStopId)
+        probeStopId?.also(::requireApprovedStopId)
+        require(probeStopId == null || probeStopId in approvedStopIds) {
+            "TRANSITOUS_PROBE_STOP_ID must be included in TRANSITOUS_TBILISI_STOP_IDS"
+        }
         if (enabled) {
             requireHostedBaseUrl(baseUrl)
             require(appVersion != "development") {
@@ -248,6 +331,8 @@ data class TransitousActivationConfig(
                 ),
                 routingApprovalReference = environment["TRANSITOUS_ROUTING_APPROVAL_REFERENCE"]?.also(::requireSafeReference),
                 approvedStopIds = parseApprovedStopIds(environment["TRANSITOUS_TBILISI_STOP_IDS"]),
+                probeStopId = environment["TRANSITOUS_PROBE_STOP_ID"]?.takeIf(String::isNotBlank),
+                probeRealtimeExpected = parseBoolean(environment, "TRANSITOUS_PROBE_REALTIME_EXPECTED", false),
             )
         }
 

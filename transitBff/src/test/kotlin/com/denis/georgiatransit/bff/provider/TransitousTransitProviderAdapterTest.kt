@@ -5,7 +5,10 @@ import com.denis.georgiatransit.bff.api.GeoPoint
 import com.denis.georgiatransit.bff.api.JourneySegmentMode
 import com.denis.georgiatransit.bff.api.RequestRateLimited
 import com.denis.georgiatransit.bff.api.UpstreamBadGateway
+import com.denis.georgiatransit.bff.config.BffConfig
 import com.denis.georgiatransit.bff.config.TransitousActivationConfig
+import com.denis.georgiatransit.bff.observability.BffObservability
+import com.denis.georgiatransit.bff.observability.TelemetryProvider
 import com.denis.georgiatransit.bff.service.TransitService
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.HttpClientEngineBase
@@ -344,6 +347,39 @@ class TransitousTransitProviderAdapterTest {
             assertTrue(calls[0].await().isSuccess)
             assertTrue(calls[1].await().isSuccess)
             assertEquals(2, started.get())
+        } finally {
+            client.close()
+        }
+    }
+
+    @Test
+    fun `rate budget rejection from recording engine emits bounded Transitous telemetry`() = runTest {
+        val started = AtomicInteger()
+        val twoStarted = CompletableDeferred<Unit>()
+        val release = CompletableDeferred<Unit>()
+        val observability = BffObservability(
+            config = BffConfig.fromEnvironment(emptyMap()),
+            allowedProviders = setOf("tbilisi" to TelemetryProvider.TRANSITOUS),
+        )
+        val client = TransitousClient(
+            activation(),
+            HttpClient(RecordingEngine {
+                if (started.incrementAndGet() == 2) twoStarted.complete(Unit)
+                release.await()
+                jsonResponse(stopTimesJson("central:one"))
+            }) { expectSuccess = false },
+            observability,
+        )
+        try {
+            val calls = List(3) { async { runCatching { client.stopTimes("central:one", 1, "en", NOW) } } }
+            twoStarted.await()
+            assertIs<ProviderRateLimited>(calls[2].await().exceptionOrNull())
+            release.complete(Unit)
+            assertTrue(calls[0].await().isSuccess)
+            assertTrue(calls[1].await().isSuccess)
+            assertEquals(2, started.get())
+            assertTrue(observability.render().contains("event=\"rate_budget_rejected\""))
+            assertFalse(observability.render().contains("central:one"))
         } finally {
             client.close()
         }

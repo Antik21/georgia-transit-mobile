@@ -9,3 +9,6 @@ The mobile BFF client and bounded offline catalog cache are recorded in
 [ADR 0005](0005-mobile-transit-bff-client-and-offline-catalog-cache.md).
 The controlled Transitous fallback, attribution, and capability contract are
 recorded in [ADR 0006](0006-transitous-best-effort-fallback.md).
+Privacy-safe BFF observability, circuit protection, synthetic probes, and the
+durable schema-drift capability interlock are recorded in
+[ADR 0007](0007-bff-observability-and-schema-safety.md).

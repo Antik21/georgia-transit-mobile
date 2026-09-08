@@ -14,7 +14,9 @@ import com.denis.georgiatransit.bff.api.StopNotFound
 import com.denis.georgiatransit.bff.api.UpstreamTimeout
 import com.denis.georgiatransit.bff.api.VehiclePage
 import com.denis.georgiatransit.bff.cache.BoundedKeyedTtlCache
+import com.denis.georgiatransit.bff.cache.CacheLookupOutcome
 import com.denis.georgiatransit.bff.cache.SingleFlight
+import com.denis.georgiatransit.bff.cache.SingleFlightLookupOutcome
 import com.denis.georgiatransit.bff.control.CapabilitySnapshotSource
 import com.denis.georgiatransit.bff.control.EffectiveCapabilitySnapshot
 import com.denis.georgiatransit.bff.control.EffectiveCity
@@ -25,14 +27,26 @@ import com.denis.georgiatransit.bff.provider.NormalizedResponseValidator
 import com.denis.georgiatransit.bff.provider.ProviderBadGateway
 import com.denis.georgiatransit.bff.provider.ProviderCapabilityUnavailable
 import com.denis.georgiatransit.bff.provider.ProviderConflict
+import com.denis.georgiatransit.bff.provider.ProviderCircuitProtectedAdapter
 import com.denis.georgiatransit.bff.provider.ProviderFailure
 import com.denis.georgiatransit.bff.provider.ProviderInvalidArgument
+import com.denis.georgiatransit.bff.provider.ProviderJsonDecodeFailure
+import com.denis.georgiatransit.bff.provider.ProviderNormalizedSchemaFailure
 import com.denis.georgiatransit.bff.provider.ProviderRateLimited
 import com.denis.georgiatransit.bff.provider.ProviderRegistry
 import com.denis.georgiatransit.bff.provider.ProviderRouteNotFound
 import com.denis.georgiatransit.bff.provider.ProviderStopNotFound
 import com.denis.georgiatransit.bff.provider.ProviderTimeout
 import com.denis.georgiatransit.bff.provider.ProviderUnavailable
+import com.denis.georgiatransit.bff.provider.SyntheticProbeProvider
+import com.denis.georgiatransit.bff.provider.SyntheticProbeResult
+import com.denis.georgiatransit.bff.provider.SyntheticProbeTarget
+import com.denis.georgiatransit.bff.observability.BffObservability
+import com.denis.georgiatransit.bff.observability.CacheOutcome
+import com.denis.georgiatransit.bff.observability.ProviderOutcome
+import com.denis.georgiatransit.bff.observability.ProviderTelemetryLabels
+import com.denis.georgiatransit.bff.observability.TelemetryCapability
+import com.denis.georgiatransit.bff.observability.TelemetryOperation
 import java.security.MessageDigest
 import java.time.Instant
 import kotlinx.coroutines.CancellationException
@@ -56,6 +70,8 @@ class TransitService(
     directoryCacheTtlSeconds: Long,
     shapeCacheTtlSeconds: Long,
     realtimeSingleFlightSeconds: Long,
+    private val observability: BffObservability? = null,
+    private val schemaDriftObserver: ((String, TelemetryCapability) -> Boolean)? = null,
 ) : AutoCloseable {
     constructor(
         registry: ProviderRegistry,
@@ -88,8 +104,11 @@ class TransitService(
         val snapshot = snapshot()
         val effectiveCity = snapshot.city(cityId)
         requireCapability(cityId, effectiveCity.city.capabilities.routes, "Routes")
-        return cache(routeCaches, snapshot, "$cityId|$locale|${mode ?: "all"}") {
+        val labels = telemetry(effectiveCity, TelemetryOperation.LIST_ROUTES)
+        return cache(routeCaches, snapshot, "$cityId|$locale|${mode ?: "all"}", labels) {
             providerCall(
+                adapter = effectiveCity.adapter,
+                labels = labels,
                 loader = { effectiveCity.adapter.routes(locale, mode) },
                 validator = { NormalizedResponseValidator.routes(effectiveCity.city, it) },
             )
@@ -109,8 +128,11 @@ class TransitService(
     ): Route {
         val effectiveCity = snapshot.city(cityId)
         requireCapability(cityId, effectiveCity.city.capabilities.routes, "Routes")
-        return cache(routeDetailCaches, snapshot, "$cityId|$routeId|$locale") {
+        val labels = telemetry(effectiveCity, TelemetryOperation.ROUTE)
+        return cache(routeDetailCaches, snapshot, "$cityId|$routeId|$locale", labels) {
             providerCall(
+                adapter = effectiveCity.adapter,
+                labels = labels,
                 loader = { effectiveCity.adapter.route(routeId, locale) },
                 validator = { NormalizedResponseValidator.route(cityId, it, routeId) },
             )
@@ -127,8 +149,11 @@ class TransitService(
         val effectiveCity = snapshot.city(cityId)
         requireCapability(cityId, effectiveCity.city.capabilities.stops, "Stops")
         val route = route(snapshot, cityId, routeId, locale)
-        return cache(stopCaches, snapshot, "$cityId|$routeId|$directionId|$locale") {
+        val labels = telemetry(effectiveCity, TelemetryOperation.DIRECTION_STOPS)
+        return cache(stopCaches, snapshot, "$cityId|$routeId|$directionId|$locale", labels) {
             providerCall(
+                adapter = effectiveCity.adapter,
+                labels = labels,
                 loader = { effectiveCity.adapter.directionStops(routeId, directionId, locale) },
                 validator = { NormalizedResponseValidator.directionStops(cityId, route, directionId, it) },
             )
@@ -140,8 +165,11 @@ class TransitService(
         val effectiveCity = snapshot.city(cityId)
         requireCapability(cityId, effectiveCity.city.capabilities.routeGeometry, "Route geometry")
         val route = route(snapshot, cityId, routeId, "en")
-        return cache(shapeCaches, snapshot, "$cityId|$routeId|$directionId") {
+        val labels = telemetry(effectiveCity, TelemetryOperation.SHAPE)
+        return cache(shapeCaches, snapshot, "$cityId|$routeId|$directionId", labels) {
             providerCall(
+                adapter = effectiveCity.adapter,
+                labels = labels,
                 loader = { effectiveCity.adapter.shape(routeId, directionId) },
                 validator = { NormalizedResponseValidator.shape(cityId, route, directionId, it) },
             )
@@ -158,8 +186,11 @@ class TransitService(
         val snapshot = snapshot()
         val effectiveCity = snapshot.city(cityId)
         requireCapability(cityId, effectiveCity.city.capabilities.stops, "Stops")
-        val stops = cache(stopCaches, snapshot, "$cityId|directory|$locale") {
+        val labels = telemetry(effectiveCity, TelemetryOperation.NEARBY_STOPS)
+        val stops = cache(stopCaches, snapshot, "$cityId|directory|$locale", labels) {
             providerCall(
+                adapter = effectiveCity.adapter,
+                labels = labels,
                 loader = { effectiveCity.adapter.stopDirectory(locale) },
                 validator = { NormalizedResponseValidator.stops(effectiveCity.city, it) },
             )
@@ -178,8 +209,11 @@ class TransitService(
         val effectiveCity = snapshot.city(cityId)
         requireCapability(cityId, effectiveCity.city.capabilities.vehiclePositions, "Vehicle positions")
         val route = route(snapshot, cityId, routeId, "en")
-        return realtime(snapshot, "vehicle|$cityId|$routeId|${directionId ?: "all"}") {
+        val labels = telemetry(effectiveCity, TelemetryOperation.VEHICLES)
+        val page = realtime(snapshot, "vehicle|$cityId|$routeId|${directionId ?: "all"}", labels) {
             providerCall(
+                adapter = effectiveCity.adapter,
+                labels = labels,
                 loader = {
                     effectiveCity.adapter.vehicles(routeId, directionId).let {
                         VehiclePage(it.items, it.observedAt.toString(), it.maxAgeSeconds, it.stale)
@@ -188,14 +222,19 @@ class TransitService(
                 validator = { NormalizedResponseValidator.vehiclePage(cityId, route, directionId, it) },
             )
         }
+        recordData(labels, Instant.parse(page.observedAt), page.stale, page.items.size, realtime = true)
+        return page
     }
 
     suspend fun arrivals(cityId: String, stopId: String, limit: Int, locale: String): ArrivalPage {
         val snapshot = snapshot()
         val effectiveCity = snapshot.city(cityId)
         requireCapability(cityId, effectiveCity.city.capabilities.arrivals, "Arrivals")
-        return realtime(snapshot, "arrival|$cityId|$stopId|$limit|$locale") {
+        val labels = telemetry(effectiveCity, TelemetryOperation.ARRIVALS)
+        val page = realtime(snapshot, "arrival|$cityId|$stopId|$limit|$locale", labels) {
             providerCall(
+                adapter = effectiveCity.adapter,
+                labels = labels,
                 loader = {
                     effectiveCity.adapter.arrivals(stopId, limit, locale).let {
                         ArrivalPage(it.items, it.source, it.observedAt.toString(), it.stale)
@@ -204,19 +243,31 @@ class TransitService(
                 validator = { NormalizedResponseValidator.arrivalPage(cityId, stopId, it) },
             )
         }
+        recordData(
+            labels,
+            Instant.parse(page.observedAt),
+            page.stale,
+            page.items.size,
+            page.items.any { it.realtime },
+        )
+        return page
     }
 
     suspend fun journeys(cityId: String, query: JourneyQuery): JourneyPage {
         val snapshot = snapshot()
         val effectiveCity = snapshot.city(cityId)
         requireCapability(cityId, effectiveCity.city.capabilities.tripPlanning, "Trip planning")
-        return realtime(
+        val labels = telemetry(effectiveCity, TelemetryOperation.JOURNEYS)
+        val page = realtime(
             snapshot,
             "journey|$cityId|${query.from.latitude},${query.from.longitude}|" +
                 "${query.to.latitude},${query.to.longitude}|" +
                 "${query.departureAt}|${query.locale}|${query.maxTransfers}",
+            labels,
         ) {
             providerCall(
+                adapter = effectiveCity.adapter,
+                labels = labels,
                 loader = {
                     effectiveCity.adapter.journeyPage(query).let {
                         JourneyPage(
@@ -231,6 +282,8 @@ class TransitService(
                 validator = { NormalizedResponseValidator.journeyPage(cityId, it) },
             )
         }
+        recordData(labels, Instant.parse(page.observedAt), page.stale, page.items.size, page.realtime)
+        return page
     }
 
     fun routeEtag(routes: List<Route>): String {
@@ -268,32 +321,132 @@ class TransitService(
         cache: BoundedKeyedTtlCache<String, T>,
         snapshot: EffectiveCapabilitySnapshot,
         key: String,
+        labels: ProviderTelemetryLabels,
         loader: suspend () -> T,
-    ): T = cache.getOrLoad("${snapshot.generation}|$key", loader)
+    ): T = cache.getOrLoad("${snapshot.generation}|$key", { outcome ->
+        observability?.recordCache(labels, outcome.telemetryOutcome())
+    }, loader)
 
     @Suppress("UNCHECKED_CAST")
     private suspend fun <T> realtime(
         snapshot: EffectiveCapabilitySnapshot,
         key: String,
+        labels: ProviderTelemetryLabels,
         loader: suspend () -> T,
     ): T =
         try {
-            realTime.get("${snapshot.generation}|$key") { loader() as Any } as T
+            realTime.get("${snapshot.generation}|$key", { outcome ->
+                observability?.recordCache(labels, outcome.telemetryOutcome())
+            }) { loader() as Any } as T
         } catch (exception: TimeoutCancellationException) {
             throw UpstreamTimeout("The transit provider did not respond in time")
         }
 
     private suspend fun <T> providerCall(
+        adapter: com.denis.georgiatransit.bff.provider.CityTransitProviderAdapter,
+        labels: ProviderTelemetryLabels,
+        syntheticProbe: Boolean = false,
         loader: suspend () -> T,
         validator: (T) -> Unit = {},
-    ): T =
+    ): T {
+        val startedAt = System.nanoTime()
         try {
-            loader().also(validator)
+            val providerResult = if (adapter is ProviderCircuitProtectedAdapter) {
+                loader()
+            } else {
+                observability?.protectProviderCall(labels, loader) ?: loader()
+            }
+            return providerResult.also(validator).also {
+                observability?.recordProviderResult(labels, ProviderOutcome.SUCCESS, System.nanoTime() - startedAt)
+            }
         } catch (exception: CancellationException) {
             throw exception
+        } catch (exception: ProviderJsonDecodeFailure) {
+            observability?.recordProviderResult(labels, ProviderOutcome.JSON_DECODE, System.nanoTime() - startedAt)
+            recordSchemaInterlockIfLatched(labels, syntheticProbe)
+            throw exception.toServiceFailure()
+        } catch (exception: ProviderNormalizedSchemaFailure) {
+            observability?.recordProviderResult(labels, ProviderOutcome.NORMALIZED_SCHEMA, System.nanoTime() - startedAt)
+            recordSchemaInterlockIfLatched(labels, syntheticProbe)
+            throw exception.toServiceFailure()
         } catch (exception: ProviderFailure) {
+            observability?.recordProviderResult(labels, exception.telemetryOutcome(), System.nanoTime() - startedAt)
             throw exception.toServiceFailure()
         }
+    }
+
+    internal suspend fun runSyntheticProbe(target: SyntheticProbeTarget): SyntheticProbeResult {
+        val snapshot = snapshot()
+        val effectiveCity = snapshot.city(target.cityId)
+        require(effectiveCity.adapter.telemetryProvider == target.provider) { "Invalid synthetic probe target" }
+        requireCapability(target.cityId, effectiveCity.city.capabilities.capabilityEnabled(target.capability), "Probe capability")
+        val adapter = effectiveCity.adapter as? SyntheticProbeProvider
+            ?: throw CapabilityNotAvailable("The requested capability is not available")
+        val labels = ProviderTelemetryLabels(target.cityId, target.provider, target.capability, target.operation)
+        val result = providerCall(
+            adapter = effectiveCity.adapter,
+            labels = labels,
+            syntheticProbe = true,
+            loader = { adapter.probe(target) },
+        )
+        recordData(labels, result.observedAt, result.stale, result.itemCount, result.realtime, probe = true)
+        return result
+    }
+
+    internal suspend fun isSyntheticProbeEnabled(target: SyntheticProbeTarget): Boolean {
+        val currentSnapshot = snapshot()
+        val effectiveCity = currentSnapshot.cities[target.cityId] ?: return false
+        return effectiveCity.adapter.telemetryProvider == target.provider &&
+            effectiveCity.adapter is SyntheticProbeProvider &&
+            effectiveCity.city.capabilities.capabilityEnabled(target.capability)
+    }
+
+    private fun recordSchemaInterlockIfLatched(labels: ProviderTelemetryLabels, syntheticProbe: Boolean) {
+        if (syntheticProbe && schemaDriftObserver?.invoke(labels.city, labels.capability) == true) {
+            observability?.recordSchemaInterlock(labels)
+        }
+    }
+
+    private fun telemetry(effectiveCity: EffectiveCity, operation: TelemetryOperation): ProviderTelemetryLabels =
+        ProviderTelemetryLabels(
+            city = effectiveCity.city.id,
+            provider = effectiveCity.adapter.telemetryProvider,
+            capability = operation.capability,
+            operation = operation,
+        )
+
+    private fun recordData(
+        labels: ProviderTelemetryLabels,
+        observedAt: Instant,
+        stale: Boolean,
+        itemCount: Int,
+        realtime: Boolean,
+        probe: Boolean = false,
+    ) {
+        observability?.recordDataResult(labels, observedAt, stale, itemCount, realtime, probe)
+    }
+
+    private fun CacheLookupOutcome.telemetryOutcome(): CacheOutcome = when (this) {
+        CacheLookupOutcome.HIT -> CacheOutcome.HIT
+        CacheLookupOutcome.MISS_OWNER -> CacheOutcome.MISS_OWNER
+        CacheLookupOutcome.COALESCED -> CacheOutcome.COALESCED
+    }
+
+    private fun SingleFlightLookupOutcome.telemetryOutcome(): CacheOutcome = when (this) {
+        SingleFlightLookupOutcome.MISS_OWNER -> CacheOutcome.MISS_OWNER
+        SingleFlightLookupOutcome.COALESCED -> CacheOutcome.COALESCED
+    }
+
+    private fun com.denis.georgiatransit.bff.api.CityCapabilities.capabilityEnabled(
+        capability: TelemetryCapability,
+    ): Boolean = when (capability) {
+        TelemetryCapability.ROUTES -> routes
+        TelemetryCapability.STOPS -> stops
+        TelemetryCapability.ROUTE_GEOMETRY -> routeGeometry
+        TelemetryCapability.VEHICLE_POSITIONS -> vehiclePositions
+        TelemetryCapability.ARRIVALS -> arrivals
+        TelemetryCapability.TRIP_PLANNING -> tripPlanning
+    }
 
     private fun ProviderFailure.toServiceFailure(): ServiceFailure =
         when (this) {
@@ -316,6 +469,20 @@ class TransitService(
                 retryAfterSeconds.validatedRetryAfterSeconds(),
             )
             is ProviderTimeout -> UpstreamTimeout("The transit provider did not respond in time")
+        }
+
+    private fun ProviderFailure.telemetryOutcome(): ProviderOutcome =
+        when (this) {
+            is ProviderInvalidArgument -> ProviderOutcome.INVALID_ARGUMENT
+            is ProviderRouteNotFound,
+            is ProviderStopNotFound,
+            is ProviderConflict,
+            -> ProviderOutcome.INVALID_ARGUMENT
+            is ProviderRateLimited -> ProviderOutcome.RATE_LIMITED
+            is ProviderCapabilityUnavailable -> ProviderOutcome.CAPABILITY_UNAVAILABLE
+            is ProviderBadGateway -> ProviderOutcome.BAD_GATEWAY
+            is ProviderUnavailable -> ProviderOutcome.UNAVAILABLE
+            is ProviderTimeout -> ProviderOutcome.TIMEOUT
         }
 
     private fun Int?.validatedRetryAfterSeconds(): Int? =

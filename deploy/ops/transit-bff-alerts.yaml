@@ -1,0 +1,69 @@
+groups:
+  - name: transit-bff-observability
+    rules:
+      - alert: TransitBffScrapeDown
+        expr: up{job="transit-bff"} == 0
+        for: 5m
+        labels:
+          severity: page
+        annotations:
+          summary: Prometheus cannot scrape the private Transit BFF metrics endpoint.
+      - alert: TransitBffProbeNoFreshSuccess
+        expr: |
+          (bff_probe_target_enabled == 1)
+          and on (city, provider, capability, operation)
+          (time() - bff_probe_target_enabled_since_timestamp_seconds > 300)
+          unless on (city, provider, capability, operation)
+          (time() - bff_probe_last_success_timestamp_seconds <= 300)
+        labels:
+          severity: page
+        annotations:
+          summary: Enabled Transit BFF probe has no fresh success for over five minutes.
+      - alert: TransitBffRealtimeFreshnessMissing
+        expr: |
+          (bff_probe_target_enabled == 1 and on (city, provider, capability, operation) bff_probe_realtime_expected == 1)
+          and on (city, provider, capability, operation)
+          (time() - bff_probe_target_enabled_since_timestamp_seconds > 300)
+          unless on (city, provider, capability, operation)
+          (time() - bff_probe_last_fresh_realtime_timestamp_seconds <= 300)
+        labels:
+          severity: page
+        annotations:
+          summary: Realtime-expected Transit BFF probe has no fresh realtime data for over five minutes.
+      - alert: TransitBffSchemaInterlockLatched
+        expr: bff_provider_schema_interlock_latched == 1
+        labels:
+          severity: page
+        annotations:
+          summary: Transit BFF disabled a capability after repeated schema drift.
+      - alert: TransitBffCircuitOpen
+        expr: bff_provider_circuit_open == 1
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: Transit BFF provider circuit remains open.
+      - alert: TransitBffRateBudgetRejected
+        expr: increase(bff_provider_events_total{event="rate_budget_rejected"}[5m]) > 0
+        labels:
+          severity: warning
+        annotations:
+          summary: Transit BFF rejected provider work under the local rate budget.
+      - alert: TransitBffElevatedProvider5xxOrParse
+        expr: |
+          sum by (city, provider, capability, operation) (
+            increase(bff_provider_requests_total{outcome=~"unavailable|timeout|bad_gateway|json_decode|normalized_schema"}[5m])
+          ) > 5
+        labels:
+          severity: warning
+        annotations:
+          summary: Transit BFF provider failures or schema parsing are elevated.
+      - alert: TransitBffStaleOrAgedData
+        expr: |
+          max by (city, provider, capability, operation) (bff_provider_data_age_seconds) > 300
+          or
+          increase(bff_provider_events_total{event="stale_response"}[5m]) > 0
+        labels:
+          severity: warning
+        annotations:
+          summary: Transit BFF is serving stale or aged provider observations.

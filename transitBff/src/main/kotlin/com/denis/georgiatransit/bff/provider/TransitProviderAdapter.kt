@@ -10,6 +10,9 @@ import com.denis.georgiatransit.bff.api.Route
 import com.denis.georgiatransit.bff.api.Shape
 import com.denis.georgiatransit.bff.api.Stop
 import com.denis.georgiatransit.bff.api.Vehicle
+import com.denis.georgiatransit.bff.observability.TelemetryCapability
+import com.denis.georgiatransit.bff.observability.TelemetryOperation
+import com.denis.georgiatransit.bff.observability.TelemetryProvider
 import java.time.Instant
 
 /**
@@ -18,6 +21,9 @@ import java.time.Instant
  */
 interface CityTransitProviderAdapter {
     val city: City
+
+    /** Internal, finite telemetry identifier. It is never part of a public normalized DTO. */
+    val telemetryProvider: TelemetryProvider get() = TelemetryProvider.FIXTURE
 
     suspend fun routes(locale: String, mode: String?): List<Route>
 
@@ -44,6 +50,42 @@ interface CityTransitProviderAdapter {
         stale = false,
     )
 }
+
+/**
+ * Marks an adapter whose every upstream call is already protected at its own provider boundary.
+ * This is only for adapters such as Transitous that need to turn a circuit rejection into a
+ * bounded stale last-known-good response. Other adapters are protected by TransitService before
+ * invoking their boundary. Both paths use the same BffObservability circuit keyed by the finite
+ * city/provider/capability tuple, so the marker prevents a second circuit around one call.
+ */
+internal interface ProviderCircuitProtectedAdapter
+
+/**
+ * Internal operator-provisioned probe seam. Targets deliberately carry no display name and are
+ * never serialized, logged, or placed in metric labels. They call the same adapter controls as
+ * requests but must bypass a provider's last-known-good fallback when reporting fresh success.
+ */
+internal interface SyntheticProbeProvider {
+    val probeTargets: List<SyntheticProbeTarget>
+
+    suspend fun probe(target: SyntheticProbeTarget): SyntheticProbeResult
+}
+
+internal data class SyntheticProbeTarget(
+    val cityId: String,
+    val provider: TelemetryProvider,
+    val capability: TelemetryCapability,
+    val operation: TelemetryOperation,
+    val expectedRealtime: Boolean,
+    val privateTarget: String,
+)
+
+internal data class SyntheticProbeResult(
+    val observedAt: Instant,
+    val itemCount: Int,
+    val realtime: Boolean,
+    val stale: Boolean,
+)
 
 data class RealtimeVehicles(
     val items: List<Vehicle>,
@@ -89,7 +131,13 @@ class ProviderRateLimited(message: String, val retryAfterSeconds: Int) : Provide
 
 class ProviderCapabilityUnavailable(message: String) : ProviderFailure(message)
 
-class ProviderBadGateway(message: String) : ProviderFailure(message)
+open class ProviderBadGateway(message: String) : ProviderFailure(message)
+
+/** Internal-only malformed upstream JSON classification; public mapping remains a safe 502. */
+class ProviderJsonDecodeFailure(message: String) : ProviderBadGateway(message)
+
+/** Internal-only normalized/schema validation classification; public mapping remains a safe 502. */
+class ProviderNormalizedSchemaFailure(message: String) : ProviderBadGateway(message)
 
 class ProviderUnavailable(message: String, val retryAfterSeconds: Int? = null) : ProviderFailure(message)
 

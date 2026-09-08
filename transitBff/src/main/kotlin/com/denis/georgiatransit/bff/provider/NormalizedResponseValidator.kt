@@ -348,7 +348,7 @@ object NormalizedResponseValidator {
     }
 
     private fun invalid(): Nothing =
-        throw ProviderBadGateway("The provider returned an invalid normalized response")
+        throw ProviderNormalizedSchemaFailure("The provider returned an invalid normalized response")
 
     private data class PublicId(
         val city: String,

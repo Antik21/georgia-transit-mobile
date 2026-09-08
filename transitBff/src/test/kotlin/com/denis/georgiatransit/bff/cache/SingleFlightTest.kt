@@ -3,6 +3,7 @@ package com.denis.georgiatransit.bff.cache
 import com.denis.georgiatransit.bff.api.SingleFlightCapacityExceeded
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
+import java.util.Collections
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicReference
 import kotlinx.coroutines.CancellationException
@@ -26,6 +27,37 @@ import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
 
 class SingleFlightTest {
+    @Test
+    fun `bounded observer reports owner and coalesced follower without another upstream attempt`() = runTest {
+        SingleFlight<String, Int>(1.seconds).use { singleFlight ->
+            val started = CompletableDeferred<Unit>()
+            val release = CompletableDeferred<Unit>()
+            val loads = AtomicInteger()
+            val outcomes = Collections.synchronizedList(mutableListOf<SingleFlightLookupOutcome>())
+            val owner = async {
+                singleFlight.get("key", outcomes::add) {
+                    loads.incrementAndGet()
+                    started.complete(Unit)
+                    release.await()
+                    9
+                }
+            }
+            started.await()
+            val follower = async(start = CoroutineStart.UNDISPATCHED) {
+                singleFlight.get("key", outcomes::add) { error("coalesced follower ran loader") }
+            }
+            release.complete(Unit)
+
+            assertEquals(9, owner.await())
+            assertEquals(9, follower.await())
+            assertEquals(1, loads.get())
+            assertEquals(
+                listOf(SingleFlightLookupOutcome.MISS_OWNER, SingleFlightLookupOutcome.COALESCED),
+                outcomes,
+            )
+        }
+    }
+
     @Test
     fun `concurrent callers for one key share work`() = runTest {
         SingleFlight<String, Int>(1.seconds).use { singleFlight ->

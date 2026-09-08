@@ -173,6 +173,74 @@ class ApplicationContractTest {
     }
 
     @Test
+    fun `internal metrics use Prometheus 0 0 4 LF body and never expose request data or self-count`() = testApplication {
+        installBff()
+
+        val routes = client.get("/v1/cities/demo/routes") {
+            header(HttpHeaders.XRequestId, "metrics-request-id-secret")
+        }
+        val etag = assertNotNull(routes.headers[HttpHeaders.ETag])
+        assertEquals(HttpStatusCode.OK, routes.status)
+        assertEquals(
+            HttpStatusCode.NotModified,
+            client.get("/v1/cities/demo/routes") { header(HttpHeaders.IfNoneMatch, etag) }.status,
+        )
+        assertEquals(
+            HttpStatusCode.BadRequest,
+            client.get(
+                "/v1/cities/demo/stops/nearby?lat=41.715137&lon=44.827096&radiusMeters=0&limit=1&" +
+                    "token=metrics-query-secret",
+            ).status,
+        )
+
+        val first = client.get("/metrics")
+        assertEquals(HttpStatusCode.OK, first.status)
+        assertEquals("text/plain; version=0.0.4; charset=utf-8", first.headers[HttpHeaders.ContentType])
+        assertEquals(null, first.headers[HttpHeaders.XRequestId])
+        val exposition = first.bodyAsText()
+        assertTrue(exposition.endsWith("\n"))
+        assertFalse(exposition.contains('\r'))
+        assertEquals(
+            exposition.lineSequence().filter { it.isNotEmpty() && !it.startsWith("#") }.toList().size,
+            exposition.lineSequence().filter { it.isNotEmpty() && !it.startsWith("#") }.toSet().size,
+            "a scrape must not emit duplicate Prometheus samples",
+        )
+        listOf(
+            "# HELP bff_http_requests_total",
+            "# TYPE bff_http_requests_total counter",
+            "# HELP bff_http_request_duration_seconds",
+            "# TYPE bff_http_request_duration_seconds histogram",
+        ).zipWithNext().forEach { (before, after) ->
+            assertTrue(exposition.indexOf(before) < exposition.indexOf(after), "$before must precede $after")
+        }
+        assertTrue(exposition.contains("bff_http_requests_total{operation=\"list_routes\",status_class=\"2xx\"} 1"))
+        assertTrue(exposition.contains("bff_http_requests_total{operation=\"list_routes\",status_class=\"3xx\"} 1"))
+        assertTrue(exposition.contains("bff_http_requests_total{operation=\"nearby_stops\",status_class=\"4xx\"} 1"))
+        listOf(
+            "metrics-request-id-secret",
+            "metrics-query-secret",
+            "41.715137",
+            "44.827096",
+            "demo:fixture:route:blue",
+            "demo:fixture:stop:center",
+        ).forEach { forbidden -> assertFalse(exposition.contains(forbidden), forbidden) }
+
+        val second = client.get("/metrics")
+        assertEquals(exposition, second.bodyAsText(), "scraping itself must not alter telemetry")
+    }
+
+    @Test
+    fun `metrics route is absent when exporter is disabled`() = testApplication {
+        application {
+            transitBffModule(BffConfig.fromEnvironment(mapOf("BFF_FIXTURES_ENABLED" to "true", "BFF_METRICS_ENABLED" to "false")))
+        }
+
+        val response = client.get("/metrics")
+        assertEquals(HttpStatusCode.NotFound, response.status)
+        assertEquals(null, response.headers[HttpHeaders.XRequestId])
+    }
+
+    @Test
     fun `errors contain exact safe envelope and matching request ID`() = testApplication {
         installBff()
         val response = client.get("/v1/cities/Demo/routes") { header(HttpHeaders.XRequestId, "validation-1") }

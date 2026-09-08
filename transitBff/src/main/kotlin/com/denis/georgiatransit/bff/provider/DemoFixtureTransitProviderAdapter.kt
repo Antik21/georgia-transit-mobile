@@ -17,6 +17,7 @@ import com.denis.georgiatransit.bff.api.Route
 import com.denis.georgiatransit.bff.api.Shape
 import com.denis.georgiatransit.bff.api.Stop
 import com.denis.georgiatransit.bff.api.Vehicle
+import com.denis.georgiatransit.bff.observability.TelemetryProvider
 import java.time.Instant
 
 /**
@@ -24,6 +25,7 @@ import java.time.Instant
  * BFF_FIXTURES_ENABLED=true and must never be registered by production startup.
  */
 class DemoFixtureTransitProviderAdapter : CityTransitProviderAdapter {
+    override val telemetryProvider: TelemetryProvider = TelemetryProvider.FIXTURE
     override val city = City(
         id = "demo",
         name = LocalizedText(ru = "Демо-город", en = "Demo City", ka = "დემო ქალაქი"),

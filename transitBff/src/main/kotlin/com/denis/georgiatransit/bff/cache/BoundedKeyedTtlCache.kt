@@ -35,15 +35,22 @@ class BoundedKeyedTtlCache<K, V>(
         require(maximumEntries > 0) { "maximumEntries must be positive" }
     }
 
-    suspend fun getOrLoad(key: K, loader: suspend () -> V): V {
+    suspend fun getOrLoad(key: K, loader: suspend () -> V): V = getOrLoad(key, {}, loader)
+
+    /**
+     * The observer sees only a bounded lookup category; callers must not use a cache key as a
+     * telemetry dimension. It runs after the cache lock has been released.
+     */
+    suspend fun getOrLoad(key: K, observer: (CacheLookupOutcome) -> Unit, loader: suspend () -> V): V {
         val lookup = mutex.withLock {
             pruneExpiredLocked(clock.instant())
             when (val entry = entries[key]) {
-                is Ready -> Lookup.Value(entry.value)
-                is Loading -> Lookup.InFlight(entry.result)
-                null -> Lookup.InFlight(startLoadLocked(key, loader))
+                is Ready -> Lookup.Value(entry.value, CacheLookupOutcome.HIT)
+                is Loading -> Lookup.InFlight(entry.result, CacheLookupOutcome.COALESCED)
+                null -> Lookup.InFlight(startLoadLocked(key, loader), CacheLookupOutcome.MISS_OWNER)
             }
         }
+        observer(lookup.outcome)
         return when (lookup) {
             is Lookup.Value -> lookup.value
             is Lookup.InFlight -> lookup.result.await()
@@ -105,8 +112,16 @@ class BoundedKeyedTtlCache<K, V>(
     private data class Loading<V>(val result: CompletableDeferred<V>) : Entry<V>
 
     private sealed interface Lookup<out V> {
-        data class Value<V>(val value: V) : Lookup<V>
+        val outcome: CacheLookupOutcome
 
-        data class InFlight<V>(val result: Deferred<V>) : Lookup<V>
+        data class Value<V>(val value: V, override val outcome: CacheLookupOutcome) : Lookup<V>
+
+        data class InFlight<V>(val result: Deferred<V>, override val outcome: CacheLookupOutcome) : Lookup<V>
     }
+}
+
+enum class CacheLookupOutcome {
+    HIT,
+    MISS_OWNER,
+    COALESCED,
 }
