@@ -112,6 +112,7 @@ const server = http.createServer((request, response) => {
   if (request.method !== "GET") return send(response, { error: "method not allowed" }, 405);
   switch (url.pathname) {
     case "/healthz":
+      // Fixed, flat introspection contract: request bodies and coordinates are never exposed here.
       return send(response, { status: "ready", mode: "test-only-stop-arrivals-fixture", arrivalDelayMillis, walkingRequests });
     case "/v1/cities":
       return send(response, [city]);

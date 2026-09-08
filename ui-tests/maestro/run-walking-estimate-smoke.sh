@@ -12,12 +12,13 @@ artifact=$3
 app_id=com.denis.georgiatransit
 script_dir=$(cd "$(dirname "$0")" && pwd)
 fixture_path="$script_dir/fixtures/stop-arrivals-fixture-server.mjs"
+health_validator_path="$script_dir/fixtures/validate-walking-health.mjs"
 flow_path="$script_dir/flows/walking-estimate-smoke.yaml"
 fixture_port=8080
 fixture_log=$(mktemp "${TMPDIR:-/tmp}/georgia-transit-walking.XXXXXX.log")
 fixture_health=$(mktemp "${TMPDIR:-/tmp}/georgia-transit-walking.XXXXXX.json")
 
-if [[ ! -f $fixture_path || ! -f $flow_path ]]; then
+if [[ ! -f $fixture_path || ! -f $health_validator_path || ! -f $flow_path ]]; then
   echo "Missing walking-estimate test fixture or flow" >&2
   exit 66
 fi
@@ -38,12 +39,8 @@ read_health() {
   fixture_is_ours && curl --fail --silent "http://127.0.0.1:$fixture_port/healthz" >"$fixture_health"
 }
 
-health_is_ready() {
-  node -e '
-    const fs = require("node:fs");
-    const health = JSON.parse(fs.readFileSync(process.argv[1], "utf8"));
-    process.exit(health.status === "ready" && health.mode === "test-only-stop-arrivals-fixture" ? 0 : 1);
-  ' "$fixture_health"
+health_contract_matches() {
+  node "$health_validator_path" "$fixture_health" "$1"
 }
 
 cleanup() {
@@ -55,7 +52,7 @@ trap cleanup EXIT
 
 ready=false
 for _ in {1..20}; do
-  if read_health && health_is_ready; then ready=true; break; fi
+  if read_health && health_contract_matches 0; then ready=true; break; fi
   fixture_is_ours || break
   sleep 0.25
 done
@@ -94,8 +91,11 @@ case "$platform" in
 esac
 
 if ! read_health; then echo "Fixture ownership or health changed during smoke" >&2; exit 70; fi
-node -e '
-  const fs = require("node:fs");
-  const health = JSON.parse(fs.readFileSync(process.argv[1], "utf8"));
-  process.exit(health.walkingRequests >= 1 ? 0 : 1);
-' "$fixture_health" || { echo "No walking POST reached the owned fixture" >&2; exit 75; }
+# Exact keys plus scalar/static value checks ensure this owned fixture exposes only its bounded
+# counter and static health fields: no nested request payload or coordinate-bearing field can pass.
+health_contract_matches 1 || { echo "Walking fixture health contract is not strict and coordinate-free" >&2; exit 75; }
+# Defense in depth for the fixture process's captured stdout/stderr; this does not inspect memory.
+if grep -Fq -e "41.7151" -e "44.8271" "$fixture_log"; then
+  echo "Injected coordinates leaked into fixture stdout/stderr" >&2
+  exit 75
+fi

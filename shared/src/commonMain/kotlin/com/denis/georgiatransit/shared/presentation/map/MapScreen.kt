@@ -177,6 +177,7 @@ fun MapScreen(viewModel: MapViewModel, handleNavigation: suspend (NavigationEffe
 
 @Composable
 private fun Content(state: ViewState, onAction: (Action) -> Unit) {
+    val isLocationActionable = locationActionEnabled(state.location.permission) && !state.location.isLocating
     val mapViewportInsets = if (state.stopArrivalsSheet == null) {
         MapViewportInsets.None
     } else {
@@ -206,7 +207,7 @@ private fun Content(state: ViewState, onAction: (Action) -> Unit) {
                     } else {
                         AutomationId.MapMyLocation
                     },
-                    locationActionEnabled = locationActionEnabled(state.location.permission) && !state.location.isLocating,
+                    locationActionEnabled = isLocationActionable,
                     onMyLocationClick = { onAction(Action.MyLocationClicked) },
                     onMapEvent = { onAction(Action.MapEventReceived(it)) },
                     onRetry = { onAction(Action.RetryNearby) },
@@ -265,7 +266,7 @@ private fun Content(state: ViewState, onAction: (Action) -> Unit) {
                 onDismiss = { onAction(Action.StopArrivalsDismissed) },
                 onRetry = { onAction(Action.RetryStopArrivals) },
                 onMyLocation = { onAction(Action.MyLocationClicked) },
-                isLocationActionable = locationActionEnabled(state.location.permission) && !state.location.isLocating,
+                isLocationActionable = isLocationActionable,
             )
         }
     }

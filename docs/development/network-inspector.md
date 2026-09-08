@@ -100,8 +100,9 @@ logger, analytics service, or cloud collector.
   `lon`, `fromLat`, `fromLon`, `toLat`, `toLon`, `latitude`, and `longitude`
   are also redacted from URLs, JSON/form bodies, and supported plain-text
   previews, including nested walking-estimate request bodies. XML is omitted
-  rather than parsed. The production BFF contract must continue to avoid
-  secrets and precise locations in URLs.
+  rather than parsed. The walking-estimate BFF operation keeps precise locations
+  in its POST body rather than a URL. Existing coordinate-query routes remain
+  sensitive and must remain redacted by the inspectors.
 
 ## Dependency and Release review
 

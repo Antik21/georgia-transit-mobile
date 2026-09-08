@@ -19,6 +19,8 @@ import kotlin.math.sin
 import kotlin.time.Clock
 import kotlin.time.Instant
 
+private const val EarthRadiusMeters = 6_371_000.0
+
 /**
  * Applies the product's privacy and honesty rules around a one-shot walking query. It never
  * invokes the BFF while trip planning is unavailable, and it never turns a failure into a value
@@ -63,7 +65,6 @@ class EstimateWalkingToStop(
         distanceMeters.isFinite() && distanceMeters >= 0.0 && durationSeconds > 0L
 
     private companion object {
-        const val EarthRadiusMeters = 6_371_000.0
         const val DetourFactor = 1.25
         const val WalkingSpeedMetersPerSecond = 1.4
     }
@@ -80,5 +81,5 @@ private fun haversineMeters(from: GeoPoint, to: GeoPoint): Double {
     val longitudeDelta = (to.longitude - from.longitude) * PI / 180.0
     val a = sin(latitudeDelta / 2).pow(2) +
         cos(from.latitude * PI / 180.0) * cos(to.latitude * PI / 180.0) * sin(longitudeDelta / 2).pow(2)
-    return 2.0 * 6_371_000.0 * asin(min(1.0, kotlin.math.sqrt(a)))
+    return 2.0 * EarthRadiusMeters * asin(min(1.0, kotlin.math.sqrt(a)))
 }
