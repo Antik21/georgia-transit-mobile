@@ -19,12 +19,17 @@ infrastructure.
 ## Decision
 
 Use the direct native MapLibre Native SDKs behind one narrow Compose
-`PlatformMap` expect/actual contract. The common contract carries only a typed
-`MapViewport` (`GeoPoint` center and zoom); it has no native SDK type, key,
-URL, provider DTO, or Koin/service lookup. Android native code owns
-`MapView`/lifecycle/MapLibre layers; Swift owns `MLNMapView`, `MLNStyle`, and
-`CLLocationCoordinate2D`, passing generic `UIView` factory/update closures into
-the iOS-only composition bridge. This is deliberately not MapLibre Compose.
+`PlatformMap` expect/actual contract. The common contract carries one immutable,
+SDK-free `MapRenderState`: a typed `MapCameraCommand` (`GeoPoint`, zoom, and a
+monotonic revision), presentation primitives for stops, vehicles, and decoded
+polylines, plus an accepted `UserLocationFix`. The state has no native SDK type,
+key, URL, provider DTO, or Koin/service lookup. Adapters apply a programmatic
+camera move only when its revision changes, so a layer or location-status update
+cannot reset a user pan/zoom; a recreated native view applies the current command
+once. Android native code owns `MapView`/lifecycle/MapLibre layers; Swift owns
+`MLNMapView`, `MLNStyle`, and `CLLocationCoordinate2D`, receiving the single
+common render object through a generic `UIView` bridge. This is deliberately not
+MapLibre Compose.
 
 | Component | Decision | License, price, attribution, quota/ownership |
 | --- | --- | --- |
@@ -54,19 +59,22 @@ costs and are explicitly **not** claimed to be zero.
    reviewed runtime contract; MapLibre consumes standard style/vector-tile
    formats. No provider secret is placed in either app.
 
-The DEN-75 prototype intentionally does not implement that production path. It
-uses a fully local JSON background style and synthetic local GeoJSON marker and
-line centered on the selected city. It disables MapLibre connectivity on Android
-and uses a bundled iOS style; it has no provider URL/key, remote style/tile,
-location permission, stop/vehicle data, BFF request, or production basemap.
-Full MapScreen data and production asset delivery remain DEN-58 work.
+DEN-58 establishes the renderer foundation but intentionally does not implement
+the production asset path. It uses a fully local, source-free JSON background
+style, disables MapLibre connectivity on Android, and uses a bundled iOS style.
+There is no provider URL/key, remote style/tile, MapLibre location-permission
+ownership, BFF request, or production basemap. In particular, it must not fabricate a
+center marker, demo line, stop, vehicle, ETA, or nearby-stop UI. Until a reviewed
+BFF asset contract exists, the basemap fails closed and common UI states this
+plainly. BFF-controlled map assets, offline packs, map queries, and live transit
+layers remain future operator/product work.
 
 ## Feature assessment
 
 | Capability | Assessment and delivery constraint |
 | --- | --- |
 | Offline/cache | MapLibre Native has on-device resource caching. Production must set BFF cache/version headers and invalidation policy. A true offline region/package flow needs explicit Georgia extracts, download limits, storage budget, expiry, and attribution retention; it is not supplied by this prototype. |
-| Marker/polyline animation | Native source updates and camera animation support smooth marker/polyline updates. Update GeoJSON/vector sources at a bounded cadence, batch changes, and do not create one native view per vehicle. Animation data remains BFF-normalized. |
+| Marker/polyline animation | Native source updates and camera animation support smooth marker/polyline updates. The adapters own stable grouped GeoJSON/shape sources and layers, update each source in a batch, and do not create one native view per vehicle. Animation data remains BFF-normalized. |
 | Clustering | GeoJSON source clustering is available for smaller local sets; large stop/vehicle sets should be preclustered or tiled by the BFF. Cluster behavior and click expansion remain future product work. |
 | Performance | Vector tiles, compact Georgia scope, layer/source grouping, zoom visibility, cache limits, and measured device budgets are required. Benchmark pan/zoom, route redraw, and representative vehicle counts on the supported Android/iOS floors before production rollout. |
 | Accessibility | Native map controls/gestures must be exposed to TalkBack/VoiceOver and retain required attribution. The product must also offer accessible non-map stop/route results and textual state; a canvas-only map is never the sole way to use transit data. The prototype marks its native map as a local preview and preserves the common preview note. |
@@ -77,11 +85,24 @@ Full MapScreen data and production asset delivery remain DEN-58 work.
   Android lifecycle and Swift/UIView interoperability must be compiled on both
   platforms whenever this boundary changes.
 - Android lifecycle forwards `onStart`, `onResume`, `onPause`, `onStop`, and
-  `onDestroy` idempotently and exactly once per MapView instance. iOS releases
-  its `MLNMapView` delegate/location manager when the interop UIView is released.
-- The MapLibre SDK AAR declares optional location permissions transitively; the
-  app manifest explicitly removes coarse/fine location. No iOS location usage
-  description, ATS exception, or location request is added.
+  `onDestroy` idempotently and exactly once per MapView instance. iOS invokes an
+  explicit release bridge from `UIKitView.onRelease`, clearing its `MLNMapView`
+  delegate, disabling the location manager, and dropping retained render state
+  idempotently.
+- Stable source/layer IDs are part of the adapter implementation detail, not a
+  provider contract. Both adapters defensively ignore invalid or degenerate
+  presentation geometry and retain a bounded marker set for predictable updates.
+- A camera revision is a presentation command, not a persisted viewport or a
+  navigation argument. Future viewport querying, clustering, route loading,
+  live polling, stop sheets, ETA, and animation policies require their own
+  product contracts and must not be inferred from this renderer foundation.
+- MapLibre never owns location permission or location-manager updates. Its Android
+  SDK AAR may declare optional location permissions transitively, but the
+  independent app-level location adapter retains Android foreground-only
+  coarse/fine permissions (with no background permission or foreground service)
+  and the localized iOS `NSLocationWhenInUseUsageDescription`. Those platform
+  adapters provide only accepted fixes to common presentation; the MapLibre
+  adapters do not request authorization or enable their own location component.
 - ODbL attribution and any imported-source requirements must be maintained in
   the BFF style/asset manifest. Infrastructure ownership shifts quota and abuse
   protection to operations rather than eliminating cost.
@@ -108,7 +129,8 @@ Full MapScreen data and production asset delivery remain DEN-58 work.
 
 ## Verification
 
-Implemented verification is local-only:
+Implemented verification is local-only and intentionally does not imply a
+production map asset is available:
 
 ```text
 ./gradlew :androidApp:assembleDebug
@@ -116,9 +138,10 @@ xcodebuild -resolvePackageDependencies -project iosApp/iosApp.xcodeproj -scheme 
 xcodebuild -project iosApp/iosApp.xcodeproj -scheme iosApp -sdk iphonesimulator -configuration Debug CODE_SIGNING_ALLOWED=NO build
 ```
 
-The Android and iOS prototypes must render their local background/layers and
-move the camera when City Selection changes. No network inspection can show a
-provider request because this prototype defines none; production verification
-will additionally require BFF-only endpoint checks, attribution review, cache
-and offline behavior, performance measurements, accessibility smoke testing,
-and operational quota/load testing.
+The Android and iOS adapters must render their local background and any valid
+common render primitives, apply a city/location camera command once per revision,
+and preserve a user-controlled camera during unrelated state updates. No network
+inspection can show a provider request because this fallback defines none;
+production verification will additionally require BFF-only endpoint checks,
+attribution review, cache and offline behavior, performance measurements,
+accessibility smoke testing, and operational quota/load testing.

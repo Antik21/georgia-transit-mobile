@@ -39,10 +39,13 @@
     <string name="location_failure_invalid">მდებარეობა საკმარისად ზუსტი ან ახალი არ არის.</string>
     <string name="location_failure_unavailable">თქვენი მდებარეობის მიღება ვერ მოხერხდა.</string>
     <string name="map_title">ტრანსპორტის რუკა</string>
-    <string name="map_preview_note">MapLibre-ის ლოკალური პროტოტიპი — საწარმოო საბაზო რუკისა და ტრანსპორტის მონაცემების გარეშე</string>
-    <string name="map_nearby_stops">ახლომდებარე გაჩერებები</string>
-    <string name="map_stop_one">თავისუფლების მოედანი · 2 წუთი ფეხით</string>
-    <string name="map_stop_two">რუსთაველის გამზირი · 6 წუთი ფეხით</string>
+    <string name="map_preview_note">რუკის ლოკალური ჩანაცვლება — საწარმოო საბაზო რუკა და ტრანსპორტის მონაცემები მიუწვდომელია</string>
+    <string name="map_content_loading">რუკის მონაცემები იტვირთება…</string>
+    <string name="map_content_empty">ამ ხედისთვის რუკის მონაცემები მიუწვდომელია.</string>
+    <string name="map_content_error">რუკის მონაცემების ჩატვირთვა ვერ მოხერხდა.</string>
+    <string name="map_content_unavailable">ამ ქალაქისთვის რუკის მონაცემები მიუწვდომელია.</string>
+    <string name="map_content_offline">ოფლაინ რეჟიმში რუკის მონაცემები მიუწვდომელია.</string>
+    <string name="map_content_stale">ოფლაინ რეჟიმში ნაჩვენებია რუკის ბოლო ხელმისაწვდომი მონაცემები.</string>
     <string name="map_routes_action">მარშრუტების არჩევა</string>
     <string name="map_change_city_action">ქალაქის შეცვლა</string>
     <string name="map_my_location_action">ჩემი მდებარეობა</string>

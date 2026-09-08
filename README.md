@@ -13,10 +13,12 @@ Kotlin Multiplatform shell for a Georgia public-transit app. Shared Compose UI c
 
 ## Maps
 
-The screen currently renders only a local MapLibre JSON background plus a
-synthetic city-center marker and short line. It has no production basemap,
-transit data, BFF request, provider key, location permission, or remote map
-asset. This keeps the renderer/layer/camera boundary verifiable without using a
+The screen uses a bundled, blank local MapLibre style in a fail-closed mode. It
+accepts the shared, SDK-free typed render state; until normalized state supplies
+stops, vehicles, or route polylines, those layers remain empty. It has no
+production basemap, BFF map-asset request, provider key, remote style, or public
+tile fallback, and it never presents synthetic transit data as real data. This
+keeps the renderer/layer/camera boundary verifiable without using a
 public/community endpoint.
 
 Production map assets are a future BFF concern: Georgia-scoped OSM data will be

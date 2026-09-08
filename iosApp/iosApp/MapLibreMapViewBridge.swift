@@ -1,7 +1,12 @@
 import CoreLocation
 import MapLibre
+import Shared
 import UIKit
 
+/**
+ * The Swift-owned end of the typed MapRenderState bridge. MapLibre/UIKit/CoreLocation stay here;
+ * the bundled source-free style has no provider URL, key, remote style, or remote tile fallback.
+ */
 enum MapLibreMapViewBridge {
     static func makeView() -> UIView {
         guard let styleURL = Bundle.main.url(forResource: "MapLibrePrototypeStyle", withExtension: "json") else {
@@ -10,41 +15,21 @@ enum MapLibreMapViewBridge {
         return LocalMapLibreView(styleURL: styleURL)
     }
 
-    static func update(
-        view: UIView,
-        latitude: Double,
-        longitude: Double,
-        zoom: Double,
-        contentLatitude: Double,
-        contentLongitude: Double,
-        userLatitude: Double?,
-        userLongitude: Double?,
-        accuracy: Double?,
-        isPrecise: Bool
-    ) {
-        (view as? LocalMapLibreView)?.update(
-            latitude: latitude,
-            longitude: longitude,
-            zoom: zoom,
-            contentLatitude: contentLatitude,
-            contentLongitude: contentLongitude,
-            userLatitude: userLatitude,
-            userLongitude: userLongitude,
-            accuracy: accuracy,
-            isPrecise: isPrecise
-        )
+    static func update(view: UIView, renderState: MapRenderState) {
+        (view as? LocalMapLibreView)?.update(renderState: renderState)
+    }
+
+    static func release(view: UIView) {
+        (view as? LocalMapLibreView)?.releaseResources()
     }
 }
 
-/**
- * Swift owns every MapLibre Native and Core Location type. The embedded style, GeoJSON, and
- * geometry are synthetic and local; no provider URL or key is configured here. An already
- * validated one-shot user fix is injected through the narrow update boundary.
- */
 private final class LocalMapLibreView: UIView, MLNMapViewDelegate {
     private let mapView: MLNMapView
-    private var pendingState: MapState?
-    private var renderedState: MapState?
+    private var pendingRenderState: MapRenderState?
+    private var layersInstalled = false
+    private var lastAppliedCameraRevision: Int64?
+    private var released = false
 
     init(styleURL: URL) {
         mapView = MLNMapView(frame: .zero, styleURL: styleURL)
@@ -54,8 +39,8 @@ private final class LocalMapLibreView: UIView, MLNMapViewDelegate {
         mapView.showsUserLocation = false
         mapView.shouldRequestAuthorizationToUseLocationServices = false
         mapView.disableLocationManager()
-        mapView.isAccessibilityElement = true
-        mapView.accessibilityLabel = "Local map prototype. Transit data is unavailable."
+        // Compose supplies localized textual state and attribution. Avoid a hard-coded native claim.
+        mapView.isAccessibilityElement = false
         mapView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
         addSubview(mapView)
     }
@@ -70,245 +55,271 @@ private final class LocalMapLibreView: UIView, MLNMapViewDelegate {
     }
 
     deinit {
-        mapView.delegate = nil
-        mapView.disableLocationManager()
+        releaseResources()
     }
 
-    func update(
-        latitude: Double,
-        longitude: Double,
-        zoom: Double,
-        contentLatitude: Double,
-        contentLongitude: Double,
-        userLatitude: Double?,
-        userLongitude: Double?,
-        accuracy: Double?,
-        isPrecise: Bool
-    ) {
-        let state = MapState(
-            viewport: MapViewport(
-                latitude: latitude,
-                longitude: longitude,
-                zoom: zoom,
-                contentLatitude: contentLatitude,
-                contentLongitude: contentLongitude
-            ),
-            userLocation: userLatitude.flatMap { latitude in
-                userLongitude.flatMap { longitude in
-                    accuracy.map {
-                        UserLocation(
-                            latitude: latitude,
-                            longitude: longitude,
-                            accuracy: $0,
-                            isPrecise: isPrecise
-                        )
-                    }
-                }
-            }
-        )
-        pendingState = state
-        renderIfReady(state)
+    func update(renderState: MapRenderState) {
+        guard !released else { return }
+        pendingRenderState = renderState
+        guard let style = mapView.style else { return }
+        installSourcesAndLayersIfNeeded(style: style)
+        render(renderState, style: style)
     }
 
     func mapView(_ mapView: MLNMapView, didFinishLoading style: MLNStyle) {
-        if let state = pendingState, state != renderedState {
-            renderIfReady(state)
-        }
+        guard !released else { return }
+        layersInstalled = false
+        lastAppliedCameraRevision = nil
+        installSourcesAndLayersIfNeeded(style: style)
+        pendingRenderState.map { render($0, style: style) }
     }
 
-    private func renderIfReady(_ state: MapState) {
-        let viewport = state.viewport
-        let center = CLLocationCoordinate2D(latitude: viewport.latitude, longitude: viewport.longitude)
-        mapView.setCenter(center, zoomLevel: viewport.zoom, animated: false)
+    func releaseResources() {
+        guard !released else { return }
+        released = true
+        pendingRenderState = nil
+        mapView.delegate = nil
+        mapView.showsUserLocation = false
+        mapView.disableLocationManager()
+        mapView.removeFromSuperview()
+    }
 
-        guard mapView.style != nil, state != renderedState else { return }
-        renderedState = state
-        let contentCenter = CLLocationCoordinate2D(
-            latitude: viewport.contentLatitude,
-            longitude: viewport.contentLongitude
+    private func installSourcesAndLayersIfNeeded(style: MLNStyle) {
+        guard !layersInstalled else { return }
+        let stopsSource = MLNShapeSource(identifier: Self.stopsSourceID, shape: nil, options: nil)
+        let vehiclesSource = MLNShapeSource(identifier: Self.vehiclesSourceID, shape: nil, options: nil)
+        let polylinesSource = MLNShapeSource(identifier: Self.polylinesSourceID, shape: nil, options: nil)
+        let userLocationSource = MLNShapeSource(identifier: Self.userLocationSourceID, shape: nil, options: nil)
+        let userAccuracySource = MLNShapeSource(identifier: Self.userAccuracySourceID, shape: nil, options: nil)
+        [stopsSource, vehiclesSource, polylinesSource, userLocationSource, userAccuracySource].forEach(style.addSource)
+
+        let polylinesLayer = MLNLineStyleLayer(identifier: Self.polylinesLayerID, source: polylinesSource)
+        polylinesLayer.lineColor = NSExpression(forKeyPath: Self.routeColorProperty)
+        polylinesLayer.lineWidth = NSExpression(forConstantValue: 5)
+        polylinesLayer.lineOpacity = NSExpression(forConstantValue: 0.9)
+        style.addLayer(polylinesLayer)
+
+        let accuracyFillLayer = MLNFillStyleLayer(identifier: Self.userAccuracyFillLayerID, source: userAccuracySource)
+        accuracyFillLayer.fillColor = NSExpression(forConstantValue: UIColor(red: 0.10, green: 0.46, blue: 0.82, alpha: 1))
+        accuracyFillLayer.fillOpacity = NSExpression(forConstantValue: 0.18)
+        style.addLayer(accuracyFillLayer)
+
+        let accuracyStrokeLayer = MLNLineStyleLayer(identifier: Self.userAccuracyStrokeLayerID, source: userAccuracySource)
+        accuracyStrokeLayer.lineColor = NSExpression(forConstantValue: UIColor(red: 0.05, green: 0.28, blue: 0.63, alpha: 1))
+        accuracyStrokeLayer.lineWidth = NSExpression(forConstantValue: 2)
+        accuracyStrokeLayer.lineOpacity = NSExpression(forConstantValue: 0.75)
+        style.addLayer(accuracyStrokeLayer)
+
+        let stopsLayer = MLNCircleStyleLayer(identifier: Self.stopsLayerID, source: stopsSource)
+        stopsLayer.circleColor = NSExpression(forConstantValue: UIColor(red: 0.16, green: 0.62, blue: 0.56, alpha: 1))
+        stopsLayer.circleRadius = NSExpression(forConstantValue: 5)
+        stopsLayer.circleStrokeColor = NSExpression(forConstantValue: UIColor.white)
+        stopsLayer.circleStrokeWidth = NSExpression(forConstantValue: 2)
+        style.addLayer(stopsLayer)
+
+        let vehiclesLayer = MLNCircleStyleLayer(identifier: Self.vehiclesLayerID, source: vehiclesSource)
+        vehiclesLayer.circleColor = NSExpression(forKeyPath: Self.routeColorProperty)
+        vehiclesLayer.circleRadius = NSExpression(forConstantValue: 7)
+        vehiclesLayer.circleStrokeColor = NSExpression(forConstantValue: UIColor(red: 0.15, green: 0.20, blue: 0.22, alpha: 1))
+        vehiclesLayer.circleStrokeWidth = NSExpression(forConstantValue: 2)
+        style.addLayer(vehiclesLayer)
+
+        let userLocationLayer = MLNCircleStyleLayer(identifier: Self.userLocationLayerID, source: userLocationSource)
+        userLocationLayer.circleColor = NSExpression(forConstantValue: UIColor(red: 0.08, green: 0.40, blue: 0.75, alpha: 1))
+        userLocationLayer.circleRadius = NSExpression(forConstantValue: 7)
+        userLocationLayer.circleStrokeColor = NSExpression(forConstantValue: UIColor.white)
+        userLocationLayer.circleStrokeWidth = NSExpression(forConstantValue: 3)
+        style.addLayer(userLocationLayer)
+
+        layersInstalled = true
+    }
+
+    private func render(_ state: MapRenderState, style: MLNStyle) {
+        updateSource(style: style, identifier: Self.stopsSourceID, features: stopFeatures(state.stops))
+        updateSource(style: style, identifier: Self.vehiclesSourceID, features: vehicleFeatures(state.vehicles))
+        updateSource(style: style, identifier: Self.polylinesSourceID, features: polylineFeatures(state.polylines))
+        updateSource(style: style, identifier: Self.userLocationSourceID, features: userLocationFeatures(state.userLocation))
+        updateSource(style: style, identifier: Self.userAccuracySourceID, features: userAccuracyFeatures(state.userLocation))
+        applyCameraIfNeeded(state.camera)
+    }
+
+    /** Each renderer layer keeps its source and style layer; only its GeoJSON shape is replaced. */
+    private func updateSource(style: MLNStyle, identifier: String, features: [[String: Any]]) {
+        guard
+            let source = style.source(withIdentifier: identifier) as? MLNShapeSource,
+            let data = try? JSONSerialization.data(withJSONObject: ["type": "FeatureCollection", "features": features]),
+            let shape = try? MLNShape(data: data, encoding: String.Encoding.utf8.rawValue)
+        else { return }
+        source.shape = shape
+    }
+
+    private func applyCameraIfNeeded(_ command: MapCameraCommand) {
+        guard lastAppliedCameraRevision != command.revision, isCoordinateValid(command.center), command.zoom.isFinite else { return }
+        mapView.setCenter(
+            CLLocationCoordinate2D(latitude: command.center.latitude, longitude: command.center.longitude),
+            zoomLevel: min(max(command.zoom, Self.minimumZoom), Self.maximumZoom),
+            animated: false
         )
-        mapView.styleJSON = Self.localStyleJSON(center: contentCenter, userLocation: state.userLocation)
+        lastAppliedCameraRevision = command.revision
     }
 
-    private static func localStyleJSON(center: CLLocationCoordinate2D, userLocation: UserLocation?) -> String {
-        let start = CLLocationCoordinate2D(latitude: center.latitude - 0.010, longitude: center.longitude - 0.015)
-        let end = CLLocationCoordinate2D(latitude: center.latitude + 0.008, longitude: center.longitude + 0.020)
-        let userSources = userLocation.map {
-            let ring = accuracyRing(for: $0)
-                .map { "[\($0.longitude), \($0.latitude)]" }
-                .joined(separator: ",")
-            let preciseSource = $0.isPrecise ?
-                """
-                ,
-                "user-location": {
-                  "type": "geojson",
-                  "data": {
+    private func stopFeatures(_ markers: [MapStopMarker]) -> [[String: Any]] {
+        markers
+            .filter { !$0.stableId.isEmpty && isCoordinateValid($0.position) }
+            .sorted(by: { (first: MapStopMarker, second: MapStopMarker) in first.stableId < second.stableId })
+            .prefix(Self.maximumStopMarkers)
+            .map { marker in
+                feature(
+                    id: marker.stableId,
+                    coordinates: [marker.position.longitude, marker.position.latitude],
+                    properties: [:]
+                )
+            }
+    }
+
+    private func vehicleFeatures(_ markers: [MapVehicleMarker]) -> [[String: Any]] {
+        markers
+            .filter { !$0.stableId.isEmpty && !$0.stableRouteId.isEmpty && isCoordinateValid($0.position) }
+            .sorted(by: { (first: MapVehicleMarker, second: MapVehicleMarker) in first.stableId < second.stableId })
+            .prefix(Self.maximumVehicleMarkers)
+            .map { marker in
+                var properties: [String: Any] = [
+                    Self.routeColorProperty: mapColor(marker.routeColorArgb),
+                    Self.positionKindProperty: marker.positionKind.name,
+                ]
+                if let bearing = marker.bearingDegrees?.doubleValue, bearing.isFinite {
+                    properties[Self.bearingProperty] = normalizedBearing(bearing)
+                }
+                return feature(
+                    id: marker.stableId,
+                    coordinates: [marker.position.longitude, marker.position.latitude],
+                    properties: properties
+                )
+            }
+    }
+
+    private func polylineFeatures(_ polylines: [MapPolyline]) -> [[String: Any]] {
+        polylines
+            .filter { !$0.stableRouteId.isEmpty }
+            .sorted(by: { (first: MapPolyline, second: MapPolyline) in
+                let firstDirection = first.stableDirectionId ?? ""
+                let secondDirection = second.stableDirectionId ?? ""
+                return first.stableRouteId == second.stableRouteId ? firstDirection < secondDirection : first.stableRouteId < second.stableRouteId
+            })
+            .prefix(Self.maximumPolylines)
+            .compactMap { (polyline: MapPolyline) -> [String: Any]? in
+                let points = polyline.points.filter(isCoordinateValid)
+                guard points.count >= 2, zip(points, points.dropFirst()).contains(where: { $0 != $1 }) else { return nil }
+                return [
                     "type": "Feature",
-                    "geometry": { "type": "Point", "coordinates": [\($0.longitude), \($0.latitude)] }
-                  }
-                }
-                """ : ""
-            return """
-            ,
-            "user-location-accuracy": {
-              "type": "geojson",
-              "data": {
-                "type": "Feature",
-                "geometry": { "type": "Polygon", "coordinates": [[\(ring)]] }
-              }
+                    "id": polyline.stableRouteId,
+                    "properties": [Self.routeColorProperty: mapColor(polyline.routeColorArgb)],
+                    "geometry": [
+                        "type": "LineString",
+                        "coordinates": points.map { [$0.longitude, $0.latitude] },
+                    ],
+                ]
             }
-            \(preciseSource)
-            """
-        } ?? ""
-        let userLayers = userLocation.map {
-            let preciseLayer = $0.isPrecise ?
-                """
-                ,
-                {
-                  "id": "user-location-layer",
-                  "type": "circle",
-                  "source": "user-location",
-                  "paint": {
-                    "circle-color": "#1565C0",
-                    "circle-radius": 7,
-                    "circle-stroke-color": "#FFFFFF",
-                    "circle-stroke-width": 3
-                  }
-                }
-                """ : ""
-            return """
-            ,
-            {
-              "id": "user-location-accuracy-fill-layer",
-              "type": "fill",
-              "source": "user-location-accuracy",
-              "paint": {
-                "fill-color": "#1976D2",
-                "fill-opacity": 0.18
-              }
-            },
-            {
-              "id": "user-location-accuracy-stroke-layer",
-              "type": "line",
-              "source": "user-location-accuracy",
-              "paint": {
-                "line-color": "#0D47A1",
-                "line-opacity": 0.75,
-                "line-width": 2
-              }
-            }
-            \(preciseLayer)
-            """
-        } ?? ""
-        return """
-        {
-          "version": 8,
-          "name": "Georgia Transit local prototype",
-          "sources": {
-            "local-center-marker": {
-              "type": "geojson",
-              "data": {
-                "type": "Feature",
-                "geometry": { "type": "Point", "coordinates": [\(center.longitude), \(center.latitude)] }
-              }
-            },
-            "local-preview-line": {
-              "type": "geojson",
-              "data": {
-                "type": "Feature",
-                "geometry": {
-                  "type": "LineString",
-                  "coordinates": [
-                    [\(start.longitude), \(start.latitude)],
-                    [\(center.longitude), \(center.latitude)],
-                    [\(end.longitude), \(end.latitude)]
-                  ]
-                }
-              }
-            }\(userSources)
-          },
-          "layers": [
-            {
-              "id": "local-background",
-              "type": "background",
-              "paint": { "background-color": "#E7F1EB" }
-            },
-            {
-              "id": "local-preview-line-layer",
-              "type": "line",
-              "source": "local-preview-line",
-              "paint": { "line-color": "#2A9D8F", "line-width": 5, "line-opacity": 0.9 }
-            },
-            {
-              "id": "local-center-marker-layer",
-              "type": "circle",
-              "source": "local-center-marker",
-              "paint": {
-                "circle-color": "#E76F51",
-                "circle-radius": 8,
-                "circle-stroke-color": "#264653",
-                "circle-stroke-width": 2
-              }
-            }\(userLayers)
-          ]
-        }
-        """
     }
 
-    private static func accuracyRing(for location: UserLocation) -> [CLLocationCoordinate2D] {
-        let latitude = location.latitude * .pi / 180.0
-        let longitude = location.longitude * .pi / 180.0
-        let angularDistance = location.accuracy / 6_371_008.8
-        var ring = (0..<64).map { index in
-            let bearing = 2.0 * .pi * Double(index) / 64.0
+    private func userLocationFeatures(_ location: UserLocationFix?) -> [[String: Any]] {
+        guard let location, location.precision == .precise, isCoordinateValid(location.point) else { return [] }
+        return [feature(id: "user", coordinates: [location.point.longitude, location.point.latitude], properties: [:])]
+    }
+
+    private func userAccuracyFeatures(_ location: UserLocationFix?) -> [[String: Any]] {
+        guard
+            let location,
+            isCoordinateValid(location.point),
+            location.accuracyMeters.isFinite,
+            location.accuracyMeters >= 0
+        else { return [] }
+        let ring = accuracyRing(center: location.point, accuracyMeters: location.accuracyMeters)
+        guard ring.count >= Self.minimumPolygonPoints else { return [] }
+        return [[
+            "type": "Feature",
+            "properties": [:],
+            "geometry": ["type": "Polygon", "coordinates": [ring]],
+        ]]
+    }
+
+    private func feature(id: String, coordinates: [Double], properties: [String: Any]) -> [String: Any] {
+        [
+            "type": "Feature",
+            "id": id,
+            "properties": properties,
+            "geometry": ["type": "Point", "coordinates": coordinates],
+        ]
+    }
+
+    private func accuracyRing(center: GeoPoint, accuracyMeters: Double) -> [[Double]] {
+        let latitudeRadians = center.latitude * .pi / 180
+        let longitudeRadians = center.longitude * .pi / 180
+        let angularDistance = accuracyMeters / Self.earthRadiusMeters
+        var ring = (0..<Self.accuracySegments).map { index -> [Double] in
+            let bearing = 2 * .pi * Double(index) / Double(Self.accuracySegments)
             let destinationLatitude = asin(
-                sin(latitude) * cos(angularDistance) +
-                    cos(latitude) * sin(angularDistance) * cos(bearing)
+                sin(latitudeRadians) * cos(angularDistance) +
+                    cos(latitudeRadians) * sin(angularDistance) * cos(bearing)
             )
-            let destinationLongitude = longitude + atan2(
-                sin(bearing) * sin(angularDistance) * cos(latitude),
-                cos(angularDistance) - sin(latitude) * sin(destinationLatitude)
+            let destinationLongitude = longitudeRadians + atan2(
+                sin(bearing) * sin(angularDistance) * cos(latitudeRadians),
+                cos(angularDistance) - sin(latitudeRadians) * sin(destinationLatitude)
             )
-            let longitudeDegrees = destinationLongitude * 180.0 / .pi
-            return CLLocationCoordinate2D(
-                latitude: destinationLatitude * 180.0 / .pi,
-                longitude: ((longitudeDegrees + 540.0).truncatingRemainder(dividingBy: 360.0)) - 180.0
-            )
+            let latitude = destinationLatitude * 180 / .pi
+            let longitude = ((destinationLongitude * 180 / .pi + 540).truncatingRemainder(dividingBy: 360)) - 180
+            return [longitude, latitude]
         }
-        ring.append(ring[0])
+        if let first = ring.first { ring.append(first) }
         return ring
     }
+
+    private func isCoordinateValid(_ point: GeoPoint) -> Bool {
+        point.latitude.isFinite && point.longitude.isFinite &&
+            (-90...90).contains(point.latitude) && (-180...180).contains(point.longitude)
+    }
+
+    private func mapColor(_ color: Int64) -> String {
+        String(format: "#%06llX", color & 0xFFFFFF)
+    }
+
+    private func normalizedBearing(_ bearing: Double) -> Double {
+        (bearing.truncatingRemainder(dividingBy: 360) + 360).truncatingRemainder(dividingBy: 360)
+    }
+
+    private static let stopsSourceID = "gt-stops-source"
+    private static let vehiclesSourceID = "gt-vehicles-source"
+    private static let polylinesSourceID = "gt-polylines-source"
+    private static let userLocationSourceID = "gt-user-location-source"
+    private static let userAccuracySourceID = "gt-user-accuracy-source"
+    private static let stopsLayerID = "gt-stops-layer"
+    private static let vehiclesLayerID = "gt-vehicles-layer"
+    private static let polylinesLayerID = "gt-polylines-layer"
+    private static let userLocationLayerID = "gt-user-location-layer"
+    private static let userAccuracyFillLayerID = "gt-user-accuracy-fill-layer"
+    private static let userAccuracyStrokeLayerID = "gt-user-accuracy-stroke-layer"
+    private static let routeColorProperty = "routeColor"
+    private static let bearingProperty = "bearing"
+    private static let positionKindProperty = "positionKind"
+    private static let maximumStopMarkers = 1_000
+    private static let maximumVehicleMarkers = 2_000
+    private static let maximumPolylines = 256
+    private static let minimumPolygonPoints = 4
+    private static let minimumZoom = 0.0
+    private static let maximumZoom = 22.0
+    private static let accuracySegments = 64
+    private static let earthRadiusMeters = 6_371_008.8
 }
 
+/** The common overlay supplies localized textual state if the bundled style cannot load. */
 private final class LocalMapUnavailableView: UIView {
     override init(frame: CGRect) {
         super.init(frame: frame)
         backgroundColor = UIColor(red: 0.91, green: 0.95, blue: 0.92, alpha: 1)
-        isAccessibilityElement = true
-        accessibilityLabel = "Local map prototype unavailable."
+        isAccessibilityElement = false
     }
 
     required init?(coder: NSCoder) {
         nil
     }
-}
-
-private struct MapViewport: Equatable {
-    let latitude: Double
-    let longitude: Double
-    let zoom: Double
-    let contentLatitude: Double
-    let contentLongitude: Double
-}
-
-private struct UserLocation: Equatable {
-    let latitude: Double
-    let longitude: Double
-    let accuracy: Double
-    let isPrecise: Bool
-}
-
-private struct MapState: Equatable {
-    let viewport: MapViewport
-    let userLocation: UserLocation?
 }

@@ -2,6 +2,9 @@ package com.denis.georgiatransit.shared.presentation.map
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.denis.georgiatransit.shared.domain.model.CityId
+import com.denis.georgiatransit.shared.domain.model.GeoPoint
+import com.denis.georgiatransit.shared.domain.model.TransitCity
 import com.denis.georgiatransit.shared.domain.repository.TransitRepository
 import com.denis.georgiatransit.shared.domain.repository.TransitSession
 import com.denis.georgiatransit.shared.presentation.location.LocationCommandId
@@ -9,6 +12,7 @@ import com.denis.georgiatransit.shared.presentation.location.LocationPermissionS
 import com.denis.georgiatransit.shared.presentation.location.LocationPlatformCommand
 import com.denis.georgiatransit.shared.presentation.location.LocationPlatformEvent
 import com.denis.georgiatransit.shared.presentation.location.LocationSession
+import com.denis.georgiatransit.shared.presentation.location.UserLocationFix
 import kotlinx.coroutines.flow.combine
 import org.orbitmvi.orbit.Container
 import org.orbitmvi.orbit.ContainerHost
@@ -19,6 +23,11 @@ class MapViewModel(
     session: TransitSession,
     private val locationSession: LocationSession,
 ) : ViewModel(), ContainerHost<ViewState, SideEffect> {
+    private var lastCityId: CityId? = null
+    private var lastAcceptedFix: UserLocationFix? = null
+    private var cameraCommand: MapCameraCommand? = null
+    private var nextCameraRevision = 0L
+
     override val container: Container<ViewState, SideEffect> = viewModelScope.container(
         initialState = ViewState(),
         onCreate = {
@@ -28,13 +37,10 @@ class MapViewModel(
                 }.orEmpty()
                 ViewState(
                     cityName = city?.name.orEmpty(),
-                    viewport = city?.let {
-                        MapViewport(
-                            center = location.fix?.point ?: it.center,
-                            contentCenter = it.center,
-                            zoom = if (location.fix == null) it.defaultZoom else 15.0,
-                        )
-                    },
+                    renderState = city?.let { renderStateFor(it, location.fix) },
+                    // The BFF has no reviewed map-style/asset endpoint yet. This is an explicit
+                    // local fallback, not a remotely sourced or synthetic transit experience.
+                    contentState = MapContentState.LocalPreview,
                     selectedRouteNames = routeNames,
                     attribution = city?.attribution.orEmpty(),
                     location = location,
@@ -51,6 +57,34 @@ class MapViewModel(
             is Action.LocationEventReceived -> onLocationEvent(action.event)
         }
     }
+
+    private fun renderStateFor(
+        city: TransitCity,
+        fix: UserLocationFix?,
+    ): MapRenderState {
+        val isCityChange = lastCityId != null && lastCityId != city.id
+        if (lastCityId != city.id || cameraCommand == null) {
+            lastCityId = city.id
+            cameraCommand = nextCameraCommand(center = city.center, zoom = city.defaultZoom)
+            // A city change deliberately centers on that city. Record an unchanged existing fix
+            // only for comparison so it remains a marker instead of immediately overriding the
+            // city camera; a new/refreshed fix below still recenters as intended.
+            lastAcceptedFix = if (isCityChange) fix else null
+        }
+        if (fix == null) {
+            // Losing an old fix changes the marker only. It must never recenter a user-panned map.
+            lastAcceptedFix = null
+        } else if (fix != lastAcceptedFix) {
+            lastAcceptedFix = fix
+            cameraCommand = nextCameraCommand(center = fix.point, zoom = USER_LOCATION_ZOOM)
+        }
+        return MapRenderState(camera = checkNotNull(cameraCommand), userLocation = fix)
+    }
+
+    private fun nextCameraCommand(
+        center: GeoPoint,
+        zoom: Double,
+    ): MapCameraCommand = MapCameraCommand(center = center, zoom = zoom, revision = ++nextCameraRevision)
 
     private fun onMyLocationClicked() = intent {
         val command = when (val permission = state.location.permission) {
@@ -104,4 +138,8 @@ class MapViewModel(
     }
 
     private fun nextCommandId(): LocationCommandId = locationSession.nextCommandId()
+
+    private companion object {
+        const val USER_LOCATION_ZOOM = 15.0
+    }
 }

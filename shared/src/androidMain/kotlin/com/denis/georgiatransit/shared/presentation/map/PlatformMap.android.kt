@@ -9,6 +9,7 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import com.denis.georgiatransit.shared.domain.model.GeoPoint
 import com.denis.georgiatransit.shared.presentation.location.LocationPrecision
 import com.denis.georgiatransit.shared.presentation.location.UserLocationFix
 import com.denis.georgiatransit.shared.presentation.location.accuracyPolygon
@@ -18,6 +19,7 @@ import org.maplibre.android.geometry.LatLng
 import org.maplibre.android.maps.MapLibreMap
 import org.maplibre.android.maps.MapView
 import org.maplibre.android.maps.Style
+import org.maplibre.android.style.expressions.Expression
 import org.maplibre.android.style.layers.CircleLayer
 import org.maplibre.android.style.layers.FillLayer
 import org.maplibre.android.style.layers.LineLayer
@@ -38,12 +40,11 @@ import org.maplibre.geojson.Point
 import org.maplibre.geojson.Polygon
 
 /**
- * The MapLibre Android SDK is confined to this adapter. Connectivity is disabled for the local
- * prototype so neither its embedded style nor its synthetic GeoJSON can fall back to a network
- * source.
+ * MapLibre remains entirely inside this Android adapter. Connectivity is explicitly disabled:
+ * without an approved BFF asset contract the local fallback style must fail closed.
  */
 @Composable
-actual fun PlatformMap(viewport: MapViewport, userLocation: UserLocationFix?, modifier: Modifier) {
+actual fun PlatformMap(renderState: MapRenderState, modifier: Modifier) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
     val mapView = remember(context.applicationContext, lifecycleOwner) {
@@ -54,7 +55,7 @@ actual fun PlatformMap(viewport: MapViewport, userLocation: UserLocationFix?, mo
     val lifecycle = remember(mapView) { MapViewLifecycle(mapView) }
     val controller = remember(mapView) { LocalMapController(mapView) }
 
-    DisposableEffect(lifecycleOwner, lifecycle) {
+    DisposableEffect(lifecycleOwner, lifecycle, controller) {
         val observer = LifecycleEventObserver { _, event -> lifecycle.onEvent(event) }
         lifecycleOwner.lifecycle.addObserver(observer)
         lifecycle.syncTo(lifecycleOwner.lifecycle.currentState)
@@ -68,11 +69,11 @@ actual fun PlatformMap(viewport: MapViewport, userLocation: UserLocationFix?, mo
     AndroidView(
         factory = { mapView },
         modifier = modifier,
+        update = { controller.update(renderState) },
         onRelease = {
             lifecycle.destroy()
             controller.destroy()
         },
-        update = { controller.update(viewport, userLocation) },
     )
 }
 
@@ -143,9 +144,9 @@ private class MapViewLifecycle(private val mapView: MapView) {
 private class LocalMapController(mapView: MapView) {
     private var map: MapLibreMap? = null
     private var style: Style? = null
-    private var latestViewport: MapViewport? = null
-    private var latestUserLocation: UserLocationFix? = null
-    private var prototypeInstalled = false
+    private var latestState: MapRenderState? = null
+    private var layersInstalled = false
+    private var lastAppliedCameraRevision: Long? = null
     private var destroyed = false
 
     init {
@@ -155,49 +156,51 @@ private class LocalMapController(mapView: MapView) {
             mapLibreMap.setStyle(Style.Builder().fromJson(LOCAL_STYLE_JSON)) styleLoaded@{ loadedStyle ->
                 if (destroyed) return@styleLoaded
                 style = loadedStyle
-                latestViewport?.let { installPrototype(it, latestUserLocation) }
+                layersInstalled = false
+                lastAppliedCameraRevision = null
+                latestState?.let(::installAndRender)
             }
         }
     }
 
-    fun update(viewport: MapViewport, userLocation: UserLocationFix?) {
-        latestViewport = viewport
-        latestUserLocation = userLocation
-        if (style != null) installPrototype(viewport, userLocation)
+    fun update(renderState: MapRenderState) {
+        if (destroyed) return
+        latestState = renderState
+        if (style != null) installAndRender(renderState)
     }
 
     fun destroy() {
+        if (destroyed) return
         destroyed = true
         map = null
         style = null
-        latestViewport = null
-        latestUserLocation = null
-        prototypeInstalled = false
+        latestState = null
+        layersInstalled = false
+        lastAppliedCameraRevision = null
     }
 
-    private fun installPrototype(viewport: MapViewport, userLocation: UserLocationFix?) {
-        if (prototypeInstalled) {
-            applyViewport(viewport, userLocation)
-            return
-        }
+    private fun installAndRender(renderState: MapRenderState) {
         val loadedStyle = style ?: return
-        loadedStyle.addSource(GeoJsonSource(MARKER_SOURCE_ID, markerFeature(viewport)))
-        loadedStyle.addSource(GeoJsonSource(LINE_SOURCE_ID, lineFeature(viewport)))
-        loadedStyle.addSource(GeoJsonSource(USER_LOCATION_SOURCE_ID, userLocationFeature(userLocation)))
-        loadedStyle.addSource(GeoJsonSource(USER_ACCURACY_SOURCE_ID, userAccuracyFeature(userLocation)))
+        if (!layersInstalled) {
+            installSourcesAndLayers(loadedStyle)
+            layersInstalled = true
+        }
+        updateSources(loadedStyle, renderState)
+        applyCameraIfNeeded(renderState)
+    }
+
+    private fun installSourcesAndLayers(loadedStyle: Style) {
+        loadedStyle.addSource(GeoJsonSource(STOPS_SOURCE_ID, FeatureCollection.fromFeatures(emptyList())))
+        loadedStyle.addSource(GeoJsonSource(VEHICLES_SOURCE_ID, FeatureCollection.fromFeatures(emptyList())))
+        loadedStyle.addSource(GeoJsonSource(POLYLINES_SOURCE_ID, FeatureCollection.fromFeatures(emptyList())))
+        loadedStyle.addSource(GeoJsonSource(USER_LOCATION_SOURCE_ID, FeatureCollection.fromFeatures(emptyList())))
+        loadedStyle.addSource(GeoJsonSource(USER_ACCURACY_SOURCE_ID, FeatureCollection.fromFeatures(emptyList())))
+
         loadedStyle.addLayer(
-            LineLayer(LINE_LAYER_ID, LINE_SOURCE_ID).withProperties(
-                lineColor("#2A9D8F"),
+            LineLayer(POLYLINES_LAYER_ID, POLYLINES_SOURCE_ID).withProperties(
+                lineColor(Expression.get(ROUTE_COLOR_PROPERTY)),
                 lineOpacity(0.9f),
                 lineWidth(5f),
-            ),
-        )
-        loadedStyle.addLayer(
-            CircleLayer(MARKER_LAYER_ID, MARKER_SOURCE_ID).withProperties(
-                circleColor("#E76F51"),
-                circleRadius(8f),
-                circleStrokeColor("#264653"),
-                circleStrokeWidth(2f),
             ),
         )
         loadedStyle.addLayer(
@@ -214,6 +217,22 @@ private class LocalMapController(mapView: MapView) {
             ),
         )
         loadedStyle.addLayer(
+            CircleLayer(STOPS_LAYER_ID, STOPS_SOURCE_ID).withProperties(
+                circleColor("#2A9D8F"),
+                circleRadius(5f),
+                circleStrokeColor("#FFFFFF"),
+                circleStrokeWidth(2f),
+            ),
+        )
+        loadedStyle.addLayer(
+            CircleLayer(VEHICLES_LAYER_ID, VEHICLES_SOURCE_ID).withProperties(
+                circleColor(Expression.get(ROUTE_COLOR_PROPERTY)),
+                circleRadius(7f),
+                circleStrokeColor("#263238"),
+                circleStrokeWidth(2f),
+            ),
+        )
+        loadedStyle.addLayer(
             CircleLayer(USER_LOCATION_LAYER_ID, USER_LOCATION_SOURCE_ID).withProperties(
                 circleColor("#1565C0"),
                 circleRadius(7f),
@@ -221,76 +240,130 @@ private class LocalMapController(mapView: MapView) {
                 circleStrokeWidth(3f),
             ),
         )
-        prototypeInstalled = true
-        applyViewport(viewport, userLocation)
     }
 
-    private fun applyViewport(viewport: MapViewport, userLocation: UserLocationFix?) {
-        if (destroyed) return
-        val loadedStyle = style ?: return
-        val mapLibreMap = map ?: return
-        loadedStyle.getSourceAs<GeoJsonSource>(MARKER_SOURCE_ID)?.setGeoJson(markerFeature(viewport))
-        loadedStyle.getSourceAs<GeoJsonSource>(LINE_SOURCE_ID)?.setGeoJson(lineFeature(viewport))
-        loadedStyle.getSourceAs<GeoJsonSource>(USER_LOCATION_SOURCE_ID)?.setGeoJson(userLocationFeature(userLocation))
-        loadedStyle.getSourceAs<GeoJsonSource>(USER_ACCURACY_SOURCE_ID)?.setGeoJson(userAccuracyFeature(userLocation))
-        mapLibreMap.moveCamera(
+    /** Updates each stable, grouped source once per state; no native view is created per feature. */
+    private fun updateSources(loadedStyle: Style, renderState: MapRenderState) {
+        loadedStyle.getSourceAs<GeoJsonSource>(STOPS_SOURCE_ID)?.setGeoJson(stopFeatures(renderState.stops))
+        loadedStyle.getSourceAs<GeoJsonSource>(VEHICLES_SOURCE_ID)?.setGeoJson(vehicleFeatures(renderState.vehicles))
+        loadedStyle.getSourceAs<GeoJsonSource>(POLYLINES_SOURCE_ID)?.setGeoJson(polylineFeatures(renderState.polylines))
+        loadedStyle.getSourceAs<GeoJsonSource>(USER_LOCATION_SOURCE_ID)?.setGeoJson(userLocationFeatures(renderState.userLocation))
+        loadedStyle.getSourceAs<GeoJsonSource>(USER_ACCURACY_SOURCE_ID)?.setGeoJson(userAccuracyFeatures(renderState.userLocation))
+    }
+
+    private fun applyCameraIfNeeded(renderState: MapRenderState) {
+        if (lastAppliedCameraRevision == renderState.camera.revision) return
+        val command = renderState.camera
+        if (!command.center.isMapCoordinate() || !command.zoom.isFinite()) return
+        map?.moveCamera(
             CameraUpdateFactory.newLatLngZoom(
-                LatLng(viewport.center.latitude, viewport.center.longitude),
-                viewport.zoom,
+                LatLng(command.center.latitude, command.center.longitude),
+                command.zoom.coerceIn(MIN_ZOOM, MAX_ZOOM),
             ),
         )
+        lastAppliedCameraRevision = command.revision
     }
 }
 
-private fun userLocationFeature(location: UserLocationFix?): FeatureCollection = FeatureCollection.fromFeatures(
-    location?.takeIf { it.precision == LocationPrecision.Precise }?.let {
-        listOf(Feature.fromGeometry(Point.fromLngLat(it.point.longitude, it.point.latitude)))
+private fun stopFeatures(stops: List<MapStopMarker>): FeatureCollection = FeatureCollection.fromFeatures(
+    stops.asSequence()
+        .filter { it.id.value.isNotBlank() && it.position.isMapCoordinate() }
+        .sortedBy { it.id.value }
+        .take(MAX_STOP_MARKERS)
+        .map { marker ->
+            Feature.fromGeometry(marker.position.asMapPoint()).also { it.addStringProperty(FEATURE_ID_PROPERTY, marker.id.value) }
+        }
+        .toList(),
+)
+
+private fun vehicleFeatures(vehicles: List<MapVehicleMarker>): FeatureCollection = FeatureCollection.fromFeatures(
+    vehicles.asSequence()
+        .filter { it.id.value.isNotBlank() && it.routeId.value.isNotBlank() && it.position.isMapCoordinate() }
+        .sortedBy { it.id.value }
+        .take(MAX_VEHICLE_MARKERS)
+        .map { marker ->
+            Feature.fromGeometry(marker.position.asMapPoint()).also { feature ->
+                feature.addStringProperty(FEATURE_ID_PROPERTY, marker.id.value)
+                feature.addStringProperty(ROUTE_COLOR_PROPERTY, marker.routeColorArgb.asMapColor())
+                feature.addStringProperty(POSITION_KIND_PROPERTY, marker.positionKind.name)
+                marker.bearingDegrees?.takeIf(Double::isFinite)?.let { feature.addNumberProperty(BEARING_PROPERTY, it.normalizedBearing()) }
+            }
+        }
+        .toList(),
+)
+
+private fun polylineFeatures(polylines: List<MapPolyline>): FeatureCollection = FeatureCollection.fromFeatures(
+    polylines.asSequence()
+        .filter { it.routeId.value.isNotBlank() }
+        .sortedWith(compareBy<MapPolyline> { it.routeId.value }.thenBy { it.directionId?.value.orEmpty() })
+        .take(MAX_POLYLINES)
+        .mapNotNull { line ->
+            val points = line.points.filter(GeoPoint::isMapCoordinate)
+            points.takeIf(::isNonDegenerateLine)?.let { validPoints ->
+                Feature.fromGeometry(LineString.fromLngLats(validPoints.map(GeoPoint::asMapPoint))).also { feature ->
+                    feature.addStringProperty(FEATURE_ID_PROPERTY, line.routeId.value)
+                    feature.addStringProperty(ROUTE_COLOR_PROPERTY, line.routeColorArgb.asMapColor())
+                }
+            }
+        }
+        .toList(),
+)
+
+private fun userLocationFeatures(location: UserLocationFix?): FeatureCollection = FeatureCollection.fromFeatures(
+    location?.takeIf { it.precision == LocationPrecision.Precise && it.point.isMapCoordinate() }?.let {
+        listOf(Feature.fromGeometry(it.point.asMapPoint()))
     }.orEmpty(),
 )
 
-private fun userAccuracyFeature(location: UserLocationFix?): FeatureCollection = FeatureCollection.fromFeatures(
-    location?.let { fix ->
-        val ring = accuracyPolygon(fix).map { Point.fromLngLat(it.longitude, it.latitude) }
-        listOf(Feature.fromGeometry(Polygon.fromLngLats(listOf(ring))))
+private fun userAccuracyFeatures(location: UserLocationFix?): FeatureCollection = FeatureCollection.fromFeatures(
+    location?.takeIf { it.point.isMapCoordinate() && it.accuracyMeters.isFinite() && it.accuracyMeters >= 0.0 }?.let { fix ->
+        val ring = accuracyPolygon(fix).filter(GeoPoint::isMapCoordinate)
+        if (ring.size >= MIN_POLYGON_POINTS) listOf(Feature.fromGeometry(Polygon.fromLngLats(listOf(ring.map(GeoPoint::asMapPoint))))) else emptyList()
     }.orEmpty(),
 )
 
-private fun markerFeature(viewport: MapViewport): Feature = Feature.fromGeometry(
-    Point.fromLngLat(viewport.contentCenter.longitude, viewport.contentCenter.latitude),
-)
+private fun GeoPoint.isMapCoordinate(): Boolean = latitude.isFinite() && longitude.isFinite() &&
+    latitude in -90.0..90.0 && longitude in -180.0..180.0
 
-private fun lineFeature(viewport: MapViewport): Feature {
-    val center = viewport.contentCenter
-    return Feature.fromGeometry(
-        LineString.fromLngLats(
-            listOf(
-                Point.fromLngLat(center.longitude - 0.015, center.latitude - 0.010),
-                Point.fromLngLat(center.longitude, center.latitude),
-                Point.fromLngLat(center.longitude + 0.020, center.latitude + 0.008),
-            ),
-        ),
-    )
-}
+private fun GeoPoint.asMapPoint(): Point = Point.fromLngLat(longitude, latitude)
 
-private const val MARKER_SOURCE_ID = "local-center-marker"
-private const val LINE_SOURCE_ID = "local-preview-line"
-private const val MARKER_LAYER_ID = "local-center-marker-layer"
-private const val LINE_LAYER_ID = "local-preview-line-layer"
-private const val USER_LOCATION_SOURCE_ID = "user-location"
-private const val USER_ACCURACY_SOURCE_ID = "user-location-accuracy"
-private const val USER_LOCATION_LAYER_ID = "user-location-layer"
-private const val USER_ACCURACY_FILL_LAYER_ID = "user-location-accuracy-fill-layer"
-private const val USER_ACCURACY_STROKE_LAYER_ID = "user-location-accuracy-stroke-layer"
+private fun isNonDegenerateLine(points: List<GeoPoint>): Boolean = points.size >= 2 && points.zipWithNext().any { (first, second) -> first != second }
+
+private fun Long.asMapColor(): String = "#%06X".format(this and 0xFFFFFF)
+
+private fun Double.normalizedBearing(): Double = ((this % 360.0) + 360.0) % 360.0
+
+private const val STOPS_SOURCE_ID = "gt-stops-source"
+private const val VEHICLES_SOURCE_ID = "gt-vehicles-source"
+private const val POLYLINES_SOURCE_ID = "gt-polylines-source"
+private const val USER_LOCATION_SOURCE_ID = "gt-user-location-source"
+private const val USER_ACCURACY_SOURCE_ID = "gt-user-accuracy-source"
+private const val STOPS_LAYER_ID = "gt-stops-layer"
+private const val VEHICLES_LAYER_ID = "gt-vehicles-layer"
+private const val POLYLINES_LAYER_ID = "gt-polylines-layer"
+private const val USER_LOCATION_LAYER_ID = "gt-user-location-layer"
+private const val USER_ACCURACY_FILL_LAYER_ID = "gt-user-accuracy-fill-layer"
+private const val USER_ACCURACY_STROKE_LAYER_ID = "gt-user-accuracy-stroke-layer"
+private const val FEATURE_ID_PROPERTY = "featureId"
+private const val ROUTE_COLOR_PROPERTY = "routeColor"
+private const val BEARING_PROPERTY = "bearing"
+private const val POSITION_KIND_PROPERTY = "positionKind"
+private const val MAX_STOP_MARKERS = 1_000
+private const val MAX_VEHICLE_MARKERS = 2_000
+private const val MAX_POLYLINES = 256
+private const val MIN_POLYGON_POINTS = 4
+private const val MIN_ZOOM = 0.0
+private const val MAX_ZOOM = 22.0
 
 /** A deliberately asset-free, local-only MapLibre style. */
 private const val LOCAL_STYLE_JSON = """
     {
       "version": 8,
-      "name": "Georgia Transit local prototype",
+      "name": "Georgia Transit local fallback",
       "sources": {},
       "layers": [
         {
-          "id": "local-background",
+          "id": "gt-local-background",
           "type": "background",
           "paint": { "background-color": "#E7F1EB" }
         }
