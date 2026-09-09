@@ -208,7 +208,7 @@ class MapNearbyViewModelTest {
         val repository = VehicleTapRepository(route)
         val session = RuntimeTransitSession().also {
             it.selectCity(repository.city)
-            it.selectRoutes(setOf(route.id))
+            it.selectRoutes(repository.city.id, setOf(route.id))
         }
         val clock = object : VehicleRealtimeClock {
             override fun wallNow(): Instant = VehicleTapRepository.Now

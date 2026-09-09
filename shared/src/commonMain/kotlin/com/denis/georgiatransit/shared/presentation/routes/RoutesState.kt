@@ -3,6 +3,7 @@ package com.denis.georgiatransit.shared.presentation.routes
 import androidx.compose.runtime.Immutable
 import com.denis.georgiatransit.shared.domain.model.CityId
 import com.denis.georgiatransit.shared.domain.model.RouteId
+import com.denis.georgiatransit.shared.domain.model.RouteSelectionPolicy
 import com.denis.georgiatransit.shared.domain.model.TransitMode
 import com.denis.georgiatransit.shared.domain.repository.TransitFailure
 import com.denis.georgiatransit.shared.domain.repository.TransitFreshness
@@ -16,7 +17,14 @@ data class ViewState(
     val cityId: CityId? = null,
     val visibleRoutes: List<RouteItemUiModel> = routes,
     val searchQuery: String = "",
-)
+    val isConfirming: Boolean = false,
+) {
+    val isSelectionLimitReached: Boolean
+        get() = selectedIds.size >= RouteSelectionPolicy.MaximumSelectedRoutes
+
+    val canConfirm: Boolean
+        get() = !isConfirming && cityId != null && catalog is CatalogState.Available
+}
 
 /** Transport freshness stays explicit rather than being inferred from a non-empty route list. */
 @Immutable
@@ -48,12 +56,17 @@ sealed interface Action {
     data class SearchChanged(val query: String) : Action
     data class LocaleChanged(val languageTag: String) : Action
     data object RetryClicked : Action
-    data object BackClicked : Action
+    /** Cancels the entry-local draft without changing [TransitSession]'s committed selection. */
+    data object CancelClicked : Action
     data object ConfirmClicked : Action
 }
 
 sealed interface SideEffect
 
 sealed interface NavigationEffect : SideEffect {
-    data object BackToMap : NavigationEffect
+    /** Emitted only after the full replacement selection is committed to [TransitSession]. */
+    data object Confirmed : NavigationEffect
+
+    /** Explicitly discards the entry-local draft. */
+    data object Dismissed : NavigationEffect
 }

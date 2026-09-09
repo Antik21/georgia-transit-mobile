@@ -54,7 +54,9 @@ class RoutesResourceContractTest {
             AutomationId.RoutesError,
             AutomationId.RoutesRetry,
             AutomationId.RoutesOption,
-            AutomationId.RoutesBack,
+            AutomationId.RoutesCancel,
+            AutomationId.RoutesSelectionCount,
+            AutomationId.RoutesSelectionWarning,
             AutomationId.RoutesConfirm,
         )
 
@@ -68,12 +70,23 @@ class RoutesResourceContractTest {
             "selectable(",
             "role = Role.Checkbox",
             "semantics(mergeDescendants = true)",
-            "contentDescription = description",
+            "contentDescription = accessibilityDescription",
             "stateDescription = selectionState",
-            "Checkbox(checked = selected, onCheckedChange = null, modifier = Modifier.clearAndSetSemantics {})",
+            "Checkbox(",
+            "enabled = isToggleEnabled",
         )
         val row = screen.functionBody("private fun RouteRow")
         assertFalse(row.contains("route.id"), "Rows expose localized public labels, never opaque route identifiers.")
+        assertTrue(row.contains("routes_row_limit_reached"))
+        assertCodePath(
+            row,
+            "val isToggleEnabled = selected || !selectionLimitReached",
+            "selectable(",
+            "enabled = isToggleEnabled",
+        )
+        assertTrue(screen.contains("RouteSelectionPolicy.MaximumSelectedRoutes"))
+        assertTrue(screen.contains("testTag(AutomationId.RoutesSelectionCount)"))
+        assertTrue(screen.contains("testTag(AutomationId.RoutesSelectionWarning)"))
     }
 
     @Test
@@ -117,18 +130,37 @@ class RoutesResourceContractTest {
     }
 
     @Test
-    fun routeMaestroSelectorsRemainLocaleIndependentAndOfflineReopenHarnessIsPreserved() {
+    fun routeMaestroSelectorsRemainLocaleIndependentAndUseTheCancelContract() {
         val root = projectRoot()
         val shell = root.resolve("ui-tests/maestro/flows/shell-smoke.yaml").readText()
         val offlineReopen = root.resolve("ui-tests/maestro/flows/offline-route-cache-reopen.yaml").readText()
+        val startupPersistence = root.resolve("ui-tests/maestro/flows/startup-persistence-smoke.yaml").readText()
+        val vehicleReenter = root.resolve("ui-tests/maestro/flows/vehicle-realtime-enter-leave.yaml").readText()
+        val routeSelection = root.resolve("ui-tests/maestro/flows/route-selection-smoke.yaml").readText()
+        val routeSelectionHarness = root.resolve("ui-tests/maestro/run-route-selection-smoke.sh").readText()
 
-        listOf(shell, offlineReopen).forEach { flow ->
+        listOf(shell, offlineReopen, startupPersistence, vehicleReenter, routeSelection).forEach { flow ->
             assertFalse(flow.contains("text:"), "Maestro selectors must not use localized text.")
             assertFalse(flow.contains("point:"), "Maestro selectors must not use raw coordinates.")
             assertTrue(flow.contains("id: ${AutomationId.RoutesScreen}"))
         }
         assertTrue(shell.contains("tapOn:\n    id: ${AutomationId.RoutesOption}\n    index: 0"))
         assertTrue(shell.contains("tapOn:\n    id: ${AutomationId.RoutesConfirm}"))
+        assertTrue(shell.contains("id: ${AutomationId.RoutesSelectionCount}"))
+        assertTrue(shell.contains("id: ${AutomationId.RoutesCancel}"))
+        assertFalse(shell.contains("routes.back"))
+        assertFalse(startupPersistence.contains("routes.back"))
+        assertFalse(vehicleReenter.contains("routes.back"))
+        assertTrue(startupPersistence.contains("id: ${AutomationId.RoutesCancel}"))
+        assertTrue(vehicleReenter.contains("id: ${AutomationId.RoutesCancel}"))
+        assertTrue(routeSelection.contains("id: ${AutomationId.RoutesSelectionCount}"))
+        assertTrue(routeSelection.contains("id: ${AutomationId.RoutesSelectionWarning}"))
+        assertTrue(routeSelection.contains("id: ${AutomationId.RoutesCancel}"))
+        assertFalse(routeSelection.contains("route:"), "Opaque route IDs cannot become Maestro selectors.")
+        assertTrue(routeSelectionHarness.contains("test-only-route-selection-fixture"))
+        assertTrue(routeSelectionHarness.contains("emulator-*"))
+        assertTrue(routeSelectionHarness.contains("simctl list devices booted"))
+        assertTrue(routeSelectionHarness.contains("maestro --device \"\$target\" test \"\$flow_path\""))
         assertTrue(offlineReopen.contains("clearState: false"))
         assertTrue(offlineReopen.contains("id: ${AutomationId.RoutesOption}"))
         assertTrue(offlineReopen.contains("assertNotVisible:\n    id: ${AutomationId.RoutesError}"))
@@ -263,6 +295,10 @@ class RoutesResourceContractTest {
         val DateTimeConversions = "HIklMSLNpzZsQBbhAaCYyjmdeRTrDFc".toSet()
         val NoArgumentConversions = setOf('%', 'n')
         val RouteResourceKeys = setOf(
+            "routes_cancel_action",
+            "routes_confirm_action",
+            "routes_selection_count",
+            "routes_selection_limit_warning",
             "routes_loading",
             "routes_empty",
             "routes_empty_search",
@@ -282,6 +318,7 @@ class RoutesResourceContractTest {
             "routes_row_description_with_direction",
             "routes_row_selected",
             "routes_row_unselected",
+            "routes_row_limit_reached",
         )
     }
 }

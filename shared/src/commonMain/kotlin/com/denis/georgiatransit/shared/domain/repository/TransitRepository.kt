@@ -6,6 +6,7 @@ import com.denis.georgiatransit.shared.domain.model.DirectionId
 import com.denis.georgiatransit.shared.domain.model.GeoPoint
 import com.denis.georgiatransit.shared.domain.model.JourneyPage
 import com.denis.georgiatransit.shared.domain.model.RouteId
+import com.denis.georgiatransit.shared.domain.model.RouteSelectionPolicy
 import com.denis.georgiatransit.shared.domain.model.StopId
 import com.denis.georgiatransit.shared.domain.model.TransitCity
 import com.denis.georgiatransit.shared.domain.model.TransitLocale
@@ -139,7 +140,19 @@ interface TransitSession {
     val selectedRouteIds: StateFlow<Set<RouteId>>
 
     fun selectCity(city: TransitCity)
-    fun selectRoutes(routeIds: Set<RouteId>)
+
+    /**
+     * Commits one replacement selection for the active city. Callers must pass the active city
+     * explicitly; the session rejects a stale/cross-city mutation and unbounded identifiers.
+     */
+    fun selectRoutes(cityId: CityId, routeIds: Set<RouteId>): Boolean
+
+    /** Restores a previously validated city-scoped snapshot before a map entry is created. */
+    fun restoreCitySelection(city: TransitCity, routeIds: Set<RouteId>) {
+        selectCity(city)
+        selectRoutes(city.id, RouteSelectionPolicy.sanitized(routeIds))
+    }
+
     /** Clears all city-dependent session state when bootstrap validation fails. */
     fun clearSelectedCity()
 }

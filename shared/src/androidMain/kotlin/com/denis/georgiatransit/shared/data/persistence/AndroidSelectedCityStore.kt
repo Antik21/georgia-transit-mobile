@@ -4,7 +4,7 @@ import android.content.Context
 import com.denis.georgiatransit.shared.domain.model.TransitCity
 import com.denis.georgiatransit.shared.domain.repository.CachedCitySnapshot
 import com.denis.georgiatransit.shared.domain.repository.SelectedCityStore
-import kotlinx.serialization.decodeFromString
+import com.denis.georgiatransit.shared.domain.repository.decodeCachedCitySnapshot
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 
@@ -16,18 +16,19 @@ class AndroidSelectedCityStore(context: Context) : SelectedCityStore {
 
     override fun read(): CachedCitySnapshot? {
         val encoded = preferences.getString(SelectedCityKey, null) ?: return null
-        return runCatching { json.decodeFromString<CachedCitySnapshot>(encoded) }
-            .getOrElse {
-                clear()
-                null
-            }
+        return decodeCachedCitySnapshot(encoded, json) ?: run {
+            clear()
+            null
+        }
     }
 
-    override fun save(city: TransitCity) {
+    override fun save(snapshot: CachedCitySnapshot) {
         preferences.edit()
-            .putString(SelectedCityKey, json.encodeToString(CachedCitySnapshot(city = city)))
+            .putString(SelectedCityKey, json.encodeToString(snapshot))
             .apply()
     }
+
+    override fun save(city: TransitCity) = save(CachedCitySnapshot(city = city))
 
     override fun clear() {
         preferences.edit().remove(SelectedCityKey).apply()

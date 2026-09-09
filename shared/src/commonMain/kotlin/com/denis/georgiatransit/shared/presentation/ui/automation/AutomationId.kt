@@ -69,6 +69,8 @@ object AutomationId {
     const val RoutesOffline = "routes.offline"
     const val RoutesUnavailable = "routes.unavailable"
     const val RoutesRetry = "routes.retry"
-    const val RoutesBack = "routes.back"
+    const val RoutesCancel = "routes.cancel"
+    const val RoutesSelectionCount = "routes.selection-count"
+    const val RoutesSelectionWarning = "routes.selection-warning"
     const val RoutesConfirm = "routes.confirm"
 }

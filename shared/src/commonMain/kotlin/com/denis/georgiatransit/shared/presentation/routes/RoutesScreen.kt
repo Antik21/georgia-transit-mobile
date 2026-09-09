@@ -16,6 +16,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -38,6 +39,7 @@ import androidx.compose.ui.text.intl.Locale
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.denis.georgiatransit.shared.domain.model.RouteId
+import com.denis.georgiatransit.shared.domain.model.RouteSelectionPolicy
 import com.denis.georgiatransit.shared.domain.model.TransitMode
 import com.denis.georgiatransit.shared.presentation.ui.contrastSafeRouteTextColor
 import com.denis.georgiatransit.shared.presentation.ui.automation.AutomationId
@@ -48,7 +50,7 @@ import com.denis.georgiatransit.shared.presentation.ui.theme.GeorgiaTransitTheme
 import com.denis.georgiatransit.shared.presentation.ui.theme.TransitShapes
 import com.denis.georgiatransit.shared.presentation.ui.theme.TransitSpacing
 import georgiatransit.shared.generated.resources.Res
-import georgiatransit.shared.generated.resources.routes_back_action
+import georgiatransit.shared.generated.resources.routes_cancel_action
 import georgiatransit.shared.generated.resources.routes_confirm_action
 import georgiatransit.shared.generated.resources.routes_direction
 import georgiatransit.shared.generated.resources.routes_empty
@@ -64,11 +66,14 @@ import georgiatransit.shared.generated.resources.routes_offline_unavailable
 import georgiatransit.shared.generated.resources.routes_retry
 import georgiatransit.shared.generated.resources.routes_row_description
 import georgiatransit.shared.generated.resources.routes_row_description_with_direction
+import georgiatransit.shared.generated.resources.routes_row_limit_reached
 import georgiatransit.shared.generated.resources.routes_row_selected
 import georgiatransit.shared.generated.resources.routes_row_unselected
 import georgiatransit.shared.generated.resources.routes_search_label
 import georgiatransit.shared.generated.resources.routes_search_placeholder
 import georgiatransit.shared.generated.resources.routes_subtitle
+import georgiatransit.shared.generated.resources.routes_selection_count
+import georgiatransit.shared.generated.resources.routes_selection_limit_warning
 import georgiatransit.shared.generated.resources.routes_title
 import georgiatransit.shared.generated.resources.routes_unavailable
 import org.jetbrains.compose.resources.stringResource
@@ -97,14 +102,39 @@ private fun Content(state: ViewState, onAction: (Action) -> Unit) {
         verticalArrangement = Arrangement.spacedBy(TransitSpacing.Medium),
     ) {
         TextButton(
-            onClick = { onAction(Action.BackClicked) },
-            modifier = Modifier.testTag(AutomationId.RoutesBack),
+            onClick = { onAction(Action.CancelClicked) },
+            modifier = Modifier.testTag(AutomationId.RoutesCancel),
         ) {
-            Text(stringResource(Res.string.routes_back_action))
+            Text(stringResource(Res.string.routes_cancel_action))
         }
         Text(stringResource(Res.string.routes_title), style = MaterialTheme.typography.headlineSmall)
         Text(state.cityName, color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.titleMedium)
         Text(stringResource(Res.string.routes_subtitle), color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(
+            text = stringResource(
+                Res.string.routes_selection_count,
+                state.selectedIds.size,
+                RouteSelectionPolicy.MaximumSelectedRoutes,
+            ),
+            modifier = Modifier.testTag(AutomationId.RoutesSelectionCount),
+            style = MaterialTheme.typography.labelLarge,
+        )
+        if (state.isSelectionLimitReached) {
+            Card(
+                modifier = Modifier.fillMaxWidth().testTag(AutomationId.RoutesSelectionWarning),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
+            ) {
+                Text(
+                    text = stringResource(
+                        Res.string.routes_selection_limit_warning,
+                        RouteSelectionPolicy.MaximumSelectedRoutes,
+                    ),
+                    modifier = Modifier.padding(TransitSpacing.Medium),
+                    color = MaterialTheme.colorScheme.onErrorContainer,
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+            }
+        }
 
         when (val catalog = state.catalog) {
             CatalogState.Loading -> LoadingState(
@@ -151,7 +181,7 @@ private fun Content(state: ViewState, onAction: (Action) -> Unit) {
 
         Button(
             onClick = { onAction(Action.ConfirmClicked) },
-            enabled = state.catalog is CatalogState.Available,
+            enabled = state.canConfirm,
             modifier = Modifier.fillMaxWidth().testTag(AutomationId.RoutesConfirm),
         ) { Text(stringResource(Res.string.routes_confirm_action)) }
     }
@@ -204,6 +234,7 @@ private fun RouteList(
                     RouteRow(
                         route = route,
                         selected = route.id in state.selectedIds,
+                        selectionLimitReached = state.isSelectionLimitReached,
                         onClick = { onAction(Action.RouteToggled(route.id)) },
                     )
                 }
@@ -213,7 +244,13 @@ private fun RouteList(
 }
 
 @Composable
-private fun RouteRow(route: RouteItemUiModel, selected: Boolean, onClick: () -> Unit) {
+private fun RouteRow(
+    route: RouteItemUiModel,
+    selected: Boolean,
+    selectionLimitReached: Boolean,
+    onClick: () -> Unit,
+) {
+    val isToggleEnabled = selected || !selectionLimitReached
     val mode = route.mode.displayName()
     val selectionState = stringResource(
         if (selected) Res.string.routes_row_selected else Res.string.routes_row_unselected,
@@ -227,6 +264,11 @@ private fun RouteRow(route: RouteItemUiModel, selected: Boolean, onClick: () -> 
             mode,
         )
     } ?: stringResource(Res.string.routes_row_description, route.shortName, route.name, mode)
+    val accessibilityDescription = if (isToggleEnabled) {
+        description
+    } else {
+        "$description. ${stringResource(Res.string.routes_row_limit_reached)}"
+    }
     Card(modifier = Modifier.fillMaxWidth()) {
         Row(
             modifier = Modifier
@@ -234,11 +276,12 @@ private fun RouteRow(route: RouteItemUiModel, selected: Boolean, onClick: () -> 
                 .testTag(AutomationId.RoutesOption)
                 .selectable(
                     selected = selected,
+                    enabled = isToggleEnabled,
                     role = Role.Checkbox,
                     onClick = onClick,
                 )
                 .semantics(mergeDescendants = true) {
-                    contentDescription = description
+                    contentDescription = accessibilityDescription
                     stateDescription = selectionState
                 }
                 .padding(TransitSpacing.Medium),
@@ -269,7 +312,12 @@ private fun RouteRow(route: RouteItemUiModel, selected: Boolean, onClick: () -> 
                 Text(mode, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             // The row owns the one checkable semantics target; this is visual state only.
-            Checkbox(checked = selected, onCheckedChange = null, modifier = Modifier.clearAndSetSemantics {})
+            Checkbox(
+                checked = selected,
+                onCheckedChange = null,
+                enabled = isToggleEnabled,
+                modifier = Modifier.clearAndSetSemantics {},
+            )
         }
     }
 }

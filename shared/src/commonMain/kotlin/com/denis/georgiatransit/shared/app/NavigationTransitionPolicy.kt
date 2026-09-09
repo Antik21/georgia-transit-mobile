@@ -52,6 +52,7 @@ object NavigationTransitionPolicy {
                 else listOf(Destination.Map, Destination.Routes)
 
             NavigationEvent.RoutesConfirmed,
+            NavigationEvent.RoutesDismissed,
             NavigationEvent.Back,
             -> when (safeStack) {
                 listOf(Destination.Map, Destination.Routes) -> listOf(Destination.Map)
@@ -68,6 +69,7 @@ sealed interface NavigationEvent {
     data object CityConfirmed : NavigationEvent
     data object OpenRoutes : NavigationEvent
     data object RoutesConfirmed : NavigationEvent
+    data object RoutesDismissed : NavigationEvent
     data object ChangeCity : NavigationEvent
     data object Back : NavigationEvent
 }

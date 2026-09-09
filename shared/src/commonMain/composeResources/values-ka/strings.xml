@@ -110,8 +110,10 @@
     <string name="map_attribution_title">მონაცემთა წყაროები და ატრიბუცია</string>
     <string name="routes_title">მარშრუტები</string>
     <string name="routes_subtitle">აირჩიეთ რამდენიმე მარშრუტი რუკაზე ერთად საჩვენებლად.</string>
-    <string name="routes_back_action">უკან</string>
+    <string name="routes_cancel_action">გაუქმება</string>
     <string name="routes_confirm_action">რუკაზე ჩვენება</string>
+    <string name="routes_selection_count">არჩეულია %1$d %2$d-დან</string>
+    <string name="routes_selection_limit_warning">ერთდროულად შეგიძლიათ აჩვენოთ მაქსიმუმ %1$d მარშრუტი. სხვა მარშრუტის ასარჩევად მოხსენით ერთ-ერთი.</string>
     <string name="routes_empty">ამ ქალაქისთვის მარშრუტების კატალოგი ჯერ მიუწვდომელია.</string>
     <string name="routes_loading">მარშრუტების კატალოგი იტვირთება…</string>
     <string name="routes_error">მარშრუტების კატალოგი მიუწვდომელია.</string>
@@ -131,5 +133,6 @@
     <string name="routes_row_description_with_direction">%1$s, %2$s, %3$s, %4$s</string>
     <string name="routes_row_selected">არჩეულია</string>
     <string name="routes_row_unselected">არ არის არჩეული</string>
+    <string name="routes_row_limit_reached">არჩევის ლიმიტი მიღწეულია</string>
     <string name="loading">ტრანსპორტის მონაცემები იტვირთება…</string>
 </resources>
