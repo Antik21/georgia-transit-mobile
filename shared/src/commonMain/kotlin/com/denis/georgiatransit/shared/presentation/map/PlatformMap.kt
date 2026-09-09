@@ -71,6 +71,8 @@ data class MapStopMarker(
     val position: GeoPoint,
     val accessibilityLabel: String = "",
     val isSelected: Boolean = false,
+    /** Computed entirely in common presentation from nearby stop route IDs and committed selection. */
+    val routeHighlight: StopRouteHighlightUi = StopRouteHighlightUi(),
 ) {
     /** iOS-safe bridge key; [id] remains the authoritative typed identifier in common code. */
     val stableId: String get() = id.value
@@ -223,15 +225,17 @@ internal fun clusterStops(markers: List<MapStopMarker>, zoom: Double): Clustered
         else -> DEFAULT_CELL_PIXELS
     }
     val worldPixels = TILE_SIZE * 2.0.pow(zoomBucket)
-    val selected = valid.filter(MapStopMarker::isSelected)
+    // Selected sheets always win hit/visual priority. Route-highlighted stops remain individually
+    // tappable too, so a selected route never disappears into an ordinary nearby-stop cluster.
+    val prioritized = valid.filter { marker -> marker.isSelected || marker.routeHighlight.isHighlighted }
     val cells = linkedMapOf<GridCell, MutableList<MapStopMarker>>()
-    valid.asSequence().filterNot(MapStopMarker::isSelected).forEach { marker ->
+    valid.asSequence().filterNot { marker -> marker.isSelected || marker.routeHighlight.isHighlighted }.forEach { marker ->
         val point = marker.position.toProjectedPoint(worldPixels)
         val cell = GridCell(floor(point.first / cellPixels).toLong(), floor(point.second / cellPixels).toLong())
         cells.getOrPut(cell, ::mutableListOf).add(marker)
     }
 
-    val individuals = selected.toMutableList()
+    val individuals = prioritized.toMutableList()
     val clusters = mutableListOf<MapStopCluster>()
     cells.entries.sortedWith(compareBy<Map.Entry<GridCell, MutableList<MapStopMarker>>> { it.key.x }.thenBy { it.key.y })
         .forEach { (cell, members) ->

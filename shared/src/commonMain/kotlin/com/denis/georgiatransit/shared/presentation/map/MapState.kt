@@ -9,6 +9,7 @@ import com.denis.georgiatransit.shared.domain.model.WalkingEstimateSource
 import com.denis.georgiatransit.shared.presentation.location.LocationPlatformCommand
 import com.denis.georgiatransit.shared.presentation.location.LocationPlatformEvent
 import com.denis.georgiatransit.shared.presentation.location.LocationState
+import com.denis.georgiatransit.shared.presentation.ui.RouteColorAvailability
 
 /**
  * The map's product-data state. It is separate from location permission state so a map remains
@@ -77,6 +78,8 @@ data class VehicleRouteAccessibilityUi(
     val routeLabel: String,
     val vehicleCount: Int,
     val layerState: VehicleLayerState,
+    val backgroundArgb: Long = 0xFF3F3F46L,
+    val textArgb: Long = 0xFFFFFFFFL,
 )
 
 @Immutable
@@ -91,6 +94,40 @@ data class NearbyStopUi(
     val name: String,
     val isSelected: Boolean,
     val sourceRevision: Long = 0L,
+    val routeHighlight: StopRouteHighlightUi = StopRouteHighlightUi(),
+)
+
+/** Common marker metadata; adapters receive values only and never infer route membership. */
+@Immutable
+data class StopRouteHighlightUi(
+    val matchingRouteIds: List<RouteId> = emptyList(),
+    val matchingRouteLabels: List<String> = emptyList(),
+    val style: StopRouteHighlightStyle = StopRouteHighlightStyle.None,
+    val backgroundArgb: Long = DefaultStopBackgroundArgb,
+    val textArgb: Long = DefaultStopTextArgb,
+) {
+    val matchingRouteCount: Int get() = matchingRouteIds.size
+    val isHighlighted: Boolean get() = style != StopRouteHighlightStyle.None
+    /** Read directly by native adapters; the selected-stop layer remains a higher priority. */
+    val markerRadius: Double get() = if (isHighlighted) HighlightedStopRadius else DefaultStopRadius
+    val markerStrokeWidth: Double get() = if (isHighlighted) HighlightedStopStrokeWidth else DefaultStopStrokeWidth
+}
+
+enum class StopRouteHighlightStyle {
+    None,
+    SingleRoute,
+    MultipleRoutes,
+}
+
+@Immutable
+data class StopRouteBadgeUi(
+    val routeId: RouteId,
+    val routeLabel: String,
+    val backgroundArgb: Long,
+    val textArgb: Long,
+    val colorAvailability: RouteColorAvailability,
+    /** Only committed Map selection gets this marker; draft changes stay in Routes. */
+    val isSelected: Boolean,
 )
 
 /** A selected-stop snapshot that is safe to render without exposing opaque provider identifiers. */
@@ -99,6 +136,9 @@ data class StopArrivalsSheetUi(
     val stopId: StopId,
     val stopName: String,
     val stopCode: String? = null,
+    /** Typed, catalogue-ordered badges for every known route passing the selected stop. */
+    val passingRoutes: List<StopRouteBadgeUi> = emptyList(),
+    /** Kept for existing textual consumers; it mirrors [passingRoutes] when this VM builds state. */
     val passingRouteShortNames: List<String> = emptyList(),
     /** True when the stop or page references routes that the common route catalogue cannot name. */
     val hasUnavailableRouteDetails: Boolean = false,
@@ -144,6 +184,9 @@ data class StopArrivalRowUi(
     val headsign: String,
     val time: StopArrivalTimeUi,
     val source: ArrivalSourceUi,
+    val routeId: RouteId? = null,
+    /** Uses the same projected style as an active line, vehicle badge, and sheet header badge. */
+    val routeBadge: StopRouteBadgeUi? = null,
 )
 
 @Immutable
@@ -156,6 +199,14 @@ sealed interface StopArrivalTimeUi {
 /** Explicit presentation labels; [Approximate] is never rendered as an official source. */
 @Immutable
 enum class ArrivalSourceUi { OfficialRealtime, AggregatorRealtime, Schedule, Approximate }
+
+const val DefaultStopBackgroundArgb = 0xFF2A9D8FL
+const val DefaultStopTextArgb = 0xFFFFFFFFL
+const val MultiRouteStopBackgroundArgb = 0xFF455A64L
+const val DefaultStopRadius = 5.0
+const val HighlightedStopRadius = 7.0
+const val DefaultStopStrokeWidth = 2.0
+const val HighlightedStopStrokeWidth = 3.0
 
 /** Initial loading is intentionally distinct from all honest terminal/content states. */
 @Immutable

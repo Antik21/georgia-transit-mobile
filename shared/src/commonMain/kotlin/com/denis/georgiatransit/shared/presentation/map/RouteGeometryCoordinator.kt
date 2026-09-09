@@ -5,12 +5,15 @@ import com.denis.georgiatransit.shared.domain.model.CityId
 import com.denis.georgiatransit.shared.domain.model.DirectionId
 import com.denis.georgiatransit.shared.domain.model.GeoPoint
 import com.denis.georgiatransit.shared.domain.model.RouteId
-import com.denis.georgiatransit.shared.domain.model.RouteSelectionPolicy
 import com.denis.georgiatransit.shared.domain.model.TransitRoute
 import com.denis.georgiatransit.shared.domain.model.TransitShape
 import com.denis.georgiatransit.shared.domain.repository.TransitFailure
 import com.denis.georgiatransit.shared.domain.repository.TransitLoadResult
 import com.denis.georgiatransit.shared.domain.repository.TransitRepository
+import com.denis.georgiatransit.shared.presentation.ui.RouteColorAvailability
+import com.denis.georgiatransit.shared.presentation.ui.RouteSelectionProjection
+import com.denis.georgiatransit.shared.presentation.ui.RouteSelectionProjector
+import com.denis.georgiatransit.shared.presentation.ui.UnavailableRouteColor
 import kotlinx.collections.immutable.PersistentList
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.toPersistentList
@@ -47,10 +50,7 @@ sealed interface RouteGeometryLegendState {
 }
 
 /** Distinguishes a renderable route color from an explicit selection-limit overflow. */
-enum class RouteGeometryColorAvailability {
-    Assigned,
-    PaletteOverflow,
-}
+typealias RouteGeometryColorAvailability = RouteColorAvailability
 
 /** Route-level UI contract; typed IDs remain common and provider errors never enter this model. */
 @Immutable
@@ -66,6 +66,7 @@ data class RouteGeometryLegendUi(
     val totalDirections: Int,
     val isFocused: Boolean,
     val canRetry: Boolean,
+    val textColorArgb: Long = 0xFFFFFFFFL,
 )
 
 @Immutable
@@ -92,6 +93,7 @@ private data class GeometryInput(
     val cityId: CityId?,
     val routeGeometryEnabled: Boolean,
     val routes: List<TransitRoute>,
+    val selection: RouteSelectionProjection,
     val isVisibleAndStarted: Boolean,
 )
 
@@ -131,7 +133,13 @@ class RouteGeometryCoordinator(
     private val repository: TransitRepository,
     private val clock: RouteGeometryClock = SystemRouteGeometryClock,
 ) {
-    private var input = GeometryInput(null, routeGeometryEnabled = false, routes = emptyList(), isVisibleAndStarted = false)
+    private var input = GeometryInput(
+        cityId = null,
+        routeGeometryEnabled = false,
+        routes = emptyList(),
+        selection = RouteSelectionProjection(),
+        isVisibleAndStarted = false,
+    )
     private var generation = 0L
     private var focusedRouteId: RouteId? = null
     private var listener: ((RouteGeometrySnapshot) -> Unit)? = null
@@ -151,6 +159,7 @@ class RouteGeometryCoordinator(
         routeGeometryEnabled: Boolean,
         orderedSelectedRoutes: List<TransitRoute>,
         isVisibleAndStarted: Boolean,
+        selectedRouteProjection: RouteSelectionProjection,
         onSnapshot: (RouteGeometrySnapshot) -> Unit,
     ): RouteGeometrySnapshot {
         listener = onSnapshot
@@ -160,6 +169,7 @@ class RouteGeometryCoordinator(
             // The repository list has already supplied canonical route-catalog order. Never sort
             // these opaque IDs or directions in this coordinator or either native adapter.
             routes = orderedSelectedRoutes.toList(),
+            selection = selectedRouteProjection,
             isVisibleAndStarted = isVisibleAndStarted,
         )
         // Location updates share the Map collector but do not change geometry ownership. Keep an
@@ -195,6 +205,30 @@ class RouteGeometryCoordinator(
         scheduleNextExpiry(scope)
         return snapshot()
     }
+
+    /**
+     * Compatibility entry point for callers that only have canonical selected routes. New Map
+     * presentation code passes the shared projection explicitly so every overlay uses one style.
+     */
+    fun update(
+        scope: CoroutineScope,
+        cityId: CityId?,
+        routeGeometryEnabled: Boolean,
+        orderedSelectedRoutes: List<TransitRoute>,
+        isVisibleAndStarted: Boolean,
+        onSnapshot: (RouteGeometrySnapshot) -> Unit,
+    ): RouteGeometrySnapshot = update(
+        scope = scope,
+        cityId = cityId,
+        routeGeometryEnabled = routeGeometryEnabled,
+        orderedSelectedRoutes = orderedSelectedRoutes,
+        isVisibleAndStarted = isVisibleAndStarted,
+        selectedRouteProjection = RouteSelectionProjector.resolve(
+            orderedSelectedRoutes,
+            orderedSelectedRoutes.mapTo(mutableSetOf(), TransitRoute::id),
+        ),
+        onSnapshot = onSnapshot,
+    )
 
     private fun reconcileDesired(scope: CoroutineScope, desired: List<DirectionSpec>) {
         desired.forEach { spec ->
@@ -352,12 +386,10 @@ class RouteGeometryCoordinator(
 
     private fun activeDirectionSpecs(): List<DirectionSpec> {
         val cityId = input.cityId ?: return emptyList()
-        val colors = RoutePolylineColorResolver.resolve(input.routes)
         return input.routes.asSequence()
-            .take(RouteSelectionPolicy.MaximumSelectedRoutes)
             // A palette overflow is an explicit no-style state: do not start requests for a
             // geometry that can never become a safely distinguishable native line.
-            .filter { route -> colors.getValue(route.id).availability == RouteGeometryColorAvailability.Assigned }
+            .filter { route -> input.selection.byId[route.id]?.colorAvailability == RouteColorAvailability.Assigned }
             .flatMap { route ->
                 route.directions.asSequence().map { direction ->
                     DirectionSpec(RouteGeometryKey(cityId, route.id, direction.id), route)
@@ -417,14 +449,16 @@ class RouteGeometryCoordinator(
     }
 
     private fun snapshot(): RouteGeometrySnapshot {
-        val colors = RoutePolylineColorResolver.resolve(input.routes)
         val activeKeys = activeDirectionKeys()
         val lines = input.routes.asSequence().takeIf { input.routeGeometryEnabled }?.flatMap { route ->
             route.directions.asSequence().mapNotNull { direction ->
                 val key = input.cityId?.let { RouteGeometryKey(it, route.id, direction.id) } ?: return@mapNotNull null
                 val phase = phases[key] as? DirectionPhase.Ready ?: return@mapNotNull null
                 if (key !in activeKeys) return@mapNotNull null
-                val routeColor = colors.getValue(route.id).argb ?: return@mapNotNull null
+                val selection = input.selection.byId[route.id] ?: return@mapNotNull null
+                val routeColor = selection.backgroundArgb.takeIf {
+                    selection.colorAvailability == RouteColorAvailability.Assigned
+                } ?: return@mapNotNull null
                 val focused = route.id == focusedRouteId
                 MapPolyline(
                     routeId = route.id,
@@ -439,7 +473,18 @@ class RouteGeometryCoordinator(
             }
         }?.toList()?.toPersistentList() ?: persistentListOf()
         val legends = input.routes.map { route ->
-            val routeColor = colors.getValue(route.id)
+            val routeSelection = input.selection.byId[route.id] ?: return@map RouteGeometryLegendUi(
+                routeId = route.id,
+                routeLabel = "—",
+                colorArgb = UnavailableRouteColor,
+                textColorArgb = 0xFFFFFFFF,
+                colorAvailability = RouteColorAvailability.PaletteOverflow,
+                state = RouteGeometryLegendState.PaletteOverflow,
+                successfulDirections = 0,
+                totalDirections = route.directions.size,
+                isFocused = false,
+                canRetry = false,
+            )
             val routeDirections = route.directions
             val ready = routeDirections.count { direction ->
                 val key = input.cityId?.let { RouteGeometryKey(it, route.id, direction.id) }
@@ -458,11 +503,12 @@ class RouteGeometryCoordinator(
                 }
             RouteGeometryLegendUi(
                 routeId = route.id,
-                routeLabel = route.shortName.trim().ifBlank { route.name.trim().ifBlank { "—" } },
-                colorArgb = routeColor.argb ?: UNAVAILABLE_ROUTE_COLOR,
-                colorAvailability = routeColor.availability,
+                routeLabel = routeSelection.displayLabel,
+                colorArgb = routeSelection.backgroundArgb,
+                textColorArgb = routeSelection.textArgb,
+                colorAvailability = routeSelection.colorAvailability,
                 state = when {
-                    routeColor.availability == RouteGeometryColorAvailability.PaletteOverflow -> RouteGeometryLegendState.PaletteOverflow
+                    routeSelection.colorAvailability == RouteColorAvailability.PaletteOverflow -> RouteGeometryLegendState.PaletteOverflow
                     !input.routeGeometryEnabled || routeDirections.isEmpty() -> RouteGeometryLegendState.Unavailable
                     ready == routeDirections.size -> RouteGeometryLegendState.Ready
                     ready > 0 -> RouteGeometryLegendState.Partial
@@ -481,7 +527,7 @@ class RouteGeometryCoordinator(
                 totalDirections = routeDirections.size,
                 isFocused = route.id == focusedRouteId,
                 canRetry = canLoad() &&
-                    routeColor.availability == RouteGeometryColorAvailability.Assigned &&
+                    routeSelection.colorAvailability == RouteColorAvailability.Assigned &&
                     hasRetryable,
             )
         }.toPersistentList()
@@ -578,92 +624,6 @@ private fun Long.safeAdd(other: Long): Long? = when {
     else -> this + other
 }
 
-private sealed interface ResolvedRouteColor {
-    val argb: Long?
-    val availability: RouteGeometryColorAvailability
-
-    data class Assigned(override val argb: Long) : ResolvedRouteColor {
-        override val availability = RouteGeometryColorAvailability.Assigned
-    }
-
-    data object PaletteOverflow : ResolvedRouteColor {
-        override val argb: Long? = null
-        override val availability = RouteGeometryColorAvailability.PaletteOverflow
-    }
-}
-
-/** Colors are resolved once in the same canonical order that forms the common polyline snapshot. */
-private object RoutePolylineColorResolver {
-    fun resolve(routes: List<TransitRoute>): Map<RouteId, ResolvedRouteColor> {
-        val assigned = linkedSetOf<Long>()
-        return buildMap {
-            routes.forEachIndexed { index, route ->
-                if (index >= RouteSelectionPolicy.MaximumSelectedRoutes) {
-                    put(route.id, ResolvedRouteColor.PaletteOverflow)
-                    return@forEachIndexed
-                }
-                val provider = route.colorArgb.takeIf(::isAccessibleProviderColor)
-                    ?.takeIf { candidate -> assigned.all { isDistinct(candidate, it) } }
-                val color = provider ?: paletteColor(route.id, assigned)
-                if (color == null) {
-                    put(route.id, ResolvedRouteColor.PaletteOverflow)
-                } else {
-                    assigned += color
-                    put(route.id, ResolvedRouteColor.Assigned(color))
-                }
-            }
-        }
-    }
-
-    private fun paletteColor(routeId: RouteId, assigned: Set<Long>): Long? {
-        val start = (routeId.value.stableColorHash().toUInt().toLong() % ACCESSIBLE_ROUTE_PALETTE.size).toInt()
-        return (ACCESSIBLE_ROUTE_PALETTE.indices)
-            .asSequence()
-            .map { ACCESSIBLE_ROUTE_PALETTE[(start + it) % ACCESSIBLE_ROUTE_PALETTE.size] }
-            // Palette entries are pairwise validated below. Keep probing in canonical selection
-            // order and never substitute an already-used or near-duplicate color on exhaustion.
-            .firstOrNull { candidate -> candidate !in assigned && assigned.all { isDistinct(candidate, it) } }
-    }
-
-    private fun isAccessibleProviderColor(color: Long): Boolean =
-        (color ushr 24) == 0xFFL && contrastRatio(color.luminance(), MAP_BACKGROUND_LUMINANCE) >= MIN_MAP_CONTRAST
-
-    private fun isDistinct(first: Long, second: Long): Boolean {
-        val red = ((first shr 16) and 0xFF) - ((second shr 16) and 0xFF)
-        val green = ((first shr 8) and 0xFF) - ((second shr 8) and 0xFF)
-        val blue = (first and 0xFF) - (second and 0xFF)
-        return red * red + green * green + blue * blue >= MIN_RGB_DISTANCE_SQUARED
-    }
-
-    private fun String.stableColorHash(): Int = fold(17) { hash, character -> 31 * hash + character.code }
-
-    private fun Long.luminance(): Double {
-        fun channel(shift: Int): Double {
-            val value = ((this shr shift) and 0xFF).toDouble() / 255.0
-            return if (value <= 0.03928) value / 12.92 else ((value + 0.055) / 1.055).pow(2.4)
-        }
-        return 0.2126 * channel(16) + 0.7152 * channel(8) + 0.0722 * channel(0)
-    }
-
-    private fun contrastRatio(first: Double, second: Double): Double =
-        (maxOf(first, second) + 0.05) / (minOf(first, second) + 0.05)
-
-    private val ACCESSIBLE_ROUTE_PALETTE = listOf(
-        0xFF5B21B6L, 0xFF1D4ED8L, 0xFF0F766EL, 0xFFBE123CL, 0xFF334155L,
-        0xFF7F1D1DL, 0xFF14532DL, 0xFF1E3A8AL, 0xFF854D0EL, 0xFF3F6212L,
-        0xFFC2410CL, 0xFFA21CAFL, 0xFF0369A1L,
-    ).also(::validatePalette)
-
-    private fun validatePalette(palette: List<Long>): List<Long> {
-        check(palette.size >= RouteSelectionPolicy.MaximumSelectedRoutes)
-        check(palette.all(::isAccessibleProviderColor))
-        check(palette.indices.all { first ->
-            palette.drop(first + 1).all { second -> isDistinct(palette[first], second) }
-        })
-        return palette
-    }
-}
-
 /** Enough for a 20k-point line at high precision, while bounding malformed response work. */
 private const val MAX_ENCODED_POLYLINE_CHARS = 512_000
 private const val MAX_POINTS_PER_POLYLINE = 20_000
@@ -672,7 +632,3 @@ private const val POLYLINE_VALUE_MASK = 0x3F
 private const val POLYLINE_CHUNK_MASK = 0x1F
 private const val POLYLINE_CONTINUATION_MASK = 0x20
 private const val POLYLINE_CHUNK_BITS = 5
-private const val MAP_BACKGROUND_LUMINANCE = 0.8589768 // #E7F1EB, the fixed local preview land fill.
-private const val MIN_MAP_CONTRAST = 3.0
-private const val MIN_RGB_DISTANCE_SQUARED = 2_500L
-private const val UNAVAILABLE_ROUTE_COLOR = 0xFF3F3F46L

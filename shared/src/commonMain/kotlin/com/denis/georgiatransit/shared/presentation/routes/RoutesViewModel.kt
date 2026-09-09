@@ -13,6 +13,7 @@ import com.denis.georgiatransit.shared.domain.repository.TransitFailure
 import com.denis.georgiatransit.shared.domain.repository.TransitLoadResult
 import com.denis.georgiatransit.shared.domain.repository.TransitRepository
 import com.denis.georgiatransit.shared.domain.repository.TransitSession
+import com.denis.georgiatransit.shared.presentation.ui.RouteSelectionProjector
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.combine
@@ -158,7 +159,9 @@ class RoutesViewModel(
                     }
                     return@intent
                 }
-                catalogRoutes = result.value.sortedWith(RouteCatalogComparator)
+                // The normalized BFF catalogue is authoritative. Never reorder provider route IDs
+                // or let a draft selection define visual order.
+                catalogRoutes = result.value
                 val visibleIds = catalogRoutes.mapTo(mutableSetOf(), TransitRoute::id)
                 val reconciledDraft = draftSelectedIds.intersect(visibleIds)
                 draftSelectedIds = reconciledDraft
@@ -170,7 +173,7 @@ class RoutesViewModel(
                 ) {
                     session.selectRoutes(city.id, reconciledCommittedSelection)
                 }
-                val routes = catalogRoutes.toRouteItems(currentLocale)
+                val routes = catalogRoutes.toRouteItems(currentLocale, draftSelectedIds)
                 reduce {
                     state.copy(
                         routes = routes,
@@ -219,7 +222,14 @@ class RoutesViewModel(
             }
         }.toSet()
         draftSelectedIds = updated
-        reduce { state.copy(selectedIds = updated) }
+        val routes = catalogRoutes.toRouteItems(currentLocale, updated)
+        reduce {
+            state.copy(
+                routes = routes,
+                visibleRoutes = routes.filterFor(state.searchQuery),
+                selectedIds = updated,
+            )
+        }
     }
 
     private fun onSearchChanged(query: String) = intent {
@@ -230,7 +240,7 @@ class RoutesViewModel(
         val locale = languageTag.toTransitLocale()
         if (locale == currentLocale) return@intent
         currentLocale = locale
-        val routes = catalogRoutes.toRouteItems(locale)
+        val routes = catalogRoutes.toRouteItems(locale, draftSelectedIds)
         reduce {
             state.copy(
                 cityName = activeCity?.displayName(locale).orEmpty(),
@@ -304,7 +314,11 @@ class RoutesViewModel(
     }
 }
 
-/** Natural ordering makes numeric route names useful without relying on provider sort metadata. */
+/**
+ * Presentation-only ordering retained from DEN-66. The raw catalogue stays in BFF order for
+ * selection membership and the shared resolver; Kotlin's stable sort preserves that order for
+ * public-field ties and never exposes opaque IDs as a fallback.
+ */
 private object RouteCatalogComparator : Comparator<TransitRoute> {
     override fun compare(a: TransitRoute, b: TransitRoute): Int =
         naturalCompare(a.shortName, b.shortName)
@@ -321,8 +335,6 @@ private object RouteCatalogComparator : Comparator<TransitRoute> {
                 .takeUnless { it == 0 }
             ?: a.mode.name.compareTo(b.mode.name)
                 .takeUnless { it == 0 }
-            // Kotlin's list sort is stable, so routes with identical public fields retain the
-            // authoritative BFF source order instead of exposing opaque provider IDs here.
             ?: 0
 }
 
@@ -368,24 +380,31 @@ private fun Int.skipLeadingZeroes(value: String, endExclusive: Int): Int {
     return index
 }
 
-private fun List<TransitRoute>.toRouteItems(locale: TransitLocale): List<RouteItemUiModel> = map { route ->
-    RouteItemUiModel(
-        id = route.id,
-        shortName = route.shortName.trim().ifBlank { "?" },
-        name = route.longName.localizedDisplayName(locale, route.name.trim().ifBlank { "?" }),
-        direction = route.directions.asSequence()
-            .map { direction ->
-                direction.headsign.localizedDisplayName(
-                    locale = locale,
-                    fallback = direction.name.localizedDisplayName(locale, fallback = ""),
-                )
-            }
-            .firstOrNull(String::isNotBlank)
-            .orEmpty(),
-        colorArgb = route.colorArgb,
-        textColorArgb = route.textColorArgb,
-        mode = route.mode,
-    )
+private fun List<TransitRoute>.toRouteItems(
+    locale: TransitLocale,
+    selectedIds: Set<RouteId>,
+): List<RouteItemUiModel> {
+    val selectionStyles = RouteSelectionProjector.resolve(this, selectedIds).byId
+    return sortedWith(RouteCatalogComparator).map { route ->
+        val style = selectionStyles[route.id]
+        RouteItemUiModel(
+            id = route.id,
+            shortName = route.shortName.trim().ifBlank { "?" },
+            name = route.longName.localizedDisplayName(locale, route.name.trim().ifBlank { "?" }),
+            direction = route.directions.asSequence()
+                .map { direction ->
+                    direction.headsign.localizedDisplayName(
+                        locale = locale,
+                        fallback = direction.name.localizedDisplayName(locale, fallback = ""),
+                    )
+                }
+                .firstOrNull(String::isNotBlank)
+                .orEmpty(),
+            colorArgb = style?.backgroundArgb ?: route.colorArgb,
+            textColorArgb = style?.textArgb ?: route.textColorArgb,
+            mode = route.mode,
+        )
+    }
 }
 
 private fun TransitCity.displayName(locale: TransitLocale): String =

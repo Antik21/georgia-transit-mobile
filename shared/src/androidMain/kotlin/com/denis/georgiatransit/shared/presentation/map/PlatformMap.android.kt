@@ -274,8 +274,8 @@ private class LocalMapController(
             CircleLayer(STOPS_LAYER_ID, STOPS_SOURCE_ID).withProperties(
                 circleColor(Expression.get(MARKER_COLOR_PROPERTY)),
                 circleRadius(Expression.get(MARKER_RADIUS_PROPERTY)),
-                circleStrokeColor("#FFFFFF"),
-                circleStrokeWidth(2f),
+                circleStrokeColor(Expression.get(MARKER_STROKE_COLOR_PROPERTY)),
+                circleStrokeWidth(Expression.get(MARKER_STROKE_WIDTH_PROPERTY)),
             ),
         )
         loadedStyle.addLayer(
@@ -484,7 +484,8 @@ private fun ordinaryStopFeatures(renderState: MapRenderState): FeatureCollection
     (
         renderState.stops.asSequence()
         .filter { !it.isSelected && it.id.value.isNotBlank() && it.position.isMapCoordinate() }
-        .sortedBy { it.id.value }
+        // Common metadata declares route-highlight priority; preserve it before the renderer cap.
+        .sortedWith(compareBy<MapStopMarker> { !it.routeHighlight.isHighlighted }.thenBy { it.id.value })
         .take(MAX_STOP_MARKERS)
         .map { marker ->
             Feature.fromGeometry(marker.position.asMapPoint()).also { feature ->
@@ -492,8 +493,10 @@ private fun ordinaryStopFeatures(renderState: MapRenderState): FeatureCollection
                 feature.addStringProperty(FEATURE_KIND_PROPERTY, FEATURE_KIND_STOP)
                 feature.addStringProperty(SOURCE_REVISION_PROPERTY, renderState.stopSourceRevision.toString())
                 feature.addStringProperty(ACCESSIBILITY_LABEL_PROPERTY, marker.accessibilityLabel)
-                feature.addStringProperty(MARKER_COLOR_PROPERTY, STOP_COLOR)
-                feature.addNumberProperty(MARKER_RADIUS_PROPERTY, STOP_RADIUS)
+                feature.addStringProperty(MARKER_COLOR_PROPERTY, marker.routeHighlight.backgroundArgb.asMapColor())
+                feature.addNumberProperty(MARKER_RADIUS_PROPERTY, marker.routeHighlight.markerRadius)
+                feature.addStringProperty(MARKER_STROKE_COLOR_PROPERTY, marker.routeHighlight.textArgb.asMapColor())
+                feature.addNumberProperty(MARKER_STROKE_WIDTH_PROPERTY, marker.routeHighlight.markerStrokeWidth)
             }
         }
         + renderState.stopClusters.asSequence()
@@ -506,8 +509,10 @@ private fun ordinaryStopFeatures(renderState: MapRenderState): FeatureCollection
                     feature.addStringProperty(FEATURE_KIND_PROPERTY, FEATURE_KIND_CLUSTER)
                     feature.addStringProperty(SOURCE_REVISION_PROPERTY, renderState.stopSourceRevision.toString())
                     feature.addStringProperty(ACCESSIBILITY_LABEL_PROPERTY, cluster.accessibilityLabel)
-                    feature.addStringProperty(MARKER_COLOR_PROPERTY, CLUSTER_COLOR)
-                    feature.addNumberProperty(MARKER_RADIUS_PROPERTY, CLUSTER_RADIUS)
+                feature.addStringProperty(MARKER_COLOR_PROPERTY, CLUSTER_COLOR)
+                feature.addNumberProperty(MARKER_RADIUS_PROPERTY, CLUSTER_RADIUS)
+                feature.addStringProperty(MARKER_STROKE_COLOR_PROPERTY, DEFAULT_STOP_STROKE_COLOR)
+                feature.addNumberProperty(MARKER_STROKE_WIDTH_PROPERTY, DEFAULT_STOP_STROKE_WIDTH)
                     feature.addNumberProperty(CLUSTER_COUNT_PROPERTY, cluster.stopCount)
                 }
             }
@@ -681,16 +686,18 @@ private const val SOURCE_REVISION_PROPERTY = "sourceRevision"
 private const val ACCESSIBILITY_LABEL_PROPERTY = "accessibilityLabel"
 private const val MARKER_COLOR_PROPERTY = "markerColor"
 private const val MARKER_RADIUS_PROPERTY = "markerRadius"
+private const val MARKER_STROKE_COLOR_PROPERTY = "markerStrokeColor"
+private const val MARKER_STROKE_WIDTH_PROPERTY = "markerStrokeWidth"
 private const val CLUSTER_COUNT_PROPERTY = "clusterCount"
 private const val FEATURE_KIND_STOP = "stop"
 private const val FEATURE_KIND_CLUSTER = "cluster"
 private const val FEATURE_KIND_VEHICLE = "vehicle"
-private const val STOP_COLOR = "#2A9D8F"
 private const val SELECTED_STOP_COLOR = "#E76F51"
 private const val CLUSTER_COLOR = "#264653"
-private const val STOP_RADIUS = 5
 private const val SELECTED_STOP_RADIUS = 9
 private const val CLUSTER_RADIUS = 12
+private const val DEFAULT_STOP_STROKE_COLOR = "#FFFFFF"
+private const val DEFAULT_STOP_STROKE_WIDTH = 2.0
 private const val ROUTE_COLOR_PROPERTY = "routeColor"
 private const val ROUTE_WIDTH_PROPERTY = "routeWidth"
 private const val ROUTE_OPACITY_PROPERTY = "routeOpacity"
