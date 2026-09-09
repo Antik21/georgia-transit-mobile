@@ -35,6 +35,8 @@ sealed interface MapBaseLayerState {
 @Immutable
 data class ViewState(
     val cityName: String = "",
+    /** Routes are a capability-gated catalogue, not an implicit property of every map city. */
+    val routesAvailable: Boolean = false,
     val renderState: MapRenderState? = null,
     val contentState: MapContentState = MapContentState.Unavailable,
     val baseLayerState: MapBaseLayerState = MapBaseLayerState.LocalPreview,

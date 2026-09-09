@@ -31,6 +31,7 @@ import com.denis.georgiatransit.shared.presentation.location.SystemLocationFresh
 import com.denis.georgiatransit.shared.presentation.location.UserLocationFix
 import com.denis.georgiatransit.shared.presentation.location.MAX_FIX_AGE_MILLIS
 import com.denis.georgiatransit.shared.presentation.location.MAX_PRECISE_ACCURACY_METERS
+import com.denis.georgiatransit.shared.presentation.ui.contrastSafeRouteTextColor
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -45,7 +46,6 @@ import org.orbitmvi.orbit.Container
 import org.orbitmvi.orbit.ContainerHost
 import org.orbitmvi.orbit.container
 import kotlin.math.ceil
-import kotlin.math.pow
 import kotlin.math.round
 
 class MapViewModel(
@@ -132,6 +132,7 @@ class MapViewModel(
                 reduce {
                     state.copy(
                         cityName = city?.name.orEmpty(),
+                        routesAvailable = city?.capabilities?.routes == true,
                         renderState = renderState,
                         contentState = if (cityChanged || stopsCapabilityChanged) {
                             initialContentState(city)
@@ -171,7 +172,11 @@ class MapViewModel(
 
     fun dispatchAction(action: Action) {
         when (action) {
-            Action.RoutesClicked -> intent { postSideEffect(NavigationEffect.OpenRoutes) }
+            Action.RoutesClicked -> intent {
+                if (currentCity?.capabilities?.routes == true) {
+                    postSideEffect(NavigationEffect.OpenRoutes)
+                }
+            }
             Action.ChangeCityClicked -> intent { postSideEffect(NavigationEffect.OpenCitySelection) }
             Action.MyLocationClicked -> onMyLocationClicked()
             Action.RetryNearby -> retryNearby()
@@ -485,7 +490,7 @@ class MapViewModel(
             positionKind = positionKind,
             freshness = freshness,
             routeLabel = route.shortName.sanitizedRouteBadgeLabel(),
-            routeTextColorArgb = route.contrastSafeTextColor(),
+            routeTextColorArgb = contrastSafeRouteTextColor(route.colorArgb, route.textColorArgb),
             isStale = isStale,
             frameRevision = frameRevision,
         )
@@ -1707,26 +1712,6 @@ private fun String.sanitizedRouteBadgeLabel(): String = asSequence()
     .take(MAX_ROUTE_BADGE_LABEL_LENGTH)
     .ifBlank { "?" }
 
-private fun TransitRoute.contrastSafeTextColor(): Long {
-    val backgroundLuminance = colorArgb.relativeLuminance()
-    val suppliedContrast = contrastRatio(backgroundLuminance, textColorArgb.relativeLuminance())
-    if (suppliedContrast >= MIN_BADGE_TEXT_CONTRAST) return textColorArgb or OPAQUE_ALPHA_MASK
-    val blackContrast = contrastRatio(backgroundLuminance, 0.0)
-    val whiteContrast = contrastRatio(backgroundLuminance, 1.0)
-    return if (blackContrast >= whiteContrast) OPAQUE_BLACK else OPAQUE_WHITE
-}
-
-private fun Long.relativeLuminance(): Double {
-    fun channel(shift: Int): Double {
-        val value = ((this shr shift) and 0xFF).toDouble() / 255.0
-        return if (value <= 0.03928) value / 12.92 else ((value + 0.055) / 1.055).pow(2.4)
-    }
-    return 0.2126 * channel(16) + 0.7152 * channel(8) + 0.0722 * channel(0)
-}
-
-private fun contrastRatio(first: Double, second: Double): Double =
-    (maxOf(first, second) + 0.05) / (minOf(first, second) + 0.05)
-
 /** Matches exactly the vehicle properties consumed by the native grouped GeoJSON sources. */
 private fun List<MapVehicleMarker>.hasSameRenderedVehicleSourceAs(other: List<MapVehicleMarker>): Boolean =
     size == other.size && zip(other).all { (next, current) ->
@@ -1752,10 +1737,6 @@ private data class VehicleBadgeRenderStyle(
 )
 
 private const val MAX_ROUTE_BADGE_LABEL_LENGTH = 8
-private const val MIN_BADGE_TEXT_CONTRAST = 4.5
-private const val OPAQUE_ALPHA_MASK = 0xFF000000L
-private const val OPAQUE_BLACK = 0xFF000000L
-private const val OPAQUE_WHITE = 0xFFFFFFFFL
 
 private data class VehicleRequestKey(val cityId: CityId, val routeId: RouteId)
 

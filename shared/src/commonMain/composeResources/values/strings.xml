@@ -117,5 +117,19 @@
     <string name="routes_error">Route catalogue is unavailable.</string>
     <string name="routes_retry">Try again</string>
     <string name="routes_offline">Showing the last available catalogue while offline.</string>
+    <string name="routes_offline_unavailable">Routes are unavailable offline because no catalogue has been saved yet.</string>
+    <string name="routes_unavailable">Routes are not available for this city.</string>
+    <string name="routes_search_label">Search routes</string>
+    <string name="routes_search_placeholder">Route name or number</string>
+    <string name="routes_empty_search">No routes match your search.</string>
+    <string name="routes_mode_bus">Bus</string>
+    <string name="routes_mode_metro">Metro</string>
+    <string name="routes_mode_tram">Tram</string>
+    <string name="routes_mode_ferry">Ferry</string>
+    <string name="routes_direction">Towards %1$s</string>
+    <string name="routes_row_description">%1$s, %2$s, %3$s</string>
+    <string name="routes_row_description_with_direction">%1$s, %2$s, %3$s, %4$s</string>
+    <string name="routes_row_selected">Selected</string>
+    <string name="routes_row_unselected">Not selected</string>
     <string name="loading">Loading transit data…</string>
 </resources>

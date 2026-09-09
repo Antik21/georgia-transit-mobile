@@ -117,5 +117,19 @@
     <string name="routes_error">Каталог маршрутов недоступен.</string>
     <string name="routes_retry">Повторить</string>
     <string name="routes_offline">Показан последний доступный каталог в офлайн-режиме.</string>
+    <string name="routes_offline_unavailable">Маршруты недоступны офлайн, потому что каталог ещё не был сохранён.</string>
+    <string name="routes_unavailable">Маршруты недоступны для этого города.</string>
+    <string name="routes_search_label">Поиск маршрутов</string>
+    <string name="routes_search_placeholder">Название или номер маршрута</string>
+    <string name="routes_empty_search">По вашему запросу нет маршрутов.</string>
+    <string name="routes_mode_bus">Автобус</string>
+    <string name="routes_mode_metro">Метро</string>
+    <string name="routes_mode_tram">Трамвай</string>
+    <string name="routes_mode_ferry">Паром</string>
+    <string name="routes_direction">Направление: %1$s</string>
+    <string name="routes_row_description">%1$s, %2$s, %3$s</string>
+    <string name="routes_row_description_with_direction">%1$s, %2$s, %3$s, %4$s</string>
+    <string name="routes_row_selected">Выбрано</string>
+    <string name="routes_row_unselected">Не выбрано</string>
     <string name="loading">Загружаем транспортные данные…</string>
 </resources>
