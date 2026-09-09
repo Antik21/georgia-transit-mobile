@@ -41,6 +41,8 @@ data class ViewState(
     val contentState: MapContentState = MapContentState.Unavailable,
     val baseLayerState: MapBaseLayerState = MapBaseLayerState.LocalPreview,
     val selectedRouteNames: List<String> = emptyList(),
+    /** Common route-shape progress and interaction state; no provider failure text reaches UI. */
+    val routeGeometryLegends: List<RouteGeometryLegendUi> = emptyList(),
     val attribution: List<TransitAttribution> = emptyList(),
     val location: LocationState = LocationState(),
     val selectedStop: SelectedStopUi? = null,
@@ -179,6 +181,9 @@ sealed interface Action {
     data object RetryStopArrivals : Action
     data class LocaleChanged(val locale: TransitLocale) : Action
     data object RetryNearby : Action
+    data class RouteGeometryFocused(val routeId: RouteId) : Action
+    data class RetryRouteGeometry(val routeId: RouteId) : Action
+    data class RemoveRouteGeometry(val routeId: RouteId) : Action
     /** Emitted by the common composed Map entry and its host lifecycle; it never reflects panning. */
     data class RealtimeVisibilityChanged(val isVisibleAndStarted: Boolean) : Action
 }

@@ -122,6 +122,11 @@ data class MapPolyline(
     val points: PersistentList<GeoPoint>,
     val routeColorArgb: Long,
     val freshness: TransitFreshness,
+    /** Common visual priority avoids platform-specific focus rules or opaque-ID ordering. */
+    val isEmphasized: Boolean = false,
+    val strokeWidth: Double = 4.0,
+    /** Route colors are contrast-validated against the fixed land fill at full opacity. */
+    val opacity: Double = 1.0,
 ) {
     /** iOS-safe bridge keys; opaque typed identifiers remain available to common presentation. */
     val stableRouteId: String get() = routeId.value
@@ -134,7 +139,10 @@ data class MapPolyline(
         points: List<GeoPoint>,
         routeColorArgb: Long,
         freshness: TransitFreshness,
-    ) : this(routeId, directionId, points.toPersistentList(), routeColorArgb, freshness)
+        isEmphasized: Boolean = false,
+        strokeWidth: Double = 4.0,
+        opacity: Double = 1.0,
+    ) : this(routeId, directionId, points.toPersistentList(), routeColorArgb, freshness, isEmphasized, strokeWidth, opacity)
 }
 
 /**
@@ -148,6 +156,8 @@ data class MapRenderState(
     val stopClusters: PersistentList<MapStopCluster> = persistentListOf(),
     val vehicles: PersistentList<MapVehicleMarker> = persistentListOf(),
     val polylines: PersistentList<MapPolyline> = persistentListOf(),
+    /** Lets adapters skip all KMP polyline traversal during unrelated render frames. */
+    val polylineSourceRevision: Long = 0L,
     val userLocation: UserLocationFix? = null,
     /** Identifies the exact stop/cluster source currently safe for native hit callbacks. */
     val stopSourceRevision: Long = 0L,
@@ -167,6 +177,7 @@ data class MapRenderState(
             stopClusters: Iterable<MapStopCluster> = emptyList(),
             vehicles: Iterable<MapVehicleMarker> = emptyList(),
             polylines: Iterable<MapPolyline> = emptyList(),
+            polylineSourceRevision: Long = 0L,
             userLocation: UserLocationFix? = null,
             stopSourceRevision: Long = 0L,
             vehicleSourceRevision: Long = 0L,
@@ -177,6 +188,7 @@ data class MapRenderState(
             stopClusters = stopClusters.toPersistentList(),
             vehicles = vehicles.toPersistentList(),
             polylines = polylines.toPersistentList(),
+            polylineSourceRevision = polylineSourceRevision,
             userLocation = userLocation,
             stopSourceRevision = stopSourceRevision,
             vehicleSourceRevision = vehicleSourceRevision,

@@ -50,6 +50,17 @@
     <string name="map_change_city_action">ქალაქის შეცვლა</string>
     <string name="map_my_location_action">ჩემი მდებარეობა</string>
     <string name="map_selected_routes">მარშრუტები: %1$s</string>
+    <string name="map_route_geometry_title">არჩეული მარშრუტების ხაზები</string>
+    <string name="map_route_geometry_loading">მარშრუტის ხაზი იტვირთება… ნაჩვენებია: %1$d / %2$d</string>
+    <string name="map_route_geometry_ready">ნაჩვენებია მიმართულებები: %1$d / %2$d</string>
+    <string name="map_route_geometry_partial">ნაჩვენებია მიმართულებები: %1$d / %2$d; ნაწილი მიუწვდომელია</string>
+    <string name="map_route_geometry_retryable">მიმართულებები ვერ ჩაიტვირთა: %1$d / %2$d.</string>
+    <string name="map_route_geometry_unavailable">მიმართულებები მიუწვდომელია: %1$d / %2$d.</string>
+    <string name="map_route_geometry_palette_overflow">არჩეული მარშრუტი მეტისმეტად ბევრია — ხაზისთვის უნიკალური ფერი ვერ მიენიჭა.</string>
+    <string name="map_route_geometry_retry">ხელახლა ცდა</string>
+    <string name="map_route_geometry_retry_accessibility">ხელახლა ცდა მარშრუტისთვის: %1$s</string>
+    <string name="map_route_geometry_remove">წაშლა</string>
+    <string name="map_route_geometry_remove_accessibility">მარშრუტის წაშლა: %1$s</string>
     <string name="map_selected_stop">არჩეული გაჩერება: %1$s</string>
     <string name="map_stop_arrivals_title">გაჩერებაზე მოსვლები</string>
     <string name="map_stop_arrivals_stop_details_unavailable">გაჩერების დეტალები მიუწვდომელია</string>

@@ -1,0 +1,158 @@
+appId: com.denis.georgiatransit
+---
+# Preconditions come only from run-route-geometry-smoke.sh and its owned loopback fixture. This
+# flow proves common UI interaction states; native source population is covered by common and
+# adapter-contract tests, not inferred from these semantics nodes.
+- launchApp:
+    clearState: true
+- assertVisible:
+    id: city-selection.screen
+- tapOn:
+    id: city-selection.demo
+- tapOn:
+    id: city-selection.continue
+- assertVisible:
+    id: map.screen
+- tapOn:
+    id: map.routes
+- assertVisible:
+    id: routes.screen
+- extendedWaitUntil:
+    visible:
+      id: routes.option
+    timeout: 15000
+# Compose exposes only rows in the current LazyColumn semantics tree. The fixed, nonlocalized
+# G1..G10 fixture labels are not production route IDs. iOS cannot direct scroll its Compose
+# LazyColumn through scrollUntilVisible, so bounded relative swipes begin inside its list viewport
+# before G4 and then each of G7..G10. Every parent tap waits for recomposition; routes.selection-warning is the
+# strict 10/10 proof across Android's checked and iOS's selected accessibility semantics.
+- tapOn:
+    id: routes.option
+    containsDescendants:
+      - text: "^G1$"
+- waitForAnimationToEnd
+- tapOn:
+    id: routes.option
+    containsDescendants:
+      - text: "^G2$"
+- waitForAnimationToEnd
+- tapOn:
+    id: routes.option
+    containsDescendants:
+      - text: "^G3$"
+- waitForAnimationToEnd
+- swipe:
+    start: 50%, 75%
+    end: 50%, 45%
+    duration: 500
+- waitForAnimationToEnd
+- tapOn:
+    id: routes.option
+    containsDescendants:
+      - text: "^G4$"
+- waitForAnimationToEnd
+- tapOn:
+    id: routes.option
+    containsDescendants:
+      - text: "^G5$"
+- waitForAnimationToEnd
+- tapOn:
+    id: routes.option
+    containsDescendants:
+      - text: "^G6$"
+- waitForAnimationToEnd
+- swipe:
+    start: 50%, 75%
+    end: 50%, 62%
+    duration: 500
+- waitForAnimationToEnd
+- tapOn:
+    id: routes.option
+    containsDescendants:
+      - text: "^G7$"
+- waitForAnimationToEnd
+- swipe:
+    start: 50%, 75%
+    end: 50%, 62%
+    duration: 500
+- waitForAnimationToEnd
+- tapOn:
+    id: routes.option
+    containsDescendants:
+      - text: "^G8$"
+- waitForAnimationToEnd
+- swipe:
+    start: 50%, 75%
+    end: 50%, 62%
+    duration: 500
+- waitForAnimationToEnd
+- tapOn:
+    id: routes.option
+    containsDescendants:
+      - text: "^G9$"
+- waitForAnimationToEnd
+- swipe:
+    start: 50%, 75%
+    end: 50%, 62%
+    duration: 500
+- waitForAnimationToEnd
+- tapOn:
+    id: routes.option
+    containsDescendants:
+      - text: "^G10$"
+- waitForAnimationToEnd
+- assertVisible:
+    id: routes.selection-warning
+- tapOn:
+    id: routes.confirm
+- assertVisible:
+    id: map.screen
+- extendedWaitUntil:
+    visible:
+      id: map.route-geometry.legend
+    timeout: 15000
+- assertVisible:
+    id: map.route-geometry.chip
+    index: 0
+# Focus is an interaction on a selected chip. Its selected semantics and source replacement are
+# contract-tested in common/host tests; Maestro deliberately does not read localized labels.
+- tapOn:
+    id: map.route-geometry.chip
+    index: 1
+- assertVisible:
+    id: map.route-geometry.chip
+    index: 1
+# The fixture's one controlled first-attempt failure makes this a true Partial -> Retry path.
+- extendedWaitUntil:
+    visible:
+      id: map.route-geometry.retry
+    timeout: 15000
+- tapOn:
+    id: map.route-geometry.retry
+    index: 0
+- extendedWaitUntil:
+    notVisible:
+      id: map.route-geometry.retry
+    timeout: 15000
+- assertVisible:
+    id: map.route-geometry.legend
+# Remove is route-scoped and then navigation returns to the preserved map entry.
+- tapOn:
+    id: map.route-geometry.remove
+    index: 0
+- assertVisible:
+    id: map.route-geometry.legend
+- tapOn:
+    id: map.routes
+- assertVisible:
+    id: routes.screen
+# Removing one route from the maximum selection must clear the static limit semantic. The count
+# itself is localized, so this uses only stable IDs and proves the persisted selection is <= 9.
+- assertVisible:
+    id: routes.selection-count
+- assertNotVisible:
+    id: routes.selection-warning
+- tapOn:
+    id: routes.cancel
+- assertVisible:
+    id: map.screen

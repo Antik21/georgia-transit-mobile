@@ -50,6 +50,17 @@
     <string name="map_change_city_action">Сменить город</string>
     <string name="map_my_location_action">Моя геопозиция</string>
     <string name="map_selected_routes">Маршруты: %1$s</string>
+    <string name="map_route_geometry_title">Линии выбранных маршрутов</string>
+    <string name="map_route_geometry_loading">Загружаем линию маршрута… Показано направлений: %1$d из %2$d</string>
+    <string name="map_route_geometry_ready">Показано направлений: %1$d из %2$d</string>
+    <string name="map_route_geometry_partial">Показано направлений: %1$d из %2$d; часть недоступна</string>
+    <string name="map_route_geometry_retryable">Не удалось загрузить направлений: %1$d из %2$d.</string>
+    <string name="map_route_geometry_unavailable">Направления недоступны: %1$d из %2$d.</string>
+    <string name="map_route_geometry_palette_overflow">Слишком много выбранных маршрутов: невозможно назначить уникальный цвет линии.</string>
+    <string name="map_route_geometry_retry">Повторить</string>
+    <string name="map_route_geometry_retry_accessibility">Повторить для маршрута %1$s</string>
+    <string name="map_route_geometry_remove">Убрать</string>
+    <string name="map_route_geometry_remove_accessibility">Убрать маршрут %1$s</string>
     <string name="map_selected_stop">Выбрана остановка: %1$s</string>
     <string name="map_stop_arrivals_title">Прибытия на остановку</string>
     <string name="map_stop_arrivals_stop_details_unavailable">Данные остановки недоступны</string>

@@ -1,0 +1,27 @@
+appId: com.denis.georgiatransit
+---
+# Precondition: route-geometry-load-prime.yaml selected all ten routes in this app process.
+- tapOn:
+    id: map.routes
+- assertVisible:
+    id: routes.screen
+- tapOn:
+    id: routes.cancel
+- assertVisible:
+    id: map.route-geometry.legend
+- tapOn:
+    id: map.routes
+- assertVisible:
+    id: routes.screen
+- tapOn:
+    id: routes.cancel
+- assertVisible:
+    id: map.route-geometry.legend
+- tapOn:
+    id: map.routes
+- assertVisible:
+    id: routes.screen
+- tapOn:
+    id: routes.cancel
+- assertVisible:
+    id: map.route-geometry.legend

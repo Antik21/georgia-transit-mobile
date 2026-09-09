@@ -340,6 +340,207 @@ class MapResourceContractTest {
     }
 
     @Test
+    fun routeGeometryLegendUsesStaticAccessibleSelectorsLocalizedStatusAndTypedActions() {
+        val screen = projectRoot().resolve(
+            "shared/src/commonMain/kotlin/com/denis/georgiatransit/shared/presentation/map/MapScreen.kt",
+        ).readText()
+        val automation = projectRoot().resolve(
+            "shared/src/commonMain/kotlin/com/denis/georgiatransit/shared/presentation/ui/automation/AutomationId.kt",
+        ).readText()
+        val legend = screen.functionBody("private fun RouteGeometryLegend")
+
+        listOf(
+            AutomationId.MapRouteGeometryLegend,
+            AutomationId.MapRouteGeometryChip,
+            AutomationId.MapRouteGeometryRetry,
+            AutomationId.MapRouteGeometryRemove,
+        ).forEach { id ->
+            assertTrue(id.startsWith("map.route-geometry."))
+            assertFalse(id.contains('$'), "DEN-69 automation IDs must not include runtime values")
+            assertTrue(automation.contains("\"$id\""))
+        }
+        assertCodePath(
+            legend,
+            "MapRouteGeometryLegend",
+            "items(routes, key = { it.routeId.value })",
+            "MapRouteGeometryChip",
+            "selected = route.isFocused",
+            "MapRouteGeometryRemove",
+            "if (route.canRetry)",
+            "MapRouteGeometryRetry",
+        )
+        assertCodePath(
+            screen.functionBody("private fun routeGeometryStatusLabel"),
+            "RouteGeometryLegendState.Loading",
+            "map_route_geometry_loading",
+            "RouteGeometryLegendState.Ready",
+            "map_route_geometry_ready",
+            "RouteGeometryLegendState.Partial",
+            "map_route_geometry_partial",
+            "RouteGeometryLegendState.Retryable",
+            "map_route_geometry_retryable",
+            "RouteGeometryLegendState.Unavailable",
+            "map_route_geometry_unavailable",
+            "RouteGeometryLegendState.PaletteOverflow",
+        )
+        assertCodePath(
+            legend,
+            "onFocus(route.routeId)",
+            "onRemove(route.routeId)",
+            "onRetry(route.routeId)",
+        )
+    }
+
+    @Test
+    fun routeGeometryAdaptersKeepOneOrderedCappedSourceWithRevisionEarlyExitAndStyleReset() {
+        val root = projectRoot()
+        val android = root.resolve(
+            "shared/src/androidMain/kotlin/com/denis/georgiatransit/shared/presentation/map/PlatformMap.android.kt",
+        ).readText()
+        val swift = root.resolve("iosApp/iosApp/MapLibreMapViewBridge.swift").readText()
+        val androidUpdates = android.functionBody("private fun updateSources")
+        val androidPolylines = android.declarationSection("private fun polylineFeatures", "private fun userLocationFeatures")
+        val androidReset = android.functionBody("private fun clearRenderedLayerState")
+        val iosRender = swift.functionBody("private func render")
+        val iosPolylines = swift.functionBody("private func polylineFeatures")
+        val iosReset = swift.functionBody("private func clearRenderedLayerState")
+
+        assertCodePath(
+            android,
+            "GeoJsonSource(POLYLINES_SOURCE_ID",
+            "LineLayer(POLYLINES_LAYER_ID, POLYLINES_SOURCE_ID)",
+            "lineColor(Expression.get(ROUTE_COLOR_PROPERTY))",
+            "lineOpacity(Expression.get(ROUTE_OPACITY_PROPERTY))",
+            "lineWidth(Expression.get(ROUTE_WIDTH_PROPERTY))",
+        )
+        assertCodePath(
+            swift,
+            "MLNShapeSource(identifier: Self.polylinesSourceID",
+            "MLNLineStyleLayer(identifier: Self.polylinesLayerID, source: polylinesSource)",
+            "polylinesLayer.lineColor = NSExpression(forKeyPath: Self.routeColorProperty)",
+            "polylinesLayer.lineWidth = NSExpression(forKeyPath: Self.routeWidthProperty)",
+            "polylinesLayer.lineOpacity = NSExpression(forKeyPath: Self.routeOpacityProperty)",
+        )
+        assertCodePath(
+            androidUpdates,
+            "if (lastPolylineSourceRevision != renderState.polylineSourceRevision)",
+            "polylineFeatures(renderState.polylines)",
+            "lastPolylineSourceRevision = renderState.polylineSourceRevision",
+        )
+        assertCodePath(
+            iosRender,
+            "if lastPolylineSourceRevision != state.polylineSourceRevision",
+            "polylineFeatures(state.polylines)",
+            "lastPolylineSourceRevision = state.polylineSourceRevision",
+        )
+        assertFalse(androidPolylines.contains("sorted"), "Android must preserve common route/direction order, not opaque-ID sort.")
+        assertFalse(iosPolylines.contains(".sorted"), "iOS must preserve common route/direction order, not opaque-ID sort.")
+        assertCodePath(
+            androidPolylines,
+            ".take(MAX_POLYLINES)",
+            ".take(MAX_POLYLINE_POINTS)",
+            "ROUTE_WIDTH_PROPERTY, line.strokeWidth.safePolylineWidth()",
+            "ROUTE_OPACITY_PROPERTY, line.opacity.safePolylineOpacity()",
+        )
+        assertCodePath(
+            iosPolylines,
+            ".prefix(Self.maximumPolylines)",
+            ".prefix(Self.maximumPolylinePoints)",
+            "Self.routeWidthProperty: safePolylineWidth(polyline.strokeWidth)",
+            "Self.routeOpacityProperty: safePolylineOpacity(polyline.opacity)",
+        )
+        assertEquals(256.0, android.numericDeclaration("MAX_POLYLINES"))
+        assertTrue(android.contains("MAX_POLYLINE_POINTS = 20_000"))
+        assertEquals(256.0, swift.numericDeclaration("maximumPolylines"))
+        assertTrue(swift.contains("maximumPolylinePoints = 20_000"))
+        assertCodePath(androidReset, "lastPolylineSourceRevision = null")
+        assertCodePath(iosReset, "lastPolylineSourceRevision = nil")
+        assertCodePath(
+            swift.functionBody("func mapView(_ mapView: MLNMapView, didFinishLoading style: MLNStyle)"),
+            "clearRenderedLayerState()",
+            "installSourcesAndLayersIfNeeded(style: style)",
+        )
+    }
+
+    @Test
+    fun routeGeometryMaestroFixtureFlowAndPerformanceHarnessStayLoopbackOnlyAndSelectorStable() {
+        val root = projectRoot()
+        val flow = root.resolve(RouteGeometryFlow).readText()
+        val loadPrime = root.resolve(RouteGeometryLoadPrimeFlow).readText()
+        val fixture = root.resolve(RouteGeometryFixture).readText()
+        val smokeHarness = root.resolve(RouteGeometrySmokeHarness).readText()
+        val loadHarness = root.resolve(RouteGeometryLoadHarness).readText()
+        val readme = root.resolve(MaestroReadme).readText()
+
+        val fixtureShortNameSelector = Regex("""(?m)^      - text: "\^G(?:10|[1-9])\$"$""")
+        assertEquals(10, fixtureShortNameSelector.findAll(flow).count())
+        assertEquals(
+            fixtureShortNameSelector.findAll(flow).count(),
+            Regex("""(?m)^      - text:""").findAll(flow).count(),
+            "Maestro text selectors may use only fixed, nonlocalized DEN-69 fixture short names",
+        )
+        assertFalse(flow.contains("point:"), "Maestro selectors must not use raw coordinates")
+        listOf(
+            AutomationId.MapScreen,
+            AutomationId.MapRoutes,
+            AutomationId.MapRouteGeometryLegend,
+            AutomationId.MapRouteGeometryChip,
+            AutomationId.MapRouteGeometryRetry,
+            AutomationId.MapRouteGeometryRemove,
+        ).forEach { id -> assertTrue(flow.contains("id: $id"), "Missing stable route-geometry selector '$id'") }
+        assertTrue(flow.contains("start: 50%, 75%"))
+        assertTrue(flow.contains("end: 50%, 45%"))
+        assertTrue(flow.contains("end: 50%, 62%"))
+        assertTrue(flow.contains("text: \"^G10$\""))
+        assertTrue(flow.contains("id: ${AutomationId.RoutesOption}\n    containsDescendants:"))
+        assertTrue(flow.contains("id: ${AutomationId.RoutesSelectionWarning}"))
+        assertTrue(
+            flow.contains(
+                "notVisible:\n      id: ${AutomationId.MapRouteGeometryRetry}",
+            ),
+            "Retry must settle before the smoke flow treats the recovered legend as ready.",
+        )
+        assertTrue(flow.contains("id: ${AutomationId.RoutesSelectionCount}"))
+        assertTrue(
+            flow.contains("assertNotVisible:\n    id: ${AutomationId.RoutesSelectionWarning}"),
+            "After remove/reopen, the portable limit semantic must prove the persisted selection is below ten.",
+        )
+        assertFalse(flow.contains("inputText:"), "Route geometry flow must not open the iOS keyboard.")
+        assertFalse(flow.contains("hideKeyboard"), "iOS hideKeyboard pops Routes in this Compose host.")
+        assertTrue(loadPrime.contains("id: ${AutomationId.MapRouteGeometryLegend}"))
+        assertTrue(loadPrime.contains("id: ${AutomationId.MapRouteGeometryChip}\n    index: 0"))
+        assertFalse(loadPrime.contains("id: ${AutomationId.MapRouteGeometryChip}\n    index: 9"))
+        assertTrue(fixture.contains("127.0.0.1"))
+        assertTrue(fixture.contains("test-only-route-geometry-fixture"))
+        assertTrue(fixture.contains("routes.length * 2"))
+        assertTrue(fixture.contains("precision5: true"))
+        assertTrue(fixture.contains("precision6: true"))
+        assertTrue(fixture.contains("stops: true"), "Fixture Demo City must be selectable by CitySelection.")
+        assertTrue(fixture.contains("stops\\/nearby"), "Selectable fixture cities must serve the map's nearby-stops request.")
+        assertTrue(fixture.contains("id: `${'$'}{cityId}:fixture:direction:${'$'}{name}-${'$'}{routeIndex}`"))
+        assertTrue(fixture.contains("UPSTREAM_BAD_RESPONSE"))
+        assertTrue(fixture.contains("}, 502)"))
+        assertTrue(fixture.contains("partialDirectionRequests += 1"))
+        assertFalse(fixture.contains("provider secret"))
+        listOf(smokeHarness, loadHarness).forEach { harness ->
+            assertTrue(harness.contains("fixture_is_our_process"))
+            assertTrue(harness.contains("verify_owned_fixture"))
+            assertTrue(harness.contains("kill \"\$fixture_pid\""))
+            assertTrue(harness.contains("emulator-*"))
+            assertTrue(harness.contains("simctl list devices booted"))
+        }
+        assertTrue(loadHarness.contains("dumpsys gfxinfo"))
+        assertTrue(loadHarness.contains("dumpsys meminfo"))
+        assertTrue(loadHarness.contains("vmmap"))
+        assertTrue(loadHarness.contains("rss="))
+        assertTrue(smokeHarness.contains("verify_owned_fixture 4"))
+        assertTrue(readme.contains("run-route-geometry-smoke.sh"))
+        assertTrue(readme.contains("run-route-geometry-load-sample.sh"))
+        assertTrue(readme.contains("cannot prove iOS FPS or jank"))
+        assertTrue(readme.contains("physical-device performance"))
+    }
+
+    @Test
     fun sourcePathHelperIgnoresLineAndBlockComments() {
         val source = """
             // precondition text is not executable
@@ -785,6 +986,11 @@ class MapResourceContractTest {
         const val StopArrivalsFlow = "ui-tests/maestro/flows/stop-arrivals-smoke.yaml"
         const val StopArrivalsHarness = "ui-tests/maestro/run-stop-arrivals-smoke.sh"
         const val StopArrivalsFixture = "ui-tests/maestro/fixtures/stop-arrivals-fixture-server.mjs"
+        const val RouteGeometryFlow = "ui-tests/maestro/flows/route-geometry-smoke.yaml"
+        const val RouteGeometryLoadPrimeFlow = "ui-tests/maestro/flows/route-geometry-load-prime.yaml"
+        const val RouteGeometryFixture = "ui-tests/maestro/fixtures/route-geometry-fixture-server.mjs"
+        const val RouteGeometrySmokeHarness = "ui-tests/maestro/run-route-geometry-smoke.sh"
+        const val RouteGeometryLoadHarness = "ui-tests/maestro/run-route-geometry-load-sample.sh"
         const val MaestroReadme = "ui-tests/maestro/README.md"
     }
 }

@@ -171,3 +171,59 @@ ui-tests/maestro/run-walking-estimate-smoke.sh ios \
   19C4B36C-E2E9-43C3-BB33-B762FFDA5A08 \
   /absolute/path/to/Build/Products/Debug-iphonesimulator/iosApp.app
 ```
+
+## Route geometry (DEN-69)
+
+`run-route-geometry-smoke.sh` owns a handwritten loopback-only BFF fake on port 8080. It serves
+exactly ten catalogue routes, each with two distinct encoded shapes (both precision 5 and 6), and
+sets `routeGeometry=true`. The partial direction returns a documented HTTP 502
+`UPSTREAM_BAD_RESPONSE` for exactly three requests: the initial GET and TransitBffClient's two
+automatic retries. The resulting common Retryable legend exposes its retry control; the fourth
+request, from that user action, succeeds. The uncapped health counter must be exactly `0 → 3 → 4`,
+so the harness fails on duplicate or unexpected automatic calls. The fixture has no provider
+contract or secret and is never bundled with either app.
+
+The Maestro flow uses fixed automation IDs. Where Compose LazyColumn exposes only the visible
+repeated `routes.option` nodes, bounded relative swipes inside the list bring fixed nonlocalized
+`G1`–`G10` short names (owned only by this loopback fixture) into the tap viewport; the stable
+option ancestor is then tapped. Each tap waits for recomposition; the final
+`routes.selection-warning` is the strict 10/10 assertion and stays portable across Android's
+checked and iOS's selected accessibility semantics. The relative gestures are not device-pixel
+coordinates or product data selectors. It then returns to the map, checks the legend/chips,
+focuses a chip, reaches the controlled partial/retry state, waits for that Retry control to clear,
+removes a route, and reopens Routes. The static selection-count and absent selection-warning then
+prove the persisted selection is below the ten-route limit without reading localized text. It
+deliberately does not claim that semantics nodes prove native line geometry. Ordered
+decoded points and the grouped Android/iOS source boundary are verified by common and host tests;
+this flow is interaction evidence only.
+
+Use only an explicit Android emulator or explicitly booted iOS Simulator:
+
+```shell
+ui-tests/maestro/run-route-geometry-smoke.sh android emulator-5554 \
+  androidApp/build/outputs/apk/debug/androidApp-debug.apk
+
+ui-tests/maestro/run-route-geometry-smoke.sh ios \
+  19C4B36C-E2E9-43C3-BB33-B762FFDA5A08 \
+  /absolute/path/to/Build/Products/Debug-iphonesimulator/iosApp.app
+```
+
+`run-route-geometry-load-sample.sh` uses the same fake with every shape successful, primes the
+maximum 10-route / 20-direction selection, then records three and six leave/return cycles. Its
+final argument is caller-owned and intentionally untracked. The priming flow asserts the legend
+and one visible chip: the strict 10/10 assertion occurs before Confirm, while the horizontal chip
+row intentionally virtualizes off-screen chips; common coordinator tests and fixture requests
+cover all twenty directions.
+
+```shell
+ui-tests/maestro/run-route-geometry-load-sample.sh android emulator-5554 \
+  androidApp/build/outputs/apk/debug/androidApp-debug.apk /tmp/den-69-android
+
+ui-tests/maestro/run-route-geometry-load-sample.sh ios \
+  19C4B36C-E2E9-43C3-BB33-B762FFDA5A08 \
+  /absolute/path/to/Build/Products/Debug-iphonesimulator/iosApp.app /tmp/den-69-ios
+```
+
+Android captures `dumpsys gfxinfo` and `dumpsys meminfo`; iOS Simulator captures `vmmap` and the
+host process RSS. Simulator output cannot prove iOS FPS or jank, so physical-device performance
+remains a separate required measurement when release thresholds need that evidence.

@@ -17,6 +17,7 @@ import com.denis.georgiatransit.shared.presentation.cityselection.CitySelectionV
 import com.denis.georgiatransit.shared.presentation.location.LocationSession
 import com.denis.georgiatransit.shared.presentation.location.RuntimeLocationSession
 import com.denis.georgiatransit.shared.presentation.map.MapViewModel
+import com.denis.georgiatransit.shared.presentation.map.RouteGeometryCoordinator
 import com.denis.georgiatransit.shared.presentation.map.DefaultVehicleRealtimeTickerPolicy
 import com.denis.georgiatransit.shared.presentation.map.SystemVehicleRealtimeClock
 import com.denis.georgiatransit.shared.presentation.map.VehicleRealtimeClock
@@ -52,6 +53,7 @@ private fun appModule(
         )
     }
     factory { EstimateWalkingToStop(repository = get()) }
+    factory { RouteGeometryCoordinator(repository = get()) }
     factory { SplashViewModel(bootstrapTransitSession = get()) }
     factory { CitySelectionViewModel(repository = get(), session = get(), locationSession = get()) }
     factory {
@@ -62,6 +64,7 @@ private fun appModule(
             estimateWalkingToStop = get(),
             realtimeClock = get(),
             realtimeTickerPolicy = get(),
+            routeGeometryCoordinator = get(),
         )
     }
     factory { RoutesViewModel(repository = get(), session = get()) }

@@ -50,6 +50,17 @@
     <string name="map_change_city_action">Change city</string>
     <string name="map_my_location_action">My location</string>
     <string name="map_selected_routes">Routes: %1$s</string>
+    <string name="map_route_geometry_title">Selected route lines</string>
+    <string name="map_route_geometry_loading">Loading route line… %1$d of %2$d directions shown</string>
+    <string name="map_route_geometry_ready">%1$d of %2$d directions shown</string>
+    <string name="map_route_geometry_partial">%1$d of %2$d directions shown; some are unavailable</string>
+    <string name="map_route_geometry_retryable">%1$d of %2$d directions could not be loaded.</string>
+    <string name="map_route_geometry_unavailable">%1$d of %2$d directions are unavailable.</string>
+    <string name="map_route_geometry_palette_overflow">Too many selected routes to assign a distinct line color.</string>
+    <string name="map_route_geometry_retry">Try again</string>
+    <string name="map_route_geometry_retry_accessibility">Try again for route %1$s</string>
+    <string name="map_route_geometry_remove">Remove</string>
+    <string name="map_route_geometry_remove_accessibility">Remove route %1$s</string>
     <string name="map_selected_stop">Selected stop: %1$s</string>
     <string name="map_stop_arrivals_title">Stop arrivals</string>
     <string name="map_stop_arrivals_stop_details_unavailable">Stop details unavailable</string>
