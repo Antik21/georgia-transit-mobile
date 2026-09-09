@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.denis.georgiatransit.shared.domain.model.LocalizedText
 import com.denis.georgiatransit.shared.domain.model.RouteId
+import com.denis.georgiatransit.shared.domain.model.RouteSelectionPolicy
 import com.denis.georgiatransit.shared.domain.model.TransitCity
 import com.denis.georgiatransit.shared.domain.model.TransitLocale
 import com.denis.georgiatransit.shared.domain.model.TransitRoute
@@ -30,6 +31,8 @@ class RoutesViewModel(
     private var catalogGeneration = 0L
     private var refreshJob: Job? = null
     private var hasObservedCity = false
+    /** This entry's uncommitted selection; session updates never overwrite it after initialization. */
+    private var draftSelectedIds: Set<RouteId> = emptySet()
 
     override val container: Container<ViewState, SideEffect> = viewModelScope.container(
         initialState = ViewState(),
@@ -43,24 +46,20 @@ class RoutesViewModel(
                     city?.capabilities?.routes != previousCity?.capabilities?.routes
 
                 if (!hasObservedCity || cityChanged || routesCapabilityChanged) {
-                    val selectionForCity = if (previousCity != null && cityChanged) {
-                        if (selectedIds.isNotEmpty()) session.selectRoutes(emptySet())
-                        emptySet()
-                    } else {
-                        selectedIds
-                    }
                     hasObservedCity = true
                     activeCity = city
+                    draftSelectedIds = selectedIds.takeIf { city?.capabilities?.routes == true }
+                        ?.let(RouteSelectionPolicy::sanitized)
+                        .orEmpty()
                     catalogGeneration += 1
                     refreshJob?.cancel()
                     catalogRoutes = emptyList()
-                    presentNewCity(city, selectionForCity, catalogGeneration)
+                    presentNewCity(city, catalogGeneration)
                 } else {
                     activeCity = city
                     reduce {
                         state.copy(
                             cityName = city?.displayName(currentLocale).orEmpty(),
-                            selectedIds = selectedIds,
                         )
                     }
                 }
@@ -74,26 +73,26 @@ class RoutesViewModel(
             is Action.SearchChanged -> onSearchChanged(action.query)
             is Action.LocaleChanged -> onLocaleChanged(action.languageTag)
             Action.RetryClicked -> onRetryClicked()
-            Action.BackClicked -> onBackClicked()
+            Action.CancelClicked -> onCancelClicked()
             Action.ConfirmClicked -> onConfirmClicked()
         }
     }
 
     private fun presentNewCity(
         city: TransitCity?,
-        selectedIds: Set<RouteId>,
         generation: Long,
     ) = intent {
         when {
             city == null -> reduce {
                 ViewState(
-                    selectedIds = emptySet(),
+                    selectedIds = draftSelectedIds,
                     catalog = CatalogState.Unavailable,
                 )
             }
 
             !city.capabilities.routes -> {
-                if (selectedIds.isNotEmpty()) session.selectRoutes(emptySet())
+                draftSelectedIds = emptySet()
+                session.selectRoutes(city.id, emptySet())
                 reduce {
                     ViewState(
                         cityId = city.id,
@@ -109,7 +108,7 @@ class RoutesViewModel(
                     ViewState(
                         cityId = city.id,
                         cityName = city.displayName(currentLocale),
-                        selectedIds = selectedIds,
+                        selectedIds = draftSelectedIds,
                         catalog = CatalogState.Loading,
                     )
                 }
@@ -146,18 +145,37 @@ class RoutesViewModel(
         }
         when (result) {
             is TransitLoadResult.Data -> {
+                if (result.value.any { it.cityId != city.id }) {
+                    catalogRoutes = emptyList()
+                    reduce {
+                        state.copy(
+                            routes = emptyList(),
+                            visibleRoutes = emptyList(),
+                            catalog = TransitFailure.InvalidResponse(
+                                detail = "Route catalogue contains another city",
+                            ).toCatalogState(),
+                        )
+                    }
+                    return@intent
+                }
                 catalogRoutes = result.value.sortedWith(RouteCatalogComparator)
                 val visibleIds = catalogRoutes.mapTo(mutableSetOf(), TransitRoute::id)
-                val reconciledSelection = state.selectedIds.intersect(visibleIds)
-                if (reconciledSelection != session.selectedRouteIds.value) {
-                    session.selectRoutes(reconciledSelection)
+                val reconciledDraft = draftSelectedIds.intersect(visibleIds)
+                draftSelectedIds = reconciledDraft
+                val committedSelection = session.selectedRouteIds.value
+                val reconciledCommittedSelection = committedSelection.intersect(visibleIds)
+                if (
+                    session.selectedCity.value?.id == city.id &&
+                    reconciledCommittedSelection != committedSelection
+                ) {
+                    session.selectRoutes(city.id, reconciledCommittedSelection)
                 }
                 val routes = catalogRoutes.toRouteItems(currentLocale)
                 reduce {
                     state.copy(
                         routes = routes,
                         visibleRoutes = routes.filterFor(state.searchQuery),
-                        selectedIds = reconciledSelection,
+                        selectedIds = reconciledDraft,
                         catalog = CatalogState.Available(result.freshness),
                     )
                 }
@@ -165,8 +183,9 @@ class RoutesViewModel(
 
             is TransitLoadResult.Empty -> {
                 catalogRoutes = emptyList()
-                if (state.selectedIds.isNotEmpty() || session.selectedRouteIds.value.isNotEmpty()) {
-                    session.selectRoutes(emptySet())
+                draftSelectedIds = emptySet()
+                if (session.selectedCity.value?.id == city.id && session.selectedRouteIds.value.isNotEmpty()) {
+                    session.selectRoutes(city.id, emptySet())
                 }
                 reduce {
                     state.copy(
@@ -189,12 +208,17 @@ class RoutesViewModel(
     }
 
     private fun onRouteToggled(routeId: RouteId) = intent {
-        if (state.catalog !is CatalogState.Available || state.routes.none { it.id == routeId }) return@intent
-        val updated = state.selectedIds.toMutableSet().apply {
-            if (!add(routeId)) remove(routeId)
+        if (state.isConfirming || state.catalog !is CatalogState.Available || state.routes.none { it.id == routeId }) {
+            return@intent
+        }
+        val updated = draftSelectedIds.toMutableSet().apply {
+            if (!add(routeId)) {
+                remove(routeId)
+            } else if (size > RouteSelectionPolicy.MaximumSelectedRoutes) {
+                remove(routeId)
+            }
         }.toSet()
-        // TransitSession is the only selection owner. Filtering never changes this set or its order.
-        session.selectRoutes(updated)
+        draftSelectedIds = updated
         reduce { state.copy(selectedIds = updated) }
     }
 
@@ -224,7 +248,7 @@ class RoutesViewModel(
             else -> false
         }
         val city = activeCity?.takeIf { it.capabilities.routes } ?: return@intent
-        if (!canRetry || refreshJob?.isActive == true) return@intent
+        if (!canRetry || state.isConfirming || refreshJob?.isActive == true) return@intent
 
         catalogGeneration += 1
         reduce { state.copy(catalog = CatalogState.Loading) }
@@ -232,11 +256,29 @@ class RoutesViewModel(
     }
 
     private fun onConfirmClicked() = intent {
-        if (state.catalog is CatalogState.Available) postSideEffect(NavigationEffect.BackToMap)
+        val city = activeCity ?: return@intent
+        val catalogIds = catalogRoutes.mapTo(mutableSetOf(), TransitRoute::id)
+        if (
+            !state.canConfirm ||
+            state.cityId != city.id ||
+            session.selectedCity.value?.id != city.id ||
+            !city.capabilities.routes ||
+            !RouteSelectionPolicy.isValid(draftSelectedIds) ||
+            !catalogIds.containsAll(draftSelectedIds)
+        ) {
+            return@intent
+        }
+
+        reduce { state.copy(isConfirming = true) }
+        if (!session.selectRoutes(city.id, draftSelectedIds)) {
+            reduce { state.copy(isConfirming = false) }
+            return@intent
+        }
+        postSideEffect(NavigationEffect.Confirmed)
     }
 
-    private fun onBackClicked() = intent {
-        postSideEffect(NavigationEffect.BackToMap)
+    private fun onCancelClicked() = intent {
+        postSideEffect(NavigationEffect.Dismissed)
     }
 
     private fun TransitFailure.toCatalogState(): CatalogState {

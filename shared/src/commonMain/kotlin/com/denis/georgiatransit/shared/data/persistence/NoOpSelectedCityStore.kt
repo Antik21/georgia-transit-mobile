@@ -8,6 +8,8 @@ import com.denis.georgiatransit.shared.domain.repository.SelectedCityStore
 object NoOpSelectedCityStore : SelectedCityStore {
     override fun read(): CachedCitySnapshot? = null
 
+    override fun save(snapshot: CachedCitySnapshot) = Unit
+
     override fun save(city: TransitCity) = Unit
 
     override fun clear() = Unit

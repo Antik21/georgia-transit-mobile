@@ -4,12 +4,16 @@ import com.denis.georgiatransit.shared.domain.config.RuntimeBootstrapConfigurati
 import com.denis.georgiatransit.shared.domain.config.RuntimeBootstrapConfigurationSource
 import com.denis.georgiatransit.shared.domain.model.TransitCity
 import com.denis.georgiatransit.shared.domain.repository.CachedCitySnapshot
+import com.denis.georgiatransit.shared.domain.repository.RouteListRequest
 import com.denis.georgiatransit.shared.domain.repository.SelectedCityStore
+import com.denis.georgiatransit.shared.domain.repository.TransitFreshness
+import com.denis.georgiatransit.shared.domain.repository.TransitLoadResult
 import com.denis.georgiatransit.shared.domain.repository.TransitRepository
 import com.denis.georgiatransit.shared.domain.repository.TransitSession
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.withTimeout
+import kotlin.time.TimeSource
 
 class BootstrapTransitSession(
     private val repository: TransitRepository,
@@ -25,41 +29,58 @@ class BootstrapTransitSession(
                 return Result.Error(result.failure)
             }
         }
-        val cachedCity = readValidCachedCity(runtimeConfiguration)
+        val cachedSelection = readValidCachedSelection(runtimeConfiguration)
 
         // A first selection owns its catalog request so it can represent loading, empty, and
         // retryable failures in the City Selection UI instead of collapsing them into Splash.
         // Bootstrap only validates a durable selection when one is available to restore.
-        if (cachedCity == null) {
+        if (cachedSelection == null) {
             session.clearSelectedCity()
             return Result.OpenCitySelection
         }
 
         return try {
+            val bootstrapStartedAt = TimeSource.Monotonic.markNow()
             val currentCities = withTimeout(runtimeConfiguration.bootstrapTimeoutMillis) {
                 repository.loadCityCapabilitySnapshot()
             }
-            val currentCity = currentCities.firstOrNull { it.id == cachedCity.id && it.isMapEligible() }
+            val currentCity = currentCities.firstOrNull { it.id == cachedSelection.city.id && it.isMapEligible() }
 
             if (currentCity != null) {
-                session.selectCity(currentCity)
+                session.restoreCitySelection(
+                    city = currentCity,
+                    routeIds = reconcilePersistedRouteSelection(
+                        city = currentCity,
+                        cachedSelection = cachedSelection,
+                        timeoutMillis = (
+                            runtimeConfiguration.bootstrapTimeoutMillis -
+                                bootstrapStartedAt.elapsedNow().inWholeMilliseconds
+                            ).coerceAtLeast(0L),
+                    ),
+                )
                 Result.OpenMap
             } else {
                 clearInvalidSelection()
                 Result.OpenCitySelection
             }
         } catch (_: TimeoutCancellationException) {
-            restoreOfflineOrError(cachedCity, Failure.TimedOut)
+            restoreOfflineOrError(cachedSelection, Failure.TimedOut)
         } catch (failure: CancellationException) {
             throw failure
         } catch (_: Throwable) {
-            restoreOfflineOrError(cachedCity, Failure.Unavailable)
+            restoreOfflineOrError(cachedSelection, Failure.Unavailable)
         }
     }
 
-    private fun restoreOfflineOrError(cachedCity: TransitCity?, failure: Failure): Result {
+    private fun restoreOfflineOrError(cachedSelection: CachedCitySnapshot?, failure: Failure): Result {
+        val cachedCity = cachedSelection?.city
         if (cachedCity != null) {
-            session.selectCity(cachedCity)
+            // The city snapshot is eligible for offline restoration, but route IDs are not: their
+            // authoritative city catalog could not be revalidated during this bootstrap.
+            session.restoreCitySelection(
+                city = cachedCity,
+                routeIds = emptySet(),
+            )
             return Result.OpenMap
         }
 
@@ -86,7 +107,7 @@ class BootstrapTransitSession(
         RuntimeConfigurationResult.Error(Failure.RuntimeConfigurationUnavailable)
     }
 
-    private fun readValidCachedCity(configuration: RuntimeBootstrapConfiguration): TransitCity? {
+    private fun readValidCachedSelection(configuration: RuntimeBootstrapConfiguration): CachedCitySnapshot? {
         val cachedSnapshot = try {
             selectedCityStore.read()
         } catch (failure: CancellationException) {
@@ -98,8 +119,10 @@ class BootstrapTransitSession(
 
         return cachedSnapshot
             ?.takeIf { it.schemaVersion in configuration.compatibleCachedCitySchemaVersions }
-            ?.city
-            ?.takeIf { it.isMapEligible() }
+            ?.takeIf { it.city.isMapEligible() }
+            ?.let { snapshot ->
+                snapshot.copy(selectedRouteIds = snapshot.routeIdsForRestore())
+            }
             ?: run {
                 if (cachedSnapshot != null) clearPersistedSelection()
                 null
@@ -131,6 +154,51 @@ class BootstrapTransitSession(
             center.longitude.isFinite() &&
             center.longitude in -180.0..180.0 &&
             capabilities.stops
+
+    /**
+     * Uses the remaining shared bootstrap budget so route hydration cannot extend Splash
+     * indefinitely. A missing, stale, malformed, or failed route response restores the valid
+     * city with an empty selection rather than exposing IDs that Map cannot resolve.
+     */
+    private suspend fun reconcilePersistedRouteSelection(
+        city: TransitCity,
+        cachedSelection: CachedCitySnapshot,
+        timeoutMillis: Long,
+    ): Set<com.denis.georgiatransit.shared.domain.model.RouteId> {
+        val persistedIds = cachedSelection.selectedRouteIds
+        if (!city.capabilities.routes || persistedIds.isEmpty() || timeoutMillis <= 0L) return emptySet()
+
+        return try {
+            when (
+                val result = withTimeout(timeoutMillis) {
+                    repository.refreshRoutes(RouteListRequest(cityId = city.id, mode = null))
+                }
+            ) {
+                is TransitLoadResult.Data -> when (result.freshness) {
+                    TransitFreshness.Network,
+                    TransitFreshness.CacheValid,
+                    TransitFreshness.NetworkValidated,
+                    -> result.value
+                        .takeIf { routes -> routes.all { it.cityId == city.id } }
+                        ?.mapTo(mutableSetOf()) { it.id }
+                        ?.let(persistedIds::intersect)
+                        .orEmpty()
+
+                    TransitFreshness.StaleOffline -> emptySet()
+                }
+
+                is TransitLoadResult.Empty,
+                is TransitLoadResult.Failure,
+                -> emptySet()
+            }
+        } catch (_: TimeoutCancellationException) {
+            emptySet()
+        } catch (failure: CancellationException) {
+            throw failure
+        } catch (_: Throwable) {
+            emptySet()
+        }
+    }
 
     sealed interface Result {
         data object OpenCitySelection : Result

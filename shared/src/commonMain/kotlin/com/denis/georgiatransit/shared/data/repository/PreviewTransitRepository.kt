@@ -4,9 +4,11 @@ import com.denis.georgiatransit.shared.domain.model.CityCapabilities
 import com.denis.georgiatransit.shared.domain.model.CityId
 import com.denis.georgiatransit.shared.domain.model.GeoPoint
 import com.denis.georgiatransit.shared.domain.model.RouteId
+import com.denis.georgiatransit.shared.domain.model.RouteSelectionPolicy
 import com.denis.georgiatransit.shared.domain.model.TransitCity
 import com.denis.georgiatransit.shared.domain.model.TransitRoute
 import com.denis.georgiatransit.shared.domain.repository.SelectedCityStore
+import com.denis.georgiatransit.shared.domain.repository.CachedCitySnapshot
 import com.denis.georgiatransit.shared.domain.repository.TransitRepository
 import com.denis.georgiatransit.shared.domain.repository.TransitSession
 import com.denis.georgiatransit.shared.data.persistence.NoOpSelectedCityStore
@@ -60,31 +62,64 @@ class RuntimeTransitSession(
     override val selectedRouteIds: StateFlow<Set<RouteId>> = mutableRoutes.asStateFlow()
 
     override fun selectCity(city: TransitCity) {
-        if (mutableCity.value?.id != city.id) clearRouteSelection()
+        if (mutableCity.value?.id != city.id || !city.capabilities.routes) clearRouteSelection()
         mutableCity.value = city
-        persistSelectedCity(city)
+        persistSelection(city, mutableRoutes.value)
     }
 
-    override fun selectRoutes(routeIds: Set<RouteId>) {
-        mutableRoutes.value = if (mutableCity.value == null) emptySet() else routeIds.toSet()
+    override fun selectRoutes(cityId: CityId, routeIds: Set<RouteId>): Boolean {
+        val city = mutableCity.value ?: return false
+        if (city.id != cityId || !city.capabilities.routes || !RouteSelectionPolicy.isValid(routeIds)) return false
+
+        val replacement = routeIds.toSet()
+        mutableRoutes.value = replacement
+        persistSelection(city, replacement)
+        return true
+    }
+
+    override fun restoreCitySelection(city: TransitCity, routeIds: Set<RouteId>) {
+        val restoredRoutes = routeIds.takeIf { city.capabilities.routes }
+            ?.let(RouteSelectionPolicy::sanitized)
+            .orEmpty()
+        // Publish the route portion before city so a collector never sees a selected city paired
+        // with a synthetic empty selection during cold-start restoration.
+        mutableRoutes.value = restoredRoutes
+        mutableCity.value = city
+        persistSelection(city, restoredRoutes)
     }
 
     override fun clearSelectedCity() {
-        mutableCity.value = null
         clearRouteSelection()
+        mutableCity.value = null
+        clearPersistedSelection()
     }
 
     private fun clearRouteSelection() {
         mutableRoutes.value = emptySet()
     }
 
-    private fun persistSelectedCity(city: TransitCity) {
+    private fun persistSelection(city: TransitCity, routeIds: Set<RouteId>) {
         try {
-            selectedCityStore.save(city)
+            selectedCityStore.save(
+                CachedCitySnapshot(
+                    city = city,
+                    selectedRouteIds = routeIds,
+                ),
+            )
         } catch (failure: CancellationException) {
             throw failure
         } catch (_: Throwable) {
             // A failed cache write must not prevent the in-memory selection from opening Map.
+        }
+    }
+
+    private fun clearPersistedSelection() {
+        try {
+            selectedCityStore.clear()
+        } catch (failure: CancellationException) {
+            throw failure
+        } catch (_: Throwable) {
+            // A stale durable value will be revalidated at the next bootstrap attempt.
         }
     }
 }

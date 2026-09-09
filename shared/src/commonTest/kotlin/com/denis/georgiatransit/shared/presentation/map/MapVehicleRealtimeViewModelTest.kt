@@ -220,14 +220,14 @@ class MapVehicleRealtimeViewModelTest {
             this@runTest.runCurrent()
             assertEquals(1, repository.requests.size)
 
-            session.selectRoutes(emptySet())
+            session.selectRoutes(repository.city.id, emptySet())
             this@runTest.runCurrent()
             routeResult.complete(TransitLoadResult.Data(page(listOf(vehicle("late-route", routeA))), TransitFreshness.Network))
             this@runTest.runCurrent()
             assertTrue(viewModel.container.stateFlow.value.renderState?.vehicles.orEmpty().isEmpty())
             assertIs<VehicleLayerState.Hidden>(viewModel.container.stateFlow.value.vehicleLayerState)
 
-            session.selectRoutes(setOf(routeA))
+            session.selectRoutes(repository.city.id, setOf(routeA))
             this@runTest.runCurrent()
             assertEquals(2, repository.requests.size)
             session.selectCity(repository.city.copy(id = CityId("other-city"), name = "Other city"))
@@ -299,7 +299,7 @@ class MapVehicleRealtimeViewModelTest {
     private fun selectedSession(repository: ScriptedVehicleRepository, routes: Set<RouteId>): RuntimeTransitSession =
         RuntimeTransitSession().also {
             it.selectCity(repository.city)
-            it.selectRoutes(routes)
+            it.selectRoutes(repository.city.id, routes)
         }
 
     private fun page(items: List<TransitVehicle>, observedAt: Instant = now) = VehiclePage(

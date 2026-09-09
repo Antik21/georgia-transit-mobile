@@ -14,3 +14,5 @@ durable schema-drift capability interlock are recorded in
 [ADR 0007](0007-bff-observability-and-schema-safety.md).
 The additive direct-walking API, local fallback, and coordinate privacy
 boundary are recorded in [ADR 0008](0008-direct-walking-estimate-privacy-boundary.md).
+The route-selection draft, bounded city-scoped snapshot migration, and cancel contract are
+recorded in [ADR 0009](0009-route-selection-draft-and-city-scoped-persistence.md).

@@ -71,6 +71,7 @@ class NavigationTransitionPolicyTest {
             NavigationEvent.CityConfirmed,
             NavigationEvent.OpenRoutes,
             NavigationEvent.RoutesConfirmed,
+            NavigationEvent.RoutesDismissed,
             NavigationEvent.Back,
             NavigationEvent.ChangeCity,
         )
@@ -87,8 +88,8 @@ class NavigationTransitionPolicyTest {
     }
 
     @Test
-    fun routesConfirmationAndBackPopRoutesButAreNoOpsAtRoots() {
-        listOf(NavigationEvent.RoutesConfirmed, NavigationEvent.Back).forEach { event ->
+    fun routesConfirmationDismissalAndBackPopRoutesButAreNoOpsAtRoots() {
+        listOf(NavigationEvent.RoutesConfirmed, NavigationEvent.RoutesDismissed, NavigationEvent.Back).forEach { event ->
             assertEquals(
                 mapStack,
                 NavigationTransitionPolicy.transition(routesStack, selectedCityId = cityId, event),

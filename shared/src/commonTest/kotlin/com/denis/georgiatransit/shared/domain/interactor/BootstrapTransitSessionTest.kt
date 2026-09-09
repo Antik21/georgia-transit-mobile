@@ -10,7 +10,11 @@ import com.denis.georgiatransit.shared.domain.model.RouteId
 import com.denis.georgiatransit.shared.domain.model.TransitCity
 import com.denis.georgiatransit.shared.domain.model.TransitRoute
 import com.denis.georgiatransit.shared.domain.repository.CachedCitySnapshot
+import com.denis.georgiatransit.shared.domain.repository.RouteListRequest
 import com.denis.georgiatransit.shared.domain.repository.SelectedCityStore
+import com.denis.georgiatransit.shared.domain.repository.TransitFailure
+import com.denis.georgiatransit.shared.domain.repository.TransitFreshness
+import com.denis.georgiatransit.shared.domain.repository.TransitLoadResult
 import com.denis.georgiatransit.shared.domain.repository.TransitRepository
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
@@ -234,6 +238,78 @@ class BootstrapTransitSessionTest {
         assertTrue(clearFailureStore.clearCalls >= 1)
     }
 
+    @Test
+    fun v2RestoresOnlyCurrentCatalogSurvivorsBeforeOpeningMapAndPersistsThePrunedSet() = runTest {
+        val cached = city("tbilisi", name = "cached")
+        val current = city("tbilisi", name = "current")
+        val surviving = RouteId("opaque:surviving")
+        val removed = RouteId("opaque:removed")
+        val store = FakeSelectedCityStore(
+            snapshot = CachedCitySnapshot(city = cached, selectedRouteIds = linkedSetOf(surviving, removed)),
+        )
+        val session = RuntimeTransitSession(store)
+        val repository = FakeRepository(cities = listOf(current)).apply {
+            refreshResult = {
+                TransitLoadResult.Data(
+                    listOf(catalogRoute(current.id, surviving), catalogRoute(current.id, RouteId("opaque:other"))),
+                    TransitFreshness.CacheValid,
+                )
+            }
+        }
+
+        val result = bootstrap(store = store, session = session, repository = repository).bootstrap()
+
+        assertEquals(BootstrapTransitSession.Result.OpenMap, result)
+        assertEquals(current, session.selectedCity.value)
+        assertEquals(setOf(surviving), session.selectedRouteIds.value)
+        assertEquals(listOf(RouteListRequest(current.id, mode = null)), repository.refreshRequests)
+        assertEquals(
+            CachedCitySnapshot(city = current, selectedRouteIds = setOf(surviving)),
+            store.savedSnapshots.last(),
+        )
+    }
+
+    @Test
+    fun v1AndUnvalidatedRouteCatalogOutcomesOpenMapWithAnEmptySelection() = runTest {
+        val cached = city("tbilisi")
+        val routeId = RouteId("opaque:route")
+        val v1Store = FakeSelectedCityStore(
+            snapshot = CachedCitySnapshot(
+                schemaVersion = CachedCitySnapshot.LegacyCityOnlySchemaVersion,
+                city = cached,
+                selectedRouteIds = setOf(routeId),
+            ),
+        )
+        val v1Session = RuntimeTransitSession(v1Store)
+        val v1Repository = FakeRepository(cities = listOf(cached))
+
+        assertEquals(
+            BootstrapTransitSession.Result.OpenMap,
+            bootstrap(store = v1Store, session = v1Session, repository = v1Repository).bootstrap(),
+        )
+        assertTrue(v1Session.selectedRouteIds.value.isEmpty())
+        assertTrue(v1Repository.refreshRequests.isEmpty(), "v1 must never restore crafted route IDs")
+
+        listOf<suspend () -> TransitLoadResult<List<TransitRoute>>>(
+            { TransitLoadResult.Empty(TransitFreshness.Network) },
+            { TransitLoadResult.Data(listOf(catalogRoute(cached.id, routeId)), TransitFreshness.StaleOffline) },
+            { TransitLoadResult.Failure(TransitFailure.Transport("offline")) },
+        ).forEachIndexed { index, routeResult ->
+            val store = FakeSelectedCityStore(snapshot = CachedCitySnapshot(city = cached, selectedRouteIds = setOf(routeId)))
+            val session = RuntimeTransitSession(store)
+            val repository = FakeRepository(cities = listOf(cached)).apply { refreshResult = routeResult }
+
+            assertEquals(
+                BootstrapTransitSession.Result.OpenMap,
+                bootstrap(store = store, session = session, repository = repository).bootstrap(),
+                "route outcome $index",
+            )
+            assertEquals(cached, session.selectedCity.value)
+            assertTrue(session.selectedRouteIds.value.isEmpty(), "route outcome $index")
+            assertEquals(CachedCitySnapshot(city = cached), store.savedSnapshots.last())
+        }
+    }
+
     private fun bootstrap(
         store: FakeSelectedCityStore = FakeSelectedCityStore(),
         session: RuntimeTransitSession = RuntimeTransitSession(store),
@@ -282,6 +358,10 @@ class BootstrapTransitSessionTest {
     ) : TransitRepository {
         var snapshotCalls = 0
             private set
+        val refreshRequests = mutableListOf<RouteListRequest>()
+        var refreshResult: suspend () -> TransitLoadResult<List<TransitRoute>> = {
+            TransitLoadResult.Failure(TransitFailure.Configuration("Route hydration is not configured"))
+        }
 
         override fun cities(): List<TransitCity> = cities
 
@@ -292,6 +372,11 @@ class BootstrapTransitSessionTest {
         }
 
         override fun routes(cityId: CityId): List<TransitRoute> = emptyList()
+
+        override suspend fun refreshRoutes(request: RouteListRequest): TransitLoadResult<List<TransitRoute>> {
+            refreshRequests += request
+            return refreshResult()
+        }
     }
 
     private class FakeSelectedCityStore(
@@ -301,6 +386,7 @@ class BootstrapTransitSessionTest {
         private val clearFailure: Throwable? = null,
     ) : SelectedCityStore {
         val savedCities = mutableListOf<TransitCity>()
+        val savedSnapshots = mutableListOf<CachedCitySnapshot>()
         var readCalls = 0
             private set
         var clearCalls = 0
@@ -312,11 +398,14 @@ class BootstrapTransitSessionTest {
             return snapshot
         }
 
-        override fun save(city: TransitCity) {
+        override fun save(snapshot: CachedCitySnapshot) {
             saveFailure?.let { throw it }
-            savedCities += city
-            snapshot = CachedCitySnapshot(city = city)
+            savedCities += snapshot.city
+            savedSnapshots += snapshot
+            this.snapshot = snapshot
         }
+
+        override fun save(city: TransitCity) = save(CachedCitySnapshot(city = city))
 
         override fun clear() {
             clearCalls += 1
@@ -342,6 +431,14 @@ class BootstrapTransitSessionTest {
                 routeShapes = true,
                 journeyPlanning = true,
             ),
+        )
+
+        fun catalogRoute(cityId: CityId, id: RouteId) = TransitRoute(
+            id = id,
+            cityId = cityId,
+            shortName = id.value.takeLast(4),
+            name = id.value,
+            colorArgb = 0xFF0057B8,
         )
     }
 }

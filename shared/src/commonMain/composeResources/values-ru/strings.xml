@@ -110,8 +110,10 @@
     <string name="map_attribution_title">Источники данных и атрибуция</string>
     <string name="routes_title">Маршруты</string>
     <string name="routes_subtitle">Выберите несколько маршрутов, чтобы показать их вместе на карте.</string>
-    <string name="routes_back_action">Назад</string>
+    <string name="routes_cancel_action">Отмена</string>
     <string name="routes_confirm_action">Показать на карте</string>
+    <string name="routes_selection_count">Выбрано: %1$d из %2$d</string>
+    <string name="routes_selection_limit_warning">Одновременно можно показать не более %1$d маршрутов. Снимите выбор с маршрута, чтобы выбрать другой.</string>
     <string name="routes_empty">Для этого города каталог маршрутов пока недоступен.</string>
     <string name="routes_loading">Загрузка каталога маршрутов…</string>
     <string name="routes_error">Каталог маршрутов недоступен.</string>
@@ -131,5 +133,6 @@
     <string name="routes_row_description_with_direction">%1$s, %2$s, %3$s, %4$s</string>
     <string name="routes_row_selected">Выбрано</string>
     <string name="routes_row_unselected">Не выбрано</string>
+    <string name="routes_row_limit_reached">Достигнут лимит выбора</string>
     <string name="loading">Загружаем транспортные данные…</string>
 </resources>

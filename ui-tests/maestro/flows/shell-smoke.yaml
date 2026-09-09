@@ -20,9 +20,13 @@ appId: com.denis.georgiatransit
     id: map.routes
 - assertVisible:
     id: routes.screen
+- assertVisible:
+    id: routes.selection-count
 - tapOn:
     id: routes.option
     index: 0
+- assertVisible:
+    id: routes.selection-count
 - tapOn:
     id: routes.confirm
 - assertVisible:
@@ -31,7 +35,12 @@ appId: com.denis.georgiatransit
     id: map.routes
 - assertVisible:
     id: routes.screen
+- assertVisible:
+    id: routes.selection-count
 - tapOn:
-    id: routes.back
+    id: routes.option
+    index: 0
+- tapOn:
+    id: routes.cancel
 - assertVisible:
     id: map.screen

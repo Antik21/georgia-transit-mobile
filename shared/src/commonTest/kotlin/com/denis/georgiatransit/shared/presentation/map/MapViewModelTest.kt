@@ -36,6 +36,7 @@ import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertIs
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
@@ -80,6 +81,44 @@ class MapViewModelTest {
             )
             assertEquals("map.attribution", AutomationId.MapAttribution)
             assertEquals("map.attribution.link.transitous", AutomationId.mapAttributionLink(attribution.id))
+            cancelAndIgnoreRemainingItems()
+        }
+    }
+
+    @Test
+    fun coldRestoredAndConfirmedSelectionsDriveOnlyCommittedRouteNamesAndClearStaleVehicleState() = runTest {
+        val selectedCity = city("tbilisi", defaultZoom = 13.0)
+        val routeA = TransitRoute(
+            id = RouteId("opaque:a"),
+            cityId = selectedCity.id,
+            shortName = "A",
+            name = "Route A",
+            colorArgb = 0xFF0057B8,
+        )
+        val routeB = TransitRoute(
+            id = RouteId("opaque:b"),
+            cityId = selectedCity.id,
+            shortName = "B",
+            name = "Route B",
+            colorArgb = 0xFF0057B8,
+        )
+        val session = RuntimeTransitSession().also {
+            it.restoreCitySelection(selectedCity, linkedSetOf(routeA.id, routeB.id))
+        }
+        val viewModel = MapViewModel(MapRepository(listOf(routeA, routeB)), session, testLocationSession())
+
+        viewModel.test(this) {
+            runOnCreate()
+            this@runTest.runCurrent()
+
+            assertEquals(listOf("A", "B"), viewModel.container.stateFlow.value.selectedRouteNames)
+
+            assertTrue(session.selectRoutes(selectedCity.id, emptySet()))
+            this@runTest.runCurrent()
+
+            val cleared = viewModel.container.stateFlow.value
+            assertTrue(cleared.selectedRouteNames.isEmpty())
+            assertIs<VehicleLayerState.Hidden>(cleared.vehicleLayerState)
             cancelAndIgnoreRemainingItems()
         }
     }
@@ -571,7 +610,7 @@ class MapViewModelTest {
             assertEquals(acceptedFix.point, locationCamera.center)
             assertEquals(15.0, locationCamera.zoom)
 
-            transitSession.selectRoutes(setOf(repository.routes(city.id).first().id))
+            transitSession.selectRoutes(city.id, setOf(repository.routes(city.id).first().id))
             this@runTest.runCurrent()
             assertEquals(locationCamera, requireNotNull(viewModel.container.stateFlow.value.renderState).camera)
 
@@ -749,9 +788,11 @@ class MapViewModelTest {
         )
     }
 
-    private class MapRepository : TransitRepository {
+    private class MapRepository(
+        private val routeList: List<TransitRoute> = emptyList(),
+    ) : TransitRepository {
         override fun cities(): List<TransitCity> = emptyList()
 
-        override fun routes(cityId: CityId): List<TransitRoute> = emptyList()
+        override fun routes(cityId: CityId): List<TransitRoute> = routeList.filter { it.cityId == cityId }
     }
 }

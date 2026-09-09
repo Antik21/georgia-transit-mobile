@@ -1,0 +1,179 @@
+appId: com.denis.georgiatransit
+---
+# Preconditions are supplied by run-route-selection-smoke.sh: its owned loopback fixture exposes
+# demo and Tbilisi plus eleven demo routes. Every interaction uses a stable ID or list index.
+- launchApp:
+    clearState: true
+- assertVisible:
+    id: city-selection.screen
+- tapOn:
+    id: city-selection.demo
+- tapOn:
+    id: city-selection.continue
+- assertVisible:
+    id: map.screen
+- tapOn:
+    id: map.routes
+- assertVisible:
+    id: routes.screen
+- extendedWaitUntil:
+    visible:
+      id: routes.option
+    timeout: 15000
+- assertVisible:
+    id: routes.selection-count
+# Empty confirm deliberately clears every route overlay.
+- tapOn:
+    id: routes.confirm
+- assertVisible:
+    id: map.screen
+# Confirm a partial replacement and prove it survives a cold app restart.
+- tapOn:
+    id: map.routes
+- assertVisible:
+    id: routes.screen
+- tapOn:
+    id: routes.option
+    index: 0
+- tapOn:
+    id: routes.option
+    index: 1
+- assertVisible:
+    id: routes.selection-count
+- tapOn:
+    id: routes.confirm
+- assertVisible:
+    id: map.screen
+- stopApp
+- launchApp:
+    clearState: false
+- assertVisible:
+    id: map.screen
+- tapOn:
+    id: map.routes
+- assertVisible:
+    id: routes.screen
+- assertVisible:
+    id: routes.selection-count
+# Android System Back and iOS Cancel both discard this edit and pop the Routes entry.
+- tapOn:
+    id: routes.option
+    index: 0
+- runFlow:
+    when:
+      platform: Android
+    commands:
+      - pressKey: BACK
+- runFlow:
+    when:
+      platform: iOS
+    commands:
+      - tapOn:
+          id: routes.cancel
+- assertVisible:
+    id: map.screen
+- tapOn:
+    id: map.routes
+- assertVisible:
+    id: routes.screen
+# The cap interaction needs text entry. iOS's first-run system keyboard tutorial masks the list,
+# so Android owns this device-level cap probe while shared tests cover the policy on both targets.
+# Numeric fixture short names are input data, not selectors; lookups remain stable IDs/indexes.
+- runFlow:
+    when:
+      platform: Android
+    commands:
+      - tapOn:
+          id: routes.search
+      - inputText: "3"
+      - tapOn:
+          id: routes.option
+          index: 0
+      - eraseText
+      - inputText: "4"
+      - tapOn:
+          id: routes.option
+          index: 0
+      - eraseText
+      - inputText: "5"
+      - tapOn:
+          id: routes.option
+          index: 0
+      - eraseText
+      - inputText: "6"
+      - tapOn:
+          id: routes.option
+          index: 0
+      - eraseText
+      - inputText: "7"
+      - tapOn:
+          id: routes.option
+          index: 0
+      - eraseText
+      - inputText: "8"
+      - tapOn:
+          id: routes.option
+          index: 0
+      - eraseText
+      - inputText: "9"
+      - tapOn:
+          id: routes.option
+          index: 0
+      - eraseText
+      - inputText: "10"
+      - tapOn:
+          id: routes.option
+          index: 0
+      - assertVisible:
+          id: routes.selection-warning
+      - eraseText
+      - inputText: "11"
+      - assertNotVisible:
+          id: routes.option
+          index: 0
+          enabled: true
+      - eraseText
+      - inputText: "1"
+      - tapOn:
+          id: routes.option
+          index: 0
+      - assertNotVisible:
+          id: routes.selection-warning
+      - eraseText
+      - inputText: "11"
+      - tapOn:
+          id: routes.option
+          index: 0
+      - assertVisible:
+          id: routes.selection-warning
+- tapOn:
+    id: routes.cancel
+- assertVisible:
+    id: map.screen
+# A new city starts with its own empty selection and cannot inherit demo's draft/commit.
+- tapOn:
+    id: map.change-city
+- assertVisible:
+    id: city-selection.screen
+- tapOn:
+    id: city-selection.tbilisi
+- tapOn:
+    id: city-selection.continue
+- assertVisible:
+    id: map.screen
+- tapOn:
+    id: map.routes
+- assertVisible:
+    id: routes.screen
+- extendedWaitUntil:
+    visible:
+      id: routes.option
+    timeout: 15000
+- assertVisible:
+    id: routes.selection-count
+- assertNotVisible:
+    id: routes.selection-warning
+- tapOn:
+    id: routes.cancel
+- assertVisible:
+    id: map.screen

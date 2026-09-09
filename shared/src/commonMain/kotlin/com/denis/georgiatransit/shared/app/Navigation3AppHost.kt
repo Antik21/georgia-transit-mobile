@@ -90,8 +90,10 @@ internal fun Navigation3AppHost(initialDestination: Destination) {
             val viewModel: RoutesViewModel = navigationEntryViewModel("routes")
             RoutesScreen(viewModel) { effect ->
                 when (effect) {
-                    com.denis.georgiatransit.shared.presentation.routes.NavigationEffect.BackToMap ->
+                    com.denis.georgiatransit.shared.presentation.routes.NavigationEffect.Confirmed ->
                         applyNavigation(NavigationEvent.RoutesConfirmed)
+                    com.denis.georgiatransit.shared.presentation.routes.NavigationEffect.Dismissed ->
+                        applyNavigation(NavigationEvent.RoutesDismissed)
                 }
             }
         }
@@ -100,7 +102,14 @@ internal fun Navigation3AppHost(initialDestination: Destination) {
     if (rawStack == restoredStack) {
         NavDisplay(
             backStack = backStack,
-            onBack = { applyNavigation(NavigationEvent.Back) },
+            onBack = {
+                val event = if (backStack.lastOrNull() == Destination.Routes) {
+                    NavigationEvent.RoutesDismissed
+                } else {
+                    NavigationEvent.Back
+                }
+                applyNavigation(event)
+            },
             entryDecorators = listOf(
                 androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator<NavKey>(),
                 rememberViewModelStoreNavEntryDecorator<NavKey>(),

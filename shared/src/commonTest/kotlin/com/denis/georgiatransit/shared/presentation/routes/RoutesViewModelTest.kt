@@ -7,6 +7,7 @@ import com.denis.georgiatransit.shared.domain.model.DirectionId
 import com.denis.georgiatransit.shared.domain.model.GeoPoint
 import com.denis.georgiatransit.shared.domain.model.LocalizedText
 import com.denis.georgiatransit.shared.domain.model.RouteId
+import com.denis.georgiatransit.shared.domain.model.RouteSelectionPolicy
 import com.denis.georgiatransit.shared.domain.model.TransitCity
 import com.denis.georgiatransit.shared.domain.model.TransitDirection
 import com.denis.georgiatransit.shared.domain.model.TransitMode
@@ -28,6 +29,7 @@ import kotlinx.coroutines.test.runTest
 import org.orbitmvi.orbit.test.test
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertIs
 import kotlin.test.assertTrue
 
@@ -56,7 +58,7 @@ class RoutesViewModelTest {
         )
         val session = RuntimeTransitSession().also {
             it.selectCity(city)
-            it.selectRoutes(linkedSetOf(route10.id, removed))
+            it.selectRoutes(city.id, linkedSetOf(route10.id, removed))
         }
         val viewModel = RoutesViewModel(repository, session)
 
@@ -79,7 +81,7 @@ class RoutesViewModelTest {
     }
 
     @Test
-    fun backEmitsNavigationWithoutMutatingTheCurrentAuthoritativeSelection() = runTest {
+    fun cancelEmitsDismissalWithoutMutatingTheCurrentAuthoritativeSelection() = runTest {
         val city = city()
         val route = route(city.id, "provider:route:1", "1", "Route one")
         val repository = CountingRepository(
@@ -87,7 +89,7 @@ class RoutesViewModelTest {
         )
         val session = RuntimeTransitSession().also {
             it.selectCity(city)
-            it.selectRoutes(linkedSetOf(route.id))
+            it.selectRoutes(city.id, linkedSetOf(route.id))
         }
         val viewModel = RoutesViewModel(repository, session)
 
@@ -97,10 +99,10 @@ class RoutesViewModelTest {
             awaitItem()
             awaitItem()
 
-            viewModel.dispatchAction(Action.BackClicked)
+            viewModel.dispatchAction(Action.CancelClicked)
             this@runTest.runCurrent()
 
-            expectSideEffect(NavigationEffect.BackToMap)
+            expectSideEffect(NavigationEffect.Dismissed)
             assertEquals(listOf(route.id), session.selectedRouteIds.value.toList())
             cancelAndIgnoreRemainingItems()
         }
@@ -154,7 +156,7 @@ class RoutesViewModelTest {
         val selection = linkedSetOf(airport.id, station.id)
         val session = RuntimeTransitSession().also {
             it.selectCity(city)
-            it.selectRoutes(selection)
+            it.selectRoutes(city.id, selection)
         }
         val viewModel = RoutesViewModel(repository, session)
 
@@ -258,7 +260,7 @@ class RoutesViewModelTest {
         val repository = CountingRepository()
         val session = RuntimeTransitSession().also {
             it.selectCity(city)
-            it.selectRoutes(setOf(selected))
+            it.selectRoutes(city.id, setOf(selected))
         }
         val viewModel = RoutesViewModel(repository, session)
 
@@ -431,7 +433,7 @@ class RoutesViewModelTest {
         )
         val session = RuntimeTransitSession().also {
             it.selectCity(firstCity)
-            it.selectRoutes(linkedSetOf(firstRoute.id))
+            it.selectRoutes(firstCity.id, linkedSetOf(firstRoute.id))
         }
         val viewModel = RoutesViewModel(repository, session)
 
@@ -462,6 +464,182 @@ class RoutesViewModelTest {
             assertEquals(listOf(secondRoute.id), state.routes.map(RouteItemUiModel::id))
             assertEquals(emptySet(), state.selectedIds)
             assertEquals(2, repository.refreshRequests.size)
+            cancelAndIgnoreRemainingItems()
+        }
+    }
+
+    @Test
+    fun draftTogglesStayLocalAcrossSessionEchoAndCancelDiscardsOnlyTheDraft() = runTest {
+        val city = city()
+        val routeA = route(city.id, "opaque:a", "1", "Route A")
+        val routeB = route(city.id, "opaque:b", "2", "Route B")
+        val routeC = route(city.id, "opaque:c", "3", "Route C")
+        val session = RuntimeTransitSession().also {
+            it.selectCity(city)
+            assertTrue(it.selectRoutes(city.id, setOf(routeA.id)))
+        }
+        val viewModel = RoutesViewModel(
+            CountingRepository(
+                responses = ArrayDeque(
+                    listOf(RefreshResponse.Result(TransitLoadResult.Data(listOf(routeA, routeB, routeC), TransitFreshness.Network))),
+                ),
+            ),
+            session,
+        )
+
+        viewModel.test(this) {
+            runOnCreate()
+            this@runTest.runCurrent()
+            awaitItem()
+            awaitItem()
+            assertEquals(setOf(routeA.id), viewModel.container.stateFlow.value.selectedIds)
+
+            viewModel.dispatchAction(Action.RouteToggled(routeB.id))
+            this@runTest.runCurrent()
+            awaitItem()
+            assertEquals(setOf(routeA.id, routeB.id), viewModel.container.stateFlow.value.selectedIds)
+            assertEquals(setOf(routeA.id), session.selectedRouteIds.value, "Draft changes must not restart Map work.")
+
+            assertTrue(session.selectRoutes(city.id, setOf(routeA.id, routeC.id)))
+            this@runTest.runCurrent()
+            assertEquals(
+                setOf(routeA.id, routeB.id),
+                viewModel.container.stateFlow.value.selectedIds,
+                "An ordinary committed-session echo cannot replace the entry draft.",
+            )
+
+            viewModel.dispatchAction(Action.CancelClicked)
+            this@runTest.runCurrent()
+            expectSideEffect(NavigationEffect.Dismissed)
+            assertEquals(setOf(routeA.id, routeC.id), session.selectedRouteIds.value)
+            cancelAndIgnoreRemainingItems()
+        }
+    }
+
+    @Test
+    fun confirmCommitsExactReplacementOnceAndDoubleTapEmitsOnce() = runTest {
+        val city = city()
+        val routeA = route(city.id, "opaque:a", "1", "Route A")
+        val routeB = route(city.id, "opaque:b", "2", "Route B")
+        val session = RuntimeTransitSession().also {
+            it.selectCity(city)
+            assertTrue(it.selectRoutes(city.id, setOf(routeA.id)))
+        }
+        val viewModel = RoutesViewModel(
+            CountingRepository(
+                responses = ArrayDeque(
+                    listOf(RefreshResponse.Result(TransitLoadResult.Data(listOf(routeA, routeB), TransitFreshness.Network))),
+                ),
+            ),
+            session,
+        )
+
+        viewModel.test(this) {
+            runOnCreate()
+            this@runTest.runCurrent()
+            awaitItem()
+            awaitItem()
+
+            viewModel.dispatchAction(Action.RouteToggled(routeA.id))
+            this@runTest.runCurrent()
+            awaitItem()
+            viewModel.dispatchAction(Action.RouteToggled(routeB.id))
+            this@runTest.runCurrent()
+            awaitItem()
+            assertEquals(setOf(routeB.id), viewModel.container.stateFlow.value.selectedIds)
+            assertEquals(setOf(routeA.id), session.selectedRouteIds.value)
+
+            viewModel.dispatchAction(Action.ConfirmClicked)
+            viewModel.dispatchAction(Action.ConfirmClicked)
+            this@runTest.runCurrent()
+
+            awaitItem()
+            assertTrue(viewModel.container.stateFlow.value.isConfirming)
+            assertEquals(setOf(routeB.id), session.selectedRouteIds.value)
+            expectSideEffect(NavigationEffect.Confirmed)
+            expectNoItems()
+            cancelAndIgnoreRemainingItems()
+        }
+    }
+
+    @Test
+    fun emptyConfirmationAtomicallyClearsTheCommittedSet() = runTest {
+        val city = city()
+        val routeA = route(city.id, "opaque:a", "1", "Route A")
+        val routeB = route(city.id, "opaque:b", "2", "Route B")
+        val emptySession = RuntimeTransitSession().also {
+            it.selectCity(city)
+            assertTrue(it.selectRoutes(city.id, setOf(routeA.id)))
+        }
+        val emptyViewModel = RoutesViewModel(
+            CountingRepository(
+                responses = ArrayDeque(
+                    listOf(RefreshResponse.Result(TransitLoadResult.Data(listOf(routeA, routeB), TransitFreshness.Network))),
+                ),
+            ),
+            emptySession,
+        )
+        emptyViewModel.test(this) {
+            runOnCreate()
+            this@runTest.runCurrent()
+            awaitItem()
+            awaitItem()
+
+            emptyViewModel.dispatchAction(Action.RouteToggled(routeA.id))
+            this@runTest.runCurrent()
+            awaitItem()
+            emptyViewModel.dispatchAction(Action.ConfirmClicked)
+            this@runTest.runCurrent()
+
+            awaitItem()
+            assertTrue(emptySession.selectedRouteIds.value.isEmpty())
+            expectSideEffect(NavigationEffect.Confirmed)
+            cancelAndIgnoreRemainingItems()
+        }
+    }
+
+    @Test
+    fun selectionCapBlocksTheEleventhUnselectedRouteWhileDeselectionFreesASlot() = runTest {
+        val city = city()
+        val routes = (0..RouteSelectionPolicy.MaximumSelectedRoutes).map { index ->
+            route(city.id, "opaque:$index", index.toString(), "Route $index")
+        }
+        val session = RuntimeTransitSession().also { it.selectCity(city) }
+        val viewModel = RoutesViewModel(
+            CountingRepository(
+                responses = ArrayDeque(
+                    listOf(RefreshResponse.Result(TransitLoadResult.Data(routes, TransitFreshness.Network))),
+                ),
+            ),
+            session,
+        )
+
+        viewModel.test(this) {
+            runOnCreate()
+            this@runTest.runCurrent()
+            awaitItem()
+            awaitItem()
+
+            routes.take(RouteSelectionPolicy.MaximumSelectedRoutes).forEach { route ->
+                viewModel.dispatchAction(Action.RouteToggled(route.id))
+            }
+            this@runTest.runCurrent()
+            assertEquals(RouteSelectionPolicy.MaximumSelectedRoutes, viewModel.container.stateFlow.value.selectedIds.size)
+            assertTrue(viewModel.container.stateFlow.value.isSelectionLimitReached)
+            assertTrue(session.selectedRouteIds.value.isEmpty())
+
+            val blocked = routes.last()
+            viewModel.dispatchAction(Action.RouteToggled(blocked.id))
+            this@runTest.runCurrent()
+            assertFalse(blocked.id in viewModel.container.stateFlow.value.selectedIds)
+
+            val removed = routes.first()
+            viewModel.dispatchAction(Action.RouteToggled(removed.id))
+            viewModel.dispatchAction(Action.RouteToggled(blocked.id))
+            this@runTest.runCurrent()
+            assertEquals(RouteSelectionPolicy.MaximumSelectedRoutes, viewModel.container.stateFlow.value.selectedIds.size)
+            assertFalse(removed.id in viewModel.container.stateFlow.value.selectedIds)
+            assertTrue(blocked.id in viewModel.container.stateFlow.value.selectedIds)
             cancelAndIgnoreRemainingItems()
         }
     }

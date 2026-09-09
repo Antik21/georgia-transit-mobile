@@ -7,7 +7,7 @@ import com.denis.georgiatransit.shared.domain.repository.CachedCitySnapshot
  *
  * This contract deliberately contains no network endpoint, provider identifier, or credential.
  * It only bounds bootstrap work and describes which durable selected-city records this app build
- * can read.
+ * can read. The current build accepts the city-only v1 record and the v2 city-plus-routes record.
  */
 data class RuntimeBootstrapConfiguration(
     val bootstrapTimeoutMillis: Long,
@@ -36,7 +36,10 @@ data class RuntimeBootstrapConfiguration(
 
         val default = RuntimeBootstrapConfiguration(
             bootstrapTimeoutMillis = 5_000L,
-            compatibleCachedCitySchemaVersions = setOf(CachedCitySnapshot.SchemaVersion),
+            compatibleCachedCitySchemaVersions = setOf(
+                CachedCitySnapshot.LegacyCityOnlySchemaVersion,
+                CachedCitySnapshot.SchemaVersion,
+            ),
         )
     }
 }

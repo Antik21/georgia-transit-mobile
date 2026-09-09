@@ -110,8 +110,10 @@
     <string name="map_attribution_title">Data sources and attribution</string>
     <string name="routes_title">Routes</string>
     <string name="routes_subtitle">Select several routes to show them together on the map.</string>
-    <string name="routes_back_action">Back</string>
+    <string name="routes_cancel_action">Cancel</string>
     <string name="routes_confirm_action">Show on map</string>
+    <string name="routes_selection_count">%1$d of %2$d selected</string>
+    <string name="routes_selection_limit_warning">You can show up to %1$d routes at once. Deselect a route to choose another.</string>
     <string name="routes_empty">No route catalogue is available for this city yet.</string>
     <string name="routes_loading">Loading route catalogue…</string>
     <string name="routes_error">Route catalogue is unavailable.</string>
@@ -131,5 +133,6 @@
     <string name="routes_row_description_with_direction">%1$s, %2$s, %3$s, %4$s</string>
     <string name="routes_row_selected">Selected</string>
     <string name="routes_row_unselected">Not selected</string>
+    <string name="routes_row_limit_reached">Selection limit reached</string>
     <string name="loading">Loading transit data…</string>
 </resources>
