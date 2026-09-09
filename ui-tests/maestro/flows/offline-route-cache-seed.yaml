@@ -1,0 +1,25 @@
+appId: com.denis.georgiatransit
+---
+# Precondition: run-offline-route-cache-smoke.sh owns the loopback test fixture and reset the app.
+# Seed both native persistence and the durable route list through stable automation IDs only.
+- launchApp:
+    clearState: false
+- assertVisible:
+    id: city-selection.screen
+- tapOn:
+    id: city-selection.demo
+- tapOn:
+    id: city-selection.continue
+- assertVisible:
+    id: map.screen
+- tapOn:
+    id: map.routes
+- assertVisible:
+    id: routes.screen
+- extendedWaitUntil:
+    visible:
+      id: routes.option
+    timeout: 15000
+- assertNotVisible:
+    id: routes.error
+- stopApp

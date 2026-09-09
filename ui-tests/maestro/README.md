@@ -60,6 +60,27 @@ The injected latitude/longitude are setup data, not selector coordinates. Maestr
 only locale-independent automation IDs. Do not substitute a physical Android device or Apple
 device for either argument.
 
+## Offline route-cache reopen
+
+`run-offline-route-cache-smoke.sh` starts and verifies an owned loopback-only handwritten fixture,
+installs and resets the app, and seeds a route catalog through the city, map, and routes screens.
+It then terminates the app without clearing native storage, stops only its verified fixture PID,
+proves that port 8080 is no longer serving, and relaunches with `clearState: false`. The reopen flow
+requires `routes.option` and rejects `routes.error`, using stable automation IDs only. Exact 48-hour
+aging remains an injected-clock repository test; this device flow proves the separate cold-process
+offline-reopen behavior while the persisted catalog is fresh.
+
+Use only an explicit Android emulator serial or explicitly booted iOS Simulator UDID:
+
+```shell
+ui-tests/maestro/run-offline-route-cache-smoke.sh android emulator-5554 \
+  androidApp/build/outputs/apk/debug/androidApp-debug.apk
+
+ui-tests/maestro/run-offline-route-cache-smoke.sh ios \
+  19C4B36C-E2E9-43C3-BB33-B762FFDA5A08 \
+  /absolute/path/to/Build/Products/Debug-iphonesimulator/iosApp.app
+```
+
 ## Realtime vehicles
 
 This flow is intentionally limited to the opt-in local development BFF fixture. Start the BFF on

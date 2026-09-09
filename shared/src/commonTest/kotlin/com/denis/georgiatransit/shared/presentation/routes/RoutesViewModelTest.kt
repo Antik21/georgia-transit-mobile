@@ -163,6 +163,32 @@ class RoutesViewModelTest {
 
     @Test
     @OptIn(ExperimentalCoroutinesApi::class)
+    fun noCacheOfflineFailureIsExposedAsRetryableWithoutInventingRoutes() = runTest {
+        val city = city()
+        val repository = ResultsRepository(
+            cached = emptyList(),
+            results = ArrayDeque(listOf(TransitLoadResult.Failure(TransitFailure.Transport("offline")))),
+        )
+        val session = RuntimeTransitSession().also { it.selectCity(city) }
+        val viewModel = RoutesViewModel(repository, session)
+
+        viewModel.test(this) {
+            runOnCreate()
+            this@runTest.runCurrent()
+            expectState(ViewState(cityName = city.name))
+            expectState(
+                ViewState(
+                    cityName = city.name,
+                    catalog = CatalogState.Error(TransitFailure.Transport("offline"), canRetry = true),
+                ),
+            )
+            expectNoItems()
+            cancelAndIgnoreRemainingItems()
+        }
+    }
+
+    @Test
+    @OptIn(ExperimentalCoroutinesApi::class)
     fun refreshedCatalogRemovesMissingSelectedRoutesBeforeConfirmPersistsSelection() = runTest {
         val city = city()
         val retained = routes(city.id).single()

@@ -40,19 +40,39 @@ cleartext only for `10.0.2.2`; the iOS Debug plist alone permits the loopback
 ATS exception. Release has neither exception.
 
 Durable mobile cache is deliberately limited to the city/capability snapshot
-and route-list catalogs. Entries use schema version 1 and a one-hour directory
-TTL. Route cache keys include city, locale, and mode; entry count and encoded
-size are bounded. The cache retains last-known-good payloads after TTL expiry,
-but outcomes explicitly distinguish network, valid cache, stale/offline, empty,
-and typed failure. A successful route-list 200 atomically replaces payload,
-timestamp, and ETag; a 304 retains payload and advances validation time. Future,
-negative, malformed, oversized, or incompatible entries are evicted.
+and route-list catalogs. Entries use schema version 1. The city/capability
+snapshot retains its one-hour freshness policy; route-list catalogs use a
+48-hour TTL measured from the last successfully accepted BFF validation and
+are fresh only while validation age is strictly less than 48 hours. At age 48
+hours or later, the client revalidates while retaining
+last-known-good payloads. Route cache keys include city, locale, and mode;
+entry count and encoded size are bounded. Outcomes explicitly distinguish
+network, valid cache, stale/offline, empty, and typed failure. A successful
+route-list 200 atomically replaces payload, ETag, and both timestamps; a 304
+retains payload and fetched time, advances validation time, and uses the
+response ETag when present. A cached route list is accepted only when its
+embedded request exactly matches the requested key and every route has that
+request's city ID; a mode-filtered request must also contain only the requested
+mode. Otherwise the entry is evicted. A route-list 200 with either semantic
+mismatch fails closed and leaves the prior LKG entry and timestamps untouched.
+During once-only, off-UI hydration, the repository scans at most the 12 bounded
+route entries, evicts semantically invalid entries, and publishes every valid
+eligible locale/mode variant to the immutable in-memory snapshot. A valid cached
+city snapshot prevents publication and evicts route variants for absent or
+route-disabled cities. Future, negative, malformed, oversized, or incompatible
+entries are evicted.
 
 Only transient transport/upstream/rate-limit failures may return stale
 last-known-good data. A fresh city snapshot invalidates routes for removed
-cities or where `routes` becomes unavailable; a 409 invalidates the affected
-route cache. A 404 or 501 never presents cached data as fresh. Fresh network
-data remains usable if its best-effort cache write fails.
+cities or where `routes` becomes unavailable. A route-list `CITY_NOT_FOUND` or
+`CAPABILITY_NOT_AVAILABLE` response invalidates every bounded route-cache
+locale/mode variant and immutable in-memory route snapshot for its typed city.
+Provider-ID-change responses from every city-scoped BFF endpoint that declares
+them perform the same invalidation, without parsing opaque route or provider
+IDs and without affecting another city. A route-list 404 or 501 is returned as
+its typed failure after invalidation, so a following request cannot return its
+former catalog as fresh. Fresh network data remains usable if its best-effort
+cache write fails.
 
 Use the existing native `SharedPreferences` and `NSUserDefaults` adapter
 pattern for the bounded serialized cache. This avoids introducing SQLDelight,

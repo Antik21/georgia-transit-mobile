@@ -101,11 +101,27 @@ Offline durable last-known-good data is intentionally narrow: only the
 city/capability snapshot and route-list snapshots are persisted. Android uses
 `SharedPreferences`; iOS uses `NSUserDefaults`. Entries are schema-versioned,
 size-bounded, corruption-evicted, and limited to 12 route lists. Route keys
-include city, locale, and mode; the one-hour TTL causes revalidation without
-deleting LKG. A route-list `304` retains its payload and advances validation
-time. On transient transport/429/502/503/504 failures, stale LKG is returned
-with explicit failure metadata. Stops, shapes, realtime vehicles, arrivals, and
-journeys are never durably stored.
+include city, locale, and mode. City/capability snapshots retain their one-hour
+freshness policy; route-list catalogs are fresh only when their validation age
+is strictly less than 48 hours, and revalidate at age 48 hours or later without
+deleting LKG. A route-list `304` retains its payload and original fetch time,
+then advances validation time (and adopts a response ETag when supplied). On
+transient transport/429/502/503/504 failures, stale LKG is returned with
+explicit failure metadata. A cached route list is accepted only when its
+embedded request exactly matches, every route belongs to that request's city,
+and a mode-filtered request contains only that mode; otherwise it is evicted.
+The initial off-UI hydration scans at most the 12 bounded route entries and
+publishes each valid eligible locale/mode variant into the immutable snapshot,
+so the default route snapshot is available before a route network response. A
+valid cached city snapshot prevents publishing and evicts variants for absent
+or route-disabled cities. A route-list `CITY_NOT_FOUND` or
+`CAPABILITY_NOT_AVAILABLE` response invalidates every bounded locale/mode
+variant and in-memory snapshot for that typed city; it remains a typed failure,
+not a future `CacheValid` result. A provider-ID-change response from every
+city-scoped BFF endpoint that declares it has the same city-wide invalidation
+without affecting another city. A route-list 200 with a city or mode mismatch
+fails closed without replacing LKG or its timestamps. Stops, shapes, realtime
+vehicles, arrivals, and journeys are never durably stored.
 
 ## Transit BFF
 
