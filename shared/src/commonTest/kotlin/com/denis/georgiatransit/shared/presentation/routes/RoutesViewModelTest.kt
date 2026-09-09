@@ -17,6 +17,7 @@ import com.denis.georgiatransit.shared.domain.repository.TransitFailure
 import com.denis.georgiatransit.shared.domain.repository.TransitFreshness
 import com.denis.georgiatransit.shared.domain.repository.TransitLoadResult
 import com.denis.georgiatransit.shared.domain.repository.TransitRepository
+import com.denis.georgiatransit.shared.presentation.ui.RouteSelectionProjector
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -31,6 +32,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertIs
+import kotlin.test.assertNotEquals
 import kotlin.test.assertTrue
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -76,6 +78,43 @@ class RoutesViewModelTest {
             assertEquals(RouteListRequest(city.id, mode = null), repository.refreshRequests.single())
             assertEquals(0, repository.snapshotCalls, "The route screen must render only the refreshed authoritative catalogue.")
             assertIs<CatalogState.Available>(state.catalog)
+            cancelAndIgnoreRemainingItems()
+        }
+    }
+
+    @Test
+    fun selectedRowsKeepCanonicalProjectedColorsEvenWhenTheRouteUiUsesNaturalOrder() = runTest {
+        val city = city()
+        val route10 = route(city.id, "provider:route:10", "10", "Ten").copy(colorArgb = 0xFF0057B8)
+        val route2 = route(city.id, "provider:route:2", "2", "Two").copy(colorArgb = 0xFF0057B8)
+        val rawCatalog = listOf(route10, route2)
+        val session = RuntimeTransitSession().also {
+            it.selectCity(city)
+            assertTrue(it.selectRoutes(city.id, linkedSetOf(route10.id, route2.id)))
+        }
+        val viewModel = RoutesViewModel(
+            CountingRepository(
+                responses = ArrayDeque(
+                    listOf(RefreshResponse.Result(TransitLoadResult.Data(rawCatalog, TransitFreshness.Network))),
+                ),
+            ),
+            session,
+        )
+
+        viewModel.test(this) {
+            runOnCreate()
+            this@runTest.runCurrent()
+            awaitItem()
+            awaitItem()
+
+            val rows = viewModel.container.stateFlow.value.routes.associateBy(RouteItemUiModel::id)
+            val projection = RouteSelectionProjector.resolve(rawCatalog, setOf(route10.id, route2.id)).byId
+            assertEquals(listOf("2", "10"), viewModel.container.stateFlow.value.routes.map(RouteItemUiModel::shortName))
+            listOf(route10, route2).forEach { route ->
+                assertEquals(projection.getValue(route.id).backgroundArgb, rows.getValue(route.id).colorArgb)
+                assertEquals(projection.getValue(route.id).textArgb, rows.getValue(route.id).textColorArgb)
+            }
+            assertNotEquals(route2.colorArgb, rows.getValue(route2.id).colorArgb)
             cancelAndIgnoreRemainingItems()
         }
     }

@@ -38,6 +38,34 @@ class MapClusteringTest {
     }
 
     @Test
+    fun selectedAndRouteHighlightedStopsRemainIndividualWhileOrdinaryStopsCluster() {
+        val input = markers(5).mapIndexed { index, marker ->
+            when (index) {
+                0 -> marker.copy(isSelected = true)
+                1 -> marker.copy(
+                    routeHighlight = StopRouteHighlightUi(
+                        style = StopRouteHighlightStyle.SingleRoute,
+                    ),
+                )
+                2 -> marker.copy(
+                    routeHighlight = StopRouteHighlightUi(
+                        style = StopRouteHighlightStyle.MultipleRoutes,
+                    ),
+                )
+                else -> marker
+            }
+        }
+
+        val result = clusterStops(input, zoom = 11.0)
+
+        assertEquals(
+            listOf("stop-0000", "stop-0001", "stop-0002"),
+            result.stops.map(MapStopMarker::stableId),
+        )
+        assertEquals(2, result.clusters.single().stopCount)
+    }
+
+    @Test
     fun invalidMarkersAreRejectedAndStableStopIdsRemainTypedAndSorted() {
         val validB = marker("b", 41.7, 44.8)
         val validA = marker("a", 41.8, 44.9)

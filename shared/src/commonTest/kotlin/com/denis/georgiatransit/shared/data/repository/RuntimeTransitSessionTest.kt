@@ -65,6 +65,22 @@ class RuntimeTransitSessionTest {
     }
 
     @Test
+    fun sameCityRoutesCapabilityOffClearsSelectionAndReenableCannotReviveIt() {
+        val session = RuntimeTransitSession()
+        val enabled = city("tbilisi", routes = true)
+        val disabled = enabled.copy(capabilities = enabled.capabilities.copy(routes = false))
+        val selected = setOf(RouteId("opaque:route:1"))
+
+        session.selectCity(enabled)
+        assertTrue(session.selectRoutes(enabled.id, selected))
+        session.selectCity(disabled)
+        assertTrue(session.selectedRouteIds.value.isEmpty())
+
+        session.selectCity(enabled)
+        assertTrue(session.selectedRouteIds.value.isEmpty())
+    }
+
+    @Test
     fun clearRemovesDurableSnapshotAndOrdinaryPersistenceFailuresDoNotRollbackMemory() {
         val store = RecordingStore().apply { saveFailure = IllegalStateException("disk unavailable") }
         val session = RuntimeTransitSession(store)
