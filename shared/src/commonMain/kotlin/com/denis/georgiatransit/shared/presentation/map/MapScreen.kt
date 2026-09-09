@@ -98,6 +98,7 @@ import georgiatransit.shared.generated.resources.map_route_geometry_ready
 import georgiatransit.shared.generated.resources.map_route_geometry_remove
 import georgiatransit.shared.generated.resources.map_route_geometry_remove_accessibility
 import georgiatransit.shared.generated.resources.map_route_geometry_retry
+import georgiatransit.shared.generated.resources.map_route_geometry_retry_accessibility
 import georgiatransit.shared.generated.resources.map_route_geometry_retryable
 import georgiatransit.shared.generated.resources.map_route_geometry_title
 import georgiatransit.shared.generated.resources.map_route_geometry_unavailable
@@ -312,6 +313,7 @@ private fun RouteGeometryLegend(
         items(routes, key = { it.routeId.value }) { route ->
             val foreground = Color(contrastSafeRouteTextColor(route.colorArgb, 0xFFFFFFFF))
             val removeDescription = stringResource(Res.string.map_route_geometry_remove_accessibility, route.routeLabel)
+            val retryDescription = stringResource(Res.string.map_route_geometry_retry_accessibility, route.routeLabel)
             Surface(
                 shape = TransitShapes.Small,
                 color = Color(route.colorArgb),
@@ -348,7 +350,9 @@ private fun RouteGeometryLegend(
                         if (route.canRetry) {
                             TextButton(
                                 onClick = { onRetry(route.routeId) },
-                                modifier = Modifier.testTag(AutomationId.MapRouteGeometryRetry),
+                                modifier = Modifier.testTag(AutomationId.MapRouteGeometryRetry).semantics {
+                                    contentDescription = retryDescription
+                                },
                             ) {
                                 Text(stringResource(Res.string.map_route_geometry_retry), color = foreground)
                             }
@@ -379,16 +383,19 @@ private fun routeGeometryStatusLabel(route: RouteGeometryLegendUi): String = whe
     )
     RouteGeometryLegendState.Retryable -> stringResource(
         Res.string.map_route_geometry_retryable,
-        route.successfulDirections,
+        route.failedDirections,
         route.totalDirections,
     )
     RouteGeometryLegendState.Unavailable -> stringResource(
         Res.string.map_route_geometry_unavailable,
-        route.successfulDirections,
+        route.failedDirections,
         route.totalDirections,
     )
     RouteGeometryLegendState.PaletteOverflow -> stringResource(Res.string.map_route_geometry_palette_overflow)
 }
+
+private val RouteGeometryLegendUi.failedDirections: Int
+    get() = (totalDirections - successfulDirections).coerceAtLeast(0)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable

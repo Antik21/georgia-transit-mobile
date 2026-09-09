@@ -190,8 +190,10 @@ option ancestor is then tapped. Each tap waits for recomposition; the final
 `routes.selection-warning` is the strict 10/10 assertion and stays portable across Android's
 checked and iOS's selected accessibility semantics. The relative gestures are not device-pixel
 coordinates or product data selectors. It then returns to the map, checks the legend/chips,
-focuses a chip, reaches the controlled partial/retry state, removes a route, and returns through
-Routes. It deliberately does not claim that semantics nodes prove native line geometry. Ordered
+focuses a chip, reaches the controlled partial/retry state, waits for that Retry control to clear,
+removes a route, and reopens Routes. The static selection-count and absent selection-warning then
+prove the persisted selection is below the ten-route limit without reading localized text. It
+deliberately does not claim that semantics nodes prove native line geometry. Ordered
 decoded points and the grouped Android/iOS source boundary are verified by common and host tests;
 this flow is interaction evidence only.
 

@@ -191,34 +191,108 @@ class RouteGeometryCoordinatorTest {
     }
 
     @Test
+    fun disablingGeometryMakesPreviouslyReadyDirectionsUnavailableInTheSnapshot() = runCoordinatorTest {
+        val repository = ControlledShapeRepository()
+        val coordinator = RouteGeometryCoordinator(repository)
+        val selected = route(1)
+
+        coordinator.update(this, cityId, true, listOf(selected), true) { }
+        runCurrent()
+        repository.calls.forEach { repository.complete(it, goodShape()) }
+        runCurrent()
+
+        val disabled = coordinator.update(this, cityId, false, listOf(selected), true) { }
+
+        assertTrue(disabled.polylines.isEmpty())
+        assertEquals(RouteGeometryLegendState.Unavailable, disabled.legends.single().state)
+        assertEquals(0, disabled.legends.single().successfulDirections)
+        assertEquals(selected.directions.size, disabled.legends.single().totalDirections)
+        coordinator.clear()
+    }
+
+    @Test
+    fun disablingGeometryRemovesRetryFromAPreviouslyPartialRoute() = runCoordinatorTest {
+        val repository = ControlledShapeRepository()
+        val coordinator = RouteGeometryCoordinator(repository)
+        val selected = route(1)
+        val snapshots = mutableListOf<RouteGeometrySnapshot>()
+
+        coordinator.update(this, cityId, true, listOf(selected), true, snapshots::add)
+        runCurrent()
+        repository.complete(repository.calls[0], goodShape())
+        repository.complete(repository.calls[1], TransitLoadResult.Failure(TransitFailure.Transport("offline")))
+        runCurrent()
+
+        val partial = snapshots.last().legends.single()
+        assertEquals(RouteGeometryLegendState.Partial, partial.state)
+        assertTrue(partial.canRetry)
+
+        val disabled = coordinator.update(this, cityId, false, listOf(selected), true, snapshots::add)
+        val unavailable = disabled.legends.single()
+        assertTrue(disabled.polylines.isEmpty())
+        assertEquals(RouteGeometryLegendState.Unavailable, unavailable.state)
+        assertEquals(0, unavailable.successfulDirections)
+        assertEquals(selected.directions.size, unavailable.totalDirections)
+        assertFalse(unavailable.canRetry)
+        coordinator.clear()
+    }
+
+    @Test
     fun staleCitySelectionCapabilityAndLifecycleResultsNeverPublish() = runCoordinatorTest {
         val repository = ControlledShapeRepository(nonCooperative = true)
         val coordinator = RouteGeometryCoordinator(repository)
         val first = route(1)
         val second = route(2)
+        val publications = mutableListOf<RouteGeometrySnapshot>()
 
-        coordinator.update(this, cityId, true, listOf(first), true) { }
+        coordinator.update(this, cityId, true, listOf(first), true, publications::add)
         runCurrent()
         val cityAKeys = repository.calls.toList()
 
-        val cityChanged = coordinator.update(this, CityId("other-city"), true, listOf(second), true) { }
+        val cityChanged = coordinator.update(
+            this,
+            CityId("other-city"),
+            true,
+            listOf(second),
+            true,
+            publications::add,
+        )
         runCurrent()
         val cityBKeys = repository.calls.filter { it.cityId == CityId("other-city") }
+        val publicationsBeforeCityACompletion = publications.toList()
         cityAKeys.forEach { repository.complete(it, goodShape()) }
         runCurrent()
         assertTrue(cityChanged.polylines.none { it.routeId == first.id })
         assertEquals(listOf(second.id), cityChanged.legends.map(RouteGeometryLegendUi::routeId))
+        assertEquals(
+            publicationsBeforeCityACompletion,
+            publications,
+            "Late non-cooperative city results must not publish a stale snapshot.",
+        )
 
         // A committed selection replacement followed by a lifecycle/capability change removes
         // the old source before late, non-cooperative BFF completions are accepted.
-        coordinator.update(this, CityId("other-city"), true, emptyList(), true) { }
-        coordinator.update(this, CityId("other-city"), false, listOf(second), true) { }
-        val disabled = coordinator.update(this, CityId("other-city"), false, listOf(second), false) { }
+        coordinator.update(this, CityId("other-city"), true, emptyList(), true, publications::add)
+        coordinator.update(this, CityId("other-city"), false, listOf(second), true, publications::add)
+        val disabled = coordinator.update(
+            this,
+            CityId("other-city"),
+            false,
+            listOf(second),
+            false,
+            publications::add,
+        )
         runCurrent()
+        val publicationsBeforeDisabledCompletion = publications.toList()
         cityBKeys.forEach { repository.complete(it, goodShape()) }
         runCurrent()
         assertTrue(disabled.polylines.isEmpty())
         assertEquals(RouteGeometryLegendState.Unavailable, disabled.legends.single().state)
+        assertEquals(
+            publicationsBeforeDisabledCompletion,
+            publications,
+            "Late selection, capability, or lifecycle results must not publish a stale snapshot.",
+        )
         coordinator.clear()
     }
 

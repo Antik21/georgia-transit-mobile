@@ -58,6 +58,7 @@
     <string name="map_route_geometry_unavailable">%1$d of %2$d directions are unavailable.</string>
     <string name="map_route_geometry_palette_overflow">Too many selected routes to assign a distinct line color.</string>
     <string name="map_route_geometry_retry">Try again</string>
+    <string name="map_route_geometry_retry_accessibility">Try again for route %1$s</string>
     <string name="map_route_geometry_remove">Remove</string>
     <string name="map_route_geometry_remove_accessibility">Remove route %1$s</string>
     <string name="map_selected_stop">Selected stop: %1$s</string>

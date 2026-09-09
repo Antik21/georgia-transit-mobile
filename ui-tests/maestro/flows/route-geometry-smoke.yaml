@@ -130,6 +130,10 @@ appId: com.denis.georgiatransit
 - tapOn:
     id: map.route-geometry.retry
     index: 0
+- extendedWaitUntil:
+    notVisible:
+      id: map.route-geometry.retry
+    timeout: 15000
 - assertVisible:
     id: map.route-geometry.legend
 # Remove is route-scoped and then navigation returns to the preserved map entry.
@@ -142,6 +146,12 @@ appId: com.denis.georgiatransit
     id: map.routes
 - assertVisible:
     id: routes.screen
+# Removing one route from the maximum selection must clear the static limit semantic. The count
+# itself is localized, so this uses only stable IDs and proves the persisted selection is <= 9.
+- assertVisible:
+    id: routes.selection-count
+- assertNotVisible:
+    id: routes.selection-warning
 - tapOn:
     id: routes.cancel
 - assertVisible:

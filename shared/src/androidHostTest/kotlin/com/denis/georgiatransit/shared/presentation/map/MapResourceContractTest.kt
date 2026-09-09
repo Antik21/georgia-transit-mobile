@@ -494,6 +494,17 @@ class MapResourceContractTest {
         assertTrue(flow.contains("text: \"^G10$\""))
         assertTrue(flow.contains("id: ${AutomationId.RoutesOption}\n    containsDescendants:"))
         assertTrue(flow.contains("id: ${AutomationId.RoutesSelectionWarning}"))
+        assertTrue(
+            flow.contains(
+                "notVisible:\n      id: ${AutomationId.MapRouteGeometryRetry}",
+            ),
+            "Retry must settle before the smoke flow treats the recovered legend as ready.",
+        )
+        assertTrue(flow.contains("id: ${AutomationId.RoutesSelectionCount}"))
+        assertTrue(
+            flow.contains("assertNotVisible:\n    id: ${AutomationId.RoutesSelectionWarning}"),
+            "After remove/reopen, the portable limit semantic must prove the persisted selection is below ten.",
+        )
         assertFalse(flow.contains("inputText:"), "Route geometry flow must not open the iOS keyboard.")
         assertFalse(flow.contains("hideKeyboard"), "iOS hideKeyboard pops Routes in this Compose host.")
         assertTrue(loadPrime.contains("id: ${AutomationId.MapRouteGeometryLegend}"))

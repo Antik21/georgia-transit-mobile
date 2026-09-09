@@ -58,6 +58,7 @@
     <string name="map_route_geometry_unavailable">მიმართულებები მიუწვდომელია: %1$d / %2$d.</string>
     <string name="map_route_geometry_palette_overflow">არჩეული მარშრუტი მეტისმეტად ბევრია — ხაზისთვის უნიკალური ფერი ვერ მიენიჭა.</string>
     <string name="map_route_geometry_retry">ხელახლა ცდა</string>
+    <string name="map_route_geometry_retry_accessibility">ხელახლა ცდა მარშრუტისთვის: %1$s</string>
     <string name="map_route_geometry_remove">წაშლა</string>
     <string name="map_route_geometry_remove_accessibility">მარშრუტის წაშლა: %1$s</string>
     <string name="map_selected_stop">არჩეული გაჩერება: %1$s</string>

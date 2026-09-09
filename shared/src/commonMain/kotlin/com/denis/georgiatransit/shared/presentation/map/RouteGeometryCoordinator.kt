@@ -61,6 +61,7 @@ data class RouteGeometryLegendUi(
     /** A neutral chip is used for overflow; no polyline is emitted for that route. */
     val colorAvailability: RouteGeometryColorAvailability,
     val state: RouteGeometryLegendState,
+    /** Successfully resolved declared directions; zero when geometry is capability-disabled. */
     val successfulDirections: Int,
     val totalDirections: Int,
     val isFocused: Boolean,
@@ -474,10 +475,14 @@ class RouteGeometryCoordinator(
                         RouteGeometryLegendState.Unavailable
                     }
                 },
-                successfulDirections = ready,
+                // Keep cached Ready phases for a future capability re-enable, but they are not
+                // available to this snapshot while the capability suppresses every polyline.
+                successfulDirections = if (input.routeGeometryEnabled) ready else 0,
                 totalDirections = routeDirections.size,
                 isFocused = route.id == focusedRouteId,
-                canRetry = routeColor.availability == RouteGeometryColorAvailability.Assigned && hasRetryable,
+                canRetry = canLoad() &&
+                    routeColor.availability == RouteGeometryColorAvailability.Assigned &&
+                    hasRetryable,
             )
         }.toPersistentList()
         if (lastPublishedPolylines != lines) {
