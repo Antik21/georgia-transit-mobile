@@ -57,6 +57,8 @@ class MapViewModel(
     /** DI supplies this in production; the default preserves existing host/test constructor shape. */
     private val estimateWalkingToStop: EstimateWalkingToStop = EstimateWalkingToStop(repository),
     private val locationFreshnessClock: LocationFreshnessClock = SystemLocationFreshnessClock,
+    /** Entry-scoped via DI; its decoded shape cache deliberately cannot outlive this Map VM. */
+    private val routeGeometryCoordinator: RouteGeometryCoordinator = RouteGeometryCoordinator(repository),
 ) : ViewModel(), ContainerHost<ViewState, SideEffect> {
     private var lastCityId: CityId? = null
     private var currentCity: TransitCity? = null
@@ -98,6 +100,7 @@ class MapViewModel(
     private var vehicleFrameRevision = 0L
     private var vehicleBadgeRevision = 0L
     private val vehicleRequestLocks = mutableMapOf<VehicleRequestKey, Mutex>()
+    private var routeGeometrySnapshot = RouteGeometrySnapshot()
 
     override val container: Container<ViewState, SideEffect> = viewModelScope.container(
         initialState = ViewState(),
@@ -118,6 +121,8 @@ class MapViewModel(
                 }.orEmpty()
                 val vehicleCapabilityChanged = !cityChanged &&
                     city?.capabilities?.vehiclePositions != previousCity?.capabilities?.vehiclePositions
+                val routeGeometryCapabilityChanged = !cityChanged &&
+                    city?.capabilities?.routeGeometry != previousCity?.capabilities?.routeGeometry
                 val arrivalsCapabilityChanged = !cityChanged &&
                     city?.capabilities?.arrivals != previousCity?.capabilities?.arrivals
                 if (cityChanged || arrivalsCapabilityChanged) arrivalsCapabilityBlockedCityId = null
@@ -128,6 +133,11 @@ class MapViewModel(
                 selectedVehicleRoutes = selectedRoutes
                 lastSelectedRouteIds = selectedIds.toSet()
                 val routeNames = selectedRoutes.map(TransitRoute::shortName)
+                // Reconcile synchronously before creating a render state. This makes a city or
+                // selection replacement fail closed instead of briefly rendering old geometry.
+                if (cityChanged || routeGeometryCapabilityChanged || vehicleSelectionChanged) {
+                    syncRouteGeometry()
+                }
                 val renderState = city?.let { renderStateFor(it, location.fix, lastViewport?.zoom) }
                 reduce {
                     state.copy(
@@ -140,6 +150,7 @@ class MapViewModel(
                             state.contentState
                         },
                         selectedRouteNames = routeNames,
+                        routeGeometryLegends = routeGeometrySnapshot.legends,
                         attribution = city?.attribution.orEmpty(),
                         location = location,
                         selectedStop = selectedStopUi(),
@@ -180,6 +191,9 @@ class MapViewModel(
             Action.ChangeCityClicked -> intent { postSideEffect(NavigationEffect.OpenCitySelection) }
             Action.MyLocationClicked -> onMyLocationClicked()
             Action.RetryNearby -> retryNearby()
+            is Action.RouteGeometryFocused -> routeGeometryCoordinator.focus(action.routeId)
+            is Action.RetryRouteGeometry -> routeGeometryCoordinator.retry(viewModelScope, action.routeId)
+            is Action.RemoveRouteGeometry -> removeRouteGeometry(action.routeId)
             is Action.LocationEventReceived -> onLocationEvent(action.event)
             is Action.MapEventReceived -> onMapEvent(action.event)
             is Action.StopSelected -> selectStop(
@@ -273,6 +287,8 @@ class MapViewModel(
             stops = clustered.stops,
             stopClusters = clustered.clusters,
             vehicles = vehicleMarkers,
+            polylines = routeGeometrySnapshot.polylines,
+            polylineSourceRevision = routeGeometrySnapshot.polylineSourceRevision,
             userLocation = fix,
             stopSourceRevision = stopSourceRevision,
             vehicleSourceRevision = vehicleFrameRevision,
@@ -297,6 +313,7 @@ class MapViewModel(
         // A newly visible composition starts from an empty generation; a late response from the
         // previous entry/lifecycle can therefore never republish vehicle geometry.
         resetVehicleRealtimeState()
+        syncRouteGeometry()
         publishVehicleState()
         startVehicleRealtimeIfEligible()
         if (isVisibleAndStarted) {
@@ -308,6 +325,48 @@ class MapViewModel(
             pauseStopArrivalsPolling()
             pauseWalkingEstimate()
         }
+    }
+
+    /** The session remains the sole selection owner; route removal is one replacement mutation. */
+    private fun removeRouteGeometry(routeId: RouteId) {
+        val city = currentCity ?: return
+        val selected = session.selectedRouteIds.value
+        if (routeId !in selected) return
+        session.selectRoutes(city.id, selected - routeId)
+    }
+
+    private fun syncRouteGeometry(): RouteGeometrySnapshot {
+        val city = currentCity
+        return routeGeometryCoordinator.update(
+            scope = viewModelScope,
+            cityId = city?.id,
+            routeGeometryEnabled = city?.capabilities?.routeGeometry == true,
+            orderedSelectedRoutes = selectedVehicleRoutes,
+            isVisibleAndStarted = realtimeVisibleAndStarted,
+            onSnapshot = ::onRouteGeometrySnapshot,
+        ).also { routeGeometrySnapshot = it }
+    }
+
+    private fun onRouteGeometrySnapshot(snapshot: RouteGeometrySnapshot) {
+        routeGeometrySnapshot = snapshot
+        intent {
+            val city = currentCity
+            // A completion can enqueue this intent immediately before a newer selection/city
+            // collector runs. Render the latest synchronously reconciled snapshot, never the
+            // callback's captured one, so queued work cannot revive old geometry or legends.
+            val currentSnapshot = routeGeometrySnapshot
+            reduce {
+                state.copy(
+                    renderState = city?.let { renderStateFor(it, state.location.fix, lastViewport?.zoom) },
+                    routeGeometryLegends = currentSnapshot.legends,
+                )
+            }
+        }
+    }
+
+    override fun onCleared() {
+        routeGeometryCoordinator.clear()
+        super.onCleared()
     }
 
     private fun startVehicleRealtimeIfEligible() {
@@ -535,6 +594,7 @@ class MapViewModel(
         reduce {
             state.copy(
                 renderState = city?.let { renderStateFor(it, state.location.fix, lastViewport?.zoom) },
+                routeGeometryLegends = routeGeometrySnapshot.legends,
                 vehicleLayerState = vehicleLayerState(),
                 vehicleRoutes = vehicleAccessibilityItems(),
             )
@@ -551,6 +611,7 @@ class MapViewModel(
         reduce {
             state.copy(
                 renderState = renderStateFor(city, state.location.fix, lastViewport?.zoom),
+                routeGeometryLegends = routeGeometrySnapshot.legends,
                 vehicleLayerState = vehicleLayerState(),
                 vehicleRoutes = vehicleAccessibilityItems(),
             )

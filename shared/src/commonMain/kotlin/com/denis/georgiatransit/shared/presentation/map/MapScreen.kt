@@ -30,9 +30,12 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.LinkAnnotation
 import androidx.compose.ui.text.buildAnnotatedString
@@ -45,6 +48,7 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.denis.georgiatransit.shared.domain.model.GeoPoint
 import com.denis.georgiatransit.shared.domain.model.LocalizedText
+import com.denis.georgiatransit.shared.domain.model.RouteId
 import com.denis.georgiatransit.shared.domain.model.TransitAttribution
 import com.denis.georgiatransit.shared.domain.model.TransitLocale
 import com.denis.georgiatransit.shared.presentation.location.LocationFailure
@@ -53,6 +57,7 @@ import com.denis.georgiatransit.shared.presentation.location.LocationPlatformCom
 import com.denis.georgiatransit.shared.presentation.location.LocationPrecision
 import com.denis.georgiatransit.shared.presentation.location.LocationState
 import com.denis.georgiatransit.shared.presentation.location.PlatformLocationEffect
+import com.denis.georgiatransit.shared.presentation.ui.contrastSafeRouteTextColor
 import com.denis.georgiatransit.shared.presentation.ui.automation.AutomationId
 import com.denis.georgiatransit.shared.presentation.ui.automation.enableAutomationResourceIds
 import com.denis.georgiatransit.shared.presentation.ui.theme.GeorgiaTransitTheme
@@ -86,6 +91,16 @@ import georgiatransit.shared.generated.resources.map_content_stale
 import georgiatransit.shared.generated.resources.map_content_unavailable
 import georgiatransit.shared.generated.resources.map_cluster_stops
 import georgiatransit.shared.generated.resources.map_my_location_action
+import georgiatransit.shared.generated.resources.map_route_geometry_loading
+import georgiatransit.shared.generated.resources.map_route_geometry_partial
+import georgiatransit.shared.generated.resources.map_route_geometry_palette_overflow
+import georgiatransit.shared.generated.resources.map_route_geometry_ready
+import georgiatransit.shared.generated.resources.map_route_geometry_remove
+import georgiatransit.shared.generated.resources.map_route_geometry_remove_accessibility
+import georgiatransit.shared.generated.resources.map_route_geometry_retry
+import georgiatransit.shared.generated.resources.map_route_geometry_retryable
+import georgiatransit.shared.generated.resources.map_route_geometry_title
+import georgiatransit.shared.generated.resources.map_route_geometry_unavailable
 import georgiatransit.shared.generated.resources.map_preview_note
 import georgiatransit.shared.generated.resources.map_routes_action
 import georgiatransit.shared.generated.resources.map_nearby_stops_title
@@ -247,6 +262,12 @@ private fun Content(state: ViewState, onAction: (Action) -> Unit) {
                         style = MaterialTheme.typography.labelLarge,
                     )
                 }
+                RouteGeometryLegend(
+                    routes = state.routeGeometryLegends,
+                    onFocus = { routeId -> onAction(Action.RouteGeometryFocused(routeId)) },
+                    onRetry = { routeId -> onAction(Action.RetryRouteGeometry(routeId)) },
+                    onRemove = { routeId -> onAction(Action.RemoveRouteGeometry(routeId)) },
+                )
                 Row(horizontalArrangement = Arrangement.spacedBy(TransitSpacing.Small)) {
                     OutlinedButton(
                         onClick = { onAction(Action.ChangeCityClicked) },
@@ -272,6 +293,101 @@ private fun Content(state: ViewState, onAction: (Action) -> Unit) {
             )
         }
     }
+}
+
+/** A common textual and interactive legend for the actual ordered route-polyline source. */
+@Composable
+private fun RouteGeometryLegend(
+    routes: List<RouteGeometryLegendUi>,
+    onFocus: (RouteId) -> Unit,
+    onRetry: (RouteId) -> Unit,
+    onRemove: (RouteId) -> Unit,
+) {
+    if (routes.isEmpty()) return
+    Text(stringResource(Res.string.map_route_geometry_title), style = MaterialTheme.typography.labelLarge)
+    LazyRow(
+        modifier = Modifier.fillMaxWidth().testTag(AutomationId.MapRouteGeometryLegend),
+        horizontalArrangement = Arrangement.spacedBy(TransitSpacing.Small),
+    ) {
+        items(routes, key = { it.routeId.value }) { route ->
+            val foreground = Color(contrastSafeRouteTextColor(route.colorArgb, 0xFFFFFFFF))
+            val removeDescription = stringResource(Res.string.map_route_geometry_remove_accessibility, route.routeLabel)
+            Surface(
+                shape = TransitShapes.Small,
+                color = Color(route.colorArgb),
+                tonalElevation = if (route.isFocused) TransitSpacing.ExtraSmall else 0.dp,
+            ) {
+                Column(
+                    modifier = Modifier.padding(TransitSpacing.Small),
+                    verticalArrangement = Arrangement.spacedBy(TransitSpacing.ExtraSmall),
+                ) {
+                    TextButton(
+                        onClick = { onFocus(route.routeId) },
+                        modifier = Modifier.testTag(AutomationId.MapRouteGeometryChip).semantics {
+                            contentDescription = route.routeLabel
+                            selected = route.isFocused
+                        },
+                    ) {
+                        Text(route.routeLabel, color = foreground, style = MaterialTheme.typography.labelLarge)
+                    }
+                    Text(
+                        routeGeometryStatusLabel(route),
+                        modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
+                        color = foreground,
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                    Row(horizontalArrangement = Arrangement.spacedBy(TransitSpacing.ExtraSmall)) {
+                        TextButton(
+                            onClick = { onRemove(route.routeId) },
+                            modifier = Modifier.testTag(AutomationId.MapRouteGeometryRemove).semantics {
+                                contentDescription = removeDescription
+                            },
+                        ) {
+                            Text(stringResource(Res.string.map_route_geometry_remove), color = foreground)
+                        }
+                        if (route.canRetry) {
+                            TextButton(
+                                onClick = { onRetry(route.routeId) },
+                                modifier = Modifier.testTag(AutomationId.MapRouteGeometryRetry),
+                            ) {
+                                Text(stringResource(Res.string.map_route_geometry_retry), color = foreground)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun routeGeometryStatusLabel(route: RouteGeometryLegendUi): String = when (route.state) {
+    RouteGeometryLegendState.Loading -> stringResource(
+        Res.string.map_route_geometry_loading,
+        route.successfulDirections,
+        route.totalDirections,
+    )
+    RouteGeometryLegendState.Ready -> stringResource(
+        Res.string.map_route_geometry_ready,
+        route.successfulDirections,
+        route.totalDirections,
+    )
+    RouteGeometryLegendState.Partial -> stringResource(
+        Res.string.map_route_geometry_partial,
+        route.successfulDirections,
+        route.totalDirections,
+    )
+    RouteGeometryLegendState.Retryable -> stringResource(
+        Res.string.map_route_geometry_retryable,
+        route.successfulDirections,
+        route.totalDirections,
+    )
+    RouteGeometryLegendState.Unavailable -> stringResource(
+        Res.string.map_route_geometry_unavailable,
+        route.successfulDirections,
+        route.totalDirections,
+    )
+    RouteGeometryLegendState.PaletteOverflow -> stringResource(Res.string.map_route_geometry_palette_overflow)
 }
 
 @OptIn(ExperimentalMaterial3Api::class)

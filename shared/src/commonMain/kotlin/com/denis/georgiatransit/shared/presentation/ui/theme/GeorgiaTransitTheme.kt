@@ -22,7 +22,7 @@ object TransitColors {
     val BrandDark = Color(0xFF0B625A)
     val Accent = Color(0xFFE76F51)
     val MapWater = Color(0xFFB9DFE7)
-    val MapLand = Color(0xFFE9EFE7)
+    val MapLand = Color(0xFFE7F1EB)
     val RouteBlue = Color(0xFF457B9D)
 }
 

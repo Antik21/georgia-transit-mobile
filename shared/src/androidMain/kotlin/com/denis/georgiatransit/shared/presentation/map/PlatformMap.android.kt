@@ -179,7 +179,7 @@ private class LocalMapController(
     private var lastStops: List<MapStopMarker>? = null
     private var lastStopClusters: List<MapStopCluster>? = null
     private var lastStopSourceRevision: Long? = null
-    private var lastPolylines: List<MapPolyline>? = null
+    private var lastPolylineSourceRevision: Long? = null
     private var lastUserLocation: UserLocationFix? = null
     private var lastVehicleSourceRevision: Long? = null
     private var lastVehicleBadgeRevision: Long? = null
@@ -253,8 +253,8 @@ private class LocalMapController(
         loadedStyle.addLayer(
             LineLayer(POLYLINES_LAYER_ID, POLYLINES_SOURCE_ID).withProperties(
                 lineColor(Expression.get(ROUTE_COLOR_PROPERTY)),
-                lineOpacity(0.9f),
-                lineWidth(5f),
+                lineOpacity(Expression.get(ROUTE_OPACITY_PROPERTY)),
+                lineWidth(Expression.get(ROUTE_WIDTH_PROPERTY)),
             ),
         )
         loadedStyle.addLayer(
@@ -326,9 +326,9 @@ private class LocalMapController(
             )
             lastVehicleSourceRevision = renderState.vehicleSourceRevision
         }
-        if (lastPolylines != renderState.polylines) {
+        if (lastPolylineSourceRevision != renderState.polylineSourceRevision) {
             loadedStyle.getSourceAs<GeoJsonSource>(POLYLINES_SOURCE_ID)?.setGeoJson(polylineFeatures(renderState.polylines))
-            lastPolylines = renderState.polylines
+            lastPolylineSourceRevision = renderState.polylineSourceRevision
         }
         if (lastUserLocation != renderState.userLocation) {
             loadedStyle.getSourceAs<GeoJsonSource>(USER_LOCATION_SOURCE_ID)?.setGeoJson(userLocationFeatures(renderState.userLocation))
@@ -471,7 +471,7 @@ private class LocalMapController(
         lastStops = null
         lastStopClusters = null
         lastStopSourceRevision = null
-        lastPolylines = null
+        lastPolylineSourceRevision = null
         lastUserLocation = null
         lastVehicleSourceRevision = null
         lastVehicleBadgeRevision = null
@@ -531,16 +531,19 @@ private fun selectedStopFeatures(renderState: MapRenderState): FeatureCollection
 )
 
 private fun polylineFeatures(polylines: List<MapPolyline>): FeatureCollection = FeatureCollection.fromFeatures(
-    polylines.asSequence()
+    polylines
         .filter { it.routeId.value.isNotBlank() }
-        .sortedWith(compareBy<MapPolyline> { it.routeId.value }.thenBy { it.directionId?.value.orEmpty() })
         .take(MAX_POLYLINES)
-        .mapNotNull { line ->
-            val points = line.points.filter(GeoPoint::isMapCoordinate)
+        .mapIndexedNotNull { index, line ->
+            // Preserve the authoritative common snapshot order. Both adapters apply exactly the
+            // same valid-point filter and caps before replacing their one grouped source.
+            val points = line.points.asSequence().filter(GeoPoint::isMapCoordinate).take(MAX_POLYLINE_POINTS).toList()
             points.takeIf(::isNonDegenerateLine)?.let { validPoints ->
                 Feature.fromGeometry(LineString.fromLngLats(validPoints.map(GeoPoint::asMapPoint))).also { feature ->
-                    feature.addStringProperty(FEATURE_ID_PROPERTY, line.routeId.value)
+                    feature.addStringProperty(FEATURE_ID_PROPERTY, "polyline-$index")
                     feature.addStringProperty(ROUTE_COLOR_PROPERTY, line.routeColorArgb.asMapColor())
+                    feature.addNumberProperty(ROUTE_WIDTH_PROPERTY, line.strokeWidth.safePolylineWidth())
+                    feature.addNumberProperty(ROUTE_OPACITY_PROPERTY, line.opacity.safePolylineOpacity())
                 }
             }
         }
@@ -651,6 +654,12 @@ private fun isNonDegenerateLine(points: List<GeoPoint>): Boolean = points.size >
 
 private fun Long.asMapColor(): String = "#%06X".format(this and 0xFFFFFF)
 
+private fun Double.safePolylineWidth(): Double = takeIf(Double::isFinite)?.coerceIn(MIN_POLYLINE_WIDTH, MAX_POLYLINE_WIDTH)
+    ?: DEFAULT_POLYLINE_WIDTH
+
+/** Route colors are contrast-validated on land only when every emitted line is fully opaque. */
+private fun Double.safePolylineOpacity(): Double = DEFAULT_POLYLINE_OPACITY
+
 private fun Double.normalizedBearing(): Double = ((this % 360.0) + 360.0) % 360.0
 
 private const val STOPS_SOURCE_ID = "gt-stops-source"
@@ -683,6 +692,8 @@ private const val STOP_RADIUS = 5
 private const val SELECTED_STOP_RADIUS = 9
 private const val CLUSTER_RADIUS = 12
 private const val ROUTE_COLOR_PROPERTY = "routeColor"
+private const val ROUTE_WIDTH_PROPERTY = "routeWidth"
+private const val ROUTE_OPACITY_PROPERTY = "routeOpacity"
 private const val BEARING_PROPERTY = "bearing"
 private const val POSITION_KIND_PROPERTY = "positionKind"
 private const val VEHICLE_BADGE_IMAGE_PROPERTY = "vehicleBadgeImage"
@@ -691,6 +702,11 @@ private const val MAX_STOP_MARKERS = 1_000
 private const val MAX_VEHICLE_MARKERS = 2_000
 private const val MAX_VEHICLE_BADGE_IMAGES = 256
 private const val MAX_POLYLINES = 256
+private const val MAX_POLYLINE_POINTS = 20_000
+private const val MIN_POLYLINE_WIDTH = 1.0
+private const val MAX_POLYLINE_WIDTH = 10.0
+private const val DEFAULT_POLYLINE_WIDTH = 4.0
+private const val DEFAULT_POLYLINE_OPACITY = 1.0
 private const val MIN_POLYGON_POINTS = 4
 private const val MIN_ZOOM = 0.0
 private const val MAX_ZOOM = 22.0

@@ -38,7 +38,7 @@ private final class LocalMapLibreView: UIView, MLNMapViewDelegate {
     private var lastAppliedCameraRevision: Int64?
     private var lastStops: [StopRenderInput]?
     private var lastStopSourceRevision: Int64?
-    private var lastPolylines: [PolylineRenderInput]?
+    private var lastPolylineSourceRevision: Int64?
     private var lastUserLocation: UserLocationRenderInput?
     private var lastVehicleSourceRevision: Int64?
     private var lastVehicleBadgeRevision: Int64?
@@ -130,8 +130,8 @@ private final class LocalMapLibreView: UIView, MLNMapViewDelegate {
 
         let polylinesLayer = MLNLineStyleLayer(identifier: Self.polylinesLayerID, source: polylinesSource)
         polylinesLayer.lineColor = NSExpression(forKeyPath: Self.routeColorProperty)
-        polylinesLayer.lineWidth = NSExpression(forConstantValue: 5)
-        polylinesLayer.lineOpacity = NSExpression(forConstantValue: 0.9)
+        polylinesLayer.lineWidth = NSExpression(forKeyPath: Self.routeWidthProperty)
+        polylinesLayer.lineOpacity = NSExpression(forKeyPath: Self.routeOpacityProperty)
         style.addLayer(polylinesLayer)
 
         let accuracyFillLayer = MLNFillStyleLayer(identifier: Self.userAccuracyFillLayerID, source: userAccuracySource)
@@ -207,10 +207,9 @@ private final class LocalMapLibreView: UIView, MLNMapViewDelegate {
             )
             lastVehicleSourceRevision = state.vehicleSourceRevision
         }
-        let polylines = polylineRenderInputs(state.polylines)
-        if lastPolylines != polylines {
+        if lastPolylineSourceRevision != state.polylineSourceRevision {
             updateSource(style: style, identifier: Self.polylinesSourceID, features: polylineFeatures(state.polylines))
-            lastPolylines = polylines
+            lastPolylineSourceRevision = state.polylineSourceRevision
         }
         let userLocation = userLocationRenderInput(state.userLocation)
         if lastUserLocation != userLocation {
@@ -433,19 +432,19 @@ private final class LocalMapLibreView: UIView, MLNMapViewDelegate {
     private func polylineFeatures(_ polylines: [MapPolyline]) -> [[String: Any]] {
         polylines
             .filter { !$0.stableRouteId.isEmpty }
-            .sorted(by: { (first: MapPolyline, second: MapPolyline) in
-                let firstDirection = first.stableDirectionId ?? ""
-                let secondDirection = second.stableDirectionId ?? ""
-                return first.stableRouteId == second.stableRouteId ? firstDirection < secondDirection : first.stableRouteId < second.stableRouteId
-            })
             .prefix(Self.maximumPolylines)
-            .compactMap { (polyline: MapPolyline) -> [String: Any]? in
+            .enumerated()
+            .compactMap { (index: Int, polyline: MapPolyline) -> [String: Any]? in
                 let points = Array(polyline.points.filter(isCoordinateValid).prefix(Self.maximumPolylinePoints))
                 guard points.count >= 2, zip(points, points.dropFirst()).contains(where: { $0 != $1 }) else { return nil }
                 return [
                     "type": "Feature",
-                    "id": polyline.stableRouteId,
-                    "properties": [Self.routeColorProperty: mapColor(polyline.routeColorArgb)],
+                    "id": "polyline-\(index)",
+                    "properties": [
+                        Self.routeColorProperty: mapColor(polyline.routeColorArgb),
+                        Self.routeWidthProperty: safePolylineWidth(polyline.strokeWidth),
+                        Self.routeOpacityProperty: safePolylineOpacity(polyline.opacity),
+                    ],
                     "geometry": [
                         "type": "LineString",
                         "coordinates": points.map { [$0.longitude, $0.latitude] },
@@ -515,6 +514,14 @@ private final class LocalMapLibreView: UIView, MLNMapViewDelegate {
         String(format: "#%06llX", color & 0xFFFFFF)
     }
 
+    private func safePolylineWidth(_ value: Double) -> Double {
+        guard value.isFinite else { return 4 }
+        return min(max(value, 1), 10)
+    }
+
+    /// Route colors are contrast-validated on land only when every emitted line is fully opaque.
+    private func safePolylineOpacity(_ value: Double) -> Double { 1 }
+
     private func normalizedBearing(_ bearing: Double) -> Double {
         (bearing.truncatingRemainder(dividingBy: 360) + 360).truncatingRemainder(dividingBy: 360)
     }
@@ -580,29 +587,6 @@ private final class LocalMapLibreView: UIView, MLNMapViewDelegate {
         return stops + clusterItems
     }
 
-    /** Exact geometry is retained only for the polylines actually emitted by the native source. */
-    private func polylineRenderInputs(_ polylines: [MapPolyline]) -> [PolylineRenderInput] {
-        polylines
-            .filter { !$0.stableRouteId.isEmpty }
-            .sorted {
-                let firstDirection = $0.stableDirectionId ?? ""
-                let secondDirection = $1.stableDirectionId ?? ""
-                return $0.stableRouteId == $1.stableRouteId ? firstDirection < secondDirection : $0.stableRouteId < $1.stableRouteId
-            }
-            .prefix(Self.maximumPolylines)
-            .compactMap { polyline in
-                let points = Array(polyline.points.filter(isCoordinateValid).prefix(Self.maximumPolylinePoints))
-                guard points.count >= 2, zip(points, points.dropFirst()).contains(where: { $0 != $1 }) else { return nil }
-                return PolylineRenderInput(
-                    routeId: polyline.stableRouteId,
-                    directionId: polyline.stableDirectionId,
-                    points: points.map(RenderCoordinate.init),
-                    colorArgb: polyline.routeColorArgb,
-                    freshness: polyline.freshness.name
-                )
-            }
-    }
-
     private func userLocationRenderInput(_ location: UserLocationFix?) -> UserLocationRenderInput? {
         guard
             let location,
@@ -620,7 +604,7 @@ private final class LocalMapLibreView: UIView, MLNMapViewDelegate {
     private func clearRenderedLayerState() {
         lastStops = nil
         lastStopSourceRevision = nil
-        lastPolylines = nil
+        lastPolylineSourceRevision = nil
         lastUserLocation = nil
         lastVehicleSourceRevision = nil
         lastVehicleBadgeRevision = nil
@@ -642,6 +626,8 @@ private final class LocalMapLibreView: UIView, MLNMapViewDelegate {
     private static let userAccuracyFillLayerID = "gt-user-accuracy-fill-layer"
     private static let userAccuracyStrokeLayerID = "gt-user-accuracy-stroke-layer"
     private static let routeColorProperty = "routeColor"
+    private static let routeWidthProperty = "routeWidth"
+    private static let routeOpacityProperty = "routeOpacity"
     private static let bearingProperty = "bearing"
     private static let positionKindProperty = "positionKind"
     private static let vehicleBadgeImageProperty = "vehicleBadgeImage"
@@ -694,14 +680,6 @@ private struct StopRenderInput: Equatable {
     let accessibilityLabel: String
     let isSelected: Bool
     let count: Int32?
-}
-
-private struct PolylineRenderInput: Equatable {
-    let routeId: String
-    let directionId: String?
-    let points: [RenderCoordinate]
-    let colorArgb: Int64
-    let freshness: String
 }
 
 private struct UserLocationRenderInput: Equatable {
@@ -788,7 +766,7 @@ private extension UIColor {
 private final class LocalMapUnavailableView: UIView {
     override init(frame: CGRect) {
         super.init(frame: frame)
-        backgroundColor = UIColor(red: 0.91, green: 0.95, blue: 0.92, alpha: 1)
+        backgroundColor = UIColor(red: 231.0 / 255.0, green: 241.0 / 255.0, blue: 235.0 / 255.0, alpha: 1)
         isAccessibilityElement = false
     }
 
