@@ -245,6 +245,124 @@ class MapVehicleRealtimeViewModelTest {
     }
 
     @Test
+    fun committedReplacementCancelsRemovedRouteAndNeverPublishesItsLateVehicleFrame() = runTest {
+        val lateA = CompletableDeferred<TransitLoadResult<VehiclePage>>()
+        val repository = ScriptedVehicleRepository(routes = listOf(route(routeA), route(routeB), route(routeC))).apply {
+            vehicleHandler = { _, routeId ->
+                requests += routeId
+                when (routeId) {
+                    routeA -> withContext(NonCancellable) { lateA.await() }
+                    routeB, routeC -> TransitLoadResult.Data(
+                        page(listOf(vehicle("${routeId.value}-${requests.count { it == routeId }}", routeId))),
+                        TransitFreshness.Network,
+                    )
+                    else -> error("Unexpected route request: $routeId")
+                }
+            }
+        }
+        val session = selectedSession(repository, routes = linkedSetOf(routeA, routeB))
+        val viewModel = MapViewModel(
+            repository,
+            session,
+            RuntimeLocationSession(scope = this),
+            testClock(),
+            ticker(pollMillis = 60_000, frameMillis = 60_000),
+        )
+
+        viewModel.test(this) {
+            runOnCreate()
+            this@runTest.runCurrent()
+            viewModel.dispatchAction(Action.RealtimeVisibilityChanged(true))
+            this@runTest.runCurrent()
+            assertEquals(listOf(routeA, routeB), repository.requests)
+
+            assertTrue(session.selectRoutes(repository.city.id, linkedSetOf(routeB, routeC)))
+            this@runTest.runCurrent()
+
+            assertEquals(
+                listOf(routeA, routeB, routeB, routeC),
+                repository.requests,
+                "Replacement may restart a retained route, but it must never request removed A again.",
+            )
+            val afterReplacement = viewModel.container.stateFlow.value
+            assertEquals(
+                setOf(routeB, routeC),
+                afterReplacement.renderState?.vehicles.orEmpty().map(MapVehicleMarker::routeId).toSet(),
+            )
+            assertEquals(setOf(routeB, routeC), afterReplacement.vehicleRoutes.map(VehicleRouteAccessibilityUi::routeId).toSet())
+            assertTrue(
+                repository.maximumVehicleRequestsInFlightByRoute.values.all { it <= 1 },
+                "There must be no overlapping request for the same (city, route) key.",
+            )
+
+            lateA.complete(TransitLoadResult.Data(page(listOf(vehicle("late-a", routeA))), TransitFreshness.Network))
+            this@runTest.runCurrent()
+
+            val afterLateA = viewModel.container.stateFlow.value
+            assertEquals(
+                setOf(routeB, routeC),
+                afterLateA.renderState?.vehicles.orEmpty().map(MapVehicleMarker::routeId).toSet(),
+                "A late result from a removed route must not resurrect its marker.",
+            )
+            assertEquals(
+                listOf(routeA, routeB, routeB, routeC),
+                repository.requests,
+                "Polling is driven only by the committed, resolved active selection.",
+            )
+            viewModel.dispatchAction(Action.RealtimeVisibilityChanged(false))
+            this@runTest.runCurrent()
+            cancelViewModel(viewModel)
+            cancelAndIgnoreRemainingItems()
+        }
+    }
+
+    @Test
+    fun vehicleCapabilityOffClearsTheLayerAndRejectsLateFramesUntilTheCapabilityReturns() = runTest {
+        val lateResult = CompletableDeferred<TransitLoadResult<VehiclePage>>()
+        var requests = 0
+        val repository = ScriptedVehicleRepository(routes = listOf(route(routeA))).apply {
+            vehicleHandler = { _, routeId ->
+                this.requests += routeId
+                requests += 1
+                if (requests == 1) {
+                    withContext(NonCancellable) { lateResult.await() }
+                } else {
+                    TransitLoadResult.Data(page(listOf(vehicle("fresh", routeId))), TransitFreshness.Network)
+                }
+            }
+        }
+        val session = selectedSession(repository, routes = setOf(routeA))
+        val viewModel = MapViewModel(repository, session, RuntimeLocationSession(scope = this), testClock(), ticker(pollMillis = 60_000))
+
+        viewModel.test(this) {
+            runOnCreate()
+            this@runTest.runCurrent()
+            viewModel.dispatchAction(Action.RealtimeVisibilityChanged(true))
+            this@runTest.runCurrent()
+            assertEquals(1, repository.requests.size)
+
+            session.selectCity(repository.city.copy(capabilities = repository.city.capabilities.copy(vehicles = false)))
+            this@runTest.runCurrent()
+            assertIs<VehicleLayerState.Unavailable>(viewModel.container.stateFlow.value.vehicleLayerState)
+            assertTrue(viewModel.container.stateFlow.value.renderState?.vehicles.orEmpty().isEmpty())
+
+            lateResult.complete(TransitLoadResult.Data(page(listOf(vehicle("late", routeA))), TransitFreshness.Network))
+            this@runTest.runCurrent()
+            assertIs<VehicleLayerState.Unavailable>(viewModel.container.stateFlow.value.vehicleLayerState)
+            assertTrue(viewModel.container.stateFlow.value.renderState?.vehicles.orEmpty().isEmpty())
+
+            session.selectCity(repository.city)
+            this@runTest.runCurrent()
+            assertEquals(listOf(routeA, routeA), repository.requests)
+            assertEquals(listOf("fresh"), viewModel.container.stateFlow.value.renderState?.vehicles.orEmpty().map { it.id.value })
+            viewModel.dispatchAction(Action.RealtimeVisibilityChanged(false))
+            this@runTest.runCurrent()
+            cancelViewModel(viewModel)
+            cancelAndIgnoreRemainingItems()
+        }
+    }
+
+    @Test
     fun routeStatusIsMixedButAccessibilityRowsRetainEachRoutePhaseAndCount() = runTest {
         val repository = ScriptedVehicleRepository(routes = listOf(route(routeA), route(routeB))).apply {
             vehicleHandler = { _, routeId ->
@@ -354,6 +472,8 @@ class MapVehicleRealtimeViewModelTest {
         var nearbyRequests = 0
         var maximumVehicleRequestsInFlight = 0
         private var vehicleRequestsInFlight = 0
+        val maximumVehicleRequestsInFlightByRoute = mutableMapOf<RouteId, Int>()
+        private val vehicleRequestsInFlightByRoute = mutableMapOf<RouteId, Int>()
         var vehicleHandler: suspend (CityId, RouteId) -> TransitLoadResult<VehiclePage> = { _, _ ->
             TransitLoadResult.Empty(TransitFreshness.Network)
         }
@@ -365,10 +485,17 @@ class MapVehicleRealtimeViewModelTest {
         override suspend fun vehicles(cityId: CityId, routeId: RouteId, directionId: DirectionId?): TransitLoadResult<VehiclePage> {
             vehicleRequestsInFlight++
             maximumVehicleRequestsInFlight = maxOf(maximumVehicleRequestsInFlight, vehicleRequestsInFlight)
+            val routeRequestsInFlight = (vehicleRequestsInFlightByRoute[routeId] ?: 0) + 1
+            vehicleRequestsInFlightByRoute[routeId] = routeRequestsInFlight
+            maximumVehicleRequestsInFlightByRoute[routeId] = maxOf(
+                maximumVehicleRequestsInFlightByRoute[routeId] ?: 0,
+                routeRequestsInFlight,
+            )
             return try {
                 vehicleHandler(cityId, routeId)
             } finally {
                 vehicleRequestsInFlight--
+                vehicleRequestsInFlightByRoute[routeId] = vehicleRequestsInFlightByRoute.getValue(routeId) - 1
             }
         }
 
@@ -389,6 +516,7 @@ class MapVehicleRealtimeViewModelTest {
         val cityId = CityId("test-city")
         val routeA = RouteId("route-a")
         val routeB = RouteId("route-b")
+        val routeC = RouteId("route-c")
         val origin = GeoPoint(41.715, 44.827)
     }
 }

@@ -32,6 +32,9 @@ import com.denis.georgiatransit.shared.presentation.location.UserLocationFix
 import com.denis.georgiatransit.shared.presentation.location.MAX_FIX_AGE_MILLIS
 import com.denis.georgiatransit.shared.presentation.location.MAX_PRECISE_ACCURACY_METERS
 import com.denis.georgiatransit.shared.presentation.ui.contrastSafeRouteTextColor
+import com.denis.georgiatransit.shared.presentation.ui.RouteColorAvailability
+import com.denis.georgiatransit.shared.presentation.ui.RouteSelectionProjection
+import com.denis.georgiatransit.shared.presentation.ui.RouteSelectionProjector
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -77,7 +80,8 @@ class MapViewModel(
     private var stopArrivalsJob: Job? = null
     private var stopArrivalsGeneration = 0L
     private var stopArrivalsStop: TransitStop? = null
-    private var stopArrivalsRouteLabels: Map<RouteId, String> = emptyMap()
+    /** Catalogue snapshot used only to reproject an already-open sheet without fresh I/O. */
+    private var stopArrivalsCatalogRoutes: List<TransitRoute> = emptyList()
     private var stopArrivalsPage: ArrivalPage? = null
     private var stopArrivalsFreshness: TransitFreshness? = null
     /** A server kill switch is fail-closed until the selected city's arrivals capability changes. */
@@ -89,6 +93,12 @@ class MapViewModel(
     private var walkingEstimateGeneration = 0L
     /** One in-memory key only for the currently-visible sheet; never a cache or persistence key. */
     private var walkingEstimateRequest: WalkingEstimateRequestKey? = null
+    /** The active city's canonical BFF catalogue; never a cross-city or persisted selection cache. */
+    private var routeCatalog: List<TransitRoute> = emptyList()
+    /** The one committed selection/style source shared by map overlays, sheets, and vehicle badges. */
+    private var selectedRouteProjection = RouteSelectionProjection()
+    /** Includes explicit palette-overflow rows so geometry can display an honest unavailable legend. */
+    private var selectedCatalogRoutes: List<TransitRoute> = emptyList()
     private var selectedVehicleRoutes: List<TransitRoute> = emptyList()
     private var lastSelectedRouteIds: Set<RouteId> = emptySet()
     private var realtimeVisibleAndStarted = false
@@ -116,9 +126,20 @@ class MapViewModel(
                 currentCity = city
                 if (city == null) resetCameraState()
 
-                val selectedRoutes = city?.let { selectedCity ->
-                    repository.routes(selectedCity.id).filter { it.id in selectedIds }
+                val routesCapabilityChanged = !cityChanged &&
+                    city?.capabilities?.routes != previousCity?.capabilities?.routes
+                val previousProjection = selectedRouteProjection
+                routeCatalog = city?.takeIf { it.capabilities.routes }?.let { selectedCity ->
+                    repository.routes(selectedCity.id).filter { route -> route.cityId == selectedCity.id }
                 }.orEmpty()
+                selectedRouteProjection = RouteSelectionProjector.resolve(routeCatalog, selectedIds)
+                selectedCatalogRoutes = selectedRouteProjection.routes.mapNotNull { selected ->
+                    routeCatalog.firstOrNull { route -> route.id == selected.routeId }
+                }
+                selectedVehicleRoutes = selectedCatalogRoutes.filter { route ->
+                    selectedRouteProjection.byId[route.id]?.colorAvailability == RouteColorAvailability.Assigned
+                }
+                stopArrivalsCatalogRoutes = routeCatalog
                 val vehicleCapabilityChanged = !cityChanged &&
                     city?.capabilities?.vehiclePositions != previousCity?.capabilities?.vehiclePositions
                 val routeGeometryCapabilityChanged = !cityChanged &&
@@ -126,16 +147,18 @@ class MapViewModel(
                 val arrivalsCapabilityChanged = !cityChanged &&
                     city?.capabilities?.arrivals != previousCity?.capabilities?.arrivals
                 if (cityChanged || arrivalsCapabilityChanged) arrivalsCapabilityBlockedCityId = null
-                val vehicleSelectionChanged = selectedIds != lastSelectedRouteIds
-                if (cityChanged || vehicleCapabilityChanged || vehicleSelectionChanged) {
+                val vehicleSelectionChanged = selectedIds != lastSelectedRouteIds ||
+                    selectedRouteProjection != previousProjection
+                val selectionOverlayChanged = vehicleSelectionChanged || routesCapabilityChanged
+                if (cityChanged || routesCapabilityChanged || vehicleCapabilityChanged || vehicleSelectionChanged) {
                     resetVehicleRealtimeState()
                 }
-                selectedVehicleRoutes = selectedRoutes
                 lastSelectedRouteIds = selectedIds.toSet()
-                val routeNames = selectedRoutes.map(TransitRoute::shortName)
+                if (selectionOverlayChanged) nextStopSourceRevision()
+                val routeNames = selectedRouteProjection.routes.map { route -> route.displayLabel }
                 // Reconcile synchronously before creating a render state. This makes a city or
                 // selection replacement fail closed instead of briefly rendering old geometry.
-                if (cityChanged || routeGeometryCapabilityChanged || vehicleSelectionChanged) {
+                if (cityChanged || routesCapabilityChanged || routeGeometryCapabilityChanged || vehicleSelectionChanged) {
                     syncRouteGeometry()
                 }
                 val renderState = city?.let { renderStateFor(it, location.fix, lastViewport?.zoom) }
@@ -158,10 +181,10 @@ class MapViewModel(
                         stopArrivalsSheet = if (cityChanged || stopsCapabilityChanged) {
                             null
                         } else {
-                            state.stopArrivalsSheet
+                            reprojectStopArrivalsSheet(state.stopArrivalsSheet)
                         },
-                        vehicleLayerState = if (cityChanged || vehicleCapabilityChanged || vehicleSelectionChanged) {
-                            initialVehicleLayerState(city, selectedRoutes)
+                        vehicleLayerState = if (cityChanged || routesCapabilityChanged || vehicleCapabilityChanged || vehicleSelectionChanged) {
+                            initialVehicleLayerState(city, selectedVehicleRoutes)
                         } else {
                             vehicleLayerState()
                         },
@@ -279,6 +302,7 @@ class MapViewModel(
                 position = stop.position,
                 accessibilityLabel = stop.displayName(currentLocale),
                 isSelected = stop.id == selectedStopId,
+                routeHighlight = routeHighlightFor(stop),
             )
         }
         val clustered = clusterStops(markers, viewportZoom ?: camera.zoom)
@@ -341,7 +365,8 @@ class MapViewModel(
             scope = viewModelScope,
             cityId = city?.id,
             routeGeometryEnabled = city?.capabilities?.routeGeometry == true,
-            orderedSelectedRoutes = selectedVehicleRoutes,
+            orderedSelectedRoutes = selectedCatalogRoutes,
+            selectedRouteProjection = selectedRouteProjection,
             isVisibleAndStarted = realtimeVisibleAndStarted,
             onSnapshot = ::onRouteGeometrySnapshot,
         ).also { routeGeometrySnapshot = it }
@@ -398,7 +423,7 @@ class MapViewModel(
             publishVehicleState()
             val result = requestVehicles(generation, cityId, routeId) ?: return
             if (!isCurrentVehicleSession(generation, cityId) || routeId !in selectedVehicleRouteIds()) return
-            applyVehicleResult(routeId, result)
+            applyVehicleResult(generation, cityId, routeId, result)
             delay(realtimeTickerPolicy.pollIntervalMillis)
         }
     }
@@ -423,9 +448,14 @@ class MapViewModel(
     }
 
     private fun applyVehicleResult(
+        generation: Long,
+        cityId: CityId,
         routeId: RouteId,
         result: TransitLoadResult<com.denis.georgiatransit.shared.domain.model.VehiclePage>,
     ) {
+        // This repeats the post-request check at the mutation edge. It matters for clients that
+        // complete cancellation late: removed routes must not revive tracks between generations.
+        if (!isCurrentVehicleSession(generation, cityId) || routeId !in selectedVehicleRouteIds()) return
         when (result) {
             is TransitLoadResult.Data -> when (
                 val reduction = VehicleRealtimeReducer.acceptPage(
@@ -457,7 +487,7 @@ class MapViewModel(
             }
         }
         updateVehicleFrames(forceSourceCheck = true)
-        publishVehicleState()
+        publishVehicleStateIfCurrent(generation, cityId)
     }
 
     private fun updateVehicleFrames(forceSourceCheck: Boolean = false): VehicleFrameUpdate {
@@ -538,21 +568,23 @@ class MapViewModel(
         monotonicNowMillis: Long,
         frameRevision: Long,
         interpolate: Boolean,
-    ): MapVehicleMarker =
-        MapVehicleMarker(
+    ): MapVehicleMarker? {
+        val routeSelection = selectedRouteProjection.byId[route.id] ?: return null
+        return MapVehicleMarker(
             id = id,
             routeId = routeId,
             directionId = directionId,
             position = if (interpolate) VehicleRealtimeReducer.frame(this, monotonicNowMillis) else to,
-            routeColorArgb = route.colorArgb,
+            routeColorArgb = routeSelection.backgroundArgb,
             bearingDegrees = bearingDegrees,
             positionKind = positionKind,
             freshness = freshness,
-            routeLabel = route.shortName.sanitizedRouteBadgeLabel(),
-            routeTextColorArgb = contrastSafeRouteTextColor(route.colorArgb, route.textColorArgb),
+            routeLabel = routeSelection.displayLabel.sanitizedRouteBadgeLabel(),
+            routeTextColorArgb = routeSelection.textArgb,
             isStale = isStale,
             frameRevision = frameRevision,
         )
+    }
 
     /**
      * Typical maps animate at 20 fps. 251--1000 visible markers use 10 fps while only the first
@@ -619,13 +651,15 @@ class MapViewModel(
     }
 
     private fun vehicleAccessibilityItems(): List<VehicleRouteAccessibilityUi> = selectedVehicleRoutes
-        .sortedBy(TransitRoute::shortName)
-        .map { route ->
+        .mapNotNull { route ->
+            val selection = selectedRouteProjection.byId[route.id] ?: return@mapNotNull null
             VehicleRouteAccessibilityUi(
                 routeId = route.id,
-                routeLabel = route.shortName.sanitizedRouteBadgeLabel(),
+                routeLabel = selection.displayLabel.sanitizedRouteBadgeLabel(),
                 vehicleCount = vehicleRealtimeState.tracks.count { it.routeId == route.id },
                 layerState = vehicleLayerStateFor(route.id),
+                backgroundArgb = selection.backgroundArgb,
+                textArgb = selection.textArgb,
             )
         }
 
@@ -997,7 +1031,7 @@ class MapViewModel(
     private fun openStopArrivals(stop: TransitStop, city: TransitCity) {
         resetStopArrivalsState()
         stopArrivalsStop = stop
-        stopArrivalsRouteLabels = routeLabelsFor(city.id, repository.routes(city.id))
+        stopArrivalsCatalogRoutes = repository.routes(city.id).filter { route -> route.cityId == city.id }
     }
 
     private fun stopArrivalsSheetUi(): StopArrivalsSheetUi? {
@@ -1007,6 +1041,7 @@ class MapViewModel(
             stopId = stop.id,
             stopName = stop.name.forLocale(currentLocale).trim(),
             stopCode = stop.code.trim().ifBlank { null },
+            passingRoutes = routeDetails.badges,
             passingRouteShortNames = routeDetails.shortNames,
             hasUnavailableRouteDetails = routeDetails.hasUnavailableDetails,
             state = if (currentCity?.capabilities?.arrivals == true && !isStopArrivalsCapabilityBlocked()) {
@@ -1116,7 +1151,7 @@ class MapViewModel(
         stopArrivalsRouteRefreshJob = null
         stopArrivalsGeneration++
         stopArrivalsStop = null
-        stopArrivalsRouteLabels = emptyMap()
+        stopArrivalsCatalogRoutes = emptyList()
         stopArrivalsPage = null
         stopArrivalsFreshness = null
         resetWalkingEstimateRequest()
@@ -1443,7 +1478,7 @@ class MapViewModel(
         } ?: return
         if (!isCurrentStopArrivalsSession(generation, cityId, stopId, locale)) return
         if (result is TransitLoadResult.Data) {
-            stopArrivalsRouteLabels = routeLabelsFor(cityId, result.value)
+            stopArrivalsCatalogRoutes = result.value.filter { route -> route.cityId == cityId }
             intent {
                 if (!isCurrentStopArrivalsSession(generation, cityId, stopId, locale)) return@intent
                 val sheet = state.stopArrivalsSheet ?: return@intent
@@ -1454,6 +1489,7 @@ class MapViewModel(
 
     private fun StopArrivalsSheetUi.withCurrentArrivalPage(): StopArrivalsSheetUi {
         val page = stopArrivalsPage ?: return copy(
+            passingRoutes = routeDetailsFor(stopArrivalsStop?.routeIds.orEmpty()).badges,
             passingRouteShortNames = routeDetailsFor(stopArrivalsStop?.routeIds.orEmpty()).shortNames,
             hasUnavailableRouteDetails = routeDetailsFor(stopArrivalsStop?.routeIds.orEmpty()).hasUnavailableDetails,
         )
@@ -1468,6 +1504,10 @@ class MapViewModel(
             updated.copy(isRefreshing = isRefreshing)
         }
     }
+
+    /** Selection/style changes only remap current presentation; they never restart sheet I/O. */
+    private fun reprojectStopArrivalsSheet(current: StopArrivalsSheetUi?): StopArrivalsSheetUi? =
+        current?.withCurrentArrivalPage()
 
     /** Locale changes alter only presentation fields and never trigger another walking request. */
     private fun StopArrivalsSheetUi.withLocalizedWalkingEstimate(locale: TransitLocale): StopArrivalsSheetUi = copy(
@@ -1488,6 +1528,7 @@ class MapViewModel(
             hasUnavailableRouteDetails = pageDetails.hasUnavailableRouteDetails || routeDetails.hasUnavailableDetails,
         )
         return copy(
+            passingRoutes = routeDetails.badges,
             passingRouteShortNames = routeDetails.shortNames,
             hasUnavailableRouteDetails = completeDetails.hasUnavailableRouteDetails,
             rows = completeDetails.rows,
@@ -1509,7 +1550,8 @@ class MapViewModel(
                 rejectedRows = true
                 null
             } else {
-                val routeShortName = stopArrivalsRouteLabels[arrival.routeId]
+                val routeBadge = routeDetailsFor(listOf(arrival.routeId)).badges.singleOrNull()
+                val routeShortName = routeBadge?.routeLabel
                 val headsign = arrival.headsign.forLocale(currentLocale).trim()
                 if (routeShortName == null || headsign.isBlank()) rejectedRows = true
                 IndexedArrivalRow(
@@ -1519,6 +1561,8 @@ class MapViewModel(
                         headsign = headsign,
                         time = arrival.expectedInMinutes.toUiTime(),
                         source = arrival.source.toUiSource(),
+                        routeId = arrival.routeId,
+                        routeBadge = routeBadge,
                     ),
                     hasUnavailableRouteDetails = routeShortName == null,
                 )
@@ -1578,17 +1622,27 @@ class MapViewModel(
         else -> StopArrivalsSheetState.Unavailable
     }
 
-    private fun routeLabelsFor(cityId: CityId, routes: List<TransitRoute>): Map<RouteId, String> = routes
-        .asSequence()
-        .filter { it.cityId == cityId }
-        .mapNotNull { route -> route.shortName.trim().ifBlank { null }?.let { route.id to it } }
-        .toMap()
-
     private fun routeDetailsFor(routeIds: List<RouteId>): RouteDetails {
-        val shortNames = routeIds.mapNotNull(stopArrivalsRouteLabels::get).distinct()
+        val requestedIds = routeIds.toSet()
+        val projectedPassingRoutes = RouteSelectionProjector.resolve(stopArrivalsCatalogRoutes, requestedIds)
+        val selectedStyles = selectedRouteProjection.byId
+        val badges = projectedPassingRoutes.routes.map { passingRoute ->
+            val selected = selectedStyles[passingRoute.routeId]
+            val styledRoute = selected ?: passingRoute
+            StopRouteBadgeUi(
+                routeId = passingRoute.routeId,
+                routeLabel = styledRoute.displayLabel,
+                backgroundArgb = styledRoute.backgroundArgb,
+                textArgb = styledRoute.textArgb,
+                colorAvailability = styledRoute.colorAvailability,
+                isSelected = selected != null,
+            )
+        }
+        val knownIds = stopArrivalsCatalogRoutes.mapTo(mutableSetOf(), TransitRoute::id)
         return RouteDetails(
-            shortNames = shortNames,
-            hasUnavailableDetails = routeIds.any { it !in stopArrivalsRouteLabels },
+            badges = badges,
+            shortNames = badges.map(StopRouteBadgeUi::routeLabel),
+            hasUnavailableDetails = routeIds.any { it !in knownIds } || badges.size != requestedIds.size,
         )
     }
 
@@ -1597,12 +1651,13 @@ class MapViewModel(
         val stop = stopArrivalsStop ?: return null
         val city = currentCity ?: return null
         invalidateStopArrivalsRequest()
-        stopArrivalsRouteLabels = routeLabelsFor(city.id, repository.routes(city.id))
+        stopArrivalsCatalogRoutes = repository.routes(city.id).filter { route -> route.cityId == city.id }
         val replacement = current ?: stopArrivalsSheetUi() ?: return null
         val routeDetails = routeDetailsFor(stop.routeIds)
         val localizedHeader = replacement.copy(
             stopName = stop.name.forLocale(currentLocale).trim(),
             stopCode = stop.code.trim().ifBlank { null },
+            passingRoutes = routeDetails.badges,
             passingRouteShortNames = routeDetails.shortNames,
             hasUnavailableRouteDetails = routeDetails.hasUnavailableDetails,
         )
@@ -1638,12 +1693,40 @@ class MapViewModel(
         return SelectedStopUi(selected, stop.displayName(currentLocale))
     }
 
+    /** Nearby results remain whole; this adds presentation metadata without route-stop I/O. */
+    private fun routeHighlightFor(stop: TransitStop): StopRouteHighlightUi {
+        val stopRouteIds = stop.routeIds.toSet()
+        val matching = selectedRouteProjection.routes.filter { route ->
+            route.colorAvailability == RouteColorAvailability.Assigned && route.routeId in stopRouteIds
+        }
+        return when (matching.size) {
+            0 -> StopRouteHighlightUi()
+            1 -> matching.single().let { route ->
+                StopRouteHighlightUi(
+                    matchingRouteIds = listOf(route.routeId),
+                    matchingRouteLabels = listOf(route.displayLabel),
+                    style = StopRouteHighlightStyle.SingleRoute,
+                    backgroundArgb = route.backgroundArgb,
+                    textArgb = route.textArgb,
+                )
+            }
+            else -> StopRouteHighlightUi(
+                matchingRouteIds = matching.map { route -> route.routeId },
+                matchingRouteLabels = matching.map { route -> route.displayLabel },
+                style = StopRouteHighlightStyle.MultipleRoutes,
+                backgroundArgb = MultiRouteStopBackgroundArgb,
+                textArgb = contrastSafeRouteTextColor(MultiRouteStopBackgroundArgb, 0xFFFFFFFFL),
+            )
+        }
+    }
+
     private fun nearbyStopItems(): List<NearbyStopUi> = rawStops.map { stop ->
         NearbyStopUi(
             id = stop.id,
             name = stop.displayName(currentLocale),
             isSelected = stop.id == selectedStopId,
             sourceRevision = stopSourceRevision,
+            routeHighlight = routeHighlightFor(stop),
         )
     }
 
@@ -1810,6 +1893,7 @@ private data class VehicleFrameUpdate(
 }
 
 private data class RouteDetails(
+    val badges: List<StopRouteBadgeUi>,
     val shortNames: List<String>,
     val hasUnavailableDetails: Boolean,
 )

@@ -66,6 +66,7 @@
     <string name="map_stop_arrivals_stop_details_unavailable">Данные остановки недоступны</string>
     <string name="map_stop_arrivals_stop_code">Код остановки: %1$s</string>
     <string name="map_stop_arrivals_routes">Маршруты этой остановки</string>
+    <string name="map_stop_arrivals_selected_route">Выбран</string>
     <string name="map_stop_arrivals_route_details_unavailable">Некоторые сведения о маршрутах недоступны.</string>
     <string name="map_stop_arrivals_loading">Загружаем прибытия…</string>
     <string name="map_stop_arrivals_empty">Нет ближайших прибытий.</string>
@@ -107,6 +108,8 @@
     <string name="map_walking_estimate_unavailable_no_accurate_fix">Для оценки пешего пути нужна свежая и точная геопозиция.</string>
     <string name="map_walking_estimate_action">Использовать мою геопозицию</string>
     <string name="map_nearby_stops_title">Остановки в этой области</string>
+    <string name="map_stop_route_highlight_single">Выбранный маршрут: %1$s</string>
+    <string name="map_stop_route_highlight_multiple">Выбранные маршруты: %1$d</string>
     <string name="map_cluster_stops">Остановок рядом: %1$d</string>
     <string name="map_vehicles_summary">Позиции транспорта: %1$s. %2$s</string>
     <string name="map_vehicle_count">%1$s: %2$d</string>

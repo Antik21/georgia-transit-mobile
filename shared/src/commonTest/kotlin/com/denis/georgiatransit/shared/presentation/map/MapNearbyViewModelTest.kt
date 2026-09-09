@@ -145,6 +145,77 @@ class MapNearbyViewModelTest {
     }
 
     @Test
+    fun committedRouteReplacementReprojectsEveryNearbyStopAndKeepsPriorityMarkersOutOfClusters() = runTest {
+        val city = city("tbilisi")
+        val routeA = route(city.id, "route-a", "A", 0xFF0057B8)
+        val routeB = route(city.id, "route-b", "B", 0xFF457B9D)
+        val routeC = route(city.id, "route-c", "C", 0xFF2A9D8F)
+        val repository = RecordingRepository().apply {
+            routesSnapshot = listOf(routeA, routeB, routeC)
+            results += {
+                data(
+                    stop("ordinary-1"),
+                    stop("ordinary-2"),
+                    stop("only-a", routeIds = listOf(routeA.id)),
+                    stop("only-b", routeIds = listOf(routeB.id)),
+                    stop("a-and-b", routeIds = listOf(routeA.id, routeB.id)),
+                )
+            }
+        }
+        val session = RuntimeTransitSession().also {
+            it.selectCity(city)
+            assertTrue(it.selectRoutes(city.id, linkedSetOf(routeA.id, routeB.id)))
+        }
+        val viewModel = MapViewModel(repository, session, RuntimeLocationSession(this))
+
+        viewModel.test(this) {
+            runOnCreate()
+            this@runTest.advanceNearby()
+            val initial = viewModel.state
+            assertEquals(
+                listOf("ordinary-1", "ordinary-2", "only-a", "only-b", "a-and-b"),
+                initial.nearbyStops.map { it.id.value },
+                "Route highlighting must not filter the nearby accessibility list.",
+            )
+            val highlights = initial.nearbyStops.associateBy { it.id.value }
+            assertEquals(StopRouteHighlightStyle.None, highlights.getValue("ordinary-1").routeHighlight.style)
+            assertEquals(StopRouteHighlightStyle.SingleRoute, highlights.getValue("only-a").routeHighlight.style)
+            assertEquals(listOf(routeA.id), highlights.getValue("only-a").routeHighlight.matchingRouteIds)
+            assertEquals(StopRouteHighlightStyle.SingleRoute, highlights.getValue("only-b").routeHighlight.style)
+            assertEquals(StopRouteHighlightStyle.MultipleRoutes, highlights.getValue("a-and-b").routeHighlight.style)
+            assertEquals(listOf(routeA.id, routeB.id), highlights.getValue("a-and-b").routeHighlight.matchingRouteIds)
+            val initialRender = requireNotNull(initial.renderState)
+            assertTrue(
+                setOf(StopId("only-a"), StopId("only-b"), StopId("a-and-b")).all { id ->
+                    initialRender.stops.any { it.id == id }
+                },
+                "Highlighted stops must retain their own tappable marker instead of joining an ordinary cluster.",
+            )
+            assertEquals(2, initialRender.stopClusters.single().stopCount)
+            val initialRevision = initialRender.stopSourceRevision
+            val nearbyCallsBeforeReplacement = repository.calls.size
+
+            viewModel.selectCurrentStop(StopId("only-b"))
+            this@runTest.runCurrent()
+            assertTrue(session.selectRoutes(city.id, setOf(routeC.id)))
+            this@runTest.runCurrent()
+
+            val replacement = viewModel.state
+            assertEquals(nearbyCallsBeforeReplacement, repository.calls.size, "Selection reprojection must not reload nearby stops.")
+            assertEquals(StopId("only-b"), replacement.selectedStop?.id)
+            assertTrue(replacement.nearbyStops.all { it.routeHighlight.style == StopRouteHighlightStyle.None })
+            val replacementRender = requireNotNull(replacement.renderState)
+            assertTrue(replacementRender.stopSourceRevision > initialRevision)
+            assertTrue(
+                replacementRender.stops.any { it.id == StopId("only-b") && it.isSelected },
+                "The open selected stop must remain above ordinary clustering after its route highlight is removed.",
+            )
+            assertEquals(4, replacementRender.stopClusters.single().stopCount)
+            cancelAndIgnoreRemainingItems()
+        }
+    }
+
+    @Test
     fun staleStopRevisionCannotSelectAReusedIdAfterCityOrCapabilityChange() = runTest {
         val firstCity = city("first")
         val secondCity = city("second")
@@ -659,14 +730,26 @@ class MapNearbyViewModelTest {
     private fun data(vararg stops: TransitStop) =
         TransitLoadResult.Data(stops.toList(), TransitFreshness.Network)
 
-    private fun stop(id: String) = TransitStop(
+    private fun stop(
+        id: String,
+        routeIds: List<RouteId> = emptyList(),
+        position: GeoPoint = GeoPoint(41.7, 44.8),
+    ) = TransitStop(
         id = StopId(id),
         providerId = ProviderId("provider-$id"),
         code = id,
         name = LocalizedText(ru = "Центральная", en = "Central", ka = "ცენტრალური"),
-        position = GeoPoint(41.7, 44.8),
-        routeIds = emptyList(),
+        position = position,
+        routeIds = routeIds,
         mode = TransitMode.Bus,
+    )
+
+    private fun route(cityId: CityId, id: String, shortName: String, color: Long) = TransitRoute(
+        id = RouteId(id),
+        cityId = cityId,
+        shortName = shortName,
+        name = "Route $shortName",
+        colorArgb = color,
     )
 
     private fun city(id: String) = TransitCity(
@@ -694,6 +777,7 @@ class MapNearbyViewModelTest {
     private class RecordingRepository : TransitRepository {
         val calls = mutableListOf<NearbyCall>()
         val results = ArrayDeque<suspend () -> TransitLoadResult<List<TransitStop>>>()
+        var routesSnapshot: List<TransitRoute> = emptyList()
         var revalidationCalls = 0
         var revalidation: suspend () -> TransitLoadResult<List<TransitCity>> = {
             TransitLoadResult.Empty(TransitFreshness.Network)
@@ -701,7 +785,7 @@ class MapNearbyViewModelTest {
 
         override fun cities(): List<TransitCity> = emptyList()
 
-        override fun routes(cityId: CityId): List<TransitRoute> = emptyList()
+        override fun routes(cityId: CityId): List<TransitRoute> = routesSnapshot.filter { it.cityId == cityId }
 
         override suspend fun revalidateCityCapabilities(): TransitLoadResult<List<TransitCity>> {
             revalidationCalls += 1

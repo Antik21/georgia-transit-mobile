@@ -148,8 +148,8 @@ private final class LocalMapLibreView: UIView, MLNMapViewDelegate {
         let stopsLayer = MLNCircleStyleLayer(identifier: Self.stopsLayerID, source: stopsSource)
         stopsLayer.circleColor = NSExpression(forKeyPath: Self.markerColorProperty)
         stopsLayer.circleRadius = NSExpression(forKeyPath: Self.markerRadiusProperty)
-        stopsLayer.circleStrokeColor = NSExpression(forConstantValue: UIColor.white)
-        stopsLayer.circleStrokeWidth = NSExpression(forConstantValue: 2)
+        stopsLayer.circleStrokeColor = NSExpression(forKeyPath: Self.markerStrokeColorProperty)
+        stopsLayer.circleStrokeWidth = NSExpression(forKeyPath: Self.markerStrokeWidthProperty)
         style.addLayer(stopsLayer)
 
         let vehiclesLayer = MLNSymbolStyleLayer(identifier: Self.vehiclesLayerID, source: vehiclesSource)
@@ -252,7 +252,13 @@ private final class LocalMapLibreView: UIView, MLNMapViewDelegate {
     private func ordinaryStopFeatures(_ markers: [MapStopMarker], sourceRevision: Int64) -> [[String: Any]] {
         markers
             .filter { !$0.isSelected && !$0.stableId.isEmpty && isCoordinateValid($0.position) }
-            .sorted(by: { (first: MapStopMarker, second: MapStopMarker) in first.stableId < second.stableId })
+            // Common metadata declares route-highlight priority; preserve it before the renderer cap.
+            .sorted(by: { (first: MapStopMarker, second: MapStopMarker) in
+                if first.routeHighlight.isHighlighted != second.routeHighlight.isHighlighted {
+                    return first.routeHighlight.isHighlighted
+                }
+                return first.stableId < second.stableId
+            })
             .prefix(Self.maximumStopMarkers)
             .map { marker in
                 feature(
@@ -263,8 +269,10 @@ private final class LocalMapLibreView: UIView, MLNMapViewDelegate {
                         Self.featureKindProperty: Self.stopFeatureKind,
                         Self.sourceRevisionProperty: String(sourceRevision),
                         Self.accessibilityLabelProperty: marker.accessibilityLabel,
-                        Self.markerColorProperty: Self.stopColor,
-                        Self.markerRadiusProperty: Self.stopRadius,
+                        Self.markerColorProperty: mapColor(marker.routeHighlight.backgroundArgb),
+                        Self.markerRadiusProperty: marker.routeHighlight.markerRadius,
+                        Self.markerStrokeColorProperty: mapColor(marker.routeHighlight.textArgb),
+                        Self.markerStrokeWidthProperty: marker.routeHighlight.markerStrokeWidth,
                     ]
                 )
             }
@@ -305,6 +313,8 @@ private final class LocalMapLibreView: UIView, MLNMapViewDelegate {
                         Self.accessibilityLabelProperty: cluster.accessibilityLabel,
                         Self.markerColorProperty: Self.clusterColor,
                         Self.markerRadiusProperty: Self.clusterRadius,
+                        Self.markerStrokeColorProperty: Self.defaultStopStrokeColor,
+                        Self.markerStrokeWidthProperty: Self.defaultStopStrokeWidth,
                         Self.clusterCountProperty: cluster.stopCount,
                     ]
                 )
@@ -567,6 +577,10 @@ private final class LocalMapLibreView: UIView, MLNMapViewDelegate {
                     position: RenderCoordinate($0.position),
                     accessibilityLabel: $0.accessibilityLabel,
                     isSelected: $0.isSelected,
+                    backgroundArgb: $0.routeHighlight.backgroundArgb,
+                    textArgb: $0.routeHighlight.textArgb,
+                    radius: $0.routeHighlight.markerRadius,
+                    strokeWidth: $0.routeHighlight.markerStrokeWidth,
                     count: nil
                 )
             }
@@ -581,6 +595,10 @@ private final class LocalMapLibreView: UIView, MLNMapViewDelegate {
                     position: RenderCoordinate($0.position),
                     accessibilityLabel: $0.accessibilityLabel,
                     isSelected: false,
+                    backgroundArgb: 0,
+                    textArgb: 0,
+                    radius: 0,
+                    strokeWidth: 0,
                     count: $0.stopCount
                 )
             }
@@ -638,15 +656,17 @@ private final class LocalMapLibreView: UIView, MLNMapViewDelegate {
     private static let accessibilityLabelProperty = "accessibilityLabel"
     private static let markerColorProperty = "markerColor"
     private static let markerRadiusProperty = "markerRadius"
+    private static let markerStrokeColorProperty = "markerStrokeColor"
+    private static let markerStrokeWidthProperty = "markerStrokeWidth"
     private static let clusterCountProperty = "clusterCount"
     private static let stopFeatureKind = "stop"
     private static let clusterFeatureKind = "cluster"
     private static let vehicleFeatureKind = "vehicle"
-    private static let stopColor = "#2A9D8F"
     private static let clusterColor = "#264653"
-    private static let stopRadius = 5
     private static let selectedStopRadius = 9
     private static let clusterRadius = 12
+    private static let defaultStopStrokeColor = "#FFFFFF"
+    private static let defaultStopStrokeWidth = 2.0
     private static let maximumStopMarkers = 1_000
     private static let maximumVehicleMarkers = 2_000
     private static let maximumVehicleBadgeImages = 256
@@ -679,6 +699,10 @@ private struct StopRenderInput: Equatable {
     let position: RenderCoordinate
     let accessibilityLabel: String
     let isSelected: Bool
+    let backgroundArgb: Int64
+    let textArgb: Int64
+    let radius: Double
+    let strokeWidth: Double
     let count: Int32?
 }
 
@@ -749,6 +773,10 @@ private func nativeBadgeLabel(_ value: String) -> String {
     // Common presentation already removes control/provider punctuation before this native boundary.
     let label = value.trimmingCharacters(in: .whitespacesAndNewlines)
     return String(label.prefix(8)).isEmpty ? "?" : String(label.prefix(8))
+}
+
+private func mapColor(_ argb: Int64) -> String {
+    String(format: "#%06llX", UInt64(argb) & 0x00FF_FFFF)
 }
 
 private extension UIColor {

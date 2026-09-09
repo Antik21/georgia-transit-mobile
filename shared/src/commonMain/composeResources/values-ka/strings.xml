@@ -66,6 +66,7 @@
     <string name="map_stop_arrivals_stop_details_unavailable">გაჩერების დეტალები მიუწვდომელია</string>
     <string name="map_stop_arrivals_stop_code">გაჩერების კოდი: %1$s</string>
     <string name="map_stop_arrivals_routes">ამ გაჩერების მარშრუტები</string>
+    <string name="map_stop_arrivals_selected_route">არჩეულია</string>
     <string name="map_stop_arrivals_route_details_unavailable">მარშრუტის ზოგიერთი დეტალი მიუწვდომელია.</string>
     <string name="map_stop_arrivals_loading">მოსვლები იტვირთება…</string>
     <string name="map_stop_arrivals_empty">მოახლოებული მოსვლები არ არის.</string>
@@ -107,6 +108,8 @@
     <string name="map_walking_estimate_unavailable_no_accurate_fix">ფეხით მისვლის შესაფასებლად საჭიროა ახალი და ზუსტი მდებარეობა.</string>
     <string name="map_walking_estimate_action">ჩემი მდებარეობის გამოყენება</string>
     <string name="map_nearby_stops_title">გაჩერებები ამ არეალში</string>
+    <string name="map_stop_route_highlight_single">არჩეული მარშრუტი: %1$s</string>
+    <string name="map_stop_route_highlight_multiple">არჩეული მარშრუტები: %1$d</string>
     <string name="map_cluster_stops">ახლომდებარე გაჩერებები: %1$d</string>
     <string name="map_vehicles_summary">ტრანსპორტის პოზიციები: %1$s. %2$s</string>
     <string name="map_vehicle_count">%1$s: %2$d</string>

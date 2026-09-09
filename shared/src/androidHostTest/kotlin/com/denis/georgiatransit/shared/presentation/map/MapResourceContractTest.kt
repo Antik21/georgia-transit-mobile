@@ -340,6 +340,71 @@ class MapResourceContractTest {
     }
 
     @Test
+    fun highlightedStopsKeepCommonStyleRevisionAndSelectedTapPriorityOnBothAdapters() {
+        val root = projectRoot()
+        val android = root.resolve(
+            "shared/src/androidMain/kotlin/com/denis/georgiatransit/shared/presentation/map/PlatformMap.android.kt",
+        ).readText()
+        val swift = root.resolve("iosApp/iosApp/MapLibreMapViewBridge.swift").readText()
+        val androidStops = android.declarationSection(
+            "private fun ordinaryStopFeatures",
+            "private fun selectedStopFeatures",
+        )
+        val androidSources = android.functionBody("private fun updateSources")
+        val androidTap = android.functionBody("private fun onMapClick")
+        val iosStops = swift.functionBody(
+            "private func ordinaryStopFeatures(_ markers: [MapStopMarker], sourceRevision: Int64)",
+        )
+        val iosRender = swift.functionBody("private func render")
+        val iosTap = swift.functionBody("private func handleMapTap")
+
+        assertCodePath(
+            androidStops,
+            "!it.isSelected",
+            "!it.routeHighlight.isHighlighted",
+            "SOURCE_REVISION_PROPERTY, renderState.stopSourceRevision.toString()",
+            "marker.routeHighlight.backgroundArgb.asMapColor()",
+            "marker.routeHighlight.markerRadius",
+            "marker.routeHighlight.textArgb.asMapColor()",
+            "marker.routeHighlight.markerStrokeWidth",
+        )
+        assertCodePath(
+            iosStops,
+            "!$0.isSelected",
+            "first.routeHighlight.isHighlighted",
+            "Self.sourceRevisionProperty: String(sourceRevision)",
+            "mapColor(marker.routeHighlight.backgroundArgb)",
+            "marker.routeHighlight.markerRadius",
+            "mapColor(marker.routeHighlight.textArgb)",
+            "marker.routeHighlight.markerStrokeWidth",
+        )
+        assertCodePath(
+            androidSources,
+            "lastStopSourceRevision != renderState.stopSourceRevision",
+            "ordinaryStopFeatures(renderState)",
+            "selectedStopFeatures(renderState)",
+            "lastStopSourceRevision = renderState.stopSourceRevision",
+        )
+        assertCodePath(
+            iosRender,
+            "ordinaryStopFeatures(state.stops, sourceRevision: state.stopSourceRevision)",
+            "selectedStopFeatures(state.stops, sourceRevision: state.stopSourceRevision)",
+        )
+        assertCodePath(
+            androidTap,
+            "SELECTED_STOP_LAYER_ID, FEATURE_KIND_STOP",
+            "STOPS_LAYER_ID, FEATURE_KIND_STOP",
+            "VEHICLES_LAYER_ID, FEATURE_KIND_VEHICLE",
+        )
+        assertCodePath(
+            iosTap,
+            "Self.selectedStopLayerID, kind: Self.stopFeatureKind",
+            "Self.stopsLayerID, kind: Self.stopFeatureKind",
+            "Self.vehiclesLayerID, kind: Self.vehicleFeatureKind",
+        )
+    }
+
+    @Test
     fun routeGeometryLegendUsesStaticAccessibleSelectorsLocalizedStatusAndTypedActions() {
         val screen = projectRoot().resolve(
             "shared/src/commonMain/kotlin/com/denis/georgiatransit/shared/presentation/map/MapScreen.kt",

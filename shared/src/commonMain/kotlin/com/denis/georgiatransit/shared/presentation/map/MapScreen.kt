@@ -57,7 +57,6 @@ import com.denis.georgiatransit.shared.presentation.location.LocationPlatformCom
 import com.denis.georgiatransit.shared.presentation.location.LocationPrecision
 import com.denis.georgiatransit.shared.presentation.location.LocationState
 import com.denis.georgiatransit.shared.presentation.location.PlatformLocationEffect
-import com.denis.georgiatransit.shared.presentation.ui.contrastSafeRouteTextColor
 import com.denis.georgiatransit.shared.presentation.ui.automation.AutomationId
 import com.denis.georgiatransit.shared.presentation.ui.automation.enableAutomationResourceIds
 import com.denis.georgiatransit.shared.presentation.ui.theme.GeorgiaTransitTheme
@@ -105,6 +104,8 @@ import georgiatransit.shared.generated.resources.map_route_geometry_unavailable
 import georgiatransit.shared.generated.resources.map_preview_note
 import georgiatransit.shared.generated.resources.map_routes_action
 import georgiatransit.shared.generated.resources.map_nearby_stops_title
+import georgiatransit.shared.generated.resources.map_stop_route_highlight_multiple
+import georgiatransit.shared.generated.resources.map_stop_route_highlight_single
 import georgiatransit.shared.generated.resources.map_retry_action
 import georgiatransit.shared.generated.resources.map_selected_routes
 import georgiatransit.shared.generated.resources.map_selected_stop
@@ -121,6 +122,7 @@ import georgiatransit.shared.generated.resources.map_stop_arrivals_partial
 import georgiatransit.shared.generated.resources.map_stop_arrivals_refreshing
 import georgiatransit.shared.generated.resources.map_stop_arrivals_retry
 import georgiatransit.shared.generated.resources.map_stop_arrivals_route_details_unavailable
+import georgiatransit.shared.generated.resources.map_stop_arrivals_selected_route
 import georgiatransit.shared.generated.resources.map_stop_arrivals_route_unavailable
 import georgiatransit.shared.generated.resources.map_stop_arrivals_routes
 import georgiatransit.shared.generated.resources.map_stop_arrivals_source_aggregator
@@ -311,7 +313,7 @@ private fun RouteGeometryLegend(
         horizontalArrangement = Arrangement.spacedBy(TransitSpacing.Small),
     ) {
         items(routes, key = { it.routeId.value }) { route ->
-            val foreground = Color(contrastSafeRouteTextColor(route.colorArgb, 0xFFFFFFFF))
+            val foreground = Color(route.textColorArgb)
             val removeDescription = stringResource(Res.string.map_route_geometry_remove_accessibility, route.routeLabel)
             val retryDescription = stringResource(Res.string.map_route_geometry_retry_accessibility, route.routeLabel)
             Surface(
@@ -448,19 +450,51 @@ private fun StopArrivalsSheet(
                     Text(stringResource(Res.string.map_stop_arrivals_close))
                 }
             }
-            if (sheet.passingRouteShortNames.isNotEmpty()) {
+            if (sheet.passingRoutes.isNotEmpty() || sheet.passingRouteShortNames.isNotEmpty()) {
                 Text(
                     stringResource(Res.string.map_stop_arrivals_routes),
                     style = MaterialTheme.typography.labelLarge,
                 )
-                LazyRow(horizontalArrangement = Arrangement.spacedBy(TransitSpacing.ExtraSmall)) {
-                    items(sheet.passingRouteShortNames, key = { it }) { shortName ->
-                        Surface(shape = TransitShapes.Small, color = MaterialTheme.colorScheme.secondaryContainer) {
-                            Text(
-                                shortName,
-                                modifier = Modifier.padding(TransitSpacing.ExtraSmall),
-                                style = MaterialTheme.typography.labelLarge,
-                            )
+                if (sheet.passingRoutes.isNotEmpty()) {
+                    LazyRow(horizontalArrangement = Arrangement.spacedBy(TransitSpacing.ExtraSmall)) {
+                        items(sheet.passingRoutes, key = { it.routeId.value }) { route ->
+                            Surface(
+                                shape = TransitShapes.Small,
+                                color = Color(route.backgroundArgb),
+                                tonalElevation = if (route.isSelected) TransitSpacing.ExtraSmall else 0.dp,
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(TransitSpacing.ExtraSmall),
+                                    horizontalArrangement = Arrangement.spacedBy(TransitSpacing.ExtraSmall),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                ) {
+                                    Text(
+                                        route.routeLabel,
+                                        modifier = Modifier.semantics { selected = route.isSelected },
+                                        color = Color(route.textArgb),
+                                        style = MaterialTheme.typography.labelLarge,
+                                    )
+                                    if (route.isSelected) {
+                                        Text(
+                                            stringResource(Res.string.map_stop_arrivals_selected_route),
+                                            color = Color(route.textArgb),
+                                            style = MaterialTheme.typography.bodySmall,
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                } else {
+                    LazyRow(horizontalArrangement = Arrangement.spacedBy(TransitSpacing.ExtraSmall)) {
+                        items(sheet.passingRouteShortNames, key = { it }) { shortName ->
+                            Surface(shape = TransitShapes.Small, color = MaterialTheme.colorScheme.secondaryContainer) {
+                                Text(
+                                    shortName,
+                                    modifier = Modifier.padding(TransitSpacing.ExtraSmall),
+                                    style = MaterialTheme.typography.labelLarge,
+                                )
+                            }
                         }
                     }
                 }
@@ -665,7 +699,16 @@ private fun StopArrivalRow(row: StopArrivalRowUi) {
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Column(modifier = Modifier.weight(1f)) {
-            Text(
+            row.routeBadge?.let { badge ->
+                Surface(shape = TransitShapes.Small, color = Color(badge.backgroundArgb)) {
+                    Text(
+                        badge.routeLabel,
+                        modifier = Modifier.padding(horizontal = TransitSpacing.ExtraSmall),
+                        color = Color(badge.textArgb),
+                        style = MaterialTheme.typography.titleMedium,
+                    )
+                }
+            } ?: Text(
                 row.routeShortName ?: stringResource(Res.string.map_stop_arrivals_route_unavailable),
                 style = MaterialTheme.typography.titleMedium,
             )
@@ -948,20 +991,35 @@ private fun NearbyStopsAccessibility(
         )
         LazyRow(horizontalArrangement = Arrangement.spacedBy(TransitSpacing.Small)) {
             items(items = stops, key = { it.id.value }) { stop ->
+                val routeSummary = stop.routeHighlight.accessibilitySummary()
+                val label = listOf(stop.name, routeSummary).filter(String::isNotBlank).joinToString(separator = ". ")
                 if (stop.isSelected) {
                     Button(
                         onClick = { onStopSelected(stop) },
-                        modifier = Modifier.testTag(AutomationId.MapNearbyStop),
-                    ) { Text(stop.name) }
+                        modifier = Modifier.testTag(AutomationId.MapNearbyStop).semantics { contentDescription = label },
+                    ) { Text(label) }
                 } else {
                     OutlinedButton(
                         onClick = { onStopSelected(stop) },
-                        modifier = Modifier.testTag(AutomationId.MapNearbyStop),
-                    ) { Text(stop.name) }
+                        modifier = Modifier.testTag(AutomationId.MapNearbyStop).semantics { contentDescription = label },
+                    ) { Text(label) }
                 }
             }
         }
     }
+}
+
+@Composable
+private fun StopRouteHighlightUi.accessibilitySummary(): String = when (style) {
+    StopRouteHighlightStyle.None -> ""
+    StopRouteHighlightStyle.SingleRoute -> stringResource(
+        Res.string.map_stop_route_highlight_single,
+        matchingRouteLabels.singleOrNull().orEmpty(),
+    )
+    StopRouteHighlightStyle.MultipleRoutes -> stringResource(
+        Res.string.map_stop_route_highlight_multiple,
+        matchingRouteCount,
+    )
 }
 
 /** Link annotations retain accessible link semantics on Android and iOS Compose hosts. */

@@ -66,6 +66,7 @@
     <string name="map_stop_arrivals_stop_details_unavailable">Stop details unavailable</string>
     <string name="map_stop_arrivals_stop_code">Stop code: %1$s</string>
     <string name="map_stop_arrivals_routes">Routes serving this stop</string>
+    <string name="map_stop_arrivals_selected_route">Selected</string>
     <string name="map_stop_arrivals_route_details_unavailable">Some route details are unavailable.</string>
     <string name="map_stop_arrivals_loading">Loading arrivals…</string>
     <string name="map_stop_arrivals_empty">No upcoming arrivals.</string>
@@ -107,6 +108,8 @@
     <string name="map_walking_estimate_unavailable_no_accurate_fix">A fresh, accurate location is needed to estimate the walk.</string>
     <string name="map_walking_estimate_action">Use my location</string>
     <string name="map_nearby_stops_title">Stops in this area</string>
+    <string name="map_stop_route_highlight_single">Selected route: %1$s</string>
+    <string name="map_stop_route_highlight_multiple">Selected routes: %1$d</string>
     <string name="map_cluster_stops">%1$d nearby stops</string>
     <string name="map_vehicles_summary">Vehicle positions: %1$s. %2$s</string>
     <string name="map_vehicle_count">%1$s: %2$d</string>

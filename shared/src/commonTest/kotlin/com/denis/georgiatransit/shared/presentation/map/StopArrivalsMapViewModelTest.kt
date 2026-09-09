@@ -40,6 +40,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertIs
+import kotlin.test.assertNotEquals
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import kotlin.time.Instant
@@ -253,6 +254,45 @@ class StopArrivalsMapViewModelTest {
     }
 
     @Test
+    fun committedRouteReplacementReprojectsOpenSheetAndNearbyMetadataWithoutStartingMoreIo() = runTest {
+        val fixture = fixture()
+        fixture.arrivalResults += data(
+            page(fixture.stopA, listOf(arrival(fixture.stopA, fixture.routeB, 2, ArrivalSource.Schedule))),
+        )
+
+        withOpenedSheet(fixture, initialSelection = setOf(fixture.routeB.id)) { viewModel, session ->
+            val before = viewModel.container.stateFlow.value
+            val beforeSheet = requireNotNull(before.stopArrivalsSheet)
+            val selectedBadge = beforeSheet.passingRoutes.single { it.routeId == fixture.routeB.id }
+            assertTrue(selectedBadge.isSelected)
+            assertEquals(0xFF0057B8, selectedBadge.backgroundArgb)
+            assertEquals(StopRouteHighlightStyle.SingleRoute, before.nearbyStops.single { it.id == fixture.stopA.id }.routeHighlight.style)
+            val nearbyRequests = fixture.nearbyRequests
+            val arrivalsRequests = fixture.arrivalsRequests
+            val routeRefreshRequests = fixture.routeRefreshRequests
+
+            assertTrue(session.selectRoutes(fixture.city.id, emptySet()))
+            runCurrent()
+
+            val after = viewModel.container.stateFlow.value
+            val afterSheet = requireNotNull(after.stopArrivalsSheet)
+            val removedBadge = afterSheet.passingRoutes.single { it.routeId == fixture.routeB.id }
+            assertEquals(fixture.stopA.id, afterSheet.stopId)
+            assertEquals(listOf(fixture.routeA.id, fixture.routeB.id), afterSheet.passingRoutes.map(StopRouteBadgeUi::routeId))
+            assertFalse(removedBadge.isSelected, "The previously selected badge must lose committed-selection styling.")
+            assertNotEquals(
+                selectedBadge.backgroundArgb,
+                removedBadge.backgroundArgb,
+                "The sheet must fall back to its passing-route style once the committed selection removes B.",
+            )
+            assertTrue(after.nearbyStops.all { it.routeHighlight.style == StopRouteHighlightStyle.None })
+            assertEquals(nearbyRequests, fixture.nearbyRequests)
+            assertEquals(arrivalsRequests, fixture.arrivalsRequests)
+            assertEquals(routeRefreshRequests, fixture.routeRefreshRequests)
+        }
+    }
+
+    @Test
     fun rapidSelectionKeepsOnlyBAndLateAResultCannotReviveA() = runTest {
         val fixture = fixture()
         val lateA = CompletableDeferred<TransitLoadResult<ArrivalPage>>()
@@ -446,9 +486,13 @@ class StopArrivalsMapViewModelTest {
 
     private suspend fun TestScope.withOpenedSheet(
         fixture: ArrivalsFixtureRepository,
+        initialSelection: Set<RouteId> = emptySet(),
         assertion: suspend TestScope.(MapViewModel, RuntimeTransitSession) -> Unit,
     ) {
-        val session = RuntimeTransitSession().also { it.selectCity(fixture.city) }
+        val session = RuntimeTransitSession().also {
+            it.selectCity(fixture.city)
+            if (initialSelection.isNotEmpty()) assertTrue(it.selectRoutes(fixture.city.id, initialSelection))
+        }
         val viewModel = MapViewModel(fixture, session, RuntimeLocationSession(scope = this))
         viewModel.test(this) {
             runOnCreate()
@@ -603,6 +647,7 @@ class StopArrivalsMapViewModelTest {
         val nearbyResults = mutableListOf<TransitLoadResult<List<TransitStop>>>()
         var arrivalResponder: (suspend () -> TransitLoadResult<ArrivalPage>)? = null
         var arrivalsRequests = 0
+        var nearbyRequests = 0
         var concurrentArrivalRequests = 0
         var maxConcurrentArrivalRequests = 0
         var routeRefreshRequests = 0
@@ -619,8 +664,11 @@ class StopArrivalsMapViewModelTest {
             radiusMeters: Int,
             limit: Int,
             locale: TransitLocale,
-        ): TransitLoadResult<List<TransitStop>> = nearbyResults.removeFirstOrNull()
-            ?: TransitLoadResult.Data(listOf(stopA, stopB), TransitFreshness.Network)
+        ): TransitLoadResult<List<TransitStop>> {
+            nearbyRequests++
+            return nearbyResults.removeFirstOrNull()
+                ?: TransitLoadResult.Data(listOf(stopA, stopB), TransitFreshness.Network)
+        }
 
         override suspend fun arrivals(
             cityId: CityId,
