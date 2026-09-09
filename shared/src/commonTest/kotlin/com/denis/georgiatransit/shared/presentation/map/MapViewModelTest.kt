@@ -68,6 +68,7 @@ class MapViewModelTest {
             expectState(
                 ViewState(
                     cityName = selectedCity.name,
+                    routesAvailable = true,
                     renderState = renderState(
                         center = selectedCity.center,
                         zoom = selectedCity.defaultZoom,
@@ -97,6 +98,7 @@ class MapViewModelTest {
             expectState(
                 ViewState(
                     cityName = tbilisi.name,
+                    routesAvailable = true,
                     renderState = renderState(center = tbilisi.center, zoom = 13.5, revision = 1),
                     contentState = MapContentState.Loading,
                 ),
@@ -106,6 +108,7 @@ class MapViewModelTest {
             expectState(
                 ViewState(
                     cityName = tbilisi.name,
+                    routesAvailable = true,
                     renderState = renderState(
                         center = tbilisi.center,
                         zoom = 13.5,
@@ -118,6 +121,7 @@ class MapViewModelTest {
             expectState(
                 ViewState(
                     cityName = tbilisi.name,
+                    routesAvailable = true,
                     renderState = renderState(
                         center = tbilisi.center,
                         zoom = tbilisi.defaultZoom,
@@ -140,6 +144,7 @@ class MapViewModelTest {
             expectState(
                 ViewState(
                     cityName = batumi.name,
+                    routesAvailable = true,
                     renderState = renderState(
                         center = batumi.center,
                         zoom = 12.5,
@@ -166,6 +171,7 @@ class MapViewModelTest {
             expectState(
                 ViewState(
                     cityName = batumi.name,
+                    routesAvailable = true,
                     renderState = renderState(center = fix.point, zoom = 15.0, revision = 2, userLocation = fix),
                     contentState = MapContentState.Loading,
                     location = locationSession.state.value,
@@ -190,6 +196,7 @@ class MapViewModelTest {
             expectState(
                 ViewState(
                     cityName = tbilisi.name,
+                    routesAvailable = true,
                     renderState = renderState(center = tbilisi.center, zoom = tbilisi.defaultZoom, revision = 1),
                     contentState = MapContentState.Loading,
                 ),
@@ -199,6 +206,7 @@ class MapViewModelTest {
             expectState(
                 ViewState(
                     cityName = tbilisi.name,
+                    routesAvailable = true,
                     renderState = renderState(
                         center = tbilisi.center,
                         zoom = tbilisi.defaultZoom,
@@ -211,6 +219,7 @@ class MapViewModelTest {
             expectState(
                 ViewState(
                     cityName = tbilisi.name,
+                    routesAvailable = true,
                     renderState = renderState(
                         center = tbilisi.center,
                         zoom = tbilisi.defaultZoom,
@@ -227,6 +236,7 @@ class MapViewModelTest {
             expectState(
                 ViewState(
                     cityName = batumi.name,
+                    routesAvailable = true,
                     renderState = renderState(
                         center = batumi.center,
                         zoom = batumi.defaultZoom,
@@ -256,6 +266,7 @@ class MapViewModelTest {
             expectState(
                 ViewState(
                     cityName = tbilisi.name,
+                    routesAvailable = true,
                     renderState = renderState(center = fix.point, zoom = 15.0, revision = 2, userLocation = fix),
                     contentState = MapContentState.Loading,
                     location = locationSession.state.value,
@@ -499,6 +510,7 @@ class MapViewModelTest {
         val fix = locationSession.state.value.fix
         return ViewState(
             cityName = city.name,
+            routesAvailable = city.capabilities.routes,
             renderState = renderState(
                 center = fix?.point ?: city.center,
                 zoom = if (fix == null) city.defaultZoom else 15.0,
@@ -594,6 +606,7 @@ class MapViewModelTest {
             expectState(
                 ViewState(
                     cityName = tbilisi.name,
+                    routesAvailable = true,
                     renderState = renderState(
                         center = acceptedFix.point,
                         zoom = 15.0,
@@ -650,6 +663,42 @@ class MapViewModelTest {
 
         assertEquals(ViewState(), viewModel.container.stateFlow.value)
         assertNull(viewModel.container.stateFlow.value.renderState)
+    }
+
+    @Test
+    fun routesActionIsRejectedWhenTheSelectedCityDisablesTheRoutesCapability() = runTest {
+        val city = city("kutaisi", defaultZoom = 12.0).copy(
+            capabilities = CityCapabilities(
+                stops = false,
+                vehicles = false,
+                arrivals = false,
+                routeShapes = false,
+                journeyPlanning = false,
+                routes = false,
+            ),
+        )
+        val session = RuntimeTransitSession().also { it.selectCity(city) }
+        val viewModel = MapViewModel(MapRepository(), session, testLocationSession())
+
+        viewModel.test(this) {
+            runOnCreate()
+            this@runTest.runCurrent()
+            expectState(
+                ViewState(
+                    cityName = city.name,
+                    routesAvailable = false,
+                    renderState = renderState(center = city.center, zoom = city.defaultZoom, revision = 1),
+                    contentState = MapContentState.Unavailable,
+                ),
+            )
+
+            viewModel.dispatchAction(Action.RoutesClicked)
+            this@runTest.runCurrent()
+
+            expectNoItems()
+            assertFalse(viewModel.container.stateFlow.value.routesAvailable)
+            cancelAndIgnoreRemainingItems()
+        }
     }
 
     private fun renderState(

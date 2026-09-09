@@ -117,5 +117,19 @@
     <string name="routes_error">მარშრუტების კატალოგი მიუწვდომელია.</string>
     <string name="routes_retry">ხელახლა ცდა</string>
     <string name="routes_offline">ოფლაინ რეჟიმში ნაჩვენებია ბოლოს ხელმისაწვდომი კატალოგი.</string>
+    <string name="routes_offline_unavailable">მარშრუტები ოფლაინ მიუწვდომელია, რადგან კატალოგი ჯერ არ შენახულა.</string>
+    <string name="routes_unavailable">მარშრუტები ამ ქალაქისთვის მიუწვდომელია.</string>
+    <string name="routes_search_label">მარშრუტების ძიება</string>
+    <string name="routes_search_placeholder">მარშრუტის სახელი ან ნომერი</string>
+    <string name="routes_empty_search">თქვენს ძიებას მარშრუტები არ შეესაბამება.</string>
+    <string name="routes_mode_bus">ავტობუსი</string>
+    <string name="routes_mode_metro">მეტრო</string>
+    <string name="routes_mode_tram">ტრამვაი</string>
+    <string name="routes_mode_ferry">ბორანი</string>
+    <string name="routes_direction">მიმართულება: %1$s</string>
+    <string name="routes_row_description">%1$s, %2$s, %3$s</string>
+    <string name="routes_row_description_with_direction">%1$s, %2$s, %3$s, %4$s</string>
+    <string name="routes_row_selected">არჩეულია</string>
+    <string name="routes_row_unselected">არ არის არჩეული</string>
     <string name="loading">ტრანსპორტის მონაცემები იტვირთება…</string>
 </resources>

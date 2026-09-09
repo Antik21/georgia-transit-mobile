@@ -252,10 +252,12 @@ private fun Content(state: ViewState, onAction: (Action) -> Unit) {
                         onClick = { onAction(Action.ChangeCityClicked) },
                         modifier = Modifier.weight(1f).testTag(AutomationId.MapChangeCity),
                     ) { Text(stringResource(Res.string.map_change_city_action)) }
-                    Button(
-                        onClick = { onAction(Action.RoutesClicked) },
-                        modifier = Modifier.weight(1f).testTag(AutomationId.MapRoutes),
-                    ) { Text(stringResource(Res.string.map_routes_action)) }
+                    if (state.routesAvailable) {
+                        Button(
+                            onClick = { onAction(Action.RoutesClicked) },
+                            modifier = Modifier.weight(1f).testTag(AutomationId.MapRoutes),
+                        ) { Text(stringResource(Res.string.map_routes_action)) }
+                    }
                 }
                 CityAttribution(state.attribution)
             }
