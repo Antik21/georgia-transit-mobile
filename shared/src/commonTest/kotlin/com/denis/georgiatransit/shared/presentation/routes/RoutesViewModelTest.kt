@@ -19,7 +19,9 @@ import com.denis.georgiatransit.shared.domain.repository.TransitRepository
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
@@ -393,9 +395,19 @@ class RoutesViewModelTest {
             runOnCreate()
             this@runTest.runCurrent()
             awaitItem()
+            repository.refreshStarted.await()
+            repository.cancellationThrown.await()
+            val refreshJob = repository.refreshCallerJob.await()
+            refreshJob.join()
+            this@runTest.runCurrent()
 
             assertEquals(CatalogState.Loading, viewModel.container.stateFlow.value.catalog)
             assertEquals(1, repository.refreshRequests.size)
+            assertEquals(1, repository.cancellationCount)
+            assertTrue(
+                refreshJob.isCancelled,
+                "The refresh child must complete cancelled; swallowing CancellationException would complete it normally.",
+            )
             expectNoItems()
             cancelAndIgnoreRemainingItems()
         }
@@ -524,7 +536,12 @@ class RoutesViewModelTest {
     ) : TransitRepository {
         var snapshotCalls = 0
             private set
+        val refreshStarted = CompletableDeferred<Unit>()
+        val cancellationThrown = CompletableDeferred<Unit>()
+        val refreshCallerJob = CompletableDeferred<Job>()
         val refreshRequests = mutableListOf<RouteListRequest>()
+        var cancellationCount = 0
+            private set
 
         override fun cities(): List<TransitCity> = emptyList()
 
@@ -535,13 +552,19 @@ class RoutesViewModelTest {
 
         override suspend fun refreshRoutes(request: RouteListRequest): TransitLoadResult<List<TransitRoute>> {
             refreshRequests += request
+            refreshCallerJob.complete(requireNotNull(currentCoroutineContext()[Job]))
+            refreshStarted.complete(Unit)
             return when (val response = responses.removeFirstOrNull()) {
                 is RefreshResponse.Result -> response.value
                 is RefreshResponse.Await -> response.deferred.await()
                 is RefreshResponse.AwaitIgnoringCancellation -> withContext(NonCancellable) {
                     response.deferred.await()
                 }
-                RefreshResponse.Cancel -> throw CancellationException("test cancellation")
+                RefreshResponse.Cancel -> {
+                    cancellationCount += 1
+                    cancellationThrown.complete(Unit)
+                    throw CancellationException("test cancellation")
+                }
                 RefreshResponse.Throw -> throw IllegalStateException("network unavailable")
                 null -> TransitLoadResult.Data(snapshot, TransitFreshness.CacheValid)
             }
