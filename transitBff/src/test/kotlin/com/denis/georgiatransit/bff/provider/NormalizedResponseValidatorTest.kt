@@ -94,15 +94,24 @@ class NormalizedResponseValidatorTest {
 
     @Test
     fun `stops reject invalid references providers WGS84 modes and duplicates`() {
+        NormalizedResponseValidator.stops(city, listOf(stop.copy(routeIds = emptyList())))
+
         assertInvalid(
             { NormalizedResponseValidator.stops(city, listOf(stop.copy(id = "test:provider:stop"))) },
             { NormalizedResponseValidator.stops(city, listOf(stop.copy(providerId = "wrong"))) },
             { NormalizedResponseValidator.stops(city, listOf(stop.copy(code = ""))) },
             { NormalizedResponseValidator.stops(city, listOf(stop.copy(position = GeoPoint(0.0, 181.0)))) },
-            { NormalizedResponseValidator.stops(city, listOf(stop.copy(routeIds = emptyList()))) },
             { NormalizedResponseValidator.stops(city, listOf(stop.copy(routeIds = listOf("test:other:route:r1")))) },
             { NormalizedResponseValidator.stops(city, listOf(stop.copy(mode = "rail"))) },
             { NormalizedResponseValidator.stops(city, listOf(stop, stop)) },
+            {
+                NormalizedResponseValidator.directionStops(
+                    "test",
+                    route,
+                    direction.id,
+                    listOf(stop.copy(routeIds = emptyList())),
+                )
+            },
             {
                 NormalizedResponseValidator.directionStops(
                     "test",

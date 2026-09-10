@@ -33,6 +33,8 @@ import com.denis.georgiatransit.bff.provider.ProviderRegistry
 import com.denis.georgiatransit.bff.provider.SyntheticProbeProvider
 import com.denis.georgiatransit.bff.provider.TransitousTransitProviderAdapter
 import com.denis.georgiatransit.bff.provider.TransitousClient
+import com.denis.georgiatransit.bff.provider.TtcClient
+import com.denis.georgiatransit.bff.provider.TtcTransitProviderAdapter
 import com.denis.georgiatransit.bff.service.TransitService
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
@@ -128,6 +130,7 @@ fun Application.transitBffModule(config: BffConfig = BffConfig.fromEnvironment()
                 add("demo" to TelemetryProvider.FIXTURE)
             }
             if (config.transitous.isActivated) add("tbilisi" to TelemetryProvider.TRANSITOUS)
+            if (config.ttc.isActivated) add("tbilisi" to TelemetryProvider.TTC)
         },
     )
     val adapters = buildList {
@@ -141,6 +144,16 @@ fun Application.transitBffModule(config: BffConfig = BffConfig.fromEnvironment()
                 TransitousTransitProviderAdapter(
                     activation = config.transitous,
                     client = TransitousClient(config.transitous, observability = observability),
+                ),
+            )
+        }
+        // As with Transitous, construction is the final activation gate and does not make an
+        // upstream request. TTC remains absent until its explicit server-only config is valid.
+        if (config.ttc.isActivated) {
+            add(
+                TtcTransitProviderAdapter(
+                    activation = config.ttc,
+                    client = TtcClient(config.ttc, observability = observability),
                 ),
             )
         }

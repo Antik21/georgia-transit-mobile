@@ -17,6 +17,7 @@ import kotlinx.coroutines.CancellationException
 enum class TelemetryProvider(val wireValue: String) {
     FIXTURE("fixture"),
     TRANSITOUS("transitous"),
+    TTC("ttc"),
 }
 
 enum class TelemetryCapability(val wireValue: String) {

@@ -1,0 +1,22 @@
+{
+  "revision": "ttc-tbilisi-example-disabled",
+  "cities": [
+    {
+      "id": "tbilisi",
+      "enabled": false,
+      "availability": {
+        "readiness": "PRODUCTION_READY",
+        "source": "REVIEWED_ADAPTER"
+      },
+      "capabilities": {
+        "routes": true,
+        "stops": true,
+        "routeGeometry": true,
+        "vehiclePositions": true,
+        "officialArrivals": true,
+        "tripPlanning": true,
+        "arrivals": true
+      }
+    }
+  ]
+}

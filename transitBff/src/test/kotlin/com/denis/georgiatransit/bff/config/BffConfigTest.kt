@@ -23,6 +23,8 @@ class BffConfigTest {
         assertFalse(config.transitous.enabled)
         assertFalse(config.transitous.isActivated)
         assertFalse(config.transitous.isRoutingApproved)
+        assertFalse(config.ttc.enabled)
+        assertFalse(config.ttc.isActivated)
         assertTrue(config.metricsEnabled)
         assertFalse(config.probesEnabled)
         assertEquals(60, config.probeIntervalSeconds)
@@ -166,6 +168,97 @@ class BffConfigTest {
     }
 
     @Test
+    fun `TTC activation is opt in fail closed and redacts the server credential`() {
+        val disabledWithValues = BffConfig.fromEnvironment(
+            mapOf(
+                "TTC_BASE_URL" to "https://ttc.example/api/v2",
+                "TTC_API_KEY" to "disabled-secret",
+            ),
+        ).ttc
+        assertFalse(disabledWithValues.enabled)
+        assertFalse(disabledWithValues.isActivated)
+
+        val active = BffConfig.fromEnvironment(ttcEnvironment()).ttc
+        assertTrue(active.enabled)
+        assertTrue(active.isActivated)
+        assertEquals("https://ttc.example/api/v2", active.baseUrl.toString())
+        assertFalse(active.toString().contains("test-only-ttc-key"))
+        assertFalse(active.toString().contains("ttc.example"))
+        assertTrue(active.toString().contains("activated=true"))
+
+        listOf(
+            ttcEnvironment() - "TTC_BASE_URL",
+            ttcEnvironment() - "TTC_API_KEY",
+            ttcEnvironment() + ("TTC_BASE_URL" to " "),
+            ttcEnvironment() + ("TTC_API_KEY" to " "),
+            ttcEnvironment() + ("TTC_API_KEY" to "bad\nsecret"),
+            ttcEnvironment() + ("TTC_API_KEY" to "x".repeat(513)),
+        ).forEach { environment ->
+            assertFailsWith<BffConfigurationException> { BffConfig.fromEnvironment(environment) }
+        }
+    }
+
+    @Test
+    fun `TTC accepts only explicit HTTPS URL and bounded transport settings`() {
+        listOf(
+            "http://ttc.example/api/v2",
+            "//ttc.example/api/v2",
+            "https:///api/v2",
+            "https://user:password@ttc.example/api/v2",
+            "https://ttc.example/api/v2?key=secret",
+            "https://ttc.example/api/v2#fragment",
+        ).forEach { url ->
+            assertFailsWith<BffConfigurationException>(url) {
+                BffConfig.fromEnvironment(ttcEnvironment() + ("TTC_BASE_URL" to url))
+            }
+        }
+
+        listOf(
+            "TTC_REQUEST_TIMEOUT_MILLIS" to "499",
+            "TTC_REQUEST_TIMEOUT_MILLIS" to "10001",
+            "TTC_CONNECT_TIMEOUT_MILLIS" to "249",
+            "TTC_CONNECT_TIMEOUT_MILLIS" to "5001",
+            "TTC_SOCKET_TIMEOUT_MILLIS" to "499",
+            "TTC_SOCKET_TIMEOUT_MILLIS" to "10001",
+            "TTC_MAXIMUM_RETRIES" to "3",
+            "TTC_MAXIMUM_CONCURRENT_REQUESTS" to "0",
+            "TTC_MAXIMUM_CONCURRENT_REQUESTS" to "5",
+            "TTC_MAXIMUM_STARTS_PER_MINUTE" to "0",
+            "TTC_MAXIMUM_STARTS_PER_MINUTE" to "121",
+            "TTC_PROBE_STOP_ID" to "unsafe stop",
+        ).forEach { (name, value) ->
+            assertFailsWith<BffConfigurationException>(name) {
+                BffConfig.fromEnvironment(ttcEnvironment() + (name to value))
+            }
+        }
+        assertFailsWith<BffConfigurationException> {
+            BffConfig.fromEnvironment(
+                ttcEnvironment() + mapOf(
+                    "TTC_REQUEST_TIMEOUT_MILLIS" to "500",
+                    "TTC_SOCKET_TIMEOUT_MILLIS" to "501",
+                ),
+            )
+        }
+    }
+
+    @Test
+    fun `production TTC requires schema interlock state and excludes Transitous`() {
+        val production = ttcEnvironment() + mapOf(
+            "BFF_MODE" to "production",
+            "BFF_CAPABILITY_CONTROL_PATH" to "/private/control.json",
+            "BFF_CAPABILITY_CONTROL_STATE_DIR" to "/private/state",
+        )
+        assertFailsWith<BffConfigurationException> { BffConfig.fromEnvironment(production) }
+        assertTrue(
+            BffConfig.fromEnvironment(production + ("BFF_SCHEMA_INTERLOCK_ENABLED" to "true"))
+                .ttc.isActivated,
+        )
+        assertFailsWith<BffConfigurationException> {
+            BffConfig.fromEnvironment(ttcEnvironment() + transitousEnvironment())
+        }
+    }
+
+    @Test
     fun `Transitous activation is fail closed until policy contact and version evidence are complete`() {
         val valid = BffConfig.fromEnvironment(transitousEnvironment())
 
@@ -240,5 +333,11 @@ class BffConfigTest {
         "TRANSITOUS_ELIGIBILITY_ACKNOWLEDGED" to "true",
         "TRANSITOUS_ELIGIBILITY_REFERENCE" to "policy/DEN-56",
         "TRANSITOUS_CONTACT_ACKNOWLEDGED" to "true",
+    )
+
+    private fun ttcEnvironment(): Map<String, String> = mapOf(
+        "TTC_ENABLED" to "true",
+        "TTC_BASE_URL" to "https://ttc.example/api/v2",
+        "TTC_API_KEY" to "test-only-ttc-key",
     )
 }

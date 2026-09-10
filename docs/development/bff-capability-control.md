@@ -95,6 +95,13 @@ city/capability's durable synthetic-probe schema-drift latch; a restart never
 clears it. See [bff-observability.md](bff-observability.md) for the required
 evidence and recovery sequence.
 
+The reviewed TTC Tbilisi adapter has a disabled-by-default operator template at
+[`ttc-capability-control.example.json`](../../transitBff/ttc-capability-control.example.json).
+Its server-only activation, secret injection, runtime kill switch, bounded
+request budget, and bulk-directory behavior guidance are documented in the
+[TTC operator runbook](ttc-adapter.md). The example deliberately carries no
+provider endpoint, credential, header, raw identifier, or payload.
+
 Write the next document to a temporary file in the same operator-owned
 directory, validate its ownership and permissions locally, then atomically
 rename it over `BFF_CAPABILITY_CONTROL_PATH`. The runtime requires an absolute,
