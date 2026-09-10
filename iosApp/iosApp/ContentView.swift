@@ -7,6 +7,10 @@ struct ContentView: View {
         DebugNetworkInspectorOverlay()
 #else
         ComposeViewController()
+            // The native map is the visual background of the main screen. Let the shared
+            // Compose hierarchy receive the full UIKit bounds, including the status-bar area;
+            // foreground controls apply their own safe-area insets in common code.
+            .ignoresSafeArea(.container, edges: .all)
 #endif
     }
 }

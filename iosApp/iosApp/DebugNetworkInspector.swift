@@ -582,8 +582,11 @@ struct DebugNetworkInspectorOverlay: View {
     @State private var isPresented = false
 
     var body: some View {
-        ZStack(alignment: .bottomTrailing) {
+        ZStack(alignment: .topTrailing) {
             ComposeViewController()
+                // Keep the debug host aligned with the release host: the map extends beneath
+                // the system chrome while Compose positions interactive controls safely.
+                .ignoresSafeArea(.container, edges: .all)
             Button {
                 isPresented = true
             } label: {

@@ -202,9 +202,11 @@ class MapResourceContractTest {
         val canvas = screen.functionBody("private fun MapCanvas")
         val contentOverlay = screen.functionBody("private fun MapContentOverlay")
         val baseLayerOverlay = screen.functionBody("private fun BaseLayerOverlay")
-        val nearbyStops = screen.functionBody("private fun NearbyStopsAccessibility")
         val content = screen.functionBody("private fun Content")
         val stopArrivalsSheet = screen.functionBody("private fun StopArrivalsSheet")
+        val selectedStopUi = viewModel.functionBody("private fun selectedStopUi")
+        val stopDisplayName = viewModel.functionBody("private fun TransitStop.displayName")
+        val stopAccessibilityLabel = viewModel.functionBody("private fun TransitStop.accessibilityLabel")
 
         assertCodePath(baseLayerOverlay, "MapBaseLayerState.LocalPreview", "map_preview_note", "MapLocalPreview")
         assertCodePath(contentOverlay, "MapContentState.Loading", "map_content_loading", "MapLoading")
@@ -225,8 +227,29 @@ class MapResourceContractTest {
         assertCodePath(canvas, "PlatformMap(", "onEvent = onMapEvent", "MapStatusOverlays(", "onRetry = onRetry", "Button(")
         assertTrue(canvas.compactWhitespace().contains("testTag(locationActionAutomationId)"))
         assertCodePath(contentOverlay, "contentState is MapContentState.RetryableError", "Button(", "onClick = onRetry", "MapRetry")
-        assertCodePath(nearbyStops, "stops.isEmpty()", "MapNearbyStops", "items(", "key = { it.id.value }", "onStopSelected(stop)", "MapNearbyStop")
-        assertTrue(content.contains("Action.StopSelected(stop.id, stop.sourceRevision)"))
+        assertFalse(content.contains("NearbyStopsAccessibility"), "Nearby stops must not consume visual space below the map.")
+        assertCodePath(
+            canvas,
+            "accessibleStops = localizedRenderState.stops.filter",
+            "MapNearbyStops",
+            "MapNearbyStop",
+            "contentDescription = nearbyStopsLabel",
+            "onClick(label = firstStop.accessibilityLabel)",
+            "customActions = accessibleStops.take(MAX_ACCESSIBILITY_CUSTOM_ACTIONS).map",
+            "MapPlatformEvent.StopTapped",
+        )
+        assertTrue(screen.contains("private const val MAX_ACCESSIBILITY_CUSTOM_ACTIONS = 31"))
+        assertTrue(
+            viewModel.compactWhitespace().contains("accessibilityLabel = stop.accessibilityLabel(currentLocale)"),
+        )
+        assertCodePath(selectedStopUi, "stop.displayName(currentLocale)", "takeIf(String::isNotBlank)")
+        assertCodePath(stopDisplayName, "name.forLocale(locale)", "code")
+        assertFalse(stopDisplayName.contains("id.value"), "Stop labels must never surface opaque stop IDs.")
+        assertCodePath(stopAccessibilityLabel, "displayName(locale)")
+        assertFalse(
+            stopAccessibilityLabel.contains("id.value"),
+            "Accessibility labels must never surface opaque stop IDs.",
+        )
         assertCodePath(content, "StopArrivalsSheet(", "onDismiss = { onAction(Action.StopArrivalsDismissed) }")
         assertCodePath(stopArrivalsSheet, "onDismissRequest = onDismiss", "onClick = onDismiss")
         assertCodePath(content, "state.selectedStop?.let", "MapSelectedStop", "liveRegion = LiveRegionMode.Polite")
@@ -993,7 +1016,6 @@ class MapResourceContractTest {
         val DateTimeConversions = "HIklMSLNpzZsQBbhAaCYyjmdeRTrDFc".toSet()
         val NoArgumentConversions = setOf('%', 'n')
         val MapResourceKeys = setOf(
-            "map_title",
             "map_preview_note",
             "map_content_loading",
             "map_content_empty",

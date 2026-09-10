@@ -38,7 +38,6 @@
     <string name="location_failure_timed_out">Location timed out. The map remains centered on the city.</string>
     <string name="location_failure_invalid">The location fix was not accurate or recent enough.</string>
     <string name="location_failure_unavailable">Your location could not be obtained.</string>
-    <string name="map_title">Transit map</string>
     <string name="map_preview_note">Preview basemap only — reviewed production map assets are not configured</string>
     <string name="map_content_loading">Loading nearby stops…</string>
     <string name="map_content_empty">No nearby stops are available for this view.</string>
@@ -108,8 +107,6 @@
     <string name="map_walking_estimate_unavailable_no_accurate_fix">A fresh, accurate location is needed to estimate the walk.</string>
     <string name="map_walking_estimate_action">Use my location</string>
     <string name="map_nearby_stops_title">Stops in this area</string>
-    <string name="map_stop_route_highlight_single">Selected route: %1$s</string>
-    <string name="map_stop_route_highlight_multiple">Selected routes: %1$d</string>
     <string name="map_cluster_stops">%1$d nearby stops</string>
     <string name="map_vehicles_summary">Vehicle positions: %1$s. %2$s</string>
     <string name="map_vehicle_count">%1$s: %2$d</string>

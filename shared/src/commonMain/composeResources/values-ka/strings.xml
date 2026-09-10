@@ -38,7 +38,6 @@
     <string name="location_failure_timed_out">მდებარეობის ძიების დრო ამოიწურა. რუკა ქალაქის ცენტრზე რჩება.</string>
     <string name="location_failure_invalid">მდებარეობა საკმარისად ზუსტი ან ახალი არ არის.</string>
     <string name="location_failure_unavailable">თქვენი მდებარეობის მიღება ვერ მოხერხდა.</string>
-    <string name="map_title">ტრანსპორტის რუკა</string>
     <string name="map_preview_note">მხოლოდ საბაზო რუკის წინასწარი ვერსია — შემოწმებული საწარმოო რუკის რესურსები არ არის გამართული</string>
     <string name="map_content_loading">ახლომდებარე გაჩერებები იტვირთება…</string>
     <string name="map_content_empty">ამ ხედისთვის ახლომდებარე გაჩერებები არ არის.</string>
@@ -108,8 +107,6 @@
     <string name="map_walking_estimate_unavailable_no_accurate_fix">ფეხით მისვლის შესაფასებლად საჭიროა ახალი და ზუსტი მდებარეობა.</string>
     <string name="map_walking_estimate_action">ჩემი მდებარეობის გამოყენება</string>
     <string name="map_nearby_stops_title">გაჩერებები ამ არეალში</string>
-    <string name="map_stop_route_highlight_single">არჩეული მარშრუტი: %1$s</string>
-    <string name="map_stop_route_highlight_multiple">არჩეული მარშრუტები: %1$d</string>
     <string name="map_cluster_stops">ახლომდებარე გაჩერებები: %1$d</string>
     <string name="map_vehicles_summary">ტრანსპორტის პოზიციები: %1$s. %2$s</string>
     <string name="map_vehicle_count">%1$s: %2$d</string>
