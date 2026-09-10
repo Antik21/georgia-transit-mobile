@@ -164,6 +164,11 @@ credential, and request headers remain inside the BFF. See the
 [TTC operator runbook](docs/development/ttc-adapter.md) and its disabled
 [capability-control example](transitBff/ttc-capability-control.example.json).
 
+Batumi remains absent from the effective city list and disabled. The
+[Theta API evaluation](docs/development/batumi-theta-evaluation.md) is a
+**NO-GO** for DEN-55 and production capability until its legal, operational,
+and contract gates are independently cleared.
+
 For a future reviewed adapter, an operator-owned JSON capability document can
 atomically enable/disable cities and individual features at runtime. The BFF
 strictly validates and polls the document, applies an immutable effective
