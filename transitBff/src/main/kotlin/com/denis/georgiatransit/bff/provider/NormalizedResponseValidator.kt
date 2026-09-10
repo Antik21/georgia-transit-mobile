@@ -149,7 +149,9 @@ object NormalizedResponseValidator {
         }
         localized(stop.name)
         point(stop.position)
-        if (stop.routeIds.isEmpty() || stop.routeIds.distinct().size != stop.routeIds.size) invalid()
+        // A bulk provider stop directory may not expose memberships. Route-specific stop paths
+        // still pass requiredRouteId below and therefore cannot publish an empty routeIds list.
+        if (stop.routeIds.distinct().size != stop.routeIds.size) invalid()
         stop.routeIds.forEach { routeId ->
             val route = entityId(routeId, cityId, "route")
             if (route.provider != stopId.provider) invalid()

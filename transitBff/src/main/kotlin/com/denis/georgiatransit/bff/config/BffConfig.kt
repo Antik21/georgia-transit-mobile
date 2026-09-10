@@ -36,6 +36,7 @@ data class BffConfig(
     val capabilityControlPollSeconds: Long,
     val capabilityControlHistoryLimit: Int,
     val transitous: TransitousActivationConfig = TransitousActivationConfig.disabled(),
+    val ttc: TtcActivationConfig = TtcActivationConfig.disabled(),
     val metricsEnabled: Boolean = true,
     val probesEnabled: Boolean = false,
     val probeIntervalSeconds: Long = DefaultProbeIntervalSeconds,
@@ -94,6 +95,12 @@ data class BffConfig(
         require(mode != RuntimeMode.PRODUCTION || !transitous.isActivated || schemaInterlockEnabled) {
             "BFF_SCHEMA_INTERLOCK_ENABLED must be true for a production Transitous activation"
         }
+        require(mode != RuntimeMode.PRODUCTION || !ttc.isActivated || schemaInterlockEnabled) {
+            "BFF_SCHEMA_INTERLOCK_ENABLED must be true for a production TTC activation"
+        }
+        require(!(transitous.isActivated && ttc.isActivated)) {
+            "Only one Tbilisi production provider adapter may be activated"
+        }
     }
 
     companion object {
@@ -137,6 +144,7 @@ data class BffConfig(
                         50,
                     ),
                     transitous = TransitousActivationConfig.fromEnvironment(environment),
+                    ttc = TtcActivationConfig.fromEnvironment(environment),
                     metricsEnabled = parseBoolean(environment, "BFF_METRICS_ENABLED", true),
                     probesEnabled = parseBoolean(environment, "BFF_PROBES_ENABLED", false),
                     probeIntervalSeconds = parseLong(
@@ -230,6 +238,162 @@ data class BffConfig(
                 throw BffConfigurationException("$name is invalid")
             }
         }
+    }
+}
+
+/**
+ * Server-only TTC activation. The secret is deliberately private and this class has a redacted
+ * string representation so an accidental configuration log cannot disclose it.
+ */
+class TtcActivationConfig private constructor(
+    val enabled: Boolean,
+    val baseUrl: URI?,
+    private val apiKey: String?,
+    val requestTimeoutMillis: Long,
+    val connectTimeoutMillis: Long,
+    val socketTimeoutMillis: Long,
+    val maximumRetries: Int,
+    val maximumConcurrentRequests: Int,
+    val maximumStartsPerMinute: Int,
+    /** Explicit server-only probe target; it is never serialized, logged, or labelled. */
+    val probeStopId: String?,
+    val probeRealtimeExpected: Boolean,
+) {
+    val isActivated: Boolean get() = enabled && baseUrl != null && apiKey != null
+
+    init {
+        require(requestTimeoutMillis in MinimumRequestTimeoutMillis..MaximumRequestTimeoutMillis) {
+            "TTC_REQUEST_TIMEOUT_MILLIS must be between $MinimumRequestTimeoutMillis and $MaximumRequestTimeoutMillis"
+        }
+        require(connectTimeoutMillis in MinimumConnectTimeoutMillis..MaximumConnectTimeoutMillis) {
+            "TTC_CONNECT_TIMEOUT_MILLIS must be between $MinimumConnectTimeoutMillis and $MaximumConnectTimeoutMillis"
+        }
+        require(socketTimeoutMillis in MinimumSocketTimeoutMillis..MaximumSocketTimeoutMillis) {
+            "TTC_SOCKET_TIMEOUT_MILLIS must be between $MinimumSocketTimeoutMillis and $MaximumSocketTimeoutMillis"
+        }
+        require(connectTimeoutMillis <= requestTimeoutMillis && socketTimeoutMillis <= requestTimeoutMillis) {
+            "TTC connect and socket timeouts must not exceed TTC_REQUEST_TIMEOUT_MILLIS"
+        }
+        require(maximumRetries in 0..MaximumRetries) {
+            "TTC_MAXIMUM_RETRIES must be between 0 and $MaximumRetries"
+        }
+        require(maximumConcurrentRequests in 1..MaximumConcurrentRequests) {
+            "TTC_MAXIMUM_CONCURRENT_REQUESTS must be between 1 and $MaximumConcurrentRequests"
+        }
+        require(maximumStartsPerMinute in 1..MaximumStartsPerMinute) {
+            "TTC_MAXIMUM_STARTS_PER_MINUTE must be between 1 and $MaximumStartsPerMinute"
+        }
+        require(probeStopId == null || isSafeOpaqueIdentifier(probeStopId)) {
+            "TTC_PROBE_STOP_ID must be a bounded opaque identifier"
+        }
+        require(!probeRealtimeExpected || probeStopId != null) {
+            "TTC_PROBE_REALTIME_EXPECTED=true requires TTC_PROBE_STOP_ID"
+        }
+        require(apiKey == null || isSafeSecret(apiKey)) {
+            "TTC_API_KEY must be a bounded non-control secret value"
+        }
+        if (enabled) {
+            requireTtcBaseUrl(baseUrl)
+            require(!apiKey.isNullOrBlank()) { "TTC_API_KEY is required when TTC_ENABLED=true" }
+        }
+    }
+
+    /** Only the dedicated TTC client may obtain the credential for its one request header. */
+    internal fun apiKeyForRequest(): String = requireNotNull(apiKey)
+
+    override fun toString(): String =
+        "TtcActivationConfig(enabled=$enabled, activated=$isActivated, timeoutsConfigured=true, retries=$maximumRetries)"
+
+    companion object {
+        private const val DefaultRequestTimeoutMillis = 3_500L
+        private const val DefaultConnectTimeoutMillis = 1_500L
+        private const val DefaultSocketTimeoutMillis = 3_500L
+        private const val DefaultMaximumRetries = 1
+        private const val DefaultMaximumConcurrentRequests = 2
+        private const val DefaultMaximumStartsPerMinute = 60
+        private const val MinimumRequestTimeoutMillis = 500L
+        private const val MaximumRequestTimeoutMillis = 10_000L
+        private const val MinimumConnectTimeoutMillis = 250L
+        private const val MaximumConnectTimeoutMillis = 5_000L
+        private const val MinimumSocketTimeoutMillis = 500L
+        private const val MaximumSocketTimeoutMillis = 10_000L
+        private const val MaximumRetries = 2
+        private const val MaximumConcurrentRequests = 4
+        private const val MaximumStartsPerMinute = 120
+        fun fromEnvironment(environment: Map<String, String>): TtcActivationConfig {
+            val enabled = parseBoolean(environment, "TTC_ENABLED", false)
+            val rawBaseUrl = environment["TTC_BASE_URL"]
+            return TtcActivationConfig(
+                enabled = enabled,
+                baseUrl = rawBaseUrl?.takeIf(String::isNotBlank)?.let(::parseTtcBaseUrl),
+                apiKey = environment["TTC_API_KEY"]?.takeIf(String::isNotBlank),
+                requestTimeoutMillis = parseLong(
+                    environment,
+                    "TTC_REQUEST_TIMEOUT_MILLIS",
+                    DefaultRequestTimeoutMillis,
+                ),
+                connectTimeoutMillis = parseLong(
+                    environment,
+                    "TTC_CONNECT_TIMEOUT_MILLIS",
+                    DefaultConnectTimeoutMillis,
+                ),
+                socketTimeoutMillis = parseLong(
+                    environment,
+                    "TTC_SOCKET_TIMEOUT_MILLIS",
+                    DefaultSocketTimeoutMillis,
+                ),
+                maximumRetries = parseInt(environment, "TTC_MAXIMUM_RETRIES", DefaultMaximumRetries),
+                maximumConcurrentRequests = parseInt(
+                    environment,
+                    "TTC_MAXIMUM_CONCURRENT_REQUESTS",
+                    DefaultMaximumConcurrentRequests,
+                ),
+                maximumStartsPerMinute = parseInt(
+                    environment,
+                    "TTC_MAXIMUM_STARTS_PER_MINUTE",
+                    DefaultMaximumStartsPerMinute,
+                ),
+                probeStopId = environment["TTC_PROBE_STOP_ID"]?.takeIf(String::isNotBlank),
+                probeRealtimeExpected = parseBoolean(environment, "TTC_PROBE_REALTIME_EXPECTED", false),
+            )
+        }
+
+        fun disabled(): TtcActivationConfig = fromEnvironment(emptyMap())
+
+        private fun parseTtcBaseUrl(value: String): URI = try {
+            URI(value).also(::requireTtcBaseUrl)
+        } catch (_: Exception) {
+            throw BffConfigurationException("TTC_BASE_URL must be an explicit HTTPS origin or path prefix")
+        }
+
+        private fun requireTtcBaseUrl(uri: URI?) {
+            require(
+                uri != null && uri.isAbsolute && uri.scheme.equals("https", ignoreCase = true) &&
+                    !uri.host.isNullOrBlank() && uri.userInfo == null && uri.query == null && uri.fragment == null,
+            ) {
+                "TTC_BASE_URL must be an explicit HTTPS origin or path prefix"
+            }
+        }
+
+        private fun parseBoolean(environment: Map<String, String>, name: String, default: Boolean): Boolean =
+            when ((environment[name] ?: return default).lowercase()) {
+                "true" -> true
+                "false" -> false
+                else -> throw BffConfigurationException("$name must be true or false")
+            }
+
+        private fun parseLong(environment: Map<String, String>, name: String, default: Long): Long =
+            (environment[name] ?: return default).toLongOrNull()
+                ?: throw BffConfigurationException("$name must be a whole number")
+
+        private fun parseInt(environment: Map<String, String>, name: String, default: Int): Int =
+            (environment[name] ?: return default).toIntOrNull()
+                ?: throw BffConfigurationException("$name must be a whole number")
+
+        private fun isSafeOpaqueIdentifier(value: String): Boolean =
+            value.toByteArray(StandardCharsets.UTF_8).size <= 150 && value.none(Char::isWhitespace)
+
+        private fun isSafeSecret(value: String): Boolean = value.length <= 512 && value.none(Char::isISOControl)
     }
 }
 

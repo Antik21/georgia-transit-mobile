@@ -155,6 +155,15 @@ grant hosted API/data rights. See the [Transitous operator runbook](docs/develop
 and [ADR 0006](docs/adr/0006-transitous-best-effort-fallback.md); production
 activation remains blocked without that written eligibility/approval.
 
+The BFF also contains a separate server-only, disabled-by-default TTC Tbilisi
+adapter. It is registered only after an explicit HTTPS endpoint and nonblank
+credential arrive through the deployment secret boundary, and production also
+requires the existing schema interlock plus capability-control document. TTC
+and Transitous cannot both own Tbilisi. TTC raw IDs, provider DTOs, endpoint,
+credential, and request headers remain inside the BFF. See the
+[TTC operator runbook](docs/development/ttc-adapter.md) and its disabled
+[capability-control example](transitBff/ttc-capability-control.example.json).
+
 For a future reviewed adapter, an operator-owned JSON capability document can
 atomically enable/disable cities and individual features at runtime. The BFF
 strictly validates and polls the document, applies an immutable effective

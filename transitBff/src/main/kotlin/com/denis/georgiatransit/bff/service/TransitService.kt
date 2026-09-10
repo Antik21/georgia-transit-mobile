@@ -375,12 +375,17 @@ class TransitService(
     ): T {
         val startedAt = System.nanoTime()
         try {
+            // The ordinary service circuit must observe the whole logical operation, including
+            // normalized-output validation. In particular, a half-open TTC probe must not close
+            // after one successful HTTP sub-call if a later sub-call or its normalized result
+            // makes the operation fail.
             val providerResult = if (adapter is ProviderCircuitProtectedAdapter) {
-                loader()
+                loader().also(validator)
             } else {
-                observability?.protectProviderCall(labels, loader) ?: loader()
+                observability?.protectProviderCall(labels) { loader().also(validator) }
+                    ?: loader().also(validator)
             }
-            return providerResult.also(validator).also {
+            return providerResult.also {
                 observability?.recordProviderResult(labels, ProviderOutcome.SUCCESS, System.nanoTime() - startedAt)
             }
         } catch (exception: CancellationException) {
