@@ -18,6 +18,7 @@ enum class TelemetryProvider(val wireValue: String) {
     FIXTURE("fixture"),
     TRANSITOUS("transitous"),
     TTC("ttc"),
+    BATUMI_THETA("batumi_theta"),
 }
 
 enum class TelemetryCapability(val wireValue: String) {
@@ -55,6 +56,8 @@ enum class HttpOperation(val wireValue: String) {
     ARRIVALS("arrivals"),
     JOURNEYS("journeys"),
     WALKING_ESTIMATE("walking_estimate"),
+    MAP_STYLE("map_style"),
+    MAP_TILE("map_tile"),
 }
 
 enum class CacheOutcome(val wireValue: String) {

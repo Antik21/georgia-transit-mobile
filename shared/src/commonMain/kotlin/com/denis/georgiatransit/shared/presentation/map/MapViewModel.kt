@@ -3,6 +3,7 @@ package com.denis.georgiatransit.shared.presentation.map
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.denis.georgiatransit.shared.domain.model.CityId
+import com.denis.georgiatransit.shared.domain.model.DirectionId
 import com.denis.georgiatransit.shared.domain.model.ArrivalPage
 import com.denis.georgiatransit.shared.domain.model.ArrivalSource
 import com.denis.georgiatransit.shared.domain.model.GeoPoint
@@ -51,6 +52,17 @@ import org.orbitmvi.orbit.container
 import kotlin.math.ceil
 import kotlin.math.round
 
+private data class SelectedRouteStopKey(
+    val routeId: RouteId,
+    val directionId: DirectionId,
+)
+
+private data class UserLocationStopKey(
+    val cityId: CityId,
+    val point: GeoPoint,
+    val locale: TransitLocale,
+)
+
 class MapViewModel(
     private val repository: TransitRepository,
     private val session: TransitSession,
@@ -62,6 +74,8 @@ class MapViewModel(
     private val locationFreshnessClock: LocationFreshnessClock = SystemLocationFreshnessClock,
     /** Entry-scoped via DI; its decoded shape cache deliberately cannot outlive this Map VM. */
     private val routeGeometryCoordinator: RouteGeometryCoordinator = RouteGeometryCoordinator(repository),
+    /** Injected from a validated BFF endpoint; null retains the bundled/offline base layer. */
+    private val bffStyleUrl: String? = null,
 ) : ViewModel(), ContainerHost<ViewState, SideEffect> {
     private var lastCityId: CityId? = null
     private var currentCity: TransitCity? = null
@@ -76,6 +90,11 @@ class MapViewModel(
     private var mapViewportInsets = MapViewportInsets.None
     private var nearbyJob: Job? = null
     private var nearbyGeneration = 0L
+    private var userLocationStopKey: UserLocationStopKey? = null
+    private var userLocationStops: List<TransitStop> = emptyList()
+    private var userLocationStopJob: Job? = null
+    private var userLocationStopGeneration = 0L
+    private var userLocationStopRequestCompleted = false
     private var capabilityBlockedCityId: CityId? = null
     private var stopArrivalsJob: Job? = null
     private var stopArrivalsGeneration = 0L
@@ -101,6 +120,10 @@ class MapViewModel(
     private var selectedCatalogRoutes: List<TransitRoute> = emptyList()
     private var selectedVehicleRoutes: List<TransitRoute> = emptyList()
     private var lastSelectedRouteIds: Set<RouteId> = emptySet()
+    private var selectedRouteStopGeneration = 0L
+    private val selectedRouteStops = mutableMapOf<SelectedRouteStopKey, List<TransitStop>>()
+    private val completedSelectedRouteStopKeys = mutableSetOf<SelectedRouteStopKey>()
+    private val selectedRouteStopJobs = mutableMapOf<SelectedRouteStopKey, Job>()
     private var realtimeVisibleAndStarted = false
     private var vehicleGeneration = 0L
     private var vehiclePollJobs: List<Job> = emptyList()
@@ -111,9 +134,14 @@ class MapViewModel(
     private var vehicleBadgeRevision = 0L
     private val vehicleRequestLocks = mutableMapOf<VehicleRequestKey, Mutex>()
     private var routeGeometrySnapshot = RouteGeometrySnapshot()
+    private var vehicleRoutePathRevision: Long? = null
+    private var vehicleRoutePaths: Map<RouteId, List<PreparedVehicleRoutePath>> = emptyMap()
+    private val vehicleRouteMotions = mutableMapOf<VehicleId, CachedVehicleRouteMotion>()
 
     override val container: Container<ViewState, SideEffect> = viewModelScope.container(
-        initialState = ViewState(),
+        initialState = ViewState(
+            baseLayerState = if (bffStyleUrl == null) MapBaseLayerState.LocalPreview else MapBaseLayerState.BffStyle,
+        ),
         onCreate = {
             combine(session.selectedCity, session.selectedRouteIds, locationSession.state) { city, selectedIds, location ->
                 Triple(city, selectedIds, location)
@@ -125,6 +153,7 @@ class MapViewModel(
                 if (cityChanged || stopsCapabilityChanged) resetNearbyState()
                 currentCity = city
                 if (city == null) resetCameraState()
+                val locationStopKey = reconcileUserLocationStopRequest(city, location.fix?.point)
 
                 val routesCapabilityChanged = !cityChanged &&
                     city?.capabilities?.routes != previousCity?.capabilities?.routes
@@ -152,6 +181,9 @@ class MapViewModel(
                 val selectionOverlayChanged = vehicleSelectionChanged || routesCapabilityChanged
                 if (cityChanged || routesCapabilityChanged || vehicleCapabilityChanged || vehicleSelectionChanged) {
                     resetVehicleRealtimeState()
+                }
+                if (cityChanged || routesCapabilityChanged || stopsCapabilityChanged || vehicleSelectionChanged) {
+                    resetSelectedRouteStopState()
                 }
                 lastSelectedRouteIds = selectedIds.toSet()
                 if (selectionOverlayChanged) nextStopSourceRevision()
@@ -194,10 +226,12 @@ class MapViewModel(
                 if ((cityChanged || stopsCapabilityChanged) && city?.capabilities?.stops == true) {
                     acceptViewport(initialViewport(city), force = true)
                 }
+                startUserLocationStopLoad(locationStopKey)
                 if (arrivalsCapabilityChanged && city?.capabilities?.arrivals != true) {
                     markStopArrivalsUnavailable()
                 }
                 startVehicleRealtimeIfEligible()
+                startSelectedRouteStopLoadsIfEligible()
                 startStopArrivalsPollingIfEligible()
                 refreshWalkingEstimate(location)
             }
@@ -239,6 +273,7 @@ class MapViewModel(
         nearbyJob?.cancel()
         nearbyJob = null
         nearbyGeneration++
+        resetUserLocationStopState()
         lastViewport = null
         rawStops = emptyList()
         selectedStopId = null
@@ -263,10 +298,32 @@ class MapViewModel(
         vehicleFrameJob = null
         vehicleGeneration++
         vehicleRealtimeState = VehicleRealtimeState()
+        vehicleRouteMotions.clear()
         val vehicleSourceChanged = vehicleMarkers.isNotEmpty()
         vehicleMarkers = persistentListOf()
         if (vehicleSourceChanged) nextVehicleFrameRevision()
         if (vehicleSourceChanged) nextVehicleBadgeRevision()
+    }
+
+    private fun resetSelectedRouteStopState() {
+        selectedRouteStopJobs.values.forEach(Job::cancel)
+        selectedRouteStopJobs.clear()
+        selectedRouteStopGeneration++
+        val hadStops = selectedRouteStops.isNotEmpty()
+        selectedRouteStops.clear()
+        completedSelectedRouteStopKeys.clear()
+        if (hadStops) nextStopSourceRevision()
+    }
+
+    private fun resetUserLocationStopState() {
+        userLocationStopJob?.cancel()
+        userLocationStopJob = null
+        userLocationStopGeneration++
+        userLocationStopKey = null
+        userLocationStopRequestCompleted = false
+        val hadStops = userLocationStops.isNotEmpty()
+        userLocationStops = emptyList()
+        if (hadStops) nextStopSourceRevision()
     }
 
     private fun resetCameraState() {
@@ -294,9 +351,11 @@ class MapViewModel(
             cameraCommand = nextCameraCommand(center = fix.point, zoom = USER_LOCATION_ZOOM)
         }
         val camera = checkNotNull(cameraCommand)
+        val routeStops = selectedRouteStops.values.flatten()
+        val baseStops = (rawStops + userLocationStops + routeStops).distinctBy(TransitStop::id)
         val selectedSnapshot = stopArrivalsStop
-            ?.takeIf { selected -> selected.id == selectedStopId && rawStops.none { it.id == selected.id } }
-        val markers = (rawStops + listOfNotNull(selectedSnapshot)).map { stop ->
+            ?.takeIf { selected -> selected.id == selectedStopId && baseStops.none { it.id == selected.id } }
+        val markers = (baseStops + listOfNotNull(selectedSnapshot)).map { stop ->
             MapStopMarker(
                 id = stop.id,
                 position = stop.position,
@@ -305,11 +364,16 @@ class MapViewModel(
                 routeHighlight = routeHighlightFor(stop),
             )
         }
-        val clustered = clusterStops(markers, viewportZoom ?: camera.zoom)
+        val visibleStops = visibleStopMarkers(
+            markers = markers,
+            userLocation = fix?.point,
+            zoom = viewportZoom ?: camera.zoom,
+        )
         return MapRenderState(
             camera = camera,
-            stops = clustered.stops,
-            stopClusters = clustered.clusters,
+            bffStyleUrl = bffStyleUrl,
+            stops = visibleStops,
+            stopClusters = persistentListOf(),
             vehicles = vehicleMarkers,
             polylines = routeGeometrySnapshot.polylines,
             polylineSourceRevision = routeGeometrySnapshot.polylineSourceRevision,
@@ -341,9 +405,11 @@ class MapViewModel(
         publishVehicleState()
         startVehicleRealtimeIfEligible()
         if (isVisibleAndStarted) {
+            startSelectedRouteStopLoadsIfEligible()
             startStopArrivalsPollingIfEligible()
             refreshWalkingEstimate(locationSession.state.value)
         } else {
+            pauseSelectedRouteStopLoads()
             // Cancelling and advancing the generation makes a non-cooperative BFF client unable
             // to republish while the app is backgrounded. The selected marker stays selected.
             pauseStopArrivalsPolling()
@@ -372,8 +438,160 @@ class MapViewModel(
         ).also { routeGeometrySnapshot = it }
     }
 
+    /**
+     * Keeps the one-kilometre product promise independent of the panned map viewport. The
+     * ordinary nearby page is viewport-centred and cannot be reused once the user pans away.
+     */
+    private fun reconcileUserLocationStopRequest(
+        city: TransitCity?,
+        point: GeoPoint?,
+    ): UserLocationStopKey? {
+        val key = city
+            ?.takeIf { it.capabilities.stops }
+            ?.let { selectedCity ->
+                point?.takeIf(GeoPoint::isMapCoordinate)?.let { validPoint ->
+                    UserLocationStopKey(
+                        cityId = selectedCity.id,
+                        point = GeoPoint(
+                            latitude = validPoint.latitude.roundTo(USER_STOP_COORDINATE_DECIMALS),
+                            longitude = validPoint.longitude.roundTo(USER_STOP_COORDINATE_DECIMALS),
+                        ),
+                        locale = currentLocale,
+                    )
+                }
+            }
+        if (key == userLocationStopKey) return key
+        userLocationStopJob?.cancel()
+        userLocationStopJob = null
+        userLocationStopGeneration++
+        userLocationStopKey = key
+        userLocationStopRequestCompleted = false
+        val hadStops = userLocationStops.isNotEmpty()
+        userLocationStops = emptyList()
+        if (hadStops) nextStopSourceRevision()
+        return key
+    }
+
+    private fun startUserLocationStopLoad(key: UserLocationStopKey?) {
+        if (
+            key == null || key != userLocationStopKey || userLocationStopJob != null ||
+            userLocationStopRequestCompleted
+        ) return
+        val generation = userLocationStopGeneration
+        userLocationStopJob = viewModelScope.launch {
+            val result = try {
+                repository.nearbyStops(
+                    cityId = key.cityId,
+                    center = key.point,
+                    radiusMeters = USER_STOP_RADIUS_METERS.toInt(),
+                    limit = NEARBY_STOP_LIMIT,
+                    locale = key.locale,
+                )
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (_: Throwable) {
+                TransitLoadResult.Failure(TransitFailure.Transport("User-location stops request failed"))
+            }
+            intent {
+                if (generation == userLocationStopGeneration) userLocationStopJob = null
+                if (generation != userLocationStopGeneration || key != userLocationStopKey) return@intent
+                userLocationStopRequestCompleted = true
+                val stops = when (result) {
+                    is TransitLoadResult.Data -> result.value
+                    is TransitLoadResult.Empty,
+                    is TransitLoadResult.Failure,
+                    -> emptyList()
+                }.asSequence()
+                    .filter { it.id.value.isNotBlank() && it.position.isMapCoordinate() }
+                    .distinctBy(TransitStop::id)
+                    .take(NEARBY_STOP_LIMIT)
+                    .toList()
+                if (stops == userLocationStops) return@intent
+                userLocationStops = stops
+                nextStopSourceRevision()
+                val selectedCity = currentCity?.takeIf { it.id == key.cityId } ?: return@intent
+                reduce {
+                    state.copy(
+                        renderState = renderStateFor(selectedCity, state.location.fix, lastViewport?.zoom),
+                        selectedStop = selectedStopUi(),
+                    )
+                }
+            }
+        }
+    }
+
+    private fun startSelectedRouteStopLoadsIfEligible() {
+        val city = currentCity ?: return
+        if (!realtimeVisibleAndStarted || !city.capabilities.stops || !city.capabilities.routes) return
+        val locale = currentLocale
+        val generation = selectedRouteStopGeneration
+        selectedRouteStopKeys().forEach { key ->
+            if (key in completedSelectedRouteStopKeys || key in selectedRouteStopJobs) return@forEach
+            selectedRouteStopJobs[key] = viewModelScope.launch {
+                val result = try {
+                    repository.directionStops(
+                        cityId = city.id,
+                        routeId = key.routeId,
+                        directionId = key.directionId,
+                        locale = locale,
+                    )
+                } catch (cancelled: CancellationException) {
+                    throw cancelled
+                } catch (_: Throwable) {
+                    TransitLoadResult.Failure(TransitFailure.Transport("Selected route stops request failed"))
+                }
+                intent {
+                    if (generation == selectedRouteStopGeneration) selectedRouteStopJobs.remove(key)
+                    if (!isCurrentSelectedRouteStopRequest(generation, city.id, locale, key)) return@intent
+                    completedSelectedRouteStopKeys += key
+                    val stops = when (result) {
+                        is TransitLoadResult.Data -> result.value
+                        is TransitLoadResult.Empty,
+                        is TransitLoadResult.Failure,
+                        -> emptyList()
+                    }.asSequence()
+                        .filter { stop ->
+                            stop.id.value.isNotBlank() && stop.position.isMapCoordinate() && key.routeId in stop.routeIds
+                        }
+                        .distinctBy(TransitStop::id)
+                        .toList()
+                    if (selectedRouteStops[key] == stops) return@intent
+                    selectedRouteStops[key] = stops
+                    nextStopSourceRevision()
+                    reduce {
+                        state.copy(
+                            renderState = renderStateFor(city, state.location.fix, lastViewport?.zoom),
+                            selectedStop = selectedStopUi(),
+                        )
+                    }
+                }
+            }
+        }
+    }
+
+    private fun selectedRouteStopKeys(): List<SelectedRouteStopKey> = selectedVehicleRoutes.flatMap { route ->
+        route.directions.map { direction -> SelectedRouteStopKey(route.id, direction.id) }
+    }
+
+    private fun isCurrentSelectedRouteStopRequest(
+        generation: Long,
+        cityId: CityId,
+        locale: TransitLocale,
+        key: SelectedRouteStopKey,
+    ): Boolean = generation == selectedRouteStopGeneration && realtimeVisibleAndStarted &&
+        currentCity?.id == cityId && currentLocale == locale && key in selectedRouteStopKeys()
+
+    private fun pauseSelectedRouteStopLoads() {
+        if (selectedRouteStopJobs.isEmpty()) return
+        selectedRouteStopJobs.values.forEach(Job::cancel)
+        selectedRouteStopJobs.clear()
+        selectedRouteStopGeneration++
+    }
+
     private fun onRouteGeometrySnapshot(snapshot: RouteGeometrySnapshot) {
+        val geometryChanged = snapshot.polylineSourceRevision != routeGeometrySnapshot.polylineSourceRevision
         routeGeometrySnapshot = snapshot
+        if (geometryChanged) updateVehicleFrames(forceSourceCheck = true)
         intent {
             val city = currentCity
             // A completion can enqueue this intent immediately before a newer selection/city
@@ -390,6 +608,9 @@ class MapViewModel(
     }
 
     override fun onCleared() {
+        userLocationStopJob?.cancel()
+        selectedRouteStopJobs.values.forEach(Job::cancel)
+        selectedRouteStopJobs.clear()
         routeGeometryCoordinator.clear()
         super.onCleared()
     }
@@ -502,6 +723,9 @@ class MapViewModel(
             .sortedWith(compareBy<VehicleTrack> { it.routeId.value }.thenBy { it.id.value })
             .take(MAX_COMMON_VEHICLE_MARKERS)
             .toList()
+        if (tracksChanged || forceSourceCheck) {
+            vehicleRouteMotions.keys.retainAll(visibleTracks.mapTo(mutableSetOf(), VehicleTrack::id))
+        }
         val publishedMarkersById = vehicleMarkers.associateBy(MapVehicleMarker::id)
         val pendingTerminalTrackIds = visibleTracks
             .asSequence()
@@ -527,7 +751,7 @@ class MapViewModel(
             vehicleMarkers.map { marker ->
                 val track = tracksById[marker.id]
                 if (track != null && marker.id in animatedTrackIds) {
-                    val nextPosition = VehicleRealtimeReducer.frame(track, monotonicNow)
+                    val nextPosition = vehicleMarkerPosition(track, monotonicNow, interpolate = true)
                     if (nextPosition == marker.position) marker else marker.copy(position = nextPosition)
                 } else {
                     marker
@@ -574,16 +798,62 @@ class MapViewModel(
             id = id,
             routeId = routeId,
             directionId = directionId,
-            position = if (interpolate) VehicleRealtimeReducer.frame(this, monotonicNowMillis) else to,
+            position = vehicleMarkerPosition(this, monotonicNowMillis, interpolate),
             routeColorArgb = routeSelection.backgroundArgb,
             bearingDegrees = bearingDegrees,
             positionKind = positionKind,
             freshness = freshness,
             routeLabel = routeSelection.displayLabel.sanitizedRouteBadgeLabel(),
-            routeTextColorArgb = routeSelection.textArgb,
+            routeTextColorArgb = VEHICLE_ROUTE_TEXT_COLOR_ARGB,
             isStale = isStale,
             frameRevision = frameRevision,
         )
+    }
+
+    /**
+     * Route geometry is prepared once per source revision, while each vehicle movement is
+     * projected once per observation. The 20 fps frame path then only walks the prepared line.
+     */
+    private fun vehicleMarkerPosition(
+        track: VehicleTrack,
+        monotonicNowMillis: Long,
+        interpolate: Boolean,
+    ): GeoPoint {
+        refreshVehicleRoutePaths()
+        val routePaths = vehicleRoutePaths[track.routeId].orEmpty()
+        val cached = vehicleRouteMotions[track.id]
+        val motion = if (cached?.matches(track) == true) {
+            cached.motion
+        } else {
+            VehicleRoutePathInterpolator.motion(
+                from = track.from,
+                to = track.to,
+                directionId = track.directionId,
+                candidates = routePaths,
+                previousMotion = cached?.continuityMotionFor(track),
+            ).also { resolved ->
+                vehicleRouteMotions[track.id] = CachedVehicleRouteMotion.from(track, resolved)
+            }
+        }
+        if (motion == null) {
+            // Provider GPS can be outside the route or the shape can be genuinely unusable. Keep
+            // temporal continuity in that case: a short direct fallback is less disruptive than
+            // teleporting the marker, while valid projections still follow the street geometry.
+            return if (interpolate) VehicleRealtimeReducer.frame(track, monotonicNowMillis) else track.to
+        }
+        if (!interpolate) return motion.endPoint
+        val startedAt = track.interpolationStartedAtMonotonicMillis ?: return motion.endPoint
+        val elapsed = (monotonicNowMillis - startedAt).coerceAtLeast(0L)
+        val fraction = elapsed.toDouble() / VEHICLE_INTERPOLATION_DURATION_MILLIS
+        return motion.positionAt(fraction)
+    }
+
+    private fun refreshVehicleRoutePaths() {
+        val revision = routeGeometrySnapshot.polylineSourceRevision
+        if (vehicleRoutePathRevision == revision) return
+        vehicleRoutePathRevision = revision
+        vehicleRoutePaths = VehicleRoutePathInterpolator.prepare(routeGeometrySnapshot.polylines)
+        vehicleRouteMotions.clear()
     }
 
     /**
@@ -600,19 +870,16 @@ class MapViewModel(
 
     private fun VehicleTrack.isInterpolationActiveAt(monotonicNowMillis: Long): Boolean =
         interpolationStartedAtMonotonicMillis?.let { started ->
-            monotonicNowMillis - started in 0L..INTERPOLATION_ACTIVE_WINDOW_MILLIS
+            monotonicNowMillis - started in 0L..VEHICLE_INTERPOLATION_DURATION_MILLIS
         } == true
 
-    /**
-     * Tickers can wake after the one-second interpolation interval. The endpoint still has to be
-     * emitted once whenever the source last published an earlier coordinate; [frame] clamps it.
-     */
+    /** A delayed ticker must still publish the route-projected endpoint exactly once. */
     private fun VehicleTrack.needsTerminalFrame(
         monotonicNowMillis: Long,
         publishedMarker: MapVehicleMarker?,
     ): Boolean = interpolationStartedAtMonotonicMillis?.let { started ->
-        monotonicNowMillis - started > INTERPOLATION_ACTIVE_WINDOW_MILLIS &&
-            publishedMarker?.position != to
+        monotonicNowMillis - started > VEHICLE_INTERPOLATION_DURATION_MILLIS &&
+            publishedMarker?.position != vehicleMarkerPosition(this, monotonicNowMillis, interpolate = false)
     } == true
 
     /** The fast frame path can retain immutable badge/style objects for every non-moving marker. */
@@ -739,6 +1006,8 @@ class MapViewModel(
     private fun onLocaleChanged(locale: TransitLocale) = intent {
         if (locale == currentLocale) return@intent
         currentLocale = locale
+        resetSelectedRouteStopState()
+        val locationStopKey = reconcileUserLocationStopRequest(currentCity, state.location.fix?.point)
         nextStopSourceRevision()
         val city = currentCity
         val localizedStopArrivals = restartStopArrivalsForLocale(state.stopArrivalsSheet)
@@ -754,6 +1023,8 @@ class MapViewModel(
         if (city?.capabilities?.stops == true) {
             acceptViewport(lastViewport ?: initialViewport(city), force = true)
         }
+        startUserLocationStopLoad(locationStopKey)
+        startSelectedRouteStopLoadsIfEligible()
         startStopArrivalsPollingIfEligible()
     }
 
@@ -1004,7 +1275,7 @@ class MapViewModel(
         requireVisibleMarker: Boolean,
     ) = intent {
         if (sourceRevision != stopSourceRevision) return@intent
-        val stop = rawStops.firstOrNull { it.id == stopId } ?: return@intent
+        val stop = stopSnapshot(stopId) ?: return@intent
         if (requireVisibleMarker && state.renderState?.stops?.none { it.id == stopId } != false) return@intent
         selectedStopId = stopId
         val city = currentCity ?: return@intent
@@ -1086,7 +1357,7 @@ class MapViewModel(
         val normalizedInsets = insets.normalized()
         if (normalizedInsets == mapViewportInsets) return@intent
         val selected = selectedStopId?.let { id ->
-            rawStops.firstOrNull { it.id == id } ?: stopArrivalsStop?.takeIf { it.id == id }
+            stopSnapshot(id)
         } ?: return@intent
         if (state.stopArrivalsSheet == null) return@intent
         val city = currentCity ?: return@intent
@@ -1687,11 +1958,13 @@ class MapViewModel(
 
     private fun selectedStopUi(): SelectedStopUi? {
         val selected = selectedStopId ?: return null
-        val stop = rawStops.firstOrNull { it.id == selected }
-            ?: stopArrivalsStop?.takeIf { it.id == selected }
-            ?: return null
+        val stop = stopSnapshot(selected) ?: return null
         return SelectedStopUi(selected, stop.displayName(currentLocale))
     }
+
+    private fun stopSnapshot(stopId: StopId): TransitStop? = rawStops.firstOrNull { it.id == stopId }
+        ?: selectedRouteStops.values.asSequence().flatten().firstOrNull { it.id == stopId }
+        ?: stopArrivalsStop?.takeIf { it.id == stopId }
 
     /** Nearby results remain whole; this adds presentation metadata without route-stop I/O. */
     private fun routeHighlightFor(stop: TransitStop): StopRouteHighlightUi {
@@ -1833,6 +2106,7 @@ class MapViewModel(
         const val MIN_MAP_ZOOM = 0.0
         const val MAX_MAP_ZOOM = 22.0
         const val VIEWPORT_COORDINATE_DECIMALS = 5
+        const val USER_STOP_COORDINATE_DECIMALS = 4
         const val VIEWPORT_ZOOM_DECIMALS = 2
         const val VIEWPORT_RADIUS_STEP_METERS = 25
         const val MAX_BOTTOM_OCCLUSION_FRACTION = 0.75
@@ -1840,7 +2114,6 @@ class MapViewModel(
         const val MAX_COMMON_VEHICLE_MARKERS = 1_000
         const val MAX_SMOOTHLY_ANIMATED_VEHICLES = 250
         const val HIGH_DENSITY_FRAME_INTERVAL_MILLIS = 100L // 10 fps maximum above the smooth cap.
-        const val INTERPOLATION_ACTIVE_WINDOW_MILLIS = 1_000L
         const val STOP_ARRIVALS_LIMIT = 40
         const val STOP_ARRIVALS_POLL_INTERVAL_MILLIS = 20_000L
         const val WALKING_ESTIMATE_DEBOUNCE_MILLIS = 700L
@@ -1880,7 +2153,37 @@ private data class VehicleBadgeRenderStyle(
     val stale: Boolean,
 )
 
+private data class CachedVehicleRouteMotion(
+    val routeId: RouteId,
+    val directionId: com.denis.georgiatransit.shared.domain.model.DirectionId?,
+    val observationEpochMillis: Long,
+    val from: GeoPoint,
+    val to: GeoPoint,
+    val motion: VehicleRouteMotion?,
+) {
+    fun matches(track: VehicleTrack): Boolean =
+        routeId == track.routeId && directionId == track.directionId &&
+            observationEpochMillis == track.observationEpochMillis && from == track.from && to == track.to
+
+    fun continuityMotionFor(track: VehicleTrack): VehicleRouteMotion? = motion?.takeIf {
+        routeId == track.routeId && directionId == track.directionId &&
+            observationEpochMillis < track.observationEpochMillis
+    }
+
+    companion object {
+        fun from(track: VehicleTrack, motion: VehicleRouteMotion?) = CachedVehicleRouteMotion(
+            routeId = track.routeId,
+            directionId = track.directionId,
+            observationEpochMillis = track.observationEpochMillis,
+            from = track.from,
+            to = track.to,
+            motion = motion,
+        )
+    }
+}
+
 private const val MAX_ROUTE_BADGE_LABEL_LENGTH = 8
+private const val VEHICLE_ROUTE_TEXT_COLOR_ARGB = 0xFFFFFFFF
 
 private data class VehicleRequestKey(val cityId: CityId, val routeId: RouteId)
 

@@ -25,6 +25,8 @@ class BffConfigTest {
         assertFalse(config.transitous.isRoutingApproved)
         assertFalse(config.ttc.enabled)
         assertFalse(config.ttc.isActivated)
+        assertFalse(config.batumiTheta.isActivated)
+        assertFalse(config.map.isActivated)
         assertTrue(config.metricsEnabled)
         assertFalse(config.probesEnabled)
         assertEquals(60, config.probeIntervalSeconds)
@@ -74,6 +76,37 @@ class BffConfigTest {
         assertFailsWith<BffConfigurationException> {
             BffConfig.fromEnvironment(mapOf("BFF_MODE" to "production", "BFF_FIXTURES_ENABLED" to "true"))
         }
+    }
+
+    @Test
+    fun `Batumi Theta is exact-url development-only opt-in`() {
+        val active = mapOf(
+            "BATUMI_THETA_ENABLED" to "true",
+            "BATUMI_THETA_OPERATOR_ACKNOWLEDGEMENT" to BatumiThetaActivationConfig.Acknowledgement,
+        )
+        assertTrue(BffConfig.fromEnvironment(active).batumiTheta.isActivated)
+        listOf(
+            active - "BATUMI_THETA_OPERATOR_ACKNOWLEDGEMENT",
+            active + ("BATUMI_THETA_BASE_URL" to "http://thetamaps.site:54321/api"),
+            active + ("BATUMI_THETA_BASE_URL" to "https://thetamaps.site:54321/api/other"),
+            active + ("BATUMI_THETA_BASE_URL" to "https://user@thetamaps.site:54321/api"),
+            active + ("BFF_MODE" to "production"),
+        ).forEach { assertFailsWith<BffConfigurationException> { BffConfig.fromEnvironment(it) } }
+    }
+
+    @Test
+    fun `map proxy needs an explicit template attribution and production acknowledgement`() {
+        val active = mapOf(
+            "BFF_MAP_ENABLED" to "true",
+            "BFF_MAP_TILE_TEMPLATE" to "https://tiles.example/{z}/{x}/{y}.png",
+            "BFF_MAP_ATTRIBUTION" to "© Example",
+            "BFF_MAP_PUBLIC_BASE_URL" to "https://bff.example",
+        )
+        assertTrue(BffConfig.fromEnvironment(active).map.isActivated)
+        assertFailsWith<BffConfigurationException> { BffConfig.fromEnvironment(active - "BFF_MAP_ATTRIBUTION") }
+        assertFailsWith<BffConfigurationException> { BffConfig.fromEnvironment(active + ("BFF_MAP_TILE_TEMPLATE" to "http://tiles.example/{z}/{x}/{y}.png")) }
+        assertFailsWith<BffConfigurationException> { BffConfig.fromEnvironment(active + ("BFF_MODE" to "production")) }
+        assertFailsWith<BffConfigurationException> { BffConfig.fromEnvironment(active + ("BFF_MAP_PUBLIC_BASE_URL" to "http://tiles.example")) }
     }
 
     @Test

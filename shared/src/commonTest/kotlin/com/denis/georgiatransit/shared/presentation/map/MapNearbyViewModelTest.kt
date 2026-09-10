@@ -10,6 +10,7 @@ import com.denis.georgiatransit.shared.domain.model.ProviderId
 import com.denis.georgiatransit.shared.domain.model.RouteId
 import com.denis.georgiatransit.shared.domain.model.StopId
 import com.denis.georgiatransit.shared.domain.model.TransitCity
+import com.denis.georgiatransit.shared.domain.model.TransitDirection
 import com.denis.georgiatransit.shared.domain.model.TransitLocale
 import com.denis.georgiatransit.shared.domain.model.TransitMode
 import com.denis.georgiatransit.shared.domain.model.TransitRoute
@@ -23,6 +24,9 @@ import com.denis.georgiatransit.shared.domain.repository.TransitFreshness
 import com.denis.georgiatransit.shared.domain.repository.TransitLoadResult
 import com.denis.georgiatransit.shared.domain.repository.TransitRepository
 import com.denis.georgiatransit.shared.presentation.location.RuntimeLocationSession
+import com.denis.georgiatransit.shared.presentation.location.LocationFixCandidate
+import com.denis.georgiatransit.shared.presentation.location.LocationPermissionState
+import com.denis.georgiatransit.shared.presentation.location.LocationPrecision
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
@@ -61,6 +65,18 @@ class MapNearbyViewModelTest {
 
     private val MapViewModel.state: ViewState
         get() = container.stateFlow.value
+
+    @Test
+    fun configuredBffStyleDoesNotClaimThatTheLocalPreviewIsActive() = runTest {
+        val viewModel = MapViewModel(
+            repository = RecordingRepository(),
+            session = RuntimeTransitSession(),
+            locationSession = RuntimeLocationSession(this),
+            bffStyleUrl = "http://10.0.2.2:8080/v1/map/style.json",
+        )
+
+        assertEquals(MapBaseLayerState.BffStyle, viewModel.state.baseLayerState)
+    }
 
     @Test
     fun initialStateIsLoadingAndViewportCallbackIsNormalizedDebouncedAndDeduplicated() = runTest {
@@ -116,11 +132,61 @@ class MapNearbyViewModelTest {
     }
 
     @Test
+    fun panningAwayKeepsTheIndependentOneKilometreUserStopPageVisible() = runTest {
+        val now = 2_000_000L
+        val userPoint = GeoPoint(41.7, 44.8)
+        val locationSession = RuntimeLocationSession(backgroundScope) { now }
+        locationSession.updatePermission(LocationPermissionState.Granted(LocationPrecision.Precise))
+        val locationRequest = locationSession.nextCommandId()
+        assertTrue(locationSession.beginLocationRequest(locationRequest))
+        locationSession.accept(
+            locationRequest,
+            LocationFixCandidate(
+                latitude = userPoint.latitude,
+                longitude = userPoint.longitude,
+                accuracyMeters = 5.0,
+                capturedAtEpochMillis = now,
+            ),
+        )
+        val city = city("tbilisi")
+        val repository = RecordingRepository().apply {
+            results += { data(stop("near-user", position = GeoPoint(41.705, 44.8))) }
+            results += { data(stop("initial-viewport", position = GeoPoint(41.72, 44.8))) }
+            results += { data(stop("far-viewport", position = GeoPoint(42.7, 45.8))) }
+        }
+        val viewModel = MapViewModel(
+            repository = repository,
+            session = RuntimeTransitSession().also { it.selectCity(city) },
+            locationSession = locationSession,
+        )
+
+        viewModel.test(this) {
+            runOnCreate()
+            this@runTest.runCurrent()
+            assertEquals(
+                NearbyCall(city.id, userPoint, 1_000, 100, TransitLocale.English),
+                repository.calls.first(),
+            )
+            this@runTest.advanceNearby()
+
+            settle(viewModel, GeoPoint(42.7, 45.8))
+            this@runTest.advanceNearby()
+
+            assertEquals(
+                listOf(StopId("near-user")),
+                requireNotNull(viewModel.state.renderState).stops.map { it.id },
+            )
+            assertTrue(requireNotNull(viewModel.state.renderState).stopClusters.isEmpty())
+            cancelAndIgnoreRemainingItems()
+        }
+    }
+
+    @Test
     fun typedStopCallbackSelectsOnlyALoadedVisibleMarker() = runTest {
         val repository = RecordingRepository().apply { results += { data(stop("visible")) } }
         val viewModel = MapViewModel(
             repository,
-            RuntimeTransitSession().also { it.selectCity(city("tbilisi")) },
+            RuntimeTransitSession().also { it.selectCity(city("tbilisi", defaultZoom = ALL_STOPS_MIN_ZOOM)) },
             RuntimeLocationSession(this),
         )
 
@@ -145,7 +211,7 @@ class MapNearbyViewModelTest {
     }
 
     @Test
-    fun committedRouteReplacementReprojectsEveryNearbyStopAndKeepsPriorityMarkersOutOfClusters() = runTest {
+    fun committedRouteReplacementReprojectsMapMarkersWithoutClusteringOrReloadingStops() = runTest {
         val city = city("tbilisi")
         val routeA = route(city.id, "route-a", "A", 0xFF0057B8)
         val routeB = route(city.id, "route-b", "B", 0xFF457B9D)
@@ -189,9 +255,13 @@ class MapNearbyViewModelTest {
                 setOf(StopId("only-a"), StopId("only-b"), StopId("a-and-b")).all { id ->
                     initialRender.stops.any { it.id == id }
                 },
-                "Highlighted stops must retain their own tappable marker instead of joining an ordinary cluster.",
+                "Selected-route stops must remain individually tappable at low zoom.",
             )
-            assertEquals(2, initialRender.stopClusters.single().stopCount)
+            assertEquals(
+                setOf("only-a", "only-b", "a-and-b"),
+                initialRender.stops.mapTo(mutableSetOf()) { it.id.value },
+            )
+            assertTrue(initialRender.stopClusters.isEmpty())
             val initialRevision = initialRender.stopSourceRevision
             val nearbyCallsBeforeReplacement = repository.calls.size
 
@@ -208,17 +278,59 @@ class MapNearbyViewModelTest {
             assertTrue(replacementRender.stopSourceRevision > initialRevision)
             assertTrue(
                 replacementRender.stops.any { it.id == StopId("only-b") && it.isSelected },
-                "The open selected stop must remain above ordinary clustering after its route highlight is removed.",
+                "The open selected stop must remain visible after its route highlight is removed.",
             )
-            assertEquals(4, replacementRender.stopClusters.single().stopCount)
+            assertEquals(listOf(StopId("only-b")), replacementRender.stops.map { it.id })
+            assertTrue(replacementRender.stopClusters.isEmpty())
+            cancelAndIgnoreRemainingItems()
+        }
+    }
+
+    @Test
+    fun selectedRouteLoadsEveryDirectionStopAndRendersItAtLowZoom() = runTest {
+        val city = city("batumi")
+        val direction = TransitDirection(
+            id = DirectionId("direction-10"),
+            name = LocalizedText.fromLegacy("Outbound"),
+            headsign = LocalizedText.fromLegacy("Terminus"),
+        )
+        val route = route(city.id, "route-10", "10", 0xFF0057B8).copy(directions = listOf(direction))
+        val selectedRouteStop = stop(
+            id = "route-stop",
+            routeIds = listOf(route.id),
+            position = GeoPoint(41.75, 44.8),
+        )
+        val repository = RecordingRepository().apply {
+            routesSnapshot = listOf(route)
+            results += { data(stop("ordinary-nearby")) }
+            directionStopResults[route.id to direction.id] = { data(selectedRouteStop) }
+        }
+        val session = RuntimeTransitSession().also {
+            it.selectCity(city)
+            assertTrue(it.selectRoutes(city.id, setOf(route.id)))
+        }
+        val viewModel = MapViewModel(repository, session, RuntimeLocationSession(this))
+
+        viewModel.test(this) {
+            runOnCreate()
+            viewModel.dispatchAction(Action.RealtimeVisibilityChanged(true))
+            this@runTest.runCurrent()
+            this@runTest.advanceNearby()
+
+            val renderState = requireNotNull(viewModel.state.renderState)
+            assertEquals(listOf(StopId("route-stop")), renderState.stops.map(MapStopMarker::id))
+            assertTrue(renderState.stopClusters.isEmpty())
+            assertEquals(listOf(route.id to direction.id), repository.directionStopCalls)
+            viewModel.dispatchAction(Action.RealtimeVisibilityChanged(false))
+            this@runTest.runCurrent()
             cancelAndIgnoreRemainingItems()
         }
     }
 
     @Test
     fun staleStopRevisionCannotSelectAReusedIdAfterCityOrCapabilityChange() = runTest {
-        val firstCity = city("first")
-        val secondCity = city("second")
+        val firstCity = city("first", defaultZoom = ALL_STOPS_MIN_ZOOM)
+        val secondCity = city("second", defaultZoom = ALL_STOPS_MIN_ZOOM)
         val repository = RecordingRepository().apply {
             results += { data(stop("shared")) }
             results += { data(stop("shared")) }
@@ -752,7 +864,7 @@ class MapNearbyViewModelTest {
         colorArgb = color,
     )
 
-    private fun city(id: String) = TransitCity(
+    private fun city(id: String, defaultZoom: Double = 13.0) = TransitCity(
         id = CityId(id),
         name = id.replaceFirstChar(Char::uppercase),
         center = GeoPoint(41.7, 44.8),
@@ -763,7 +875,7 @@ class MapNearbyViewModelTest {
             routeShapes = true,
             journeyPlanning = true,
         ),
-        defaultZoom = 13.0,
+        defaultZoom = defaultZoom,
     )
 
     private data class NearbyCall(
@@ -777,6 +889,8 @@ class MapNearbyViewModelTest {
     private class RecordingRepository : TransitRepository {
         val calls = mutableListOf<NearbyCall>()
         val results = ArrayDeque<suspend () -> TransitLoadResult<List<TransitStop>>>()
+        val directionStopCalls = mutableListOf<Pair<RouteId, DirectionId>>()
+        val directionStopResults = mutableMapOf<Pair<RouteId, DirectionId>, suspend () -> TransitLoadResult<List<TransitStop>>>()
         var routesSnapshot: List<TransitRoute> = emptyList()
         var revalidationCalls = 0
         var revalidation: suspend () -> TransitLoadResult<List<TransitCity>> = {
@@ -801,6 +915,17 @@ class MapNearbyViewModelTest {
         ): TransitLoadResult<List<TransitStop>> {
             calls += NearbyCall(cityId, center, radiusMeters, limit, locale)
             return results.removeFirstOrNull()?.invoke()
+                ?: TransitLoadResult.Empty(TransitFreshness.Network)
+        }
+
+        override suspend fun directionStops(
+            cityId: CityId,
+            routeId: RouteId,
+            directionId: DirectionId,
+            locale: TransitLocale,
+        ): TransitLoadResult<List<TransitStop>> {
+            directionStopCalls += routeId to directionId
+            return directionStopResults[routeId to directionId]?.invoke()
                 ?: TransitLoadResult.Empty(TransitFreshness.Network)
         }
     }

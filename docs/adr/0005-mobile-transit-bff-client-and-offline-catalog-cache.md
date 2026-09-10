@@ -33,11 +33,11 @@ responses map to typed domain failures; cancellation is always rethrown.
 A release host may supply only an explicit HTTPS BFF endpoint; the current
 release supplies none and therefore fails closed with a typed configuration
 result, never falling back to preview or provider traffic. Debug composition
-alone may use
-`http://10.0.2.2:8080` on the Android emulator or `http://127.0.0.1:8080` on
-the iOS simulator. Android's debug-only network-security configuration permits
-cleartext only for `10.0.2.2`; the iOS Debug plist alone permits the loopback
-ATS exception. Release has neither exception.
+alone may use `http://10.0.2.2:8080` on the Android emulator,
+`http://127.0.0.1:8080` on a physical Android device through an explicit `adb reverse`, or
+`http://127.0.0.1:8080` on the iOS simulator. Android's debug-only network-security configuration
+permits cleartext only for those two Android development loopbacks; the iOS Debug plist alone
+permits the loopback ATS exception. Release has neither exception.
 
 Durable mobile cache is deliberately limited to the city/capability snapshot
 and route-list catalogs. Entries use schema version 1. The city/capability

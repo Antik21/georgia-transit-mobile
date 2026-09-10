@@ -13,10 +13,13 @@ Kotlin Multiplatform shell for a Georgia public-transit app. Shared Compose UI c
 
 ## Maps
 
-The screen uses a bundled, blank local MapLibre style in a fail-closed mode. It
+The screen uses a bundled, blank local MapLibre style in a fail-closed mode unless host
+composition supplies a validated same-BFF style URL. The optional BFF endpoints
+`/v1/map/style.json` and `/v1/map/tiles/{z}/{x}/{y}.png` are disabled by default; the generated
+style contains only BFF tile URLs and required attribution, never an upstream provider URL. It
 accepts the shared, SDK-free typed render state; until normalized state supplies
 stops, vehicles, or route polylines, those layers remain empty. It has no
-production basemap, BFF map-asset request, provider key, remote style, or public
+production basemap by default, provider key, remote style, or public
 tile fallback, and it never presents synthetic transit data as real data. This
 keeps the renderer/layer/camera boundary verifiable without using a
 public/community endpoint.
@@ -87,8 +90,10 @@ configuration failure without sending traffic anywhere. When a reviewed BFF is
 deployed, the native composition boundary must inject its exact non-secret
 `https://` endpoint via `BffEndpointConfiguration`; it must not add a provider
 URL, provider key, or a fallback to preview data. Plain HTTP is rejected except
-for the explicit debug loopbacks: Android emulator `http://10.0.2.2:8080` and
-iOS Simulator `http://127.0.0.1:8080`.
+for the explicit debug loopbacks: Android emulator `http://10.0.2.2:8080`, Android physical
+device `http://127.0.0.1:8080` through `adb reverse tcp:8080 tcp:8080`, and iOS Simulator
+`http://127.0.0.1:8080`. Debug Android composition selects the emulator or physical-device
+endpoint automatically.
 
 The common Ktor client applies a five-second connect bound, eight-second bounds
 for vehicles/arrivals, and 20-second bounds for directory and journey calls.
@@ -164,10 +169,10 @@ credential, and request headers remain inside the BFF. See the
 [TTC operator runbook](docs/development/ttc-adapter.md) and its disabled
 [capability-control example](transitBff/ttc-capability-control.example.json).
 
-Batumi remains absent from the effective city list and disabled. The
-[Theta API evaluation](docs/development/batumi-theta-evaluation.md) is a
-**NO-GO** for DEN-55 and production capability until its legal, operational,
-and contract gates are independently cleared.
+Batumi's Theta adapter is disabled by default and can be enabled only as an explicitly
+acknowledged development/manual-smoke catalog integration with a private capability-control
+document. It is still `UNREVIEWED`, excludes vehicles/arrivals/planning, and production startup
+fails closed. See the [Batumi Theta runbook](docs/development/batumi-theta.md).
 
 For a future reviewed adapter, an operator-owned JSON capability document can
 atomically enable/disable cities and individual features at runtime. The BFF

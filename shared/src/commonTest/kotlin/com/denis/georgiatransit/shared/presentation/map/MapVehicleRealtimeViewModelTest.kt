@@ -65,6 +65,11 @@ class MapVehicleRealtimeViewModelTest {
             this@runTest.runCurrent()
 
             assertEquals(listOf(routeA), repository.requests)
+            assertEquals(
+                0xFF008A3B,
+                viewModel.container.stateFlow.value.renderState?.vehicles?.single()?.routeColorArgb,
+                "The temporary diagnostic vehicle marker must stay green regardless of its route color.",
+            )
             assertEquals(1, repository.maximumVehicleRequestsInFlight)
             this@runTest.advanceTimeBy(7_999)
             this@runTest.runCurrent()

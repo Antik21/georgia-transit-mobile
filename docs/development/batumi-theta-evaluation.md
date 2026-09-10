@@ -2,8 +2,9 @@
 
 **Evaluation date:** 2026-09-10
 
-**Decision:** **NO-GO** for DEN-55 and for enabling any production Batumi
-capability.
+**Decision:** **NO-GO** for enabling any production Batumi capability. A tightly bounded,
+disabled-by-default development implementation may exist only behind the BFF capability control;
+it does not authorize traffic to the origin or change this production decision.
 
 The published examples and public responses are sufficient to inform a future
 experimental, server-side parser design after permission has been obtained.
@@ -114,7 +115,7 @@ repository is not a substitute for any gate.
 
 ## Conditions for a future experimental adapter
 
-If written permission later authorizes a limited experimental implementation,
+If written permission authorizes a limited experimental implementation,
 it must retain the existing Transit BFF boundary and remain disabled until a
 separate production review. At minimum, it must:
 
@@ -130,7 +131,8 @@ separate production review. At minimum, it must:
 - use bounded single-flight and cache behavior, with at most 60 seconds of
   stale data;
 - include a schema interlock and immediate capability kill switch;
-- keep `getLiveData`, arrivals, and trip planning disabled; and
+- never call `getLiveData` or expose trip planning; any BFF-derived ETA must be clearly labelled
+  approximate, non-official, and withheld when movement/direction confidence is insufficient; and
 - keep Batumi absent from effective cities until legal, operational, and
   production-contract review is complete.
 

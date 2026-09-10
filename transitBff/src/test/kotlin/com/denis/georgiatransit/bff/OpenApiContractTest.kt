@@ -28,7 +28,15 @@ class OpenApiContractTest {
             "/v1/cities/{cityId}/journeys" to "JourneyPage",
         )
 
-        assertEquals(expectedSchemas.keys + setOf("/metrics", "/v1/cities/{cityId}/walking-estimate"), paths.keys)
+        assertEquals(
+            expectedSchemas.keys + setOf(
+                "/metrics",
+                "/v1/cities/{cityId}/walking-estimate",
+                "/v1/map/style.json",
+                "/v1/map/tiles/{z}/{x}/{y}.png",
+            ),
+            paths.keys,
+        )
         expectedSchemas.forEach { (path, schema) ->
             val get = paths.map(path).map("get")
             val success = get.map("responses").map("200")

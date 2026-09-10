@@ -652,6 +652,7 @@ private struct DebugNetworkInspectorView: View {
             }
         }
     }
+
 }
 
 private struct DebugNetworkInspectorDetail: View {

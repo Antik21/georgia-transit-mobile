@@ -31,6 +31,9 @@ sealed interface MapContentState {
 sealed interface MapBaseLayerState {
     /** No BFF-approved basemap asset contract exists yet, so the renderer is deliberately local. */
     @Immutable data object LocalPreview : MapBaseLayerState
+
+    /** Host composition supplied the validated BFF style endpoint used by the native renderer. */
+    @Immutable data object BffStyle : MapBaseLayerState
 }
 
 @Immutable

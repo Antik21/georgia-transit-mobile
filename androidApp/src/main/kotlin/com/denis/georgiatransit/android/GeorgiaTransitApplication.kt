@@ -10,7 +10,6 @@ import com.denis.georgiatransit.shared.di.initGeorgiaTransitKoin
 open class GeorgiaTransitApplication : Application() {
     /** Release has no endpoint until an operator supplies a reviewed HTTPS BFF URL. */
     protected open val bffEndpointConfiguration: BffEndpointConfiguration? = null
-
     override fun onCreate() {
         super.onCreate()
         initGeorgiaTransitKoin(

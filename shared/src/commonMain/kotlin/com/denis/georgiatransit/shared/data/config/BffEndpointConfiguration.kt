@@ -10,6 +10,8 @@ import kotlinx.coroutines.CancellationException
 data class BffEndpointConfiguration(
     val baseUrl: String,
     val allowInsecureDebugLoopback: Boolean = false,
+    /** Explicit BFF map-assets opt-in; false preserves the local native base style. */
+    val mapAssetsEnabled: Boolean = false,
 ) {
     fun validationFailure(): ValidationFailure? {
         val url = try {
@@ -32,10 +34,23 @@ data class BffEndpointConfiguration(
 
     enum class ValidationFailure { MalformedUrl, InsecureOrNonLoopback }
 
+    /** A same-origin, BFF-owned map style; mobile never receives an upstream tile URL. */
+    fun mapStyleUrlOrNull(): String? = if (mapAssetsEnabled && validationFailure() == null) {
+        baseUrl.trimEnd('/') + "/v1/map/style.json"
+    } else {
+        null
+    }
+
     companion object {
         /** Android emulator host mapping; it is deliberately unavailable to release composition. */
         val debugAndroidEmulator = BffEndpointConfiguration(
             baseUrl = "http://10.0.2.2:8080",
+            allowInsecureDebugLoopback = true,
+        )
+
+        /** Android device loopback reached through `adb reverse tcp:8080 tcp:8080`. */
+        val debugAndroidPhysicalDevice = BffEndpointConfiguration(
+            baseUrl = "http://127.0.0.1:8080",
             allowInsecureDebugLoopback = true,
         )
 
@@ -44,6 +59,10 @@ data class BffEndpointConfiguration(
             baseUrl = "http://127.0.0.1:8080",
             allowInsecureDebugLoopback = true,
         )
+
+        val debugAndroidEmulatorWithMapAssets = debugAndroidEmulator.copy(mapAssetsEnabled = true)
+        val debugAndroidPhysicalDeviceWithMapAssets = debugAndroidPhysicalDevice.copy(mapAssetsEnabled = true)
+        val debugIosSimulatorWithMapAssets = debugIosSimulator.copy(mapAssetsEnabled = true)
 
         private val DebugLoopbackHosts = setOf("10.0.2.2", "127.0.0.1", "::1", "localhost")
     }

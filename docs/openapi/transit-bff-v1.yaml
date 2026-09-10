@@ -64,6 +64,36 @@ paths:
                   capabilities: {routes: true, stops: true, routeGeometry: true, vehiclePositions: true, officialArrivals: true, tripPlanning: true, arrivals: true}
                   availability: {readiness: DEVELOPMENT_FIXTURE, source: FIXTURE}
         '500': {$ref: '#/components/responses/InternalError'}
+  /v1/map/style.json:
+    get:
+      operationId: getMapStyle
+      summary: Return the optional BFF-owned raster style.
+      description: |
+        Available only when the BFF map proxy is explicitly activated. The style contains only
+        an absolute configured BFF tile endpoint and the configured required attribution; it
+        never reveals an upstream tile template, request host header, or credentials.
+      responses:
+        '200':
+          description: MapLibre style JSON.
+          headers: {Cache-Control: {schema: {type: string}}}
+          content: {application/json: {schema: {type: object}}}
+        '404': {description: Basemap proxy disabled.}
+  /v1/map/tiles/{z}/{x}/{y}.png:
+    get:
+      operationId: getMapTile
+      summary: Return one optional BFF-proxied raster tile.
+      parameters:
+        - {name: z, in: path, required: true, schema: {type: integer, minimum: 0, maximum: 19}}
+        - {name: x, in: path, required: true, schema: {type: integer, minimum: 0}}
+        - {name: y, in: path, required: true, schema: {type: integer, minimum: 0}}
+      responses:
+        '200':
+          description: PNG tile from the configured upstream under bounded BFF controls.
+          headers: {Cache-Control: {schema: {type: string}}}
+          content: {image/png: {schema: {type: string, format: binary}}}
+        '400': {$ref: '#/components/responses/InvalidArgument'}
+        '404': {description: Basemap proxy disabled.}
+        '502': {$ref: '#/components/responses/UpstreamBadResponse'}
   /v1/cities/{cityId}/routes:
     get:
       operationId: listRoutes
