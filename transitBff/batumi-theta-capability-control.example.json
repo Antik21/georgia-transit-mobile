@@ -1,0 +1,19 @@
+{
+  "revision": "batumi-theta-development-20260910-2",
+  "cities": [
+    {
+      "id": "batumi",
+      "enabled": true,
+      "availability": {"readiness": "UNREVIEWED", "source": "UNREVIEWED_ADAPTER"},
+      "capabilities": {
+        "routes": true,
+        "stops": true,
+        "routeGeometry": true,
+        "vehiclePositions": true,
+        "officialArrivals": false,
+        "tripPlanning": false,
+        "arrivals": true
+      }
+    }
+  ]
+}

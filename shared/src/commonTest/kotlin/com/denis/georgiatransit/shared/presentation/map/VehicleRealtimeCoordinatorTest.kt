@@ -283,8 +283,14 @@ class VehicleRealtimeCoordinatorTest {
             interpolationStartedAtMonotonicMillis = 100,
         )
         assertEquals(origin, VehicleRealtimeReducer.frame(interpolating, 100))
-        assertEquals(metersNorth(50), VehicleRealtimeReducer.frame(interpolating, 600))
-        assertEquals(metersNorth(100), VehicleRealtimeReducer.frame(interpolating, 4_000))
+        assertEquals(
+            metersNorth(50),
+            VehicleRealtimeReducer.frame(interpolating, 100 + VEHICLE_INTERPOLATION_DURATION_MILLIS / 2),
+        )
+        assertEquals(
+            metersNorth(100),
+            VehicleRealtimeReducer.frame(interpolating, 100 + VEHICLE_INTERPOLATION_DURATION_MILLIS + 3_000),
+        )
     }
 
     @Test

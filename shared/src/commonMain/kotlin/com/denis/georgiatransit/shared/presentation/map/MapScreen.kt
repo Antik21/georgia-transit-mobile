@@ -850,6 +850,7 @@ private fun MapStatusOverlays(
 private fun BaseLayerOverlay(baseLayerState: MapBaseLayerState) {
     val text = when (baseLayerState) {
         MapBaseLayerState.LocalPreview -> stringResource(Res.string.map_preview_note)
+        MapBaseLayerState.BffStyle -> return
     }
     Surface(
         modifier = Modifier.testTag(AutomationId.MapLocalPreview),

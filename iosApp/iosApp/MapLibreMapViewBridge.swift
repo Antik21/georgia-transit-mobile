@@ -1,5 +1,6 @@
 import CoreLocation
 import MapLibre
+import QuartzCore
 import Shared
 import UIKit
 
@@ -35,6 +36,7 @@ private final class LocalMapLibreView: UIView, MLNMapViewDelegate {
     private let mapView: MLNMapView
     private var pendingRenderState: MapRenderState?
     private var layersInstalled = false
+    private var requestedBffStyleURL: URL?
     private var lastAppliedCameraRevision: Int64?
     private var lastStops: [StopRenderInput]?
     private var lastStopSourceRevision: Int64?
@@ -42,8 +44,15 @@ private final class LocalMapLibreView: UIView, MLNMapViewDelegate {
     private var lastUserLocation: UserLocationRenderInput?
     private var lastVehicleSourceRevision: Int64?
     private var lastVehicleBadgeRevision: Int64?
+    private var lastAttentionVehicleSourceRevision: Int64?
     private var badgeImageNames: [VehicleBadgeStyle: String] = [:]
     private var nextBadgeImageIndex = 0
+    private var hasAttentionMarkers = false
+    private var isInWindow = false
+    private var isApplicationActive = UIApplication.shared.applicationState == .active
+    private var isReduceMotionEnabled = UIAccessibility.isReduceMotionEnabled
+    private var attentionDisplayLink: CADisplayLink?
+    private var lifecycleObservers: [NSObjectProtocol] = []
     private var released = false
     private let onViewportSettled: (MapViewport) -> KotlinUnit
     private let onMapEvent: (MapPlatformEvent) -> KotlinUnit
@@ -69,6 +78,7 @@ private final class LocalMapLibreView: UIView, MLNMapViewDelegate {
         let tapRecognizer = UITapGestureRecognizer(target: self, action: #selector(handleMapTap(_:)))
         tapRecognizer.cancelsTouchesInView = false
         mapView.addGestureRecognizer(tapRecognizer)
+        installAttentionLifecycleObservers()
     }
 
     required init?(coder: NSCoder) {
@@ -81,6 +91,12 @@ private final class LocalMapLibreView: UIView, MLNMapViewDelegate {
         pendingRenderState.map { applyViewportInsets($0.camera.viewportInsets) }
     }
 
+    override func didMoveToWindow() {
+        super.didMoveToWindow()
+        isInWindow = window != nil
+        refreshAttentionAnimation()
+    }
+
     deinit {
         releaseResources()
     }
@@ -88,9 +104,26 @@ private final class LocalMapLibreView: UIView, MLNMapViewDelegate {
     func update(renderState: MapRenderState) {
         guard !released else { return }
         pendingRenderState = renderState
+        updateBaseStyle(renderState.bffStyleUrl)
         guard let style = mapView.style else { return }
         installSourcesAndLayersIfNeeded(style: style)
         render(renderState, style: style)
+    }
+
+    private func updateBaseStyle(_ rawURL: String?) {
+        guard let rawURL, let styleURL = URL(string: rawURL), isBffStyleURL(styleURL) else { return }
+        guard requestedBffStyleURL != styleURL else { return }
+        requestedBffStyleURL = styleURL
+        // The common layer derives this exact URL from BffEndpointConfiguration. It is never a
+        // tile-provider URL; MapLibre resolves tiles solely from the BFF-generated style.
+        mapView.styleURL = styleURL
+    }
+
+    private func isBffStyleURL(_ url: URL) -> Bool {
+        guard url.user == nil, url.password == nil, url.query == nil, url.fragment == nil,
+              url.path == "/v1/map/style.json" else { return false }
+        if url.scheme == "https" { return url.host != nil }
+        return url.scheme == "http" && ["127.0.0.1", "localhost", "::1"].contains(url.host)
     }
 
     func mapView(_ mapView: MLNMapView, didFinishLoading style: MLNStyle) {
@@ -100,6 +133,14 @@ private final class LocalMapLibreView: UIView, MLNMapViewDelegate {
         clearRenderedLayerState()
         installSourcesAndLayersIfNeeded(style: style)
         pendingRenderState.map { render($0, style: style) }
+    }
+
+    func mapView(_ mapView: MLNMapView, didFailLoadingMapWithError error: Error) {
+        guard !released, requestedBffStyleURL != nil,
+              let localStyle = Bundle.main.url(forResource: "MapLibrePrototypeStyle", withExtension: "json") else { return }
+        // Retain the failed URL to avoid a render-frame retry loop. A newly created map may retry;
+        // this view keeps all transit source/layer rendering on the bundled fallback meanwhile.
+        mapView.styleURL = localStyle
     }
 
     func mapView(_ mapView: MLNMapView, regionDidChangeAnimated animated: Bool) {
@@ -114,6 +155,9 @@ private final class LocalMapLibreView: UIView, MLNMapViewDelegate {
         mapView.showsUserLocation = false
         mapView.disableLocationManager()
         mapView.removeFromSuperview()
+        stopAttentionDisplayLink()
+        lifecycleObservers.forEach(NotificationCenter.default.removeObserver)
+        lifecycleObservers.removeAll()
         clearRenderedLayerState()
     }
 
@@ -122,10 +166,11 @@ private final class LocalMapLibreView: UIView, MLNMapViewDelegate {
         let stopsSource = MLNShapeSource(identifier: Self.stopsSourceID, shape: nil, options: nil)
         let selectedStopSource = MLNShapeSource(identifier: Self.selectedStopSourceID, shape: nil, options: nil)
         let vehiclesSource = MLNShapeSource(identifier: Self.vehiclesSourceID, shape: nil, options: nil)
+        let attentionSource = MLNShapeSource(identifier: Self.attentionSourceID, shape: nil, options: nil)
         let polylinesSource = MLNShapeSource(identifier: Self.polylinesSourceID, shape: nil, options: nil)
         let userLocationSource = MLNShapeSource(identifier: Self.userLocationSourceID, shape: nil, options: nil)
         let userAccuracySource = MLNShapeSource(identifier: Self.userAccuracySourceID, shape: nil, options: nil)
-        [stopsSource, selectedStopSource, vehiclesSource, polylinesSource, userLocationSource, userAccuracySource]
+        [stopsSource, selectedStopSource, vehiclesSource, attentionSource, polylinesSource, userLocationSource, userAccuracySource]
             .forEach(style.addSource)
 
         let polylinesLayer = MLNLineStyleLayer(identifier: Self.polylinesLayerID, source: polylinesSource)
@@ -158,6 +203,13 @@ private final class LocalMapLibreView: UIView, MLNMapViewDelegate {
         vehiclesLayer.iconAllowsOverlap = NSExpression(forConstantValue: true)
         vehiclesLayer.iconIgnoresPlacement = NSExpression(forConstantValue: true)
         style.addLayer(vehiclesLayer)
+
+        // The route-coloured pulse stays below the static badge and is never hit-tested.
+        let attentionLayer = MLNCircleStyleLayer(identifier: Self.attentionLayerID, source: attentionSource)
+        attentionLayer.circleColor = NSExpression(forKeyPath: Self.attentionColorProperty)
+        attentionLayer.circleRadius = NSExpression(forConstantValue: Self.attentionMinimumRadius)
+        attentionLayer.circleOpacity = NSExpression(forConstantValue: Self.attentionMinimumSizeOpacity)
+        style.insertLayer(attentionLayer, below: vehiclesLayer)
 
         let selectedStopLayer = MLNCircleStyleLayer(identifier: Self.selectedStopLayerID, source: selectedStopSource)
         selectedStopLayer.circleColor = NSExpression(
@@ -207,6 +259,12 @@ private final class LocalMapLibreView: UIView, MLNMapViewDelegate {
             )
             lastVehicleSourceRevision = state.vehicleSourceRevision
         }
+        if lastAttentionVehicleSourceRevision != state.vehicleSourceRevision {
+            let markers = attentionMarkers(state.vehicles)
+            updateSource(style: style, identifier: Self.attentionSourceID, features: attentionFeatures(markers))
+            hasAttentionMarkers = !markers.isEmpty
+            lastAttentionVehicleSourceRevision = state.vehicleSourceRevision
+        }
         if lastPolylineSourceRevision != state.polylineSourceRevision {
             updateSource(style: style, identifier: Self.polylinesSourceID, features: polylineFeatures(state.polylines))
             lastPolylineSourceRevision = state.polylineSourceRevision
@@ -218,6 +276,7 @@ private final class LocalMapLibreView: UIView, MLNMapViewDelegate {
             lastUserLocation = userLocation
         }
         applyCameraIfNeeded(state.camera)
+        refreshAttentionAnimation()
     }
 
     /** Each renderer layer keeps its source and style layer; only its GeoJSON shape is replaced. */
@@ -412,6 +471,105 @@ private final class LocalMapLibreView: UIView, MLNMapViewDelegate {
         if renderInput.needsOverflow && style.image(forName: Self.overflowBadgeImageName) == nil {
             style.setImage(VehicleBadgeStyle(label: "?", backgroundArgb: 0xFF455A64, textArgb: 0xFFFFFFFF, stale: false).image(), forName: Self.overflowBadgeImageName)
         }
+    }
+
+    private func attentionMarkers(_ markers: [MapVehicleMarker]) -> [MapVehicleMarker] {
+        Array(markers
+            .filter { !$0.stableId.isEmpty && !$0.stableRouteId.isEmpty && isCoordinateValid($0.position) }
+            .sorted { $0.stableId < $1.stableId }
+            .prefix(Self.maximumAttentionMarkers))
+    }
+
+    private func attentionFeatures(_ markers: [MapVehicleMarker]) -> [[String: Any]] {
+        markers.map { marker in
+            let color = marker.routeColorArgb | 0xFF000000
+            return feature(
+                id: marker.stableId,
+                coordinates: [marker.position.longitude, marker.position.latitude],
+                properties: [
+                    Self.attentionColorProperty: mapColor(color),
+                ]
+            )
+        }
+    }
+
+    private func installAttentionLifecycleObservers() {
+        let center = NotificationCenter.default
+        lifecycleObservers = [
+            center.addObserver(forName: UIAccessibility.reduceMotionStatusDidChangeNotification, object: nil, queue: .main) { [weak self] _ in
+                guard let self else { return }
+                self.isReduceMotionEnabled = UIAccessibility.isReduceMotionEnabled
+                self.refreshAttentionAnimation()
+            },
+            center.addObserver(forName: UIApplication.didBecomeActiveNotification, object: nil, queue: .main) { [weak self] _ in
+                guard let self else { return }
+                self.isApplicationActive = true
+                self.refreshAttentionAnimation()
+            },
+            center.addObserver(forName: UIApplication.willResignActiveNotification, object: nil, queue: .main) { [weak self] _ in
+                guard let self else { return }
+                self.isApplicationActive = false
+                self.refreshAttentionAnimation()
+            },
+        ]
+    }
+
+    private var shouldAnimateAttention: Bool {
+        isInWindow && isApplicationActive && !isReduceMotionEnabled && hasAttentionMarkers && layersInstalled && !released
+    }
+
+    private func refreshAttentionAnimation() {
+        guard !released, layersInstalled else { return }
+        guard shouldAnimateAttention else {
+            stopAttentionDisplayLink()
+            renderAttentionFrame(now: nil)
+            return
+        }
+        renderAttentionFrame(now: CACurrentMediaTime())
+        if attentionDisplayLink == nil {
+            let displayLink = CADisplayLink(target: self, selector: #selector(attentionTick(_:)))
+            displayLink.preferredFramesPerSecond = Self.attentionFramesPerSecond
+            displayLink.add(to: .main, forMode: .common)
+            attentionDisplayLink = displayLink
+        }
+    }
+
+    private func stopAttentionDisplayLink() {
+        attentionDisplayLink?.invalidate()
+        attentionDisplayLink = nil
+    }
+
+    @objc private func attentionTick(_ displayLink: CADisplayLink) {
+        guard shouldAnimateAttention else {
+            refreshAttentionAnimation()
+            return
+        }
+        renderAttentionFrame(now: displayLink.timestamp)
+    }
+
+    /** Nil keeps one static filled 1.15× circle for Reduce Motion and while the ticker is suspended. */
+    private func renderAttentionFrame(now: CFTimeInterval?) {
+        guard let style = mapView.style else { return }
+        let ring = style.layer(withIdentifier: Self.attentionLayerID) as? MLNCircleStyleLayer
+        guard hasAttentionMarkers else {
+            ring?.circleOpacity = NSExpression(forConstantValue: 0)
+            return
+        }
+        guard let now else {
+            ring?.circleRadius = NSExpression(forConstantValue: Self.attentionMinimumRadius)
+            ring?.circleOpacity = NSExpression(forConstantValue: Self.attentionMinimumSizeOpacity)
+            return
+        }
+        let phase = now.truncatingRemainder(dividingBy: Self.attentionCycleDuration) / Self.attentionCycleDuration
+        let progress = (1 - cos(phase * 2 * .pi)) / 2
+        ring?.circleRadius = NSExpression(
+            forConstantValue: Self.attentionMinimumRadius +
+                (Self.attentionMaximumRadius - Self.attentionMinimumRadius) * progress
+        )
+        ring?.circleOpacity = NSExpression(
+            forConstantValue: Self.attentionMinimumSizeOpacity -
+                (Self.attentionMinimumSizeOpacity - Self.attentionMaximumSizeOpacity) * progress
+        )
     }
 
     private func vehicleFeatures(_ markers: [MapVehicleMarker], sourceRevision: Int64) -> [[String: Any]] {
@@ -626,19 +784,23 @@ private final class LocalMapLibreView: UIView, MLNMapViewDelegate {
         lastUserLocation = nil
         lastVehicleSourceRevision = nil
         lastVehicleBadgeRevision = nil
+        lastAttentionVehicleSourceRevision = nil
         badgeImageNames.removeAll()
         nextBadgeImageIndex = 0
+        hasAttentionMarkers = false
     }
 
     private static let stopsSourceID = "gt-stops-source"
     private static let selectedStopSourceID = "gt-selected-stop-source"
     private static let vehiclesSourceID = "gt-vehicles-source"
+    private static let attentionSourceID = "gt-vehicle-attention-source"
     private static let polylinesSourceID = "gt-polylines-source"
     private static let userLocationSourceID = "gt-user-location-source"
     private static let userAccuracySourceID = "gt-user-accuracy-source"
     private static let stopsLayerID = "gt-stops-layer"
     private static let selectedStopLayerID = "gt-selected-stop-layer"
     private static let vehiclesLayerID = "gt-vehicles-layer"
+    private static let attentionLayerID = "gt-vehicle-attention-layer"
     private static let polylinesLayerID = "gt-polylines-layer"
     private static let userLocationLayerID = "gt-user-location-layer"
     private static let userAccuracyFillLayerID = "gt-user-accuracy-fill-layer"
@@ -650,6 +812,7 @@ private final class LocalMapLibreView: UIView, MLNMapViewDelegate {
     private static let positionKindProperty = "positionKind"
     private static let vehicleBadgeImageProperty = "vehicleBadgeImage"
     private static let vehicleOpacityProperty = "vehicleOpacity"
+    private static let attentionColorProperty = "attentionColor"
     private static let featureIDProperty = "featureId"
     private static let featureKindProperty = "featureKind"
     private static let sourceRevisionProperty = "sourceRevision"
@@ -670,6 +833,7 @@ private final class LocalMapLibreView: UIView, MLNMapViewDelegate {
     private static let maximumStopMarkers = 1_000
     private static let maximumVehicleMarkers = 2_000
     private static let maximumVehicleBadgeImages = 256
+    private static let maximumAttentionMarkers = 32
     private static let maximumPolylines = 256
     private static let maximumPolylinePoints = 20_000
     private static let minimumPolygonPoints = 4
@@ -681,6 +845,13 @@ private final class LocalMapLibreView: UIView, MLNMapViewDelegate {
     private static let minimumStopTargetPoints: CGFloat = 44
     private static let overflowBadgeImageName = "gt-vehicle-badge-overflow"
     private static let staleVehicleOpacity: Double = 0.62
+    private static let attentionFramesPerSecond = 15
+    private static let attentionCycleDuration: CFTimeInterval = 1.6
+    private static let vehicleBadgeDiameter = 40.0
+    private static let attentionMinimumRadius = vehicleBadgeDiameter / 2 * 1.15
+    private static let attentionMaximumRadius = vehicleBadgeDiameter / 2 * 2.0
+    private static let attentionMinimumSizeOpacity = 0.50
+    private static let attentionMaximumSizeOpacity = 0.10
 }
 
 private struct RenderCoordinate: Equatable {
@@ -723,17 +894,26 @@ private struct VehicleBadgeStyle: Hashable {
     }
 
     func image() -> UIImage {
-        let font = UIFont.boldSystemFont(ofSize: 14)
+        var font = UIFont.boldSystemFont(ofSize: 16)
+        let maximumTextWidth: CGFloat = 32
+        let initialTextWidth = (label as NSString).size(withAttributes: [.font: font]).width
+        if initialTextWidth > maximumTextWidth {
+            font = UIFont.boldSystemFont(ofSize: max(10, font.pointSize * maximumTextWidth / initialTextWidth))
+        }
         let textAttributes: [NSAttributedString.Key: Any] = [
             .font: font,
             .foregroundColor: UIColor(argb: textArgb),
         ]
         let textSize = (label as NSString).size(withAttributes: textAttributes)
-        let width = min(max(textSize.width + 24, 36), 104)
-        let size = CGSize(width: width, height: 32)
+        let size = CGSize(width: 40, height: 40)
         return UIGraphicsImageRenderer(size: size).image { _ in
+            let circleRect = CGRect(origin: .zero, size: size).insetBy(dx: 0.5, dy: 0.5)
             UIColor(argb: backgroundArgb).setFill()
-            UIBezierPath(roundedRect: CGRect(origin: .zero, size: size), cornerRadius: size.height / 2).fill()
+            UIBezierPath(ovalIn: circleRect).fill()
+            UIColor.white.setStroke()
+            let border = UIBezierPath(ovalIn: circleRect)
+            border.lineWidth = 1
+            border.stroke()
             let textRect = CGRect(
                 x: 0,
                 y: (size.height - textSize.height) / 2,

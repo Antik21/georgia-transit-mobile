@@ -59,11 +59,16 @@ costs and are explicitly **not** claimed to be zero.
    reviewed runtime contract; MapLibre consumes standard style/vector-tile
    formats. No provider secret is placed in either app.
 
-DEN-58 establishes the renderer foundation but intentionally does not implement
-the production asset path. It uses a fully local, source-free JSON background
-style, disables MapLibre connectivity on Android, and uses a bundled iOS style.
-There is no provider URL/key, remote style/tile, MapLibre location-permission
-ownership, BFF request, or production basemap. In particular, it must not fabricate a
+The development slice additionally supports a disabled-by-default BFF raster style at
+`/v1/map/style.json` and BFF tile proxy at `/v1/map/tiles/{z}/{x}/{y}.png`. The generated style
+contains only that same-BFF tile URL and source attribution; mobile is injected only a validated
+same-BFF style URL and cannot call an upstream tile host. Android enables connectivity only for
+that URL; iOS otherwise uses the bundled source-free style. This proxy is development-only and
+production fails closed; a production asset path needs separate owned-provider, quota/abuse, and
+terms evidence rather than an environment acknowledgement.
+
+The renderer foundation otherwise uses a fully local, source-free JSON background style. There is
+no provider URL/key, MapLibre location-permission ownership, or production basemap by default. In particular, it must not fabricate a
 center marker, demo line, stop, vehicle, ETA, or nearby-stop UI. Until a reviewed
 BFF asset contract exists, the basemap fails closed and common UI states this
 plainly. BFF-controlled map assets, offline packs, map queries, and live transit

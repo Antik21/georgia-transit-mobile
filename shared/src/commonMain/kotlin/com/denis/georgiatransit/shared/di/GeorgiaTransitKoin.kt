@@ -65,6 +65,7 @@ private fun appModule(
             realtimeClock = get(),
             realtimeTickerPolicy = get(),
             routeGeometryCoordinator = get(),
+            bffStyleUrl = bffEndpointConfiguration?.mapStyleUrlOrNull(),
         )
     }
     factory { RoutesViewModel(repository = get(), session = get()) }

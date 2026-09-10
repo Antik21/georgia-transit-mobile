@@ -289,7 +289,7 @@ internal object VehicleRealtimeReducer {
     fun frame(track: VehicleTrack, monotonicNowMillis: Long): GeoPoint {
         val startedAt = track.interpolationStartedAtMonotonicMillis ?: return track.to
         val elapsed = (monotonicNowMillis - startedAt).coerceAtLeast(0L)
-        val fraction = (elapsed.toDouble() / INTERPOLATION_DURATION_MILLIS).coerceIn(0.0, 1.0)
+        val fraction = (elapsed.toDouble() / VEHICLE_INTERPOLATION_DURATION_MILLIS).coerceIn(0.0, 1.0)
         return GeoPoint(
             latitude = track.from.latitude + (track.to.latitude - track.from.latitude) * fraction,
             longitude = track.from.longitude + (track.to.longitude - track.from.longitude) * fraction,
@@ -709,7 +709,8 @@ private const val STITCH_GRID_CELL_METERS = 125.0
 private const val STITCH_GRID_VERTICAL_SPAN = 3
 private const val STITCH_GRID_BUCKET_EDGE_ALLOWANCE = 1
 private const val MAX_SPARSE_GRID_HORIZONTAL_SPAN = 32
-private const val INTERPOLATION_DURATION_MILLIS = 1_000.0
+/** Nearly spans the default eight-second poll interval, avoiding one-second motion plus a long stop. */
+internal const val VEHICLE_INTERPOLATION_DURATION_MILLIS = 7_500L
 private const val EARTH_RADIUS_METERS = 6_371_008.8
 private val STITCH_LONGITUDE_BUCKET_COUNT = ceil(2.0 * PI * EARTH_RADIUS_METERS / STITCH_GRID_CELL_METERS).toLong()
 private val MAX_FUTURE_OBSERVATION_SKEW = 30L.toDuration(DurationUnit.SECONDS)

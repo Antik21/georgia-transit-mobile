@@ -35,7 +35,11 @@ import com.denis.georgiatransit.bff.provider.TransitousTransitProviderAdapter
 import com.denis.georgiatransit.bff.provider.TransitousClient
 import com.denis.georgiatransit.bff.provider.TtcClient
 import com.denis.georgiatransit.bff.provider.TtcTransitProviderAdapter
+import com.denis.georgiatransit.bff.provider.BatumiThetaTransitProviderAdapter
+import com.denis.georgiatransit.bff.provider.BatumiThetaClient
 import com.denis.georgiatransit.bff.service.TransitService
+import com.denis.georgiatransit.bff.map.MapProxy
+import com.denis.georgiatransit.bff.map.MapProxyFailure
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.ContentType
@@ -60,6 +64,7 @@ import io.ktor.server.request.receive
 import io.ktor.server.response.header
 import io.ktor.server.response.respond
 import io.ktor.server.response.respondText
+import io.ktor.server.response.respondBytes
 import io.ktor.server.routing.get
 import io.ktor.server.routing.post
 import io.ktor.server.routing.route
@@ -131,6 +136,7 @@ fun Application.transitBffModule(config: BffConfig = BffConfig.fromEnvironment()
             }
             if (config.transitous.isActivated) add("tbilisi" to TelemetryProvider.TRANSITOUS)
             if (config.ttc.isActivated) add("tbilisi" to TelemetryProvider.TTC)
+            if (config.batumiTheta.isActivated) add("batumi" to TelemetryProvider.BATUMI_THETA)
         },
     )
     val adapters = buildList {
@@ -157,6 +163,14 @@ fun Application.transitBffModule(config: BffConfig = BffConfig.fromEnvironment()
                 ),
             )
         }
+        if (config.batumiTheta.isActivated) {
+            add(
+                BatumiThetaTransitProviderAdapter(
+                    activation = config.batumiTheta,
+                    client = BatumiThetaClient(config.batumiTheta),
+                ),
+            )
+        }
     }
     val registry = ProviderRegistry(adapters)
     if (config.mode == RuntimeMode.PRODUCTION && !registry.isReady) {
@@ -178,6 +192,7 @@ fun Application.transitBffModule(config: BffConfig = BffConfig.fromEnvironment()
         observability = observability,
         schemaDriftObserver = capabilityControl::observeSchemaDrift,
     )
+    val mapProxy = config.map.takeIf { it.isActivated }?.let(::MapProxy)
     val probeRunner = ProbeRunner(
         config = config,
         service = service,
@@ -220,10 +235,34 @@ fun Application.transitBffModule(config: BffConfig = BffConfig.fromEnvironment()
         probeRunner.close()
         capabilityControl.close()
         service.close()
+        mapProxy?.close()
         adapters.filterIsInstance<AutoCloseable>().forEach(AutoCloseable::close)
     }
 
     routing {
+        if (mapProxy != null) {
+            get("/v1/map/style.json") {
+                call.markHttpOperation(HttpOperation.MAP_STYLE)
+                call.response.header(HttpHeaders.CacheControl, "public, max-age=300")
+                call.respondText(mapProxy.styleJson(), ContentType.Application.Json)
+            }
+            get("/v1/map/tiles/{z}/{x}/{y}.png") {
+                call.markHttpOperation(HttpOperation.MAP_TILE)
+                val z = call.parameters["z"]?.toIntOrNull()
+                val x = call.parameters["x"]?.toIntOrNull()
+                val y = call.parameters["y"]?.toIntOrNull()
+                if (z == null || x == null || y == null) throw InvalidArgument("tile coordinates must be integers")
+                try {
+                    MapProxy.validate(z, x, y)
+                    call.response.header(HttpHeaders.CacheControl, "public, max-age=86400")
+                    call.respondBytes(mapProxy.tile(z, x, y), ContentType.Image.PNG)
+                } catch (failure: IllegalArgumentException) {
+                    throw InvalidArgument(failure.message ?: "invalid tile coordinates")
+                } catch (_: MapProxyFailure) {
+                    throw com.denis.georgiatransit.bff.api.UpstreamBadGateway("Map tile is unavailable")
+                }
+            }
+        }
         get("/healthz") {
             call.markHttpOperation(HttpOperation.HEALTH)
             val ready = service.isReady

@@ -37,6 +37,8 @@ data class BffConfig(
     val capabilityControlHistoryLimit: Int,
     val transitous: TransitousActivationConfig = TransitousActivationConfig.disabled(),
     val ttc: TtcActivationConfig = TtcActivationConfig.disabled(),
+    val batumiTheta: BatumiThetaActivationConfig = BatumiThetaActivationConfig.disabled(),
+    val map: MapProxyActivationConfig = MapProxyActivationConfig.disabled(),
     val metricsEnabled: Boolean = true,
     val probesEnabled: Boolean = false,
     val probeIntervalSeconds: Long = DefaultProbeIntervalSeconds,
@@ -98,6 +100,12 @@ data class BffConfig(
         require(mode != RuntimeMode.PRODUCTION || !ttc.isActivated || schemaInterlockEnabled) {
             "BFF_SCHEMA_INTERLOCK_ENABLED must be true for a production TTC activation"
         }
+        require(mode == RuntimeMode.DEVELOPMENT || !batumiTheta.isActivated) {
+            "BATUMI_THETA_ENABLED is development-only; production startup fails closed"
+        }
+        require(mode == RuntimeMode.DEVELOPMENT || !map.isActivated) {
+            "BFF_MAP_ENABLED is development-only; production startup fails closed"
+        }
         require(!(transitous.isActivated && ttc.isActivated)) {
             "Only one Tbilisi production provider adapter may be activated"
         }
@@ -145,6 +153,8 @@ data class BffConfig(
                     ),
                     transitous = TransitousActivationConfig.fromEnvironment(environment),
                     ttc = TtcActivationConfig.fromEnvironment(environment),
+                    batumiTheta = BatumiThetaActivationConfig.fromEnvironment(environment),
+                    map = MapProxyActivationConfig.fromEnvironment(environment, parseMode(environment["BFF_MODE"] ?: "development")),
                     metricsEnabled = parseBoolean(environment, "BFF_METRICS_ENABLED", true),
                     probesEnabled = parseBoolean(environment, "BFF_PROBES_ENABLED", false),
                     probeIntervalSeconds = parseLong(
@@ -237,6 +247,113 @@ data class BffConfig(
             } catch (_: IllegalArgumentException) {
                 throw BffConfigurationException("$name is invalid")
             }
+        }
+    }
+}
+
+/** A narrowly scoped raster proxy, deliberately disabled unless an operator opts in. */
+data class MapProxyActivationConfig(
+    val enabled: Boolean,
+    val tileTemplate: String?,
+    val attribution: String?,
+    val publicBaseUrl: URI?,
+) {
+    val isActivated get() = enabled && tileTemplate != null && attribution != null && publicBaseUrl != null
+    init {
+        if (enabled) {
+            require(tileTemplate != null) { "BFF_MAP_TILE_TEMPLATE is required when BFF_MAP_ENABLED=true" }
+            require(!attribution.isNullOrBlank() && attribution.length <= 512) { "BFF_MAP_ATTRIBUTION is required when BFF_MAP_ENABLED=true" }
+            require(publicBaseUrl != null) { "BFF_MAP_PUBLIC_BASE_URL is required when BFF_MAP_ENABLED=true" }
+        }
+    }
+    companion object {
+        fun disabled() = fromEnvironment(emptyMap())
+        fun fromEnvironment(environment: Map<String, String>, mode: RuntimeMode = RuntimeMode.DEVELOPMENT): MapProxyActivationConfig {
+            val enabled = when ((environment["BFF_MAP_ENABLED"] ?: "false").lowercase()) {
+                "true" -> true; "false" -> false; else -> throw BffConfigurationException("BFF_MAP_ENABLED must be true or false")
+            }
+            val template = environment["BFF_MAP_TILE_TEMPLATE"]?.takeIf(String::isNotBlank)?.also(::requireTemplate)
+            val publicBase = environment["BFF_MAP_PUBLIC_BASE_URL"]?.takeIf(String::isNotBlank)?.let { parsePublicBase(it, mode) }
+            return MapProxyActivationConfig(enabled, template, environment["BFF_MAP_ATTRIBUTION"]?.takeIf(String::isNotBlank), publicBase)
+        }
+        private fun requireTemplate(template: String) {
+            require(template.length <= 1_024 && template.count { it == '{' } == 3 && template.contains("{z}") && template.contains("{x}") && template.contains("{y}")) {
+                "BFF_MAP_TILE_TEMPLATE must contain exactly {z}, {x}, and {y}"
+            }
+            val uri = try { URI(template.replace("{z}", "0").replace("{x}", "0").replace("{y}", "0")) } catch (_: Exception) { null }
+            require(uri != null && uri.isAbsolute && uri.scheme.equals("https", true) && !uri.host.isNullOrBlank() && uri.userInfo == null && uri.query == null && uri.fragment == null) {
+                "BFF_MAP_TILE_TEMPLATE must be an exact HTTPS template without credentials, query, or fragment"
+            }
+        }
+        private fun parsePublicBase(value: String, mode: RuntimeMode): URI = try {
+            URI(value).also { uri ->
+                val loopbackHttp = uri.scheme.equals("http", true) && uri.host in setOf("127.0.0.1", "localhost", "10.0.2.2", "::1")
+                require(uri.isAbsolute && !uri.host.isNullOrBlank() && uri.userInfo == null && uri.query == null && uri.fragment == null && (uri.path.isNullOrEmpty() || uri.path == "/") && (uri.scheme.equals("https", true) || (mode == RuntimeMode.DEVELOPMENT && loopbackHttp))) {
+                    "BFF_MAP_PUBLIC_BASE_URL must be HTTPS, or a development loopback HTTP origin"
+                }
+            }
+        } catch (_: Exception) {
+            throw BffConfigurationException("BFF_MAP_PUBLIC_BASE_URL must be HTTPS, or a development loopback HTTP origin")
+        }
+    }
+}
+
+/**
+ * Development-only guard for the unreviewed Theta catalog. Its host and path are deliberately
+ * fixed so this opt-in cannot turn the BFF into an arbitrary HTTP proxy. The acknowledgement is
+ * an operator assertion, not a license approval; production remains fail-closed.
+ */
+data class BatumiThetaActivationConfig(
+    val enabled: Boolean,
+    val baseUrl: URI?,
+    val operatorAcknowledgement: String?,
+) {
+    val isActivated: Boolean get() = enabled && baseUrl != null && operatorAcknowledgement == Acknowledgement
+
+    init {
+        if (enabled) {
+            require(baseUrl != null) { "BATUMI_THETA_BASE_URL is required when BATUMI_THETA_ENABLED=true" }
+            require(operatorAcknowledgement == Acknowledgement) {
+                "BATUMI_THETA_OPERATOR_ACKNOWLEDGEMENT must explicitly acknowledge development-only use"
+            }
+        }
+    }
+
+    companion object {
+        const val Acknowledgement = "I_UNDERSTAND_THETA_DEV_ONLY"
+        private const val DefaultBaseUrl = "https://thetamaps.site:54321/api"
+
+        fun fromEnvironment(environment: Map<String, String>): BatumiThetaActivationConfig {
+            val enabled = parseBoolean(environment, "BATUMI_THETA_ENABLED", false)
+            val baseUrl = if (enabled) parseBaseUrl(environment["BATUMI_THETA_BASE_URL"] ?: DefaultBaseUrl) else null
+            return BatumiThetaActivationConfig(
+                enabled = enabled,
+                baseUrl = baseUrl,
+                operatorAcknowledgement = environment["BATUMI_THETA_OPERATOR_ACKNOWLEDGEMENT"],
+            )
+        }
+
+        fun disabled(): BatumiThetaActivationConfig = fromEnvironment(emptyMap())
+
+        private fun parseBoolean(environment: Map<String, String>, name: String, default: Boolean): Boolean =
+            when ((environment[name] ?: return default).lowercase()) {
+                "true" -> true
+                "false" -> false
+                else -> throw BffConfigurationException("$name must be true or false")
+            }
+
+        private fun parseBaseUrl(value: String): URI = try {
+            URI(value).also(::requireBaseUrl)
+        } catch (_: Exception) {
+            throw BffConfigurationException("BATUMI_THETA_BASE_URL must be exactly https://thetamaps.site:54321/api")
+        }
+
+        private fun requireBaseUrl(uri: URI) {
+            require(
+                uri.isAbsolute && uri.scheme.equals("https", ignoreCase = true) &&
+                    uri.host.equals("thetamaps.site", ignoreCase = true) && uri.port == 54321 &&
+                    uri.path == "/api" && uri.userInfo == null && uri.query == null && uri.fragment == null,
+            ) { "BATUMI_THETA_BASE_URL must be exactly https://thetamaps.site:54321/api" }
         }
     }
 }

@@ -216,7 +216,11 @@ class TransitBffClientTest {
         assertIs<TransitFailure.Configuration>(TransitBffClient(mockHttpClient { error("not reached") }, BffEndpointConfiguration("http://example.com")).configurationFailure())
         assertIs<TransitFailure.Configuration>(TransitBffClient(mockHttpClient { error("not reached") }, BffEndpointConfiguration("https://example.com/v1")).configurationFailure())
         assertNull(TransitBffClient(mockHttpClient { error("not reached") }, BffEndpointConfiguration.debugAndroidEmulator).configurationFailure())
+        assertNull(TransitBffClient(mockHttpClient { error("not reached") }, BffEndpointConfiguration.debugAndroidPhysicalDevice).configurationFailure())
         assertNull(TransitBffClient(mockHttpClient { error("not reached") }, BffEndpointConfiguration.debugIosSimulator).configurationFailure())
+        assertNull(BffEndpointConfiguration.debugAndroidEmulator.mapStyleUrlOrNull())
+        assertEquals("http://10.0.2.2:8080/v1/map/style.json", BffEndpointConfiguration.debugAndroidEmulatorWithMapAssets.mapStyleUrlOrNull())
+        assertEquals("http://127.0.0.1:8080/v1/map/style.json", BffEndpointConfiguration.debugAndroidPhysicalDeviceWithMapAssets.mapStyleUrlOrNull())
     }
 
     private fun assertTimeouts(request: HttpRequestData, expectedRequestTimeout: Long) {

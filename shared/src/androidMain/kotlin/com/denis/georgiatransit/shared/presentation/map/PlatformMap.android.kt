@@ -1,11 +1,13 @@
 package com.denis.georgiatransit.shared.presentation.map
 
+import android.animation.ValueAnimator
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.RectF
 import android.graphics.Typeface
+import android.os.SystemClock
 import android.view.View
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -36,6 +38,7 @@ import org.maplibre.android.style.layers.FillLayer
 import org.maplibre.android.style.layers.LineLayer
 import org.maplibre.android.style.layers.SymbolLayer
 import org.maplibre.android.style.layers.PropertyFactory.circleColor
+import org.maplibre.android.style.layers.PropertyFactory.circleOpacity
 import org.maplibre.android.style.layers.PropertyFactory.circleRadius
 import org.maplibre.android.style.layers.PropertyFactory.circleStrokeColor
 import org.maplibre.android.style.layers.PropertyFactory.circleStrokeWidth
@@ -61,8 +64,8 @@ import kotlin.math.sin
 import kotlin.math.sqrt
 
 /**
- * MapLibre remains entirely inside this Android adapter. Connectivity is explicitly disabled:
- * without an approved BFF asset contract the local fallback style must fail closed.
+ * MapLibre remains entirely inside this Android adapter. Connectivity stays disabled unless the
+ * common render contract supplies a validated, same-BFF style URL.
  */
 @Composable
 actual fun PlatformMap(
@@ -77,9 +80,9 @@ actual fun PlatformMap(
         MapLibre.setConnected(false)
         MapView(context).also { it.onCreate(null) }
     }
-    val lifecycle = remember(mapView) { MapViewLifecycle(mapView) }
     val currentOnEvent = rememberUpdatedState(onEvent)
     val controller = remember(mapView) { LocalMapController(mapView) { currentOnEvent.value(it) } }
+    val lifecycle = remember(mapView, controller) { MapViewLifecycle(mapView, controller::setLifecycleResumed) }
 
     DisposableEffect(lifecycleOwner, lifecycle, controller) {
         val observer = LifecycleEventObserver { _, event -> lifecycle.onEvent(event) }
@@ -103,7 +106,10 @@ actual fun PlatformMap(
     )
 }
 
-private class MapViewLifecycle(private val mapView: MapView) {
+private class MapViewLifecycle(
+    private val mapView: MapView,
+    private val onResumedChanged: (Boolean) -> Unit,
+) {
     private var started = false
     private var resumed = false
     private var destroyed = false
@@ -133,6 +139,7 @@ private class MapViewLifecycle(private val mapView: MapView) {
         pause()
         stop()
         mapView.onDestroy()
+        onResumedChanged(false)
         destroyed = true
     }
 
@@ -148,6 +155,7 @@ private class MapViewLifecycle(private val mapView: MapView) {
             start()
             mapView.onResume()
             resumed = true
+            onResumedChanged(true)
         }
     }
 
@@ -155,6 +163,7 @@ private class MapViewLifecycle(private val mapView: MapView) {
         if (!destroyed && resumed) {
             mapView.onPause()
             resumed = false
+            onResumedChanged(false)
         }
     }
 
@@ -173,6 +182,10 @@ private class LocalMapController(
 ) {
     private var map: MapLibreMap? = null
     private var style: Style? = null
+    private var requestedBffStyleUrl: String? = null
+    private var styleRequestGeneration = 0L
+    private var acceptedStyleGeneration = 0L
+    private var loadingRemoteStyle = false
     private var latestState: MapRenderState? = null
     private var layersInstalled = false
     private var lastAppliedCameraRevision: Long? = null
@@ -183,11 +196,38 @@ private class LocalMapController(
     private var lastUserLocation: UserLocationFix? = null
     private var lastVehicleSourceRevision: Long? = null
     private var lastVehicleBadgeRevision: Long? = null
+    private var lastAttentionVehicleSourceRevision: Long? = null
     private val badgeImageIds = linkedMapOf<VehicleBadgeStyle, String>()
     private var nextBadgeImageIndex = 0L
+    private var hasAttentionMarkers = false
+    private var mapLifecycleResumed = false
+    private var attentionTickerScheduled = false
+    private val attentionTick = Runnable {
+        attentionTickerScheduled = false
+        if (shouldAnimateAttention()) {
+            renderAttentionFrame(SystemClock.uptimeMillis())
+            scheduleAttentionTick()
+        } else {
+            renderAttentionFrame(null)
+        }
+    }
     private var destroyed = false
     private val cameraIdleListener = MapLibreMap.OnCameraIdleListener { notifyViewportSettled() }
     private val mapClickListener = MapLibreMap.OnMapClickListener { point -> onMapClick(point) }
+    private val styleLoadedListener = MapView.OnDidFinishLoadingStyleListener {
+        val loadedStyle = map?.style ?: return@OnDidFinishLoadingStyleListener
+        val uri = loadedStyle.uri.takeIf(String::isNotBlank)
+        if (loadingRemoteStyle && uri != requestedBffStyleUrl) return@OnDidFinishLoadingStyleListener
+        if (!loadingRemoteStyle && uri != null) return@OnDidFinishLoadingStyleListener
+        acceptStyle(loadedStyle)
+    }
+    private val styleFailureListener = MapView.OnDidFailLoadingMapListener {
+        if (destroyed || !loadingRemoteStyle) return@OnDidFailLoadingMapListener
+        // Keep the last requested URL to avoid an update-frame retry loop; a recreated map can
+        // attempt it again. Transit overlays are reinstalled on the local style below.
+        MapLibre.setConnected(false)
+        map?.let { loadStyle(it, Style.Builder().fromJson(LOCAL_STYLE_JSON), remote = false) }
+    }
     private val layoutChangeListener = View.OnLayoutChangeListener { _, _, _, _, _, _, _, _, _ ->
         latestState?.camera?.let { command ->
             map?.moveCamera(CameraUpdateFactory.paddingTo(0.0, 0.0, 0.0, viewportBottomPadding(command)))
@@ -196,26 +236,66 @@ private class LocalMapController(
 
     init {
         mapView.addOnLayoutChangeListener(layoutChangeListener)
+        mapView.addOnDidFinishLoadingStyleListener(styleLoadedListener)
+        mapView.addOnDidFailLoadingMapListener(styleFailureListener)
         mapView.getMapAsync { mapLibreMap ->
             if (destroyed) return@getMapAsync
             map = mapLibreMap
             mapLibreMap.addOnCameraIdleListener(cameraIdleListener)
             mapLibreMap.addOnMapClickListener(mapClickListener)
-            mapLibreMap.setStyle(Style.Builder().fromJson(LOCAL_STYLE_JSON)) styleLoaded@{ loadedStyle ->
-                if (destroyed) return@styleLoaded
-                style = loadedStyle
-                layersInstalled = false
-                lastAppliedCameraRevision = null
-                clearRenderedLayerState()
-                latestState?.let(::installAndRender)
-            }
+            loadStyle(mapLibreMap, Style.Builder().fromJson(LOCAL_STYLE_JSON), remote = false)
         }
     }
 
     fun update(renderState: MapRenderState) {
         if (destroyed) return
         latestState = renderState
+        updateBaseStyle(renderState.bffStyleUrl)
         if (style != null) installAndRender(renderState)
+    }
+
+    fun setLifecycleResumed(resumed: Boolean) {
+        if (mapLifecycleResumed == resumed) return
+        mapLifecycleResumed = resumed
+        refreshAttentionAnimation()
+    }
+
+    private fun updateBaseStyle(bffStyleUrl: String?) {
+        if (requestedBffStyleUrl == bffStyleUrl || destroyed) return
+        val mapLibreMap = map ?: return
+        requestedBffStyleUrl = bffStyleUrl
+        // The URL is derived by BffEndpointConfiguration after strict validation. No upstream
+        // provider URL is ever accepted by this native adapter.
+        MapLibre.setConnected(bffStyleUrl != null)
+        val builder = bffStyleUrl?.let { Style.Builder().fromUri(it) } ?: Style.Builder().fromJson(LOCAL_STYLE_JSON)
+        loadStyle(mapLibreMap, builder, remote = bffStyleUrl != null)
+    }
+
+    private fun loadStyle(mapLibreMap: MapLibreMap, builder: Style.Builder, remote: Boolean) {
+        val generation = ++styleRequestGeneration
+        loadingRemoteStyle = remote
+        style = null
+        layersInstalled = false
+        lastAppliedCameraRevision = null
+        clearRenderedLayerState()
+        mapLibreMap.setStyle(builder) styleLoaded@{ loadedStyle ->
+            if (destroyed || generation != styleRequestGeneration) return@styleLoaded
+            acceptStyle(loadedStyle)
+        }
+    }
+
+    private fun acceptStyle(loadedStyle: Style) {
+        if (destroyed || acceptedStyleGeneration == styleRequestGeneration) return
+        acceptedStyleGeneration = styleRequestGeneration
+        loadingRemoteStyle = false
+        style = loadedStyle
+        latestState?.let { state ->
+            if (requestedBffStyleUrl != state.bffStyleUrl) {
+                updateBaseStyle(state.bffStyleUrl)
+            } else {
+                installAndRender(state)
+            }
+        }
     }
 
     fun destroy() {
@@ -224,9 +304,15 @@ private class LocalMapController(
         map?.removeOnCameraIdleListener(cameraIdleListener)
         map?.removeOnMapClickListener(mapClickListener)
         mapView.removeOnLayoutChangeListener(layoutChangeListener)
+        mapView.removeOnDidFinishLoadingStyleListener(styleLoadedListener)
+        mapView.removeOnDidFailLoadingMapListener(styleFailureListener)
         map = null
         style = null
+        styleRequestGeneration++
+        acceptedStyleGeneration = styleRequestGeneration
+        loadingRemoteStyle = false
         latestState = null
+        stopAttentionTicker()
         layersInstalled = false
         lastAppliedCameraRevision = null
         clearRenderedLayerState()
@@ -240,12 +326,14 @@ private class LocalMapController(
         }
         updateSources(loadedStyle, renderState)
         applyCameraIfNeeded(renderState)
+        refreshAttentionAnimation()
     }
 
     private fun installSourcesAndLayers(loadedStyle: Style) {
         loadedStyle.addSource(GeoJsonSource(STOPS_SOURCE_ID, FeatureCollection.fromFeatures(emptyList())))
         loadedStyle.addSource(GeoJsonSource(SELECTED_STOP_SOURCE_ID, FeatureCollection.fromFeatures(emptyList())))
         loadedStyle.addSource(GeoJsonSource(VEHICLES_SOURCE_ID, FeatureCollection.fromFeatures(emptyList())))
+        loadedStyle.addSource(GeoJsonSource(ATTENTION_SOURCE_ID, FeatureCollection.fromFeatures(emptyList())))
         loadedStyle.addSource(GeoJsonSource(POLYLINES_SOURCE_ID, FeatureCollection.fromFeatures(emptyList())))
         loadedStyle.addSource(GeoJsonSource(USER_LOCATION_SOURCE_ID, FeatureCollection.fromFeatures(emptyList())))
         loadedStyle.addSource(GeoJsonSource(USER_ACCURACY_SOURCE_ID, FeatureCollection.fromFeatures(emptyList())))
@@ -286,6 +374,15 @@ private class LocalMapController(
                 iconIgnorePlacement(true),
             ),
         )
+        // The route-coloured pulse renders below the stable badge and is never hit-tested.
+        loadedStyle.addLayerBelow(
+            CircleLayer(ATTENTION_LAYER_ID, ATTENTION_SOURCE_ID).withProperties(
+                circleColor(Expression.get(ATTENTION_COLOR_PROPERTY)),
+                circleRadius(ATTENTION_MIN_RADIUS),
+                circleOpacity(ATTENTION_MIN_SIZE_OPACITY),
+            ),
+            VEHICLES_LAYER_ID,
+        )
         loadedStyle.addLayer(
             CircleLayer(SELECTED_STOP_LAYER_ID, SELECTED_STOP_SOURCE_ID).withProperties(
                 circleColor(SELECTED_STOP_COLOR),
@@ -325,6 +422,12 @@ private class LocalMapController(
                 vehicleFeatures(renderState.vehicles, renderState.vehicleSourceRevision),
             )
             lastVehicleSourceRevision = renderState.vehicleSourceRevision
+        }
+        if (lastAttentionVehicleSourceRevision != renderState.vehicleSourceRevision) {
+            val attentionMarkers = attentionMarkers(renderState.vehicles)
+            loadedStyle.getSourceAs<GeoJsonSource>(ATTENTION_SOURCE_ID)?.setGeoJson(attentionFeatures(attentionMarkers))
+            hasAttentionMarkers = attentionMarkers.isNotEmpty()
+            lastAttentionVehicleSourceRevision = renderState.vehicleSourceRevision
         }
         if (lastPolylineSourceRevision != renderState.polylineSourceRevision) {
             loadedStyle.getSourceAs<GeoJsonSource>(POLYLINES_SOURCE_ID)?.setGeoJson(polylineFeatures(renderState.polylines))
@@ -467,6 +570,77 @@ private class LocalMapController(
         }
     }
 
+    /** A deterministic bounded subset keeps the decoration cost independent of fleet size. */
+    private fun attentionMarkers(vehicles: List<MapVehicleMarker>): List<MapVehicleMarker> = vehicles.asSequence()
+        .filter {
+            it.id.value.isNotBlank() && it.routeId.value.isNotBlank() && it.position.isMapCoordinate()
+        }
+        .sortedBy(MapVehicleMarker::stableId)
+        .take(MAX_ATTENTION_MARKERS)
+        .toList()
+
+    private fun attentionFeatures(markers: List<MapVehicleMarker>): FeatureCollection = FeatureCollection.fromFeatures(
+        markers.map { marker ->
+            Feature.fromGeometry(marker.position.asMapPoint()).also { feature ->
+                val color = marker.routeColorArgb or 0xFF000000L
+                feature.addStringProperty(ATTENTION_COLOR_PROPERTY, color.asMapColor())
+            }
+        },
+    )
+
+    private fun refreshAttentionAnimation() {
+        if (destroyed || style == null) return
+        if (!shouldAnimateAttention()) {
+            stopAttentionTicker()
+            renderAttentionFrame(null)
+            return
+        }
+        renderAttentionFrame(SystemClock.uptimeMillis())
+        scheduleAttentionTick()
+    }
+
+    /** Android's global animator scale is the accessible Reduce Motion signal for this adapter. */
+    private fun shouldAnimateAttention(): Boolean = mapLifecycleResumed && ValueAnimator.areAnimatorsEnabled() &&
+        ValueAnimator.getDurationScale() > 0f && hasAttentionMarkers
+
+    private fun scheduleAttentionTick() {
+        if (!attentionTickerScheduled && !destroyed && shouldAnimateAttention()) {
+            attentionTickerScheduled = true
+            mapView.postDelayed(attentionTick, ATTENTION_TICK_MILLIS)
+        }
+    }
+
+    private fun stopAttentionTicker() {
+        mapView.removeCallbacks(attentionTick)
+        attentionTickerScheduled = false
+    }
+
+    /** Smooth cosine interpolation grows and shrinks the ring without a turn-around discontinuity. */
+    private fun renderAttentionFrame(nowMillis: Long?) {
+        val loadedStyle = style ?: return
+        val ring = loadedStyle.getLayerAs<CircleLayer>(ATTENTION_LAYER_ID)
+        if (!hasAttentionMarkers) {
+            ring?.setProperties(circleOpacity(0f))
+            return
+        }
+        if (nowMillis == null) {
+            ring?.setProperties(
+                circleRadius(ATTENTION_MIN_RADIUS),
+                circleOpacity(ATTENTION_MIN_SIZE_OPACITY),
+            )
+            return
+        }
+        val phase = (nowMillis % ATTENTION_CYCLE_MILLIS).toFloat() / ATTENTION_CYCLE_MILLIS
+        val progress = ((1.0 - cos(phase * TWO_PI)) / 2.0).toFloat()
+        ring?.setProperties(
+            circleRadius(ATTENTION_MIN_RADIUS + (ATTENTION_MAX_RADIUS - ATTENTION_MIN_RADIUS) * progress),
+            circleOpacity(
+                ATTENTION_MIN_SIZE_OPACITY -
+                    (ATTENTION_MIN_SIZE_OPACITY - ATTENTION_MAX_SIZE_OPACITY) * progress,
+            ),
+        )
+    }
+
     private fun clearRenderedLayerState() {
         lastStops = null
         lastStopClusters = null
@@ -475,8 +649,10 @@ private class LocalMapController(
         lastUserLocation = null
         lastVehicleSourceRevision = null
         lastVehicleBadgeRevision = null
+        lastAttentionVehicleSourceRevision = null
         badgeImageIds.clear()
         nextBadgeImageIndex = 0L
+        hasAttentionMarkers = false
     }
 }
 
@@ -617,15 +793,23 @@ private fun VehicleBadgeStyle.toBitmap(): Bitmap {
         typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
         textAlign = Paint.Align.CENTER
     }
-    val width = (textPaint.measureText(label) + BADGE_HORIZONTAL_PADDING_PX * 2).toInt()
-        .coerceIn(MIN_BADGE_WIDTH_PX, MAX_BADGE_WIDTH_PX)
-    val bitmap = Bitmap.createBitmap(width, BADGE_HEIGHT_PX, Bitmap.Config.ARGB_8888)
+    if (textPaint.measureText(label) > BADGE_TEXT_MAX_WIDTH_PX) {
+        textPaint.textSize *= BADGE_TEXT_MAX_WIDTH_PX / textPaint.measureText(label)
+    }
+    val bitmap = Bitmap.createBitmap(BADGE_DIAMETER_PX, BADGE_DIAMETER_PX, Bitmap.Config.ARGB_8888)
     val canvas = Canvas(bitmap)
     val background = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = backgroundArgb.toInt() }
-    val bounds = RectF(0f, 0f, width.toFloat(), BADGE_HEIGHT_PX.toFloat())
-    canvas.drawRoundRect(bounds, BADGE_HEIGHT_PX / 2f, BADGE_HEIGHT_PX / 2f, background)
-    val baseline = BADGE_HEIGHT_PX / 2f - (textPaint.ascent() + textPaint.descent()) / 2f
-    canvas.drawText(label, width / 2f, baseline, textPaint)
+    val center = BADGE_DIAMETER_PX / 2f
+    val radius = center - BADGE_WHITE_STROKE_WIDTH_DP / 2f
+    canvas.drawCircle(center, center, radius, background)
+    val whiteBorder = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = Color.WHITE
+        style = Paint.Style.STROKE
+        strokeWidth = BADGE_WHITE_STROKE_WIDTH_DP
+    }
+    canvas.drawCircle(center, center, radius, whiteBorder)
+    val baseline = center - (textPaint.ascent() + textPaint.descent()) / 2f
+    canvas.drawText(label, center, baseline, textPaint)
     if (stale) {
         // Hatching is deliberately shape-based, so stale is not communicated by opacity/color alone.
         val cue = Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -633,11 +817,17 @@ private fun VehicleBadgeStyle.toBitmap(): Bitmap {
             alpha = STALE_CUE_ALPHA
             strokeWidth = STALE_CUE_STROKE_PX
         }
-        canvas.drawLine(BADGE_STALE_INSET_PX, BADGE_HEIGHT_PX - BADGE_STALE_INSET_PX, BADGE_HEIGHT_PX - BADGE_STALE_INSET_PX, BADGE_STALE_INSET_PX, cue)
         canvas.drawLine(
-            BADGE_HEIGHT_PX / 2f,
-            BADGE_HEIGHT_PX - BADGE_STALE_INSET_PX,
-            BADGE_HEIGHT_PX + BADGE_HEIGHT_PX / 2f - BADGE_STALE_INSET_PX,
+            BADGE_STALE_INSET_PX,
+            BADGE_DIAMETER_PX - BADGE_STALE_INSET_PX,
+            BADGE_DIAMETER_PX - BADGE_STALE_INSET_PX,
+            BADGE_STALE_INSET_PX,
+            cue,
+        )
+        canvas.drawLine(
+            BADGE_DIAMETER_PX / 2f,
+            BADGE_DIAMETER_PX - BADGE_STALE_INSET_PX,
+            BADGE_DIAMETER_PX + BADGE_DIAMETER_PX / 2f - BADGE_STALE_INSET_PX,
             BADGE_STALE_INSET_PX,
             cue,
         )
@@ -670,12 +860,14 @@ private fun Double.normalizedBearing(): Double = ((this % 360.0) + 360.0) % 360.
 private const val STOPS_SOURCE_ID = "gt-stops-source"
 private const val SELECTED_STOP_SOURCE_ID = "gt-selected-stop-source"
 private const val VEHICLES_SOURCE_ID = "gt-vehicles-source"
+private const val ATTENTION_SOURCE_ID = "gt-vehicle-attention-source"
 private const val POLYLINES_SOURCE_ID = "gt-polylines-source"
 private const val USER_LOCATION_SOURCE_ID = "gt-user-location-source"
 private const val USER_ACCURACY_SOURCE_ID = "gt-user-accuracy-source"
 private const val STOPS_LAYER_ID = "gt-stops-layer"
 private const val SELECTED_STOP_LAYER_ID = "gt-selected-stop-layer"
 private const val VEHICLES_LAYER_ID = "gt-vehicles-layer"
+private const val ATTENTION_LAYER_ID = "gt-vehicle-attention-layer"
 private const val POLYLINES_LAYER_ID = "gt-polylines-layer"
 private const val USER_LOCATION_LAYER_ID = "gt-user-location-layer"
 private const val USER_ACCURACY_FILL_LAYER_ID = "gt-user-accuracy-fill-layer"
@@ -705,9 +897,11 @@ private const val BEARING_PROPERTY = "bearing"
 private const val POSITION_KIND_PROPERTY = "positionKind"
 private const val VEHICLE_BADGE_IMAGE_PROPERTY = "vehicleBadgeImage"
 private const val VEHICLE_OPACITY_PROPERTY = "vehicleOpacity"
+private const val ATTENTION_COLOR_PROPERTY = "attentionColor"
 private const val MAX_STOP_MARKERS = 1_000
 private const val MAX_VEHICLE_MARKERS = 2_000
 private const val MAX_VEHICLE_BADGE_IMAGES = 256
+private const val MAX_ATTENTION_MARKERS = 32
 private const val MAX_POLYLINES = 256
 private const val MAX_POLYLINE_POINTS = 20_000
 private const val MIN_POLYLINE_WIDTH = 1.0
@@ -722,15 +916,23 @@ private const val MIN_STOP_TARGET_DP = 48f
 private const val EARTH_RADIUS_METERS = 6_371_008.8
 private const val OVERFLOW_BADGE_IMAGE_ID = "gt-vehicle-badge-overflow"
 private const val MAX_BADGE_LABEL_LENGTH = 8
-private const val BADGE_TEXT_SIZE_PX = 18f
-private const val BADGE_HORIZONTAL_PADDING_PX = 12f
-private const val BADGE_HEIGHT_PX = 32
-private const val MIN_BADGE_WIDTH_PX = 36
-private const val MAX_BADGE_WIDTH_PX = 104
+private const val BADGE_TEXT_SIZE_PX = 20f
+private const val BADGE_DIAMETER_PX = 40
+private const val BADGE_TEXT_MAX_WIDTH_PX = 32f
+private const val BADGE_WHITE_STROKE_WIDTH_DP = 1f
 private const val BADGE_STALE_INSET_PX = 5f
 private const val STALE_CUE_STROKE_PX = 2f
 private const val STALE_CUE_ALPHA = 180
 private const val STALE_VEHICLE_OPACITY = 0.62
+private const val ATTENTION_MAX_FRAMES_PER_SECOND = 15L
+private const val ATTENTION_TICK_MILLIS =
+    (1_000L + ATTENTION_MAX_FRAMES_PER_SECOND - 1L) / ATTENTION_MAX_FRAMES_PER_SECOND
+private const val ATTENTION_CYCLE_MILLIS = 1_600L
+private const val TWO_PI = Math.PI * 2.0
+private const val ATTENTION_MIN_RADIUS = BADGE_DIAMETER_PX / 2f * 1.15f
+private const val ATTENTION_MAX_RADIUS = BADGE_DIAMETER_PX / 2f * 2f
+private const val ATTENTION_MIN_SIZE_OPACITY = 0.50f
+private const val ATTENTION_MAX_SIZE_OPACITY = 0.10f
 
 /** A deliberately asset-free, local-only MapLibre style. */
 private const val LOCAL_STYLE_JSON = """

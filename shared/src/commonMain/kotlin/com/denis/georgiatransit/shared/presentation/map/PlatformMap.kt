@@ -14,11 +14,11 @@ import com.denis.georgiatransit.shared.presentation.location.UserLocationFix
 import kotlinx.collections.immutable.PersistentList
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.toPersistentList
+import kotlin.math.atan2
+import kotlin.math.cos
 import kotlin.math.PI
-import kotlin.math.floor
-import kotlin.math.ln
-import kotlin.math.pow
 import kotlin.math.sin
+import kotlin.math.sqrt
 
 /**
  * A deliberate, programmatic camera move. Adapters must only move the camera when [revision]
@@ -149,11 +149,13 @@ data class MapPolyline(
 
 /**
  * The complete renderer boundary shared by Android and iOS. It intentionally contains no native
- * map objects, provider DTOs, URLs, keys, or service lookup. Empty layer lists are valid.
+ * map objects, provider DTOs, upstream URLs, keys, or service lookup. [bffStyleUrl], when set,
+ * is a validated same-BFF URL injected by host composition; empty layer lists are valid.
  */
 @Immutable
 data class MapRenderState(
     val camera: MapCameraCommand,
+    val bffStyleUrl: String? = null,
     val stops: PersistentList<MapStopMarker> = persistentListOf(),
     val stopClusters: PersistentList<MapStopCluster> = persistentListOf(),
     val vehicles: PersistentList<MapVehicleMarker> = persistentListOf(),
@@ -175,6 +177,7 @@ data class MapRenderState(
     companion object {
         fun from(
             camera: MapCameraCommand,
+            bffStyleUrl: String? = null,
             stops: Iterable<MapStopMarker> = emptyList(),
             stopClusters: Iterable<MapStopCluster> = emptyList(),
             vehicles: Iterable<MapVehicleMarker> = emptyList(),
@@ -186,6 +189,7 @@ data class MapRenderState(
             vehicleBadgeRevision: Long = 0L,
         ): MapRenderState = MapRenderState(
             camera = camera,
+            bffStyleUrl = bffStyleUrl,
             stops = stops.toPersistentList(),
             stopClusters = stopClusters.toPersistentList(),
             vehicles = vehicles.toPersistentList(),
@@ -199,72 +203,35 @@ data class MapRenderState(
     }
 }
 
-@Immutable
-data class ClusteredStops(
-    val stops: PersistentList<MapStopMarker>,
-    val clusters: PersistentList<MapStopCluster>,
-)
-
 /**
- * Deterministic linear-time Web-Mercator grid clustering. The projected cell size grows with
- * density, while zoom changes the world scale; high zoom always exposes individual stops.
+ * Keeps the map legible without hiding selected-route or genuinely nearby stops. The zoom rule
+ * uses a threshold rather than equality because native maps report continuous fractional zoom.
  */
-internal fun clusterStops(markers: List<MapStopMarker>, zoom: Double): ClusteredStops {
-    val valid = markers.asSequence()
+internal fun visibleStopMarkers(
+    markers: List<MapStopMarker>,
+    userLocation: GeoPoint?,
+    zoom: Double,
+): PersistentList<MapStopMarker> {
+    val showViewportStops = zoom.isFinite() && zoom >= ALL_STOPS_MIN_ZOOM
+    val validLocation = userLocation?.takeIf(GeoPoint::isMapCoordinate)
+    return markers.asSequence()
         .filter { it.id.value.isNotBlank() && it.position.isMapCoordinate() }
+        .filter { marker ->
+            showViewportStops || marker.isSelected || marker.routeHighlight.isHighlighted ||
+                validLocation?.let { marker.position.distanceMetersTo(it) <= USER_STOP_RADIUS_METERS } == true
+        }
         .sortedBy(MapStopMarker::stableId)
-        .toList()
-    val zoomBucket = floor(zoom.coerceIn(MIN_CLUSTER_ZOOM, MAX_CLUSTER_ZOOM)).toInt()
-    if (zoomBucket >= INDIVIDUAL_STOP_ZOOM || valid.size < 2) {
-        return ClusteredStops(valid.toPersistentList(), persistentListOf())
-    }
-
-    val cellPixels = when {
-        valid.size >= HIGH_DENSITY_STOP_COUNT -> HIGH_DENSITY_CELL_PIXELS
-        valid.size >= MEDIUM_DENSITY_STOP_COUNT -> MEDIUM_DENSITY_CELL_PIXELS
-        else -> DEFAULT_CELL_PIXELS
-    }
-    val worldPixels = TILE_SIZE * 2.0.pow(zoomBucket)
-    // Selected sheets always win hit/visual priority. Route-highlighted stops remain individually
-    // tappable too, so a selected route never disappears into an ordinary nearby-stop cluster.
-    val prioritized = valid.filter { marker -> marker.isSelected || marker.routeHighlight.isHighlighted }
-    val cells = linkedMapOf<GridCell, MutableList<MapStopMarker>>()
-    valid.asSequence().filterNot { marker -> marker.isSelected || marker.routeHighlight.isHighlighted }.forEach { marker ->
-        val point = marker.position.toProjectedPoint(worldPixels)
-        val cell = GridCell(floor(point.first / cellPixels).toLong(), floor(point.second / cellPixels).toLong())
-        cells.getOrPut(cell, ::mutableListOf).add(marker)
-    }
-
-    val individuals = prioritized.toMutableList()
-    val clusters = mutableListOf<MapStopCluster>()
-    cells.entries.sortedWith(compareBy<Map.Entry<GridCell, MutableList<MapStopMarker>>> { it.key.x }.thenBy { it.key.y })
-        .forEach { (cell, members) ->
-        if (members.size == 1) {
-            individuals += members.single()
-        } else {
-            clusters += MapStopCluster(
-                stableId = "cluster:$zoomBucket:${cellPixels.toInt()}:${cell.x}:${cell.y}",
-                position = GeoPoint(
-                    latitude = members.sumOf { it.position.latitude } / members.size,
-                    longitude = members.sumOf { it.position.longitude } / members.size,
-                ),
-                stopCount = members.size,
-            )
-        }
-        }
-    return ClusteredStops(
-        stops = individuals.sortedBy(MapStopMarker::stableId).toPersistentList(),
-        clusters = clusters.sortedBy(MapStopCluster::stableId).toPersistentList(),
-    )
+        .toPersistentList()
 }
 
-private data class GridCell(val x: Long, val y: Long)
-
-private fun GeoPoint.toProjectedPoint(worldPixels: Double): Pair<Double, Double> {
-    val x = (longitude + 180.0) / 360.0 * worldPixels
-    val latitudeRadians = latitude.coerceIn(-MERCATOR_LATITUDE_LIMIT, MERCATOR_LATITUDE_LIMIT) * PI / 180.0
-    val y = (0.5 - ln((1.0 + sin(latitudeRadians)) / (1.0 - sin(latitudeRadians))) / (4.0 * PI)) * worldPixels
-    return x to y
+private fun GeoPoint.distanceMetersTo(other: GeoPoint): Double {
+    val latitudeDelta = (other.latitude - latitude) * PI / 180.0
+    val longitudeDelta = (other.longitude - longitude) * PI / 180.0
+    val firstLatitude = latitude * PI / 180.0
+    val secondLatitude = other.latitude * PI / 180.0
+    val a = sin(latitudeDelta / 2.0).let { it * it } +
+        cos(firstLatitude) * cos(secondLatitude) * sin(longitudeDelta / 2.0).let { it * it }
+    return EARTH_RADIUS_METERS * 2.0 * atan2(sqrt(a), sqrt(1.0 - a))
 }
 
 internal fun GeoPoint.isMapCoordinate(): Boolean = latitude.isFinite() && longitude.isFinite() &&
@@ -281,13 +248,6 @@ expect fun PlatformMap(
     modifier: Modifier = Modifier,
 )
 
-private const val MIN_CLUSTER_ZOOM = 0.0
-private const val MAX_CLUSTER_ZOOM = 22.0
-private const val INDIVIDUAL_STOP_ZOOM = 17
-private const val TILE_SIZE = 256.0
-private const val DEFAULT_CELL_PIXELS = 56.0
-private const val MEDIUM_DENSITY_CELL_PIXELS = 68.0
-private const val HIGH_DENSITY_CELL_PIXELS = 80.0
-private const val MEDIUM_DENSITY_STOP_COUNT = 40
-private const val HIGH_DENSITY_STOP_COUNT = 80
-private const val MERCATOR_LATITUDE_LIMIT = 85.05112878
+internal const val ALL_STOPS_MIN_ZOOM = 15.0
+internal const val USER_STOP_RADIUS_METERS = 1_000.0
+private const val EARTH_RADIUS_METERS = 6_371_008.8

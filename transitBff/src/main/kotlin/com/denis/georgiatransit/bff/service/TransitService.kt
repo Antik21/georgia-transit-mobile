@@ -392,11 +392,11 @@ class TransitService(
             throw exception
         } catch (exception: ProviderJsonDecodeFailure) {
             observability?.recordProviderResult(labels, ProviderOutcome.JSON_DECODE, System.nanoTime() - startedAt)
-            recordSchemaInterlockIfLatched(labels, syntheticProbe)
+            recordSchemaInterlockIfLatched(labels)
             throw exception.toServiceFailure()
         } catch (exception: ProviderNormalizedSchemaFailure) {
             observability?.recordProviderResult(labels, ProviderOutcome.NORMALIZED_SCHEMA, System.nanoTime() - startedAt)
-            recordSchemaInterlockIfLatched(labels, syntheticProbe)
+            recordSchemaInterlockIfLatched(labels)
             throw exception.toServiceFailure()
         } catch (exception: ProviderFailure) {
             observability?.recordProviderResult(labels, exception.telemetryOutcome(), System.nanoTime() - startedAt)
@@ -430,8 +430,11 @@ class TransitService(
             effectiveCity.city.capabilities.capabilityEnabled(target.capability)
     }
 
-    private fun recordSchemaInterlockIfLatched(labels: ProviderTelemetryLabels, syntheticProbe: Boolean) {
-        if (syntheticProbe && schemaDriftObserver?.invoke(labels.city, labels.capability) == true) {
+    private fun recordSchemaInterlockIfLatched(labels: ProviderTelemetryLabels) {
+        // A malformed live response is a schema-drift signal whether it came from a synthetic
+        // probe or request traffic. The capability control persists/latches before publishing the
+        // reduced snapshot, so subsequent requests fail closed through the regular kill switch.
+        if (schemaDriftObserver?.invoke(labels.city, labels.capability) == true) {
             observability?.recordSchemaInterlock(labels)
         }
     }

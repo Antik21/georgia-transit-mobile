@@ -345,7 +345,7 @@ class RuntimeCapabilityControl(
             val adapter = adapters[control.id] ?: invalidControlDocument()
             val intrinsic = adapter.city
             if (control.availability != intrinsic.availability) invalidControlDocument()
-            validateAllowedAvailability(control.availability)
+            validateAllowedAvailability(control.id, control.availability)
             validateNoCapabilityExpansion(control.capabilities, intrinsic.capabilities)
             if (control.enabled) {
                 val city = intrinsic.copy(capabilities = intrinsic.capabilities.intersect(control.capabilities))
@@ -356,7 +356,7 @@ class RuntimeCapabilityControl(
         return effective.toSortedMap()
     }
 
-    private fun validateAllowedAvailability(availability: CityAvailability) {
+    private fun validateAllowedAvailability(cityId: String, availability: CityAvailability) {
         when (availability.source) {
             CitySource.FIXTURE -> {
                 if (
@@ -370,7 +370,12 @@ class RuntimeCapabilityControl(
             CitySource.REVIEWED_ADAPTER -> {
                 if (availability.readiness != CityReadiness.PRODUCTION_READY) invalidControlDocument()
             }
-            CitySource.UNREVIEWED_ADAPTER -> invalidControlDocument()
+            // Theta is explicitly development-only. Keeping the source/readiness unreviewed is
+            // intentional: a local operator document can expose it for manual smoke checks but
+            // cannot make it look production-ready or enable any other unreviewed adapter.
+            CitySource.UNREVIEWED_ADAPTER -> if (
+                config.mode != RuntimeMode.DEVELOPMENT || cityId != "batumi" || !config.batumiTheta.isActivated
+            ) invalidControlDocument()
         }
     }
 
