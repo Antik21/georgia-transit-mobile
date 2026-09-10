@@ -187,6 +187,9 @@ class TtcTransitProviderAdapterTest {
             assertFailsWith<ProviderInvalidArgument> {
                 adapter.shape(routeId, publicDirectionId("other", true))
             }
+            assertFailsWith<ProviderInvalidArgument> {
+                adapter.shape(routeId, publicId("direction", "1:route:7\u0000UNKNOWN"))
+            }
             assertEquals(2, requests.size, "mismatched direction IDs must not reach TTC")
         } finally {
             adapter.close()
@@ -367,6 +370,51 @@ class TtcTransitProviderAdapterTest {
             assertFailsWith<ProviderInvalidArgument> {
                 adapter.journeyPage(journeyQuery(departureAt = NOW.plusSeconds(301)))
             }
+        } finally {
+            adapter.close()
+        }
+    }
+
+    @Test
+    fun `journey direction stop lookups are deduplicated per route per request only`() = runTest {
+        fun transitLeg(start: String, end: String): String =
+            """{"from":$fromTransitPlace,"to":$toTransitPlace,"startTime":"$start","endTime":"$end","mode":"BUS","route":$routeJson,"realTime":true,"distance":1000,"intermediateStops":[$fromPlanStop,$toPlanStop]}"""
+        val repeatedPlan =
+            """{"itineraries":[
+                {"startTime":"2030-01-01T00:00:00Z","endTime":"2030-01-01T00:10:00Z","duration":600,"legs":[
+                    ${transitLeg("2030-01-01T00:00:00Z", "2030-01-01T00:05:00Z")},
+                    ${transitLeg("2030-01-01T00:05:00Z", "2030-01-01T00:10:00Z")}
+                ]},
+                {"startTime":"2030-01-01T00:01:00Z","endTime":"2030-01-01T00:07:00Z","duration":360,"legs":[
+                    ${transitLeg("2030-01-01T00:01:00Z", "2030-01-01T00:07:00Z")}
+                ]}
+            ]}""".trimIndent()
+        val routeStopDirections = mutableListOf<String>()
+        val adapter = adapter(
+            RecordingEngine { request ->
+                if (request.url.encodedPath.endsWith("/plan")) {
+                    jsonResponse(repeatedPlan)
+                } else {
+                    routeStopDirections += requireNotNull(request.url.parameters["forward"])
+                    val stops = if (request.url.parameters["forward"] == "true") {
+                        "[${stopJson("1:stop:a")},${stopJson("1:stop:b")}]"
+                    } else {
+                        "[${stopJson("1:stop:b")},${stopJson("1:stop:a")}]"
+                    }
+                    jsonResponse(stops)
+                }
+            },
+        )
+        try {
+            assertEquals(2, adapter.journeyPage(journeyQuery()).items.size)
+            assertEquals(listOf("true", "false"), routeStopDirections)
+
+            assertEquals(2, adapter.journeyPage(journeyQuery()).items.size)
+            assertEquals(
+                listOf("true", "false", "true", "false"),
+                routeStopDirections,
+                "direction stop evidence must be reused within one request but fetched again for the next request",
+            )
         } finally {
             adapter.close()
         }

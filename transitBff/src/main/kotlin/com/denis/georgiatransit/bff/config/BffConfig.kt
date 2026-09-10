@@ -286,6 +286,9 @@ class TtcActivationConfig private constructor(
         require(probeStopId == null || isSafeOpaqueIdentifier(probeStopId)) {
             "TTC_PROBE_STOP_ID must be a bounded opaque identifier"
         }
+        require(!probeRealtimeExpected || probeStopId != null) {
+            "TTC_PROBE_REALTIME_EXPECTED=true requires TTC_PROBE_STOP_ID"
+        }
         require(apiKey == null || isSafeSecret(apiKey)) {
             "TTC_API_KEY must be a bounded non-control secret value"
         }

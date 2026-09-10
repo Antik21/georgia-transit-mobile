@@ -193,6 +193,7 @@ class BffConfigTest {
             ttcEnvironment() + ("TTC_API_KEY" to " "),
             ttcEnvironment() + ("TTC_API_KEY" to "bad\nsecret"),
             ttcEnvironment() + ("TTC_API_KEY" to "x".repeat(513)),
+            ttcEnvironment() + ("TTC_PROBE_REALTIME_EXPECTED" to "true"),
         ).forEach { environment ->
             assertFailsWith<BffConfigurationException> { BffConfig.fromEnvironment(environment) }
         }

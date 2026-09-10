@@ -295,8 +295,13 @@ internal class TtcTransitProviderAdapter(
         val itineraries = client.plan(query.from, query.to, ttcLocale(query.locale), TelemetryOperation.JOURNEYS)
         val observedAt = clock.instant()
         val journeys = mutableListOf<TtcMappedJourney>()
+        // This cache is bounded by the plan response and exists only for this request. It never
+        // becomes a cross-request route cache or last-known-good source.
+        val directionStopsByRoute = mutableMapOf<String, TtcDirectionStopIds>()
         for (itinerary in itineraries) {
-            itinerary.toNormalizedJourney(query.maxTransfers, ::resolvePlanDirection)?.let(journeys::add)
+            itinerary.toNormalizedJourney(query.maxTransfers) { rawRouteId, fromRawStopId, toRawStopId ->
+                resolvePlanDirection(rawRouteId, fromRawStopId, toRawStopId, directionStopsByRoute)
+            }?.let(journeys::add)
         }
         val realtime = journeys.any { it.realtime }
         val source = if (realtime) ArrivalSource.AGGREGATOR_REALTIME else ArrivalSource.SCHEDULE
@@ -333,21 +338,24 @@ internal class TtcTransitProviderAdapter(
         rawRouteId: String,
         fromRawStopId: String,
         toRawStopId: String,
+        directionStopsByRoute: MutableMap<String, TtcDirectionStopIds>,
     ): Boolean? {
-        val forwardStops = client.routeStops(
-            rawRouteId,
-            forward = true,
-            locale = "en",
-            operation = TelemetryOperation.JOURNEYS,
-        ).map(TtcStop::rawId)
-        val backwardStops = client.routeStops(
-            rawRouteId,
-            forward = false,
-            locale = "en",
-            operation = TelemetryOperation.JOURNEYS,
-        ).map(TtcStop::rawId)
-        val forwardMatches = forwardStops.orderedStopPair(fromRawStopId, toRawStopId)
-        val backwardMatches = backwardStops.orderedStopPair(fromRawStopId, toRawStopId)
+        val routeStops = directionStopsByRoute[rawRouteId] ?: TtcDirectionStopIds(
+            forward = client.routeStops(
+                rawRouteId,
+                forward = true,
+                locale = "en",
+                operation = TelemetryOperation.JOURNEYS,
+            ).map(TtcStop::rawId),
+            backward = client.routeStops(
+                rawRouteId,
+                forward = false,
+                locale = "en",
+                operation = TelemetryOperation.JOURNEYS,
+            ).map(TtcStop::rawId),
+        ).also { directionStopsByRoute[rawRouteId] = it }
+        val forwardMatches = routeStops.forward.orderedStopPair(fromRawStopId, toRawStopId)
+        val backwardMatches = routeStops.backward.orderedStopPair(fromRawStopId, toRawStopId)
         return when {
             forwardMatches && !backwardMatches -> true
             backwardMatches && !forwardMatches -> false
@@ -355,6 +363,8 @@ internal class TtcTransitProviderAdapter(
         }
     }
 }
+
+private data class TtcDirectionStopIds(val forward: List<String>, val backward: List<String>)
 
 private fun ttcLocale(locale: String): String = if (locale == "ka") "ka" else "en"
 
@@ -822,7 +832,7 @@ private object TtcIds {
         return when (raw.substring(separator + 1)) {
             "F" -> true
             "B" -> false
-            else -> throw ProviderCapabilityUnavailable("The requested direction is not available")
+            else -> throw ProviderInvalidArgument("The requested direction is not available")
         }
     }
 

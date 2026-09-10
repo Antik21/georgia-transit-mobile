@@ -80,7 +80,9 @@ documented intermediate-stop list proves both endpoint coordinates, and a
 direction is published only when the matching F/B route-stop order proves it
 unambiguously. Other incomplete or direction-ambiguous itineraries are omitted;
 no last-known-good journey data is kept. Walking duration is derived from the
-validated itinerary timestamps and must equal TTC's declared duration.
+validated itinerary timestamps and must equal TTC's declared duration. Direction
+stop evidence is memoized only within the current plan request, never across
+requests.
 
 ## Conservative operation
 
@@ -108,6 +110,7 @@ unless monitoring supports a documented change.
 Synthetic probing remains globally disabled by default. If it is enabled,
 `TTC_PROBE_STOP_ID` is a server-only raw target and must be secret-managed like
 provider configuration; it is never exported. `TTC_PROBE_REALTIME_EXPECTED`
-must be true only when a fresh realtime arrival is actually expected. Probe
-schema failures use the existing interlock and capability-control recovery
+must be true only when a fresh realtime arrival is actually expected and
+requires `TTC_PROBE_STOP_ID`; startup rejects the incomplete configuration.
+Probe schema failures use the existing interlock and capability-control recovery
 process described in [bff-observability.md](bff-observability.md).
