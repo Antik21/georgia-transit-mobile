@@ -359,7 +359,7 @@ class MapViewModel(
             MapStopMarker(
                 id = stop.id,
                 position = stop.position,
-                accessibilityLabel = stop.displayName(currentLocale),
+                accessibilityLabel = stop.accessibilityLabel(currentLocale),
                 isSelected = stop.id == selectedStopId,
                 routeHighlight = routeHighlightFor(stop),
             )
@@ -1959,7 +1959,8 @@ class MapViewModel(
     private fun selectedStopUi(): SelectedStopUi? {
         val selected = selectedStopId ?: return null
         val stop = stopSnapshot(selected) ?: return null
-        return SelectedStopUi(selected, stop.displayName(currentLocale))
+        val displayName = stop.displayName(currentLocale).takeIf(String::isNotBlank) ?: return null
+        return SelectedStopUi(selected, displayName)
     }
 
     private fun stopSnapshot(stopId: StopId): TransitStop? = rawStops.firstOrNull { it.id == stopId }
@@ -2003,8 +2004,13 @@ class MapViewModel(
         )
     }
 
-    private fun TransitStop.displayName(locale: TransitLocale): String =
-        name.forLocale(locale).ifBlank { code.ifBlank { id.value } }
+    private fun TransitStop.displayName(locale: TransitLocale): String {
+        return name.forLocale(locale).ifBlank { code }
+    }
+
+    private fun TransitStop.accessibilityLabel(locale: TransitLocale): String {
+        return displayName(locale)
+    }
 
     private fun onMyLocationClicked() = intent {
         val command = when (val permission = state.location.permission) {

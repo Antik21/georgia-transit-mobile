@@ -5,10 +5,15 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -32,9 +37,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.onClick
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.LinkAnnotation
@@ -104,8 +112,6 @@ import georgiatransit.shared.generated.resources.map_route_geometry_unavailable
 import georgiatransit.shared.generated.resources.map_preview_note
 import georgiatransit.shared.generated.resources.map_routes_action
 import georgiatransit.shared.generated.resources.map_nearby_stops_title
-import georgiatransit.shared.generated.resources.map_stop_route_highlight_multiple
-import georgiatransit.shared.generated.resources.map_stop_route_highlight_single
 import georgiatransit.shared.generated.resources.map_retry_action
 import georgiatransit.shared.generated.resources.map_selected_routes
 import georgiatransit.shared.generated.resources.map_selected_stop
@@ -154,7 +160,6 @@ import georgiatransit.shared.generated.resources.map_walking_estimate_unavailabl
 import georgiatransit.shared.generated.resources.map_walking_estimate_unavailable_services_disabled
 import georgiatransit.shared.generated.resources.map_walking_estimate_unavailable_settings
 import georgiatransit.shared.generated.resources.map_stop_arrivals_unavailable
-import georgiatransit.shared.generated.resources.map_title
 import georgiatransit.shared.generated.resources.map_vehicle_status_live
 import georgiatransit.shared.generated.resources.map_vehicle_status_loading
 import georgiatransit.shared.generated.resources.map_vehicle_status_mixed
@@ -206,13 +211,6 @@ private fun Content(state: ViewState, onAction: (Action) -> Unit) {
     }
     Box(modifier = Modifier.fillMaxSize().testTag(AutomationId.MapScreen)) {
         Column(modifier = Modifier.fillMaxSize()) {
-            Column(
-                modifier = Modifier.fillMaxWidth().padding(TransitSpacing.Large),
-                verticalArrangement = Arrangement.spacedBy(TransitSpacing.Small),
-            ) {
-                Text(stringResource(Res.string.map_title), style = MaterialTheme.typography.headlineSmall)
-                Text(state.cityName, color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.titleMedium)
-            }
             val mapModifier = Modifier.fillMaxWidth().weight(1f)
             state.renderState?.let { renderState ->
                 MapCanvas(
@@ -237,17 +235,18 @@ private fun Content(state: ViewState, onAction: (Action) -> Unit) {
                 modifier = mapModifier,
             )
             Column(
-                modifier = Modifier.fillMaxWidth().padding(TransitSpacing.Medium),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .windowInsetsPadding(
+                        WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal + WindowInsetsSides.Bottom),
+                    )
+                    .padding(TransitSpacing.Medium),
                 verticalArrangement = Arrangement.spacedBy(TransitSpacing.Small),
             ) {
                 LocationStatus(state.location)
                 VehicleAccessibility(
                     layerState = state.vehicleLayerState,
                     routes = state.vehicleRoutes,
-                )
-                NearbyStopsAccessibility(
-                    stops = state.nearbyStops,
-                    onStopSelected = { stop -> onAction(Action.StopSelected(stop.id, stop.sourceRevision)) },
                 )
                 state.selectedStop?.let { selectedStop ->
                     Text(
@@ -780,7 +779,12 @@ private fun MapContentPlaceholder(
         MapStatusOverlays(
             contentState = contentState,
             baseLayerState = baseLayerState,
-            modifier = Modifier.align(Alignment.TopCenter).padding(TransitSpacing.Medium),
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .windowInsetsPadding(
+                    WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal + WindowInsetsSides.Top),
+                )
+                .padding(TransitSpacing.Medium),
         )
     }
 }
@@ -799,6 +803,8 @@ private fun MapCanvas(
     modifier: Modifier = Modifier,
 ) {
     val localizedRenderState = renderState.withLocalizedClusterLabels()
+    val accessibleStops = localizedRenderState.stops.filter { it.accessibilityLabel.isNotBlank() }
+    val nearbyStopsLabel = stringResource(Res.string.map_nearby_stops_title)
     Box(modifier = modifier.background(TransitColors.MapLand)) {
         // AndroidView/UIKitView do not retain Compose test tags. Keep the automation-only
         // semantics node in common Compose so it remains visible without drawing or handling
@@ -808,22 +814,77 @@ private fun MapCanvas(
                 if (renderState.userLocation != null) Modifier.testTag(AutomationId.MapUserLocation) else Modifier,
             ),
         ) {
-            PlatformMap(
-                renderState = localizedRenderState,
-                onEvent = onMapEvent,
-                modifier = Modifier.fillMaxSize(),
-            )
+            Box(
+                modifier = Modifier.fillMaxSize().then(
+                    if (accessibleStops.isEmpty()) {
+                        Modifier
+                    } else {
+                        Modifier.testTag(AutomationId.MapNearbyStops)
+                    },
+                ),
+            ) {
+                Box(
+                    modifier = Modifier.fillMaxSize().then(
+                        if (accessibleStops.isEmpty()) {
+                            Modifier
+                        } else {
+                            val firstStop = accessibleStops.first()
+                            Modifier
+                                .testTag(AutomationId.MapNearbyStop)
+                                .semantics {
+                                    contentDescription = nearbyStopsLabel
+                                    onClick(label = firstStop.accessibilityLabel) {
+                                        onMapEvent(
+                                            MapPlatformEvent.StopTapped(
+                                                stopId = firstStop.id,
+                                                sourceRevision = localizedRenderState.stopSourceRevision,
+                                            ),
+                                        )
+                                        true
+                                    }
+                                    customActions = accessibleStops.take(MAX_ACCESSIBILITY_CUSTOM_ACTIONS).map { stop ->
+                                        CustomAccessibilityAction(stop.accessibilityLabel) {
+                                            onMapEvent(
+                                                MapPlatformEvent.StopTapped(
+                                                    stopId = stop.id,
+                                                    sourceRevision = localizedRenderState.stopSourceRevision,
+                                                ),
+                                            )
+                                            true
+                                        }
+                                    }
+                                }
+                        },
+                    ),
+                ) {
+                    PlatformMap(
+                        renderState = localizedRenderState,
+                        onEvent = onMapEvent,
+                        modifier = Modifier.fillMaxSize(),
+                    )
+                }
+            }
         }
         MapStatusOverlays(
             contentState = contentState,
             baseLayerState = baseLayerState,
             onRetry = onRetry,
-            modifier = Modifier.align(Alignment.TopCenter).padding(TransitSpacing.Medium),
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .windowInsetsPadding(
+                    WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal + WindowInsetsSides.Top),
+                )
+                .padding(TransitSpacing.Medium),
         )
         Button(
             onClick = onMyLocationClick,
             enabled = locationActionEnabled,
-            modifier = Modifier.align(Alignment.BottomEnd).padding(TransitSpacing.Medium)
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .windowInsetsPadding(
+                    WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal + WindowInsetsSides.Bottom),
+                )
+                .padding(TransitSpacing.Medium)
                 .testTag(locationActionAutomationId),
         ) { Text(locationActionLabel) }
     }
@@ -974,55 +1035,6 @@ private fun vehicleStatusLabel(layerState: VehicleLayerState): String = when (la
     VehicleLayerState.Mixed -> stringResource(Res.string.map_vehicle_status_mixed)
 }
 
-/** Screen-reader and switch-control equivalent of stop marker activation. */
-@Composable
-private fun NearbyStopsAccessibility(
-    stops: List<NearbyStopUi>,
-    onStopSelected: (NearbyStopUi) -> Unit,
-) {
-    if (stops.isEmpty()) return
-    Column(
-        modifier = Modifier.fillMaxWidth().testTag(AutomationId.MapNearbyStops),
-        verticalArrangement = Arrangement.spacedBy(TransitSpacing.ExtraSmall),
-    ) {
-        Text(
-            stringResource(Res.string.map_nearby_stops_title),
-            style = MaterialTheme.typography.labelLarge,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        LazyRow(horizontalArrangement = Arrangement.spacedBy(TransitSpacing.Small)) {
-            items(items = stops, key = { it.id.value }) { stop ->
-                val routeSummary = stop.routeHighlight.accessibilitySummary()
-                val label = listOf(stop.name, routeSummary).filter(String::isNotBlank).joinToString(separator = ". ")
-                if (stop.isSelected) {
-                    Button(
-                        onClick = { onStopSelected(stop) },
-                        modifier = Modifier.testTag(AutomationId.MapNearbyStop).semantics { contentDescription = label },
-                    ) { Text(label) }
-                } else {
-                    OutlinedButton(
-                        onClick = { onStopSelected(stop) },
-                        modifier = Modifier.testTag(AutomationId.MapNearbyStop).semantics { contentDescription = label },
-                    ) { Text(label) }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun StopRouteHighlightUi.accessibilitySummary(): String = when (style) {
-    StopRouteHighlightStyle.None -> ""
-    StopRouteHighlightStyle.SingleRoute -> stringResource(
-        Res.string.map_stop_route_highlight_single,
-        matchingRouteLabels.singleOrNull().orEmpty(),
-    )
-    StopRouteHighlightStyle.MultipleRoutes -> stringResource(
-        Res.string.map_stop_route_highlight_multiple,
-        matchingRouteCount,
-    )
-}
-
 /** Link annotations retain accessible link semantics on Android and iOS Compose hosts. */
 @Composable
 private fun CityAttribution(attribution: List<TransitAttribution>) {
@@ -1083,6 +1095,9 @@ private fun locationActionEnabled(permission: LocationPermissionState): Boolean 
     is LocationPermissionState.Error -> permission.canRetry
     else -> true
 }
+
+// Android exposes 32 accessibility action IDs total; the primary onClick consumes one.
+private const val MAX_ACCESSIBILITY_CUSTOM_ACTIONS = 31
 
 @Composable
 private fun LocationStatus(location: LocationState) {

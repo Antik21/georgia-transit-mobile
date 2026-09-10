@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -109,7 +110,11 @@ fun CitySelectionScreen(
 @Composable
 private fun Content(state: ViewState, onAction: (Action) -> Unit) {
     Column(
-        modifier = Modifier.fillMaxSize().testTag(AutomationId.CityScreen).padding(TransitSpacing.Large),
+        modifier = Modifier
+            .fillMaxSize()
+            .testTag(AutomationId.CityScreen)
+            .safeDrawingPadding()
+            .padding(TransitSpacing.Large),
         verticalArrangement = Arrangement.spacedBy(TransitSpacing.Medium),
     ) {
         Text(
