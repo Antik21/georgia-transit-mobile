@@ -1,7 +1,9 @@
 package com.denis.georgiatransit.bff.provider
 
 import java.time.Duration
+import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
+import kotlinx.coroutines.async
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
 import kotlin.test.Test
@@ -32,6 +34,27 @@ class ContinuousSnapshotWorkerTest {
             assertEquals(1, worker.get())
             while (calls.get() < 3) delay(2)
             assertEquals(3, worker.get())
+        }
+    }
+
+    @Test
+    fun `disabled polling does not complete the first attempt`() = runBlocking {
+        val enabled = AtomicBoolean(false)
+        val calls = AtomicInteger()
+        ContinuousSnapshotWorker(
+            pollInterval = Duration.ofMillis(10),
+            isEnabled = enabled::get,
+            loader = calls::incrementAndGet,
+        ).use { worker ->
+            val first = async { worker.get() }
+            delay(35)
+
+            assertEquals(0, calls.get())
+            assertTrue(!first.isCompleted)
+
+            enabled.set(true)
+            assertEquals(1, first.await())
+            assertTrue(calls.get() >= 1)
         }
     }
 }

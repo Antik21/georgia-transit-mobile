@@ -135,10 +135,8 @@ internal class BatumiThetaTransitProviderAdapter(
                     pollInterval = cityFeedPollInterval,
                     onSuccess = ::recordGlobalFeedSuccess,
                     onFailure = ::recordGlobalFeedFailure,
-                    loader = {
-                        if (!enabled()) throw GlobalFeedDisabled()
-                        refreshAllRoutesSnapshot()
-                    },
+                    isEnabled = enabled,
+                    loader = ::refreshAllRoutesSnapshot,
                 )
             }
         }
@@ -314,7 +312,6 @@ internal class BatumiThetaTransitProviderAdapter(
     }
 
     private fun recordGlobalFeedFailure(failure: Throwable, durationNanos: Long) {
-        if (failure is GlobalFeedDisabled) return
         val outcome = when (failure) {
             is ProviderTimeout -> ProviderOutcome.TIMEOUT
             is ProviderJsonDecodeFailure -> ProviderOutcome.JSON_DECODE
@@ -606,7 +603,6 @@ private data class BatumiAllRoutesSnapshot(
     val observedAt: Instant,
 )
 private data class GlobalSnapshotResult(val snapshot: BatumiAllRoutesSnapshot, val stale: Boolean)
-private class GlobalFeedDisabled : RuntimeException("Batumi global feed is disabled by capability control")
 internal data class BatumiLiveVehicle(val vehicle: Vehicle, val status: Int?)
 private data class EstimatedArrivalCandidate(val vehicleId: String, val arrival: Arrival)
 private data class ArrivalCandidateKey(val stopId: String, val routeId: String, val vehicleId: String)

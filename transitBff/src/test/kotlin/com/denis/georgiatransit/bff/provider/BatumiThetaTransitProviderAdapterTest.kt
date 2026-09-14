@@ -369,8 +369,12 @@ class BatumiThetaTransitProviderAdapterTest {
             adapter.startGlobalFeed(enabled::get)
             delay(35)
             assertEquals(0, globalClient.calls)
+
+            val route = adapter.routes("en", "bus").single()
             enabled.set(true)
-            while (globalClient.calls == 0) delay(2)
+            val vehicles = adapter.vehicles(route.id, null)
+
+            assertTrue(vehicles.items.isEmpty())
             assertTrue(globalClient.calls > 0)
         }
     }

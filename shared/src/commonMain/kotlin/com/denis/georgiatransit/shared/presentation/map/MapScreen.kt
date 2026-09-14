@@ -313,9 +313,7 @@ private fun RouteGeometryLegend(
             val status = routeGeometryStatusLabel(route)
             InputChip(
                 selected = route.isFocused,
-                onClick = {
-                    if (route.canRetry) onRetry(route.routeId) else onFocus(route.routeId)
-                },
+                onClick = { onFocus(route.routeId) },
                 modifier = Modifier
                     .testTag(AutomationId.MapRouteGeometryChip)
                     .semantics {
@@ -949,6 +947,9 @@ private fun MapCanvas(
             onClick = onMyLocationClick,
             modifier = Modifier
                 .align(Alignment.BottomEnd)
+                .windowInsetsPadding(
+                    WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal + WindowInsetsSides.Bottom),
+                )
                 .padding(TransitSpacing.Medium)
                 .size(48.dp)
                 .testTag(locationActionAutomationId),

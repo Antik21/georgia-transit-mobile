@@ -461,7 +461,6 @@ class MapResourceContractTest {
             "items(routes, key = { it.routeId.value })",
             "InputChip",
             "selected = route.isFocused",
-            "onRetry(route.routeId)",
             "onFocus(route.routeId)",
             "MapRouteGeometryChip",
             "DirectionsBusIcon",
@@ -469,6 +468,7 @@ class MapResourceContractTest {
             "onRemove(route.routeId)",
             "if (route.canRetry)",
             "MapRouteGeometryRetry",
+            "onRetry(route.routeId)",
         )
     }
 
