@@ -354,6 +354,8 @@ class MapResourceContractTest {
         )
         assertTrue(android.contains("clearRenderedLayerState()"))
         assertTrue(android.contains("layersInstalled = false"))
+        assertTrue(android.contains("ATTENTION_MIN_RADIUS = BADGE_DIAMETER_PX / 2f * 1.15f"))
+        assertTrue(android.contains("ATTENTION_MAX_RADIUS = BADGE_DIAMETER_PX / 2f * 2f"))
         assertFalse(android.contains("MarkerView"), "Source smoke: no Android per-vehicle view adapter")
         assertCodePath(
             swift,
@@ -464,12 +466,14 @@ class MapResourceContractTest {
             "onFocus(route.routeId)",
             "MapRouteGeometryChip",
             "DirectionsBusIcon",
+            ".size(RouteGeometryActionSize)",
             "MapRouteGeometryRemove",
             "onRemove(route.routeId)",
             "if (route.canRetry)",
             "MapRouteGeometryRetry",
             "onRetry(route.routeId)",
         )
+        assertTrue(screen.contains("private val RouteGeometryActionSize = 48.dp"))
     }
 
     @Test

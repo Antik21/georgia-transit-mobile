@@ -346,7 +346,7 @@ private fun RouteGeometryLegend(
                 trailingIcon = {
                     Box(
                         modifier = Modifier
-                            .size(InputChipDefaults.IconSize)
+                            .size(RouteGeometryActionSize)
                             .clip(CircleShape)
                             .testTag(AutomationId.MapRouteGeometryRemove)
                             .semantics(mergeDescendants = true) {
@@ -378,7 +378,7 @@ private fun RouteGeometryLegend(
                 // A real target keeps both accessibility and automated recovery actionable.
                 Box(
                     modifier = Modifier
-                        .size(48.dp)
+                        .size(RouteGeometryActionSize)
                         .clip(CircleShape)
                         .testTag(AutomationId.MapRouteGeometryRetry)
                         .semantics(mergeDescendants = true) { contentDescription = retryDescription }
@@ -1177,6 +1177,7 @@ private fun locationActionEnabled(permission: LocationPermissionState): Boolean 
 
 // Android exposes 32 accessibility action IDs total; the primary onClick consumes one.
 private const val MAX_ACCESSIBILITY_CUSTOM_ACTIONS = 31
+private val RouteGeometryActionSize = 48.dp
 
 @Preview
 @Composable

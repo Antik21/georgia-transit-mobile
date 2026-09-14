@@ -929,8 +929,8 @@ private const val ATTENTION_TICK_MILLIS =
     (1_000L + ATTENTION_MAX_FRAMES_PER_SECOND - 1L) / ATTENTION_MAX_FRAMES_PER_SECOND
 private const val ATTENTION_CYCLE_MILLIS = 1_600L
 private const val TWO_PI = Math.PI * 2.0
-private const val ATTENTION_MIN_RADIUS = BADGE_DIAMETER_PX / 2f * 1.15f * 0.5f
-private const val ATTENTION_MAX_RADIUS = BADGE_DIAMETER_PX / 2f * 2f * 0.5f
+private const val ATTENTION_MIN_RADIUS = BADGE_DIAMETER_PX / 2f * 1.15f
+private const val ATTENTION_MAX_RADIUS = BADGE_DIAMETER_PX / 2f * 2f
 private const val ATTENTION_MIN_SIZE_OPACITY = 0.50f
 private const val ATTENTION_MAX_SIZE_OPACITY = 0.10f
 
