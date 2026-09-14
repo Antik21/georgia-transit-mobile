@@ -58,27 +58,30 @@ class MapVehicleRealtimeViewModelTest {
         val session = selectedSession(repository, routes = setOf(routeA))
         val viewModel = MapViewModel(repository, session, RuntimeLocationSession(scope = this), testClock(), ticker(frameMillis = 8_000))
 
-        viewModel.test(this) {
-            runOnCreate()
-            this@runTest.runCurrent()
-            viewModel.dispatchAction(Action.RealtimeVisibilityChanged(true))
-            this@runTest.runCurrent()
+        try {
+            viewModel.test(this) {
+                runOnCreate()
+                this@runTest.runCurrent()
+                viewModel.dispatchAction(Action.RealtimeVisibilityChanged(true))
+                this@runTest.runCurrent()
 
-            assertEquals(listOf(routeA), repository.requests)
-            assertEquals(
-                0xFF008A3B,
-                viewModel.container.stateFlow.value.renderState?.vehicles?.single()?.routeColorArgb,
-                "The temporary diagnostic vehicle marker must stay green regardless of its route color.",
-            )
-            assertEquals(1, repository.maximumVehicleRequestsInFlight)
-            this@runTest.advanceTimeBy(7_999)
-            this@runTest.runCurrent()
-            assertEquals(1, repository.requests.size)
-            this@runTest.advanceTimeBy(1)
-            this@runTest.runCurrent()
-            assertEquals(listOf(routeA, routeA), repository.requests)
+                assertEquals(listOf(routeA), repository.requests)
+                assertEquals(
+                    0xFF0057B8,
+                    viewModel.container.stateFlow.value.renderState?.vehicles?.single()?.routeColorArgb,
+                    "The vehicle badge must retain its selected route color.",
+                )
+                assertEquals(1, repository.maximumVehicleRequestsInFlight)
+                this@runTest.advanceTimeBy(7_999)
+                this@runTest.runCurrent()
+                assertEquals(1, repository.requests.size)
+                this@runTest.advanceTimeBy(1)
+                this@runTest.runCurrent()
+                assertEquals(listOf(routeA, routeA), repository.requests)
+                cancelAndIgnoreRemainingItems()
+            }
+        } finally {
             cancelViewModel(viewModel)
-            cancelAndIgnoreRemainingItems()
         }
     }
 

@@ -851,8 +851,8 @@ private final class LocalMapLibreView: UIView, MLNMapViewDelegate {
     private static let attentionFramesPerSecond = 15
     private static let attentionCycleDuration: CFTimeInterval = 1.6
     private static let vehicleBadgeDiameter = 80.0
-    private static let attentionMinimumRadius = vehicleBadgeDiameter / 2 * 1.15 * 0.5
-    private static let attentionMaximumRadius = vehicleBadgeDiameter / 2 * 2.0 * 0.5
+    private static let attentionMinimumRadius = vehicleBadgeDiameter / 2 * 1.15
+    private static let attentionMaximumRadius = vehicleBadgeDiameter / 2 * 2.0
     private static let attentionMinimumSizeOpacity = 0.50
     private static let attentionMaximumSizeOpacity = 0.10
 }

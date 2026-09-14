@@ -72,6 +72,7 @@ import com.denis.georgiatransit.shared.domain.model.LocalizedText
 import com.denis.georgiatransit.shared.domain.model.RouteId
 import com.denis.georgiatransit.shared.domain.model.TransitAttribution
 import com.denis.georgiatransit.shared.domain.model.TransitLocale
+import com.denis.georgiatransit.shared.presentation.location.LocationFailure
 import com.denis.georgiatransit.shared.presentation.location.LocationPermissionState
 import com.denis.georgiatransit.shared.presentation.location.LocationPlatformCommand
 import com.denis.georgiatransit.shared.presentation.location.LocationState
@@ -87,6 +88,9 @@ import georgiatransit.shared.generated.resources.location_action_enable
 import georgiatransit.shared.generated.resources.location_action_location_settings
 import georgiatransit.shared.generated.resources.location_action_retry
 import georgiatransit.shared.generated.resources.location_action_settings
+import georgiatransit.shared.generated.resources.location_failure_invalid
+import georgiatransit.shared.generated.resources.location_failure_timed_out
+import georgiatransit.shared.generated.resources.location_failure_unavailable
 import georgiatransit.shared.generated.resources.map_attribution_title
 import georgiatransit.shared.generated.resources.map_change_city_action
 import georgiatransit.shared.generated.resources.map_content_empty
@@ -214,7 +218,7 @@ private fun Content(state: ViewState, onAction: (Action) -> Unit) {
                     renderState = renderState,
                     contentState = state.contentState,
                     baseLayerState = state.baseLayerState,
-                    locationActionLabel = locationActionLabel(state.location.permission),
+                    locationActionLabel = locationActionLabel(state.location),
                     locationActionAutomationId = if (state.location.permission == LocationPermissionState.SettingsRequired) {
                         AutomationId.MapLocationSettings
                     } else {
@@ -373,13 +377,23 @@ private fun RouteGeometryLegend(
                 ),
             )
             if (route.canRetry) {
-                // Keeps a separate stable selector for automated recovery checks.
+                // A real target keeps both accessibility and automated recovery actionable.
                 Box(
                     modifier = Modifier
-                        .size(0.dp)
+                        .size(48.dp)
+                        .clip(CircleShape)
                         .testTag(AutomationId.MapRouteGeometryRetry)
-                        .semantics { contentDescription = retryDescription },
-                )
+                        .semantics(mergeDescendants = true) { contentDescription = retryDescription }
+                        .clickable { onRetry(route.routeId) },
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        text = "↻",
+                        color = foreground,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                    )
+                }
             }
         }
     }
@@ -1052,7 +1066,7 @@ private fun VehicleAccessibility(
     }.joinToString(separator = " · ")
     val summary = stringResource(Res.string.map_vehicles_summary, status, routeCounts)
     val summaryModifier = Modifier
-        .size(0.dp)
+        .fillMaxWidth()
         .testTag(AutomationId.MapVehicles)
         .semantics {
             contentDescription = summary
@@ -1062,12 +1076,24 @@ private fun VehicleAccessibility(
         route.layerState == VehicleLayerState.Live && route.vehicleCount > 0
     }
     if (hasLiveNonemptyRoute) {
-        // This dedicated node lets automation prove rendered live geometry.
-        Box(modifier = Modifier.size(0.dp).testTag(AutomationId.MapVehiclesLiveNonempty)) {
-            Box(modifier = summaryModifier)
+        // Transparent text retains real semantics bounds without restoring the visual status row.
+        Box(modifier = Modifier.fillMaxWidth().testTag(AutomationId.MapVehiclesLiveNonempty)) {
+            Text(
+                text = summary,
+                modifier = summaryModifier,
+                color = Color.Transparent,
+                maxLines = 1,
+                style = MaterialTheme.typography.bodySmall,
+            )
         }
     } else {
-        Box(modifier = summaryModifier)
+        Text(
+            text = summary,
+            modifier = summaryModifier,
+            color = Color.Transparent,
+            maxLines = 1,
+            style = MaterialTheme.typography.bodySmall,
+        )
     }
 }
 
@@ -1123,8 +1149,12 @@ private fun String.toTransitLocale(): TransitLocale = when (this) {
 }
 
 @Composable
-private fun locationActionLabel(permission: LocationPermissionState): String = stringResource(
-    when (permission) {
+private fun locationActionLabel(location: LocationState): String = stringResource(
+    when (location.failure) {
+        LocationFailure.TimedOut -> Res.string.location_failure_timed_out
+        LocationFailure.InvalidFix -> Res.string.location_failure_invalid
+        LocationFailure.Unavailable -> Res.string.location_failure_unavailable
+        null -> when (val permission = location.permission) {
         LocationPermissionState.NotDetermined -> Res.string.location_action_enable
         is LocationPermissionState.Granted -> Res.string.map_my_location_action
         LocationPermissionState.Denied -> Res.string.location_action_retry
@@ -1133,6 +1163,7 @@ private fun locationActionLabel(permission: LocationPermissionState): String = s
         LocationPermissionState.Restricted -> Res.string.map_my_location_action
         is LocationPermissionState.Unavailable -> Res.string.location_action_retry
         is LocationPermissionState.Error -> Res.string.location_action_retry
+        }
     },
 )
 
