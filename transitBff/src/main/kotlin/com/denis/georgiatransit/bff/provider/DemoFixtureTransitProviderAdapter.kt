@@ -11,15 +11,24 @@ import com.denis.georgiatransit.bff.api.Direction
 import com.denis.georgiatransit.bff.api.GeoPoint
 import com.denis.georgiatransit.bff.api.Journey
 import com.denis.georgiatransit.bff.api.JourneyLeg
+import com.denis.georgiatransit.bff.api.KnownCityIds
 import com.denis.georgiatransit.bff.api.LocalizedText
 import com.denis.georgiatransit.bff.api.PositionKind
+import com.denis.georgiatransit.bff.api.PublicEntityType
 import com.denis.georgiatransit.bff.api.Route
 import com.denis.georgiatransit.bff.api.Shape
 import com.denis.georgiatransit.bff.api.Stop
 import com.denis.georgiatransit.bff.api.Vehicle
 import com.denis.georgiatransit.bff.api.WalkingEstimate
+import com.denis.georgiatransit.bff.api.TransitModeValues
+import com.denis.georgiatransit.bff.api.formatPublicId
 import com.denis.georgiatransit.bff.observability.TelemetryProvider
 import java.time.Instant
+
+private const val DemoProviderId = "fixture"
+
+private fun demoPublicId(entityType: PublicEntityType, suffix: String): String =
+    formatPublicId(KnownCityIds.Demo, DemoProviderId, entityType, suffix)
 
 /**
  * Explicitly synthetic local data. This adapter is constructed only by a development runtime with
@@ -28,7 +37,7 @@ import java.time.Instant
 class DemoFixtureTransitProviderAdapter : CityTransitProviderAdapter {
     override val telemetryProvider: TelemetryProvider = TelemetryProvider.FIXTURE
     override val city = City(
-        id = "demo",
+        id = KnownCityIds.Demo,
         name = LocalizedText(ru = "Демо-город", en = "Demo City", ka = "დემო ქალაქი"),
         center = GeoPoint(latitude = 41.715_137, longitude = 44.827_096),
         defaultZoom = 13.0,
@@ -47,52 +56,52 @@ class DemoFixtureTransitProviderAdapter : CityTransitProviderAdapter {
     )
 
     private val outbound = Direction(
-        id = "demo:fixture:direction:blue-outbound",
+        id = demoPublicId(PublicEntityType.Direction, "blue-outbound"),
         name = LocalizedText(ru = "В направлении из центра", en = "Outbound", ka = "გასვლა"),
         headsign = LocalizedText(ru = "Демо-парк", en = "Demo Park", ka = "დემო პარკი"),
     )
     private val inbound = Direction(
-        id = "demo:fixture:direction:blue-inbound",
+        id = demoPublicId(PublicEntityType.Direction, "blue-inbound"),
         name = LocalizedText(ru = "В центр", en = "Inbound", ka = "დაბრუნება"),
         headsign = LocalizedText(ru = "Демо-центр", en = "Demo Center", ka = "დემო ცენტრი"),
     )
     private val blueRoute = Route(
-        id = "demo:fixture:route:blue",
+        id = demoPublicId(PublicEntityType.Route, "blue"),
         providerId = "blue",
         shortName = "D1",
         longName = LocalizedText(ru = "Демо-синяя линия", en = "Demo Blue Line", ka = "დემო ლურჯი ხაზი"),
         color = "#0057B8",
         textColor = "#FFFFFF",
-        mode = "bus",
+        mode = TransitModeValues.Bus,
         directions = listOf(outbound, inbound),
     )
     private val stops = listOf(
         Stop(
-            id = "demo:fixture:stop:center",
+            id = demoPublicId(PublicEntityType.Stop, "center"),
             providerId = "center",
             code = "D001",
             name = LocalizedText(ru = "Демо-центр", en = "Demo Center", ka = "დემო ცენტრი"),
             position = GeoPoint(latitude = 41.715_137, longitude = 44.827_096),
             routeIds = listOf(blueRoute.id),
-            mode = "bus",
+            mode = TransitModeValues.Bus,
         ),
         Stop(
-            id = "demo:fixture:stop:library",
+            id = demoPublicId(PublicEntityType.Stop, "library"),
             providerId = "library",
             code = "D002",
             name = LocalizedText(ru = "Демо-библиотека", en = "Demo Library", ka = "დემო ბიბლიოთეკა"),
             position = GeoPoint(latitude = 41.716_123, longitude = 44.829_221),
             routeIds = listOf(blueRoute.id),
-            mode = "bus",
+            mode = TransitModeValues.Bus,
         ),
         Stop(
-            id = "demo:fixture:stop:park",
+            id = demoPublicId(PublicEntityType.Stop, "park"),
             providerId = "park",
             code = "D003",
             name = LocalizedText(ru = "Демо-парк", en = "Demo Park", ka = "დემო პარკი"),
             position = GeoPoint(latitude = 41.718_310, longitude = 44.833_719),
             routeIds = listOf(blueRoute.id),
-            mode = "bus",
+            mode = TransitModeValues.Bus,
         ),
     )
 
@@ -129,7 +138,7 @@ class DemoFixtureTransitProviderAdapter : CityTransitProviderAdapter {
         }
         val observedAt = Instant.now()
         val vehicle = Vehicle(
-            id = "demo:fixture:vehicle:blue-01",
+            id = demoPublicId(PublicEntityType.Vehicle, "blue-01"),
             routeId = blueRoute.id,
             directionId = outbound.id,
             position = GeoPoint(latitude = 41.716_123, longitude = 44.829_221),
@@ -170,11 +179,22 @@ class DemoFixtureTransitProviderAdapter : CityTransitProviderAdapter {
         )
     }
 
+    override suspend fun routeArrivals(routeId: String, limitPerStop: Int, locale: String): RealtimeArrivals {
+        if (routeId != blueRoute.id) throw ProviderRouteNotFound("Route was not found")
+        val pages = stops.map { arrivals(it.id, limitPerStop, locale) }
+        return RealtimeArrivals(
+            items = pages.flatMap(RealtimeArrivals::items),
+            source = ArrivalSource.OFFICIAL_REALTIME,
+            observedAt = pages.maxOf(RealtimeArrivals::observedAt),
+            stale = false,
+        )
+    }
+
     override suspend fun journeys(query: JourneyQuery): List<Journey> {
         val departure = query.departureAt
         return listOf(
             Journey(
-                id = "demo:fixture:journey:blue-direct",
+                id = demoPublicId(PublicEntityType.Journey, "blue-direct"),
                 departureAt = departure.toString(),
                 arrivalAt = departure.plusSeconds(900).toString(),
                 transfers = 0,

@@ -1,6 +1,7 @@
 package com.denis.georgiatransit.shared.presentation.map
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -9,16 +10,21 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.InputChip
+import androidx.compose.material3.InputChipDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
@@ -35,7 +41,11 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.graphics.vector.PathParser
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.contentDescription
@@ -45,12 +55,15 @@ import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.onClick
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.LinkAnnotation
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.intl.Locale
 import androidx.compose.ui.text.withLink
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
@@ -62,7 +75,6 @@ import com.denis.georgiatransit.shared.domain.model.TransitLocale
 import com.denis.georgiatransit.shared.presentation.location.LocationFailure
 import com.denis.georgiatransit.shared.presentation.location.LocationPermissionState
 import com.denis.georgiatransit.shared.presentation.location.LocationPlatformCommand
-import com.denis.georgiatransit.shared.presentation.location.LocationPrecision
 import com.denis.georgiatransit.shared.presentation.location.LocationState
 import com.denis.georgiatransit.shared.presentation.location.PlatformLocationEffect
 import com.denis.georgiatransit.shared.presentation.ui.automation.AutomationId
@@ -79,15 +91,6 @@ import georgiatransit.shared.generated.resources.location_action_settings
 import georgiatransit.shared.generated.resources.location_failure_invalid
 import georgiatransit.shared.generated.resources.location_failure_timed_out
 import georgiatransit.shared.generated.resources.location_failure_unavailable
-import georgiatransit.shared.generated.resources.location_locating
-import georgiatransit.shared.generated.resources.location_status_approximate
-import georgiatransit.shared.generated.resources.location_status_denied
-import georgiatransit.shared.generated.resources.location_status_error
-import georgiatransit.shared.generated.resources.location_status_precise
-import georgiatransit.shared.generated.resources.location_status_restricted
-import georgiatransit.shared.generated.resources.location_status_services_disabled
-import georgiatransit.shared.generated.resources.location_status_settings_required
-import georgiatransit.shared.generated.resources.location_status_unavailable
 import georgiatransit.shared.generated.resources.map_attribution_title
 import georgiatransit.shared.generated.resources.map_change_city_action
 import georgiatransit.shared.generated.resources.map_content_empty
@@ -113,7 +116,6 @@ import georgiatransit.shared.generated.resources.map_preview_note
 import georgiatransit.shared.generated.resources.map_routes_action
 import georgiatransit.shared.generated.resources.map_nearby_stops_title
 import georgiatransit.shared.generated.resources.map_retry_action
-import georgiatransit.shared.generated.resources.map_selected_routes
 import georgiatransit.shared.generated.resources.map_selected_stop
 import georgiatransit.shared.generated.resources.map_stop_arrivals_arriving
 import georgiatransit.shared.generated.resources.map_stop_arrivals_close
@@ -136,7 +138,6 @@ import georgiatransit.shared.generated.resources.map_stop_arrivals_source_approx
 import georgiatransit.shared.generated.resources.map_stop_arrivals_source_official
 import georgiatransit.shared.generated.resources.map_stop_arrivals_source_schedule
 import georgiatransit.shared.generated.resources.map_stop_arrivals_stale
-import georgiatransit.shared.generated.resources.map_stop_arrivals_stop_code
 import georgiatransit.shared.generated.resources.map_stop_arrivals_stop_details_unavailable
 import georgiatransit.shared.generated.resources.map_stop_arrivals_time_unavailable
 import georgiatransit.shared.generated.resources.map_stop_arrivals_title
@@ -217,7 +218,7 @@ private fun Content(state: ViewState, onAction: (Action) -> Unit) {
                     renderState = renderState,
                     contentState = state.contentState,
                     baseLayerState = state.baseLayerState,
-                    locationActionLabel = locationActionLabel(state.location.permission),
+                    locationActionLabel = locationActionLabel(state.location),
                     locationActionAutomationId = if (state.location.permission == LocationPermissionState.SettingsRequired) {
                         AutomationId.MapLocationSettings
                     } else {
@@ -243,7 +244,6 @@ private fun Content(state: ViewState, onAction: (Action) -> Unit) {
                     .padding(TransitSpacing.Medium),
                 verticalArrangement = Arrangement.spacedBy(TransitSpacing.Small),
             ) {
-                LocationStatus(state.location)
                 VehicleAccessibility(
                     layerState = state.vehicleLayerState,
                     routes = state.vehicleRoutes,
@@ -256,12 +256,6 @@ private fun Content(state: ViewState, onAction: (Action) -> Unit) {
                             .semantics { liveRegion = LiveRegionMode.Polite },
                         style = MaterialTheme.typography.labelLarge,
                         color = MaterialTheme.colorScheme.primary,
-                    )
-                }
-                if (state.selectedRouteNames.isNotEmpty()) {
-                    Text(
-                        stringResource(Res.string.map_selected_routes, state.selectedRouteNames.joinToString()),
-                        style = MaterialTheme.typography.labelLarge,
                     )
                 }
                 RouteGeometryLegend(
@@ -297,7 +291,7 @@ private fun Content(state: ViewState, onAction: (Action) -> Unit) {
     }
 }
 
-/** A common textual and interactive legend for the actual ordered route-polyline source. */
+/** Compact route chips for the actual ordered route-polyline source. */
 @Composable
 private fun RouteGeometryLegend(
     routes: List<RouteGeometryLegendUi>,
@@ -313,52 +307,90 @@ private fun RouteGeometryLegend(
     ) {
         items(routes, key = { it.routeId.value }) { route ->
             val foreground = Color(route.textColorArgb)
+            val background = Color(route.colorArgb)
             val removeDescription = stringResource(Res.string.map_route_geometry_remove_accessibility, route.routeLabel)
             val retryDescription = stringResource(Res.string.map_route_geometry_retry_accessibility, route.routeLabel)
-            Surface(
-                shape = TransitShapes.Small,
-                color = Color(route.colorArgb),
-                tonalElevation = if (route.isFocused) TransitSpacing.ExtraSmall else 0.dp,
-            ) {
-                Column(
-                    modifier = Modifier.padding(TransitSpacing.Small),
-                    verticalArrangement = Arrangement.spacedBy(TransitSpacing.ExtraSmall),
-                ) {
-                    TextButton(
-                        onClick = { onFocus(route.routeId) },
-                        modifier = Modifier.testTag(AutomationId.MapRouteGeometryChip).semantics {
-                            contentDescription = route.routeLabel
-                            selected = route.isFocused
-                        },
-                    ) {
-                        Text(route.routeLabel, color = foreground, style = MaterialTheme.typography.labelLarge)
-                    }
-                    Text(
-                        routeGeometryStatusLabel(route),
-                        modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
-                        color = foreground,
-                        style = MaterialTheme.typography.bodySmall,
-                    )
-                    Row(horizontalArrangement = Arrangement.spacedBy(TransitSpacing.ExtraSmall)) {
-                        TextButton(
-                            onClick = { onRemove(route.routeId) },
-                            modifier = Modifier.testTag(AutomationId.MapRouteGeometryRemove).semantics {
-                                contentDescription = removeDescription
-                            },
-                        ) {
-                            Text(stringResource(Res.string.map_route_geometry_remove), color = foreground)
-                        }
+            val status = routeGeometryStatusLabel(route)
+            InputChip(
+                selected = route.isFocused,
+                onClick = { onFocus(route.routeId) },
+                modifier = Modifier
+                    .testTag(AutomationId.MapRouteGeometryChip)
+                    .semantics {
+                        contentDescription = "${route.routeLabel}. $status"
+                        selected = route.isFocused
                         if (route.canRetry) {
-                            TextButton(
-                                onClick = { onRetry(route.routeId) },
-                                modifier = Modifier.testTag(AutomationId.MapRouteGeometryRetry).semantics {
-                                    contentDescription = retryDescription
+                            customActions = listOf(
+                                CustomAccessibilityAction(retryDescription) {
+                                    onRetry(route.routeId)
+                                    true
                                 },
-                            ) {
-                                Text(stringResource(Res.string.map_route_geometry_retry), color = foreground)
-                            }
+                            )
                         }
+                    },
+                label = {
+                    Text(
+                        text = route.routeLabel,
+                        maxLines = 1,
+                        style = MaterialTheme.typography.labelLarge,
+                        fontWeight = FontWeight.Bold,
+                    )
+                },
+                leadingIcon = {
+                    Icon(
+                        imageVector = DirectionsBusIcon,
+                        contentDescription = null,
+                        modifier = Modifier.size(InputChipDefaults.IconSize),
+                    )
+                },
+                trailingIcon = {
+                    Box(
+                        modifier = Modifier
+                            .size(RouteGeometryActionSize)
+                            .clip(CircleShape)
+                            .testTag(AutomationId.MapRouteGeometryRemove)
+                            .semantics(mergeDescendants = true) {
+                                contentDescription = removeDescription
+                            }
+                            .clickable { onRemove(route.routeId) },
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text(
+                            text = "×",
+                            style = MaterialTheme.typography.labelLarge,
+                            fontWeight = FontWeight.Bold,
+                        )
                     }
+                },
+                shape = RoundedCornerShape(16.dp),
+                colors = InputChipDefaults.inputChipColors(
+                    containerColor = background,
+                    labelColor = foreground,
+                    leadingIconColor = foreground,
+                    trailingIconColor = foreground,
+                    selectedContainerColor = background,
+                    selectedLabelColor = foreground,
+                    selectedLeadingIconColor = foreground,
+                    selectedTrailingIconColor = foreground,
+                ),
+            )
+            if (route.canRetry) {
+                // A real target keeps both accessibility and automated recovery actionable.
+                Box(
+                    modifier = Modifier
+                        .size(RouteGeometryActionSize)
+                        .clip(CircleShape)
+                        .testTag(AutomationId.MapRouteGeometryRetry)
+                        .semantics(mergeDescendants = true) { contentDescription = retryDescription }
+                        .clickable { onRetry(route.routeId) },
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        text = "↻",
+                        color = foreground,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                    )
                 }
             }
         }
@@ -398,6 +430,24 @@ private fun routeGeometryStatusLabel(route: RouteGeometryLegendUi): String = whe
 private val RouteGeometryLegendUi.failedDirections: Int
     get() = (totalDirections - successfulDirections).coerceAtLeast(0)
 
+/** Material Symbols "directions_bus" geometry, used under the Apache-2.0 license. */
+private val DirectionsBusIcon: ImageVector by lazy {
+    ImageVector.Builder(
+        name = "DirectionsBus",
+        defaultWidth = 24.dp,
+        defaultHeight = 24.dp,
+        viewportWidth = 24f,
+        viewportHeight = 24f,
+    ).apply {
+        addPath(
+            fill = SolidColor(Color.Black),
+            pathData = PathParser().parsePathString(
+                "M4 16c0 .88.39 1.67 1 2.22V20c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-1h8v1c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-1.78c.61-.55 1-1.34 1-2.22V6c0-3.5-3.58-4-8-4S4 2.5 4 6v10zm3.5 1c-.83 0-1.5-.67-1.5-1.5S6.67 14 7.5 14s1.5.67 1.5 1.5S8.33 17 7.5 17zM17 17c-.83 0-1.5-.67-1.5-1.5S16.17 14 17 14s1.5.67 1.5 1.5S17.83 17 17 17zM18 12H6V6h12v6z",
+            ).toNodes(),
+        )
+    }.build()
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun StopArrivalsSheet(
@@ -434,13 +484,6 @@ private fun StopArrivalsSheet(
                         sheet.stopName.ifBlank { stringResource(Res.string.map_stop_arrivals_stop_details_unavailable) },
                         style = MaterialTheme.typography.titleLarge,
                     )
-                    sheet.stopCode?.let { code ->
-                        Text(
-                            stringResource(Res.string.map_stop_arrivals_stop_code, code),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
                 }
                 TextButton(
                     onClick = onDismiss,
@@ -457,43 +500,23 @@ private fun StopArrivalsSheet(
                 if (sheet.passingRoutes.isNotEmpty()) {
                     LazyRow(horizontalArrangement = Arrangement.spacedBy(TransitSpacing.ExtraSmall)) {
                         items(sheet.passingRoutes, key = { it.routeId.value }) { route ->
-                            Surface(
-                                shape = TransitShapes.Small,
-                                color = Color(route.backgroundArgb),
-                                tonalElevation = if (route.isSelected) TransitSpacing.ExtraSmall else 0.dp,
-                            ) {
-                                Row(
-                                    modifier = Modifier.padding(TransitSpacing.ExtraSmall),
-                                    horizontalArrangement = Arrangement.spacedBy(TransitSpacing.ExtraSmall),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                ) {
-                                    Text(
-                                        route.routeLabel,
-                                        modifier = Modifier.semantics { selected = route.isSelected },
-                                        color = Color(route.textArgb),
-                                        style = MaterialTheme.typography.labelLarge,
-                                    )
-                                    if (route.isSelected) {
-                                        Text(
-                                            stringResource(Res.string.map_stop_arrivals_selected_route),
-                                            color = Color(route.textArgb),
-                                            style = MaterialTheme.typography.bodySmall,
-                                        )
-                                    }
-                                }
-                            }
+                            StopRouteChip(
+                                label = route.routeLabel,
+                                background = Color(route.backgroundArgb),
+                                foreground = Color(route.textArgb),
+                                isSelected = route.isSelected,
+                            )
                         }
                     }
                 } else {
                     LazyRow(horizontalArrangement = Arrangement.spacedBy(TransitSpacing.ExtraSmall)) {
                         items(sheet.passingRouteShortNames, key = { it }) { shortName ->
-                            Surface(shape = TransitShapes.Small, color = MaterialTheme.colorScheme.secondaryContainer) {
-                                Text(
-                                    shortName,
-                                    modifier = Modifier.padding(TransitSpacing.ExtraSmall),
-                                    style = MaterialTheme.typography.labelLarge,
-                                )
-                            }
+                            StopRouteChip(
+                                label = shortName,
+                                background = MaterialTheme.colorScheme.secondaryContainer,
+                                foreground = MaterialTheme.colorScheme.onSecondaryContainer,
+                                isSelected = false,
+                            )
                         }
                     }
                 }
@@ -545,6 +568,47 @@ private fun StopArrivalsSheet(
                     items(sheet.rows) { row -> StopArrivalRow(row) }
                 }
             }
+        }
+    }
+}
+
+/** Informational counterpart of the selected-route chip: no dismiss or click affordance. */
+@Composable
+private fun StopRouteChip(
+    label: String,
+    background: Color,
+    foreground: Color,
+    isSelected: Boolean,
+) {
+    val selectedLabel = stringResource(Res.string.map_stop_arrivals_selected_route)
+    Surface(
+        shape = RoundedCornerShape(16.dp),
+        color = background,
+        tonalElevation = if (isSelected) TransitSpacing.ExtraSmall else 0.dp,
+    ) {
+        Row(
+            modifier = Modifier
+                .height(InputChipDefaults.Height)
+                .padding(horizontal = TransitSpacing.Small)
+                .semantics {
+                    contentDescription = if (isSelected) "$label. $selectedLabel" else label
+                    selected = isSelected
+                },
+            horizontalArrangement = Arrangement.spacedBy(TransitSpacing.ExtraSmall),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(
+                imageVector = DirectionsBusIcon,
+                contentDescription = null,
+                modifier = Modifier.size(InputChipDefaults.IconSize),
+                tint = foreground,
+            )
+            Text(
+                text = label,
+                color = foreground,
+                style = MaterialTheme.typography.labelLarge,
+                fontWeight = FontWeight.Bold,
+            )
         }
     }
 }
@@ -876,17 +940,20 @@ private fun MapCanvas(
                 )
                 .padding(TransitSpacing.Medium),
         )
-        Button(
-            onClick = onMyLocationClick,
+        PlatformMyLocationButton(
+            contentDescription = locationActionLabel,
+            automationId = locationActionAutomationId,
             enabled = locationActionEnabled,
+            onClick = onMyLocationClick,
             modifier = Modifier
                 .align(Alignment.BottomEnd)
                 .windowInsetsPadding(
                     WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal + WindowInsetsSides.Bottom),
                 )
                 .padding(TransitSpacing.Medium)
+                .size(48.dp)
                 .testTag(locationActionAutomationId),
-        ) { Text(locationActionLabel) }
+        )
     }
 }
 
@@ -979,7 +1046,10 @@ private fun MapRenderState.withLocalizedClusterLabels(): MapRenderState = copy(
     }.toPersistentList(),
 )
 
-/** A concise textual equivalent of the badge layer; it intentionally does not replace stop state. */
+/**
+ * Keeps a live, localized summary for assistive technology and UI automation without adding a
+ * production-facing status row to the sheet.
+ */
 @Composable
 private fun VehicleAccessibility(
     layerState: VehicleLayerState,
@@ -999,27 +1069,31 @@ private fun VehicleAccessibility(
     val summaryModifier = Modifier
         .fillMaxWidth()
         .testTag(AutomationId.MapVehicles)
-        .semantics { liveRegion = LiveRegionMode.Polite }
+        .semantics {
+            contentDescription = summary
+            liveRegion = LiveRegionMode.Polite
+        }
     val hasLiveNonemptyRoute = routes.any { route ->
         route.layerState == VehicleLayerState.Live && route.vehicleCount > 0
     }
     if (hasLiveNonemptyRoute) {
-        // A fixed parent semantics node lets automation prove rendered live geometry, while the
-        // always-present child retains the localized accessibility summary and its existing ID.
+        // Transparent text retains real semantics bounds without restoring the visual status row.
         Box(modifier = Modifier.fillMaxWidth().testTag(AutomationId.MapVehiclesLiveNonempty)) {
             Text(
-                summary,
+                text = summary,
                 modifier = summaryModifier,
+                color = Color.Transparent,
+                maxLines = 1,
                 style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
     } else {
         Text(
-            summary,
+            text = summary,
             modifier = summaryModifier,
+            color = Color.Transparent,
+            maxLines = 1,
             style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
     }
 }
@@ -1076,8 +1150,12 @@ private fun String.toTransitLocale(): TransitLocale = when (this) {
 }
 
 @Composable
-private fun locationActionLabel(permission: LocationPermissionState): String = stringResource(
-    when (permission) {
+private fun locationActionLabel(location: LocationState): String = stringResource(
+    when (location.failure) {
+        LocationFailure.TimedOut -> Res.string.location_failure_timed_out
+        LocationFailure.InvalidFix -> Res.string.location_failure_invalid
+        LocationFailure.Unavailable -> Res.string.location_failure_unavailable
+        null -> when (val permission = location.permission) {
         LocationPermissionState.NotDetermined -> Res.string.location_action_enable
         is LocationPermissionState.Granted -> Res.string.map_my_location_action
         LocationPermissionState.Denied -> Res.string.location_action_retry
@@ -1086,6 +1164,7 @@ private fun locationActionLabel(permission: LocationPermissionState): String = s
         LocationPermissionState.Restricted -> Res.string.map_my_location_action
         is LocationPermissionState.Unavailable -> Res.string.location_action_retry
         is LocationPermissionState.Error -> Res.string.location_action_retry
+        }
     },
 )
 
@@ -1098,32 +1177,7 @@ private fun locationActionEnabled(permission: LocationPermissionState): Boolean 
 
 // Android exposes 32 accessibility action IDs total; the primary onClick consumes one.
 private const val MAX_ACCESSIBILITY_CUSTOM_ACTIONS = 31
-
-@Composable
-private fun LocationStatus(location: LocationState) {
-    val text = when {
-        location.isLocating -> stringResource(Res.string.location_locating)
-        location.failure != null -> when (requireNotNull(location.failure)) {
-            LocationFailure.TimedOut -> stringResource(Res.string.location_failure_timed_out)
-            LocationFailure.InvalidFix -> stringResource(Res.string.location_failure_invalid)
-            LocationFailure.Unavailable -> stringResource(Res.string.location_failure_unavailable)
-        }
-        else -> when (val permission = location.permission) {
-            is LocationPermissionState.Granted -> when (permission.precision) {
-                LocationPrecision.Precise -> stringResource(Res.string.location_status_precise)
-                LocationPrecision.Approximate -> stringResource(Res.string.location_status_approximate)
-            }
-            LocationPermissionState.Denied -> stringResource(Res.string.location_status_denied)
-            LocationPermissionState.SettingsRequired -> stringResource(Res.string.location_status_settings_required)
-            LocationPermissionState.Restricted -> stringResource(Res.string.location_status_restricted)
-            LocationPermissionState.ServicesDisabled -> stringResource(Res.string.location_status_services_disabled)
-            is LocationPermissionState.Unavailable -> stringResource(Res.string.location_status_unavailable)
-            is LocationPermissionState.Error -> stringResource(Res.string.location_status_error)
-            LocationPermissionState.NotDetermined -> null
-        }
-    }
-    text?.let { Text(it, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant) }
-}
+private val RouteGeometryActionSize = 48.dp
 
 @Preview
 @Composable

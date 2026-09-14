@@ -15,6 +15,7 @@ private const val DefaultCircuitWindowSeconds = 60L
 private const val DefaultCircuitOpenSeconds = 30L
 private const val DefaultSchemaDriftThreshold = 3
 private const val DefaultSchemaDriftWindowSeconds = 300L
+private val SafeAppVersionPattern = Regex("[A-Za-z0-9][A-Za-z0-9._-]{0,63}")
 
 enum class RuntimeMode {
     DEVELOPMENT,
@@ -543,7 +544,7 @@ data class TransitousActivationConfig(
         get() = isActivated && routingApprovalAcknowledged && routingApprovalReference != null
 
     init {
-        require(appVersion.matches(Regex("[A-Za-z0-9][A-Za-z0-9._-]{0,63}"))) {
+        require(appVersion.matches(SafeAppVersionPattern)) {
             "BFF_RELEASE_VERSION must be a safe version token"
         }
         eligibilityReference?.also(::requireSafeReference)

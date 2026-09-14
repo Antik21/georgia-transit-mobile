@@ -151,6 +151,7 @@ class MapResourceContractTest {
             "shared/src/commonMain/kotlin/com/denis/georgiatransit/shared/presentation/map/MapScreen.kt",
         ).readText()
         val sheet = screen.functionBody("private fun StopArrivalsSheet")
+        val routeChip = screen.functionBody("private fun StopRouteChip")
         val status = screen.functionBody("private fun StopArrivalsStatus")
         val row = screen.functionBody("private fun StopArrivalRow")
 
@@ -158,11 +159,18 @@ class MapResourceContractTest {
             sheet,
             "MapStopArrivalsSheet",
             "sheet.stopName",
-            "map_stop_arrivals_stop_code",
             "MapStopArrivalsClose",
             "passingRouteShortNames",
             "MapStopArrivalsRows",
         )
+        assertCodePath(
+            routeChip,
+            "InputChipDefaults.Height",
+            "DirectionsBusIcon",
+            "InputChipDefaults.IconSize",
+            "fontWeight = FontWeight.Bold",
+        )
+        assertFalse(routeChip.contains("onClick"), "Stop route chips are informational and must not imply an action.")
         assertCodePath(
             status,
             "StopArrivalsSheetState.Loading",
@@ -346,6 +354,8 @@ class MapResourceContractTest {
         )
         assertTrue(android.contains("clearRenderedLayerState()"))
         assertTrue(android.contains("layersInstalled = false"))
+        assertTrue(android.contains("ATTENTION_MIN_RADIUS = BADGE_DIAMETER_PX / 2f * 1.15f"))
+        assertTrue(android.contains("ATTENTION_MAX_RADIUS = BADGE_DIAMETER_PX / 2f * 2f"))
         assertFalse(android.contains("MarkerView"), "Source smoke: no Android per-vehicle view adapter")
         assertCodePath(
             swift,
@@ -428,7 +438,7 @@ class MapResourceContractTest {
     }
 
     @Test
-    fun routeGeometryLegendUsesStaticAccessibleSelectorsLocalizedStatusAndTypedActions() {
+    fun routeGeometryLegendUsesAccessibleBusChipsAndTypedActions() {
         val screen = projectRoot().resolve(
             "shared/src/commonMain/kotlin/com/denis/georgiatransit/shared/presentation/map/MapScreen.kt",
         ).readText()
@@ -451,32 +461,19 @@ class MapResourceContractTest {
             legend,
             "MapRouteGeometryLegend",
             "items(routes, key = { it.routeId.value })",
-            "MapRouteGeometryChip",
+            "InputChip",
             "selected = route.isFocused",
+            "onFocus(route.routeId)",
+            "MapRouteGeometryChip",
+            "DirectionsBusIcon",
+            ".size(RouteGeometryActionSize)",
             "MapRouteGeometryRemove",
+            "onRemove(route.routeId)",
             "if (route.canRetry)",
             "MapRouteGeometryRetry",
-        )
-        assertCodePath(
-            screen.functionBody("private fun routeGeometryStatusLabel"),
-            "RouteGeometryLegendState.Loading",
-            "map_route_geometry_loading",
-            "RouteGeometryLegendState.Ready",
-            "map_route_geometry_ready",
-            "RouteGeometryLegendState.Partial",
-            "map_route_geometry_partial",
-            "RouteGeometryLegendState.Retryable",
-            "map_route_geometry_retryable",
-            "RouteGeometryLegendState.Unavailable",
-            "map_route_geometry_unavailable",
-            "RouteGeometryLegendState.PaletteOverflow",
-        )
-        assertCodePath(
-            legend,
-            "onFocus(route.routeId)",
-            "onRemove(route.routeId)",
             "onRetry(route.routeId)",
         )
+        assertTrue(screen.contains("private val RouteGeometryActionSize = 48.dp"))
     }
 
     @Test
@@ -1030,7 +1027,6 @@ class MapResourceContractTest {
             "map_selected_stop",
             "map_stop_arrivals_title",
             "map_stop_arrivals_stop_details_unavailable",
-            "map_stop_arrivals_stop_code",
             "map_stop_arrivals_routes",
             "map_stop_arrivals_route_details_unavailable",
             "map_stop_arrivals_loading",

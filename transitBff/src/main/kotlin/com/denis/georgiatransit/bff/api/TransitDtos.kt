@@ -131,7 +131,7 @@ data class Stop(
 
 @Serializable
 data class Shape(
-    val format: String = "encoded_polyline",
+    val format: String = EncodedPolylineShapeFormat,
     val precision: Int,
     val value: String,
     val updatedAt: String,
@@ -169,6 +169,7 @@ enum class ArrivalSource {
 data class Arrival(
     val stopId: String,
     val routeId: String,
+    val vehicleId: String? = null,
     val tripId: String? = null,
     val headsign: LocalizedText,
     val scheduledAt: String? = null,

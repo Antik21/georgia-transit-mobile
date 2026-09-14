@@ -71,6 +71,9 @@ private final class LocalMapLibreView: UIView, MLNMapViewDelegate {
         mapView.showsUserLocation = false
         mapView.shouldRequestAuthorizationToUseLocationServices = false
         mapView.disableLocationManager()
+        // Keep the legal attribution control beside the MapLibre wordmark, matching Android.
+        mapView.attributionButtonPosition = .bottomLeft
+        mapView.attributionButtonMargins = CGPoint(x: 100, y: 8)
         // Compose supplies localized textual state and attribution. Avoid a hard-coded native claim.
         mapView.isAccessibilityElement = false
         mapView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
@@ -847,7 +850,7 @@ private final class LocalMapLibreView: UIView, MLNMapViewDelegate {
     private static let staleVehicleOpacity: Double = 0.62
     private static let attentionFramesPerSecond = 15
     private static let attentionCycleDuration: CFTimeInterval = 1.6
-    private static let vehicleBadgeDiameter = 40.0
+    private static let vehicleBadgeDiameter = 80.0
     private static let attentionMinimumRadius = vehicleBadgeDiameter / 2 * 1.15
     private static let attentionMaximumRadius = vehicleBadgeDiameter / 2 * 2.0
     private static let attentionMinimumSizeOpacity = 0.50
@@ -894,25 +897,25 @@ private struct VehicleBadgeStyle: Hashable {
     }
 
     func image() -> UIImage {
-        var font = UIFont.boldSystemFont(ofSize: 16)
-        let maximumTextWidth: CGFloat = 32
+        var font = UIFont.boldSystemFont(ofSize: 28.8)
+        let maximumTextWidth: CGFloat = 57.6
         let initialTextWidth = (label as NSString).size(withAttributes: [.font: font]).width
         if initialTextWidth > maximumTextWidth {
-            font = UIFont.boldSystemFont(ofSize: max(10, font.pointSize * maximumTextWidth / initialTextWidth))
+            font = UIFont.boldSystemFont(ofSize: max(18, font.pointSize * maximumTextWidth / initialTextWidth))
         }
         let textAttributes: [NSAttributedString.Key: Any] = [
             .font: font,
             .foregroundColor: UIColor(argb: textArgb),
         ]
         let textSize = (label as NSString).size(withAttributes: textAttributes)
-        let size = CGSize(width: 40, height: 40)
+        let size = CGSize(width: 80, height: 80)
         return UIGraphicsImageRenderer(size: size).image { _ in
             let circleRect = CGRect(origin: .zero, size: size).insetBy(dx: 0.5, dy: 0.5)
             UIColor(argb: backgroundArgb).setFill()
             UIBezierPath(ovalIn: circleRect).fill()
             UIColor.white.setStroke()
             let border = UIBezierPath(ovalIn: circleRect)
-            border.lineWidth = 1
+            border.lineWidth = 3
             border.stroke()
             let textRect = CGRect(
                 x: 0,
@@ -926,12 +929,12 @@ private struct VehicleBadgeStyle: Hashable {
             if stale {
                 // Two diagonal strokes remain recognisable even when colour and opacity are unavailable.
                 let cue = UIBezierPath()
-                cue.move(to: CGPoint(x: 5, y: size.height - 5))
-                cue.addLine(to: CGPoint(x: size.height - 5, y: 5))
-                cue.move(to: CGPoint(x: size.height / 2, y: size.height - 5))
-                cue.addLine(to: CGPoint(x: size.height + size.height / 2 - 5, y: 5))
+                cue.move(to: CGPoint(x: 10, y: size.height - 10))
+                cue.addLine(to: CGPoint(x: size.height - 10, y: 10))
+                cue.move(to: CGPoint(x: size.height / 2, y: size.height - 10))
+                cue.addLine(to: CGPoint(x: size.height + size.height / 2 - 10, y: 10))
                 UIColor(argb: textArgb).withAlphaComponent(0.7).setStroke()
-                cue.lineWidth = 2
+                cue.lineWidth = 4
                 cue.stroke()
             }
         }

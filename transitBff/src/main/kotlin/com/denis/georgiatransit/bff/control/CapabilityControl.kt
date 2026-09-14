@@ -6,6 +6,7 @@ import com.denis.georgiatransit.bff.api.CityCapabilities
 import com.denis.georgiatransit.bff.api.CityNotFound
 import com.denis.georgiatransit.bff.api.CityReadiness
 import com.denis.georgiatransit.bff.api.CitySource
+import com.denis.georgiatransit.bff.api.KnownCityIds
 import com.denis.georgiatransit.bff.config.BffConfig
 import com.denis.georgiatransit.bff.config.BffConfigurationException
 import com.denis.georgiatransit.bff.config.RuntimeMode
@@ -49,6 +50,7 @@ private const val MaximumCapabilityDocumentBytes = 65_536L
 private const val MaximumJsonNestingDepth = 64
 private val revisionPattern = Regex("[A-Za-z0-9][A-Za-z0-9._-]{0,63}")
 private val digestPattern = Regex("[0-9a-f]{64}")
+private val temporaryFilePrefixPattern = Regex("[a-z-]{3,32}")
 
 private val controlJson = Json {
     encodeDefaults = true
@@ -374,7 +376,9 @@ class RuntimeCapabilityControl(
             // intentional: a local operator document can expose it for manual smoke checks but
             // cannot make it look production-ready or enable any other unreviewed adapter.
             CitySource.UNREVIEWED_ADAPTER -> if (
-                config.mode != RuntimeMode.DEVELOPMENT || cityId != "batumi" || !config.batumiTheta.isActivated
+                config.mode != RuntimeMode.DEVELOPMENT ||
+                    cityId != KnownCityIds.Batumi ||
+                    !config.batumiTheta.isActivated
             ) invalidControlDocument()
         }
     }
@@ -1025,7 +1029,7 @@ private object SecureCapabilityFiles {
         }
 
     fun atomicWritePrivateFile(target: Path, content: String, temporaryPrefix: String) {
-        require(temporaryPrefix.matches(Regex("[a-z-]{3,32}"))) { "Invalid private temporary prefix" }
+        require(temporaryPrefix.matches(temporaryFilePrefixPattern)) { "Invalid private temporary prefix" }
         requirePrivateDirectory(target.parent)
         requireWritablePrivateRegularFileIfPresent(target)
         val temporary = Files.createTempFile(

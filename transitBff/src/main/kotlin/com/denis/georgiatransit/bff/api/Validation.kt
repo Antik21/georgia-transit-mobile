@@ -3,28 +3,22 @@ package com.denis.georgiatransit.bff.api
 import io.ktor.server.application.ApplicationCall
 import java.time.Instant
 
-private val cityIdPattern = Regex("[a-z][a-z0-9-]{1,31}")
-private val publicIdPattern = Regex("([^:\\s]+):([^:\\s]+):([^:\\s]+):([^:\\s]+)")
-private val modes = setOf("bus", "metro", "tram", "ferry")
 private val locales = setOf("ka", "en", "ru")
 
 fun ApplicationCall.pathCityId(): String =
-    parameters["cityId"]?.takeIf(cityIdPattern::matches)
+    parameters["cityId"]?.takeIf(::isValidCityId)
         ?: throw InvalidArgument("cityId must be a lowercase public city identifier")
 
-fun ApplicationCall.requiredPathPublicId(name: String, cityId: String, entityType: String): String =
+internal fun ApplicationCall.requiredPathPublicId(name: String, cityId: String, entityType: PublicEntityType): String =
     parameters[name]?.also { validatePublicId(it, cityId, entityType, name) }
         ?: throw InvalidArgument("$name is required")
 
-fun ApplicationCall.requiredQueryPublicId(name: String, cityId: String, entityType: String): String =
+internal fun ApplicationCall.requiredQueryPublicId(name: String, cityId: String, entityType: PublicEntityType): String =
     request.queryParameters[name]?.also { validatePublicId(it, cityId, entityType, name) }
         ?: throw InvalidArgument("$name is required")
 
-fun validatePublicId(value: String, cityId: String, entityType: String, name: String) {
-    val match = publicIdPattern.matchEntire(value)
-        ?: throw InvalidArgument("$name must use the public identifier format")
-    val (idCity, provider, entity, suffix) = match.destructured
-    if (value.length > 256 || idCity != cityId || provider.isBlank() || entity != entityType || suffix.isBlank()) {
+internal fun validatePublicId(value: String, cityId: String, entityType: PublicEntityType, name: String) {
+    if (parsePublicId(value, cityId, entityType) == null) {
         throw InvalidArgument("$name must use the public identifier format")
     }
 }
@@ -52,7 +46,7 @@ fun validateGeoPoint(point: GeoPoint): GeoPoint {
 
 fun ApplicationCall.mode(): String? {
     val mode = request.queryParameters["mode"] ?: return null
-    return mode.takeIf(modes::contains)
+    return mode.takeIf(TransitModeValues.All::contains)
         ?: throw InvalidArgument("mode must be one of bus, metro, tram, ferry")
 }
 

@@ -15,12 +15,15 @@ import com.denis.georgiatransit.bff.api.JourneyLeg
 import com.denis.georgiatransit.bff.api.JourneyPage
 import com.denis.georgiatransit.bff.api.JourneySegment
 import com.denis.georgiatransit.bff.api.JourneySegmentMode
+import com.denis.georgiatransit.bff.api.KnownCityIds
 import com.denis.georgiatransit.bff.api.LocalizedText
+import com.denis.georgiatransit.bff.api.PublicEntityType
 import com.denis.georgiatransit.bff.api.Route
 import com.denis.georgiatransit.bff.api.Shape
 import com.denis.georgiatransit.bff.api.Stop
 import com.denis.georgiatransit.bff.api.Vehicle
 import com.denis.georgiatransit.bff.api.WalkingEstimate
+import com.denis.georgiatransit.bff.api.formatPublicId
 import com.denis.georgiatransit.bff.config.TransitousActivationConfig
 import com.denis.georgiatransit.bff.observability.NoopProviderCallObservability
 import com.denis.georgiatransit.bff.observability.ProviderCallObservability
@@ -68,7 +71,7 @@ import kotlinx.serialization.json.Json
 import kotlin.math.ceil
 import kotlin.math.max
 
-private const val TransitousCityId = "tbilisi"
+private const val TransitousCityId = KnownCityIds.Tbilisi
 private const val TransitousProvider = "transitous"
 private const val TransitousMaximumArrivals = 20
 private const val TransitousMaximumTransfers = 3
@@ -604,14 +607,14 @@ private object TransitousIds {
     private val encoder = Base64.getUrlEncoder().withoutPadding()
     private val decoder = Base64.getUrlDecoder()
 
-    fun stopId(raw: String): String = publicId("stop", raw)
-    fun routeId(raw: String): String = publicId("route", raw)
-    fun directionId(raw: String): String = publicId("direction", raw)
-    fun tripId(raw: String): String = publicId("trip", raw)
-    fun journeyId(raw: String): String = publicId("journey", raw)
+    fun stopId(raw: String): String = publicId(PublicEntityType.Stop, raw)
+    fun routeId(raw: String): String = publicId(PublicEntityType.Route, raw)
+    fun directionId(raw: String): String = publicId(PublicEntityType.Direction, raw)
+    fun tripId(raw: String): String = publicId(PublicEntityType.Trip, raw)
+    fun journeyId(raw: String): String = publicId(PublicEntityType.Journey, raw)
 
     fun decodeStopId(publicId: String): String {
-        val prefix = "$Prefix:stop:"
+        val prefix = "$Prefix:${PublicEntityType.Stop.wireValue}:"
         val encoded = publicId.removePrefix(prefix)
         if (encoded == publicId || encoded.isBlank()) throw ProviderStopNotFound("The requested stop was not found")
         return try {
@@ -625,10 +628,10 @@ private object TransitousIds {
         }
     }
 
-    private fun publicId(entity: String, raw: String): String {
+    private fun publicId(entityType: PublicEntityType, raw: String): String {
         if (!raw.isReversibleOpaqueValue()) invalidTransitousResponse()
         val encoded = encoder.encodeToString(raw.toByteArray(StandardCharsets.UTF_8))
-        return "$Prefix:$entity:$encoded"
+        return formatPublicId(TransitousCityId, TransitousProvider, entityType, encoded)
     }
 }
 

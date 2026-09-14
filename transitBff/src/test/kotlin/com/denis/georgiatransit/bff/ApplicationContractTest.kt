@@ -63,6 +63,8 @@ class ApplicationContractTest {
             "/v1/cities/demo/routes" to null,
             "/v1/cities/demo/routes/demo:fixture:route:blue" to
                 setOf("id", "providerId", "shortName", "longName", "color", "textColor", "mode", "directions"),
+            "/v1/cities/demo/routes/demo:fixture:route:blue/arrivals?limitPerStop=2" to
+                setOf("items", "source", "observedAt", "stale"),
             "/v1/cities/demo/routes/demo:fixture:route:blue/directions/demo:fixture:direction:blue-outbound/stops" to null,
             "/v1/cities/demo/routes/demo:fixture:route:blue/directions/demo:fixture:direction:blue-outbound/shape" to
                 setOf("format", "precision", "value", "updatedAt"),

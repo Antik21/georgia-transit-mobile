@@ -20,6 +20,7 @@ class OpenApiContractTest {
             "/v1/cities" to "Cities",
             "/v1/cities/{cityId}/routes" to "Routes",
             "/v1/cities/{cityId}/routes/{routeId}" to "Route",
+            "/v1/cities/{cityId}/routes/{routeId}/arrivals" to "ArrivalPage",
             "/v1/cities/{cityId}/routes/{routeId}/directions/{directionId}/stops" to "Stops",
             "/v1/cities/{cityId}/routes/{routeId}/directions/{directionId}/shape" to "Shape",
             "/v1/cities/{cityId}/vehicles" to "VehiclePage",

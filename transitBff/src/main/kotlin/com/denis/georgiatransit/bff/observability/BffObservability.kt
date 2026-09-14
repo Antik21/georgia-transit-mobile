@@ -37,6 +37,7 @@ enum class TelemetryOperation(val wireValue: String, val capability: TelemetryCa
     SHAPE("shape", TelemetryCapability.ROUTE_GEOMETRY),
     NEARBY_STOPS("nearby_stops", TelemetryCapability.STOPS),
     VEHICLES("vehicles", TelemetryCapability.VEHICLE_POSITIONS),
+    GLOBAL_VEHICLES("global_vehicles", TelemetryCapability.VEHICLE_POSITIONS),
     ARRIVALS("arrivals", TelemetryCapability.ARRIVALS),
     JOURNEYS("journeys", TelemetryCapability.TRIP_PLANNING),
     WALKING_ESTIMATE("walking_estimate", TelemetryCapability.TRIP_PLANNING),
@@ -460,10 +461,10 @@ class BffObservability(
     private fun isAllowed(labels: ProviderTelemetryLabels): Boolean = (labels.city to labels.provider) in allowedProviders
 
     private fun ProviderTelemetryLabels.metricLabels(): List<Pair<String, String>> = listOf(
-        "city" to city,
-        "provider" to provider.wireValue,
-        "capability" to capability.wireValue,
-        "operation" to operation.wireValue,
+        CityLabel to city,
+        ProviderLabel to provider.wireValue,
+        CapabilityLabel to capability.wireValue,
+        OperationLabel to operation.wireValue,
     )
 
     private fun providerCapabilityLabels(
@@ -471,12 +472,13 @@ class BffObservability(
         provider: TelemetryProvider,
         capability: TelemetryCapability,
     ): List<Pair<String, String>> = listOf(
-        "city" to city,
-        "provider" to provider.wireValue,
-        "capability" to capability.wireValue,
+        CityLabel to city,
+        ProviderLabel to provider.wireValue,
+        CapabilityLabel to capability.wireValue,
     )
 
-    private fun List<Pair<String, String>>.minusOperation(): List<Pair<String, String>> = filterNot { it.first == "operation" }
+    private fun List<Pair<String, String>>.minusOperation(): List<Pair<String, String>> =
+        filterNot { it.first == OperationLabel }
 
     private fun statusClass(statusCode: Int): String = when (statusCode) {
         in 100..199 -> "1xx"
@@ -489,6 +491,10 @@ class BffObservability(
 
     private companion object {
         const val NanosPerSecond = 1_000_000_000.0
+        const val CityLabel = "city"
+        const val ProviderLabel = "provider"
+        const val CapabilityLabel = "capability"
+        const val OperationLabel = "operation"
     }
 }
 

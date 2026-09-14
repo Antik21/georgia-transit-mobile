@@ -16,20 +16,24 @@ import com.denis.georgiatransit.bff.api.JourneySegment
 import com.denis.georgiatransit.bff.api.JourneySegmentMode
 import com.denis.georgiatransit.bff.api.LocalizedText
 import com.denis.georgiatransit.bff.api.PositionKind
+import com.denis.georgiatransit.bff.api.PublicEntityType
 import com.denis.georgiatransit.bff.api.Route
 import com.denis.georgiatransit.bff.api.Shape
 import com.denis.georgiatransit.bff.api.Stop
+import com.denis.georgiatransit.bff.api.EncodedPolylineShapeFormat
+import com.denis.georgiatransit.bff.api.MaximumPublicIdLength
+import com.denis.georgiatransit.bff.api.TransitModeValues
 import com.denis.georgiatransit.bff.api.Vehicle
 import com.denis.georgiatransit.bff.api.VehiclePage
+import com.denis.georgiatransit.bff.api.isValidAttributionId
+import com.denis.georgiatransit.bff.api.isValidCityId
+import com.denis.georgiatransit.bff.api.parsePublicId
 import java.time.Instant
 import java.net.URI
 
-private const val MaximumOpaqueValueLength = 256
+private const val MaximumOpaqueValueLength = MaximumPublicIdLength
 private const val MaximumAttributionUrlLength = 2_048
 private const val MaximumRealtimeAgeSeconds = 86_400
-private val cityIdPattern = Regex("[a-z][a-z0-9-]{1,31}")
-private val publicIdPattern = Regex("([^:\\s]+):([^:\\s]+):([^:\\s]+):([^:\\s]+)")
-private val modeValues = setOf("bus", "metro", "tram", "ferry")
 private val colorPattern = Regex("#[0-9A-Fa-f]{6}")
 
 /**
@@ -38,7 +42,7 @@ private val colorPattern = Regex("#[0-9A-Fa-f]{6}")
  */
 object NormalizedResponseValidator {
     fun city(city: City) {
-        if (!cityIdPattern.matches(city.id)) invalid()
+        if (!isValidCityId(city.id)) invalid()
         localized(city.name)
         point(city.center)
         finiteBetween(city.defaultZoom, 0.0, 22.0)
@@ -69,11 +73,11 @@ object NormalizedResponseValidator {
     }
 
     fun route(cityId: String, route: Route, expectedRouteId: String? = null) {
-        val routeId = entityId(route.id, cityId, "route")
+        val routeId = entityId(route.id, cityId, PublicEntityType.Route)
         if (expectedRouteId != null && route.id != expectedRouteId) invalid()
         opaque(route.providerId)
         if (route.providerId != routeId.suffix || route.shortName.isBlank() || !colorPattern.matches(route.color) ||
-            !colorPattern.matches(route.textColor) || route.mode !in modeValues
+            !colorPattern.matches(route.textColor) || route.mode !in TransitModeValues.All
         ) {
             invalid()
         }
@@ -83,7 +87,7 @@ object NormalizedResponseValidator {
     }
 
     fun directionStops(cityId: String, route: Route, directionId: String, stops: List<Stop>) {
-        val routeId = entityId(route.id, cityId, "route")
+        val routeId = entityId(route.id, cityId, PublicEntityType.Route)
         directionForRoute(cityId, route, directionId)
         stops.forEach { stop(cityId, it, route.id, routeId.provider) }
         if (stops.map(Stop::id).distinct().size != stops.size) invalid()
@@ -91,7 +95,7 @@ object NormalizedResponseValidator {
 
     fun shape(cityId: String, route: Route, directionId: String, shape: Shape) {
         directionForRoute(cityId, route, directionId)
-        if (shape.format != "encoded_polyline" || shape.precision !in 0..8 || shape.value.isBlank()) invalid()
+        if (shape.format != EncodedPolylineShapeFormat || shape.precision !in 0..8 || shape.value.isBlank()) invalid()
         timestamp(shape.updatedAt)
     }
 
@@ -106,7 +110,7 @@ object NormalizedResponseValidator {
         directionId: String?,
         page: VehiclePage,
     ) {
-        val requestedRoute = entityId(route.id, cityId, "route")
+        val requestedRoute = entityId(route.id, cityId, PublicEntityType.Route)
         directionId?.let { directionForRoute(cityId, route, it) }
         timestamp(page.observedAt)
         if (page.maxAgeSeconds !in 0..MaximumRealtimeAgeSeconds) invalid()
@@ -114,10 +118,22 @@ object NormalizedResponseValidator {
     }
 
     fun arrivalPage(cityId: String, stopId: String, page: ArrivalPage) {
-        val stop = entityId(stopId, cityId, "stop")
+        val stop = entityId(stopId, cityId, PublicEntityType.Stop)
         timestamp(page.observedAt)
         arrivalSource(page.source)
         page.items.forEach { arrival(cityId, stop.provider, stopId, it) }
+    }
+
+    fun routeArrivalPage(cityId: String, routeId: String, page: ArrivalPage) {
+        val route = entityId(routeId, cityId, PublicEntityType.Route)
+        timestamp(page.observedAt)
+        arrivalSource(page.source)
+        page.items.forEach { item ->
+            val stop = entityId(item.stopId, cityId, PublicEntityType.Stop)
+            val itemRoute = entityId(item.routeId, cityId, PublicEntityType.Route)
+            if (stop.provider != route.provider || itemRoute.provider != route.provider || item.routeId != routeId) invalid()
+            arrivalFields(cityId, route.provider, item)
+        }
     }
 
     fun journeyPage(cityId: String, page: JourneyPage) {
@@ -128,7 +144,7 @@ object NormalizedResponseValidator {
     }
 
     private fun attribution(link: AttributionLink) {
-        if (!Regex("[a-z][a-z0-9-]{0,31}").matches(link.id)) invalid()
+        if (!isValidAttributionId(link.id)) invalid()
         localized(link.label)
         if (link.url.length > MaximumAttributionUrlLength) invalid()
         val uri = try {
@@ -140,9 +156,9 @@ object NormalizedResponseValidator {
     }
 
     private fun stop(cityId: String, stop: Stop, requiredRouteId: String? = null, provider: String? = null) {
-        val stopId = entityId(stop.id, cityId, "stop")
+        val stopId = entityId(stop.id, cityId, PublicEntityType.Stop)
         opaque(stop.providerId)
-        if (stop.providerId != stopId.suffix || stop.code.isBlank() || stop.mode !in modeValues ||
+        if (stop.providerId != stopId.suffix || stop.code.isBlank() || stop.mode !in TransitModeValues.All ||
             (provider != null && stopId.provider != provider)
         ) {
             invalid()
@@ -153,7 +169,7 @@ object NormalizedResponseValidator {
         // still pass requiredRouteId below and therefore cannot publish an empty routeIds list.
         if (stop.routeIds.distinct().size != stop.routeIds.size) invalid()
         stop.routeIds.forEach { routeId ->
-            val route = entityId(routeId, cityId, "route")
+            val route = entityId(routeId, cityId, PublicEntityType.Route)
             if (route.provider != stopId.provider) invalid()
         }
         if (requiredRouteId != null && requiredRouteId !in stop.routeIds) invalid()
@@ -166,13 +182,13 @@ object NormalizedResponseValidator {
         requestedDirectionId: String?,
         vehicle: Vehicle,
     ) {
-        val vehicleId = entityId(vehicle.id, cityId, "vehicle")
-        val route = entityId(vehicle.routeId, cityId, "route")
+        val vehicleId = entityId(vehicle.id, cityId, PublicEntityType.Vehicle)
+        val route = entityId(vehicle.routeId, cityId, PublicEntityType.Route)
         if (vehicleId.provider != provider || route.provider != provider || vehicle.routeId != requestedRouteId) invalid()
         vehicle.directionId?.let { direction(cityId, provider, it) }
         if (requestedDirectionId != null && vehicle.directionId != requestedDirectionId) invalid()
         vehicle.nextStopId?.let {
-            if (entityId(it, cityId, "stop").provider != provider) invalid()
+            if (entityId(it, cityId, PublicEntityType.Stop).provider != provider) invalid()
         }
         point(vehicle.position)
         vehicle.bearing?.let { finiteBetween(it, 0.0, 360.0) }
@@ -182,9 +198,16 @@ object NormalizedResponseValidator {
     }
 
     private fun arrival(cityId: String, provider: String, requestedStopId: String, arrival: Arrival) {
-        val stop = entityId(arrival.stopId, cityId, "stop")
-        val route = entityId(arrival.routeId, cityId, "route")
+        val stop = entityId(arrival.stopId, cityId, PublicEntityType.Stop)
+        val route = entityId(arrival.routeId, cityId, PublicEntityType.Route)
         if (stop.provider != provider || route.provider != provider || arrival.stopId != requestedStopId) invalid()
+        arrivalFields(cityId, provider, arrival)
+    }
+
+    private fun arrivalFields(cityId: String, provider: String, arrival: Arrival) {
+        arrival.vehicleId?.let { vehicleId ->
+            if (entityId(vehicleId, cityId, PublicEntityType.Vehicle).provider != provider) invalid()
+        }
         arrival.tripId?.let(::opaque)
         localized(arrival.headsign)
         arrival.scheduledAt?.let(::timestamp)
@@ -194,7 +217,7 @@ object NormalizedResponseValidator {
     }
 
     private fun journey(cityId: String, journey: Journey) {
-        val journeyId = entityId(journey.id, cityId, "journey")
+        val journeyId = entityId(journey.id, cityId, PublicEntityType.Journey)
         val departure = timestamp(journey.departureAt)
         val arrival = timestamp(journey.arrivalAt)
         if (journey.transfers !in 0..6 || arrival.isBefore(departure)) invalid()
@@ -235,12 +258,12 @@ object NormalizedResponseValidator {
     }
 
     private fun legacyJourneyLeg(cityId: String, provider: String, leg: JourneyLeg): Pair<Instant, Instant> {
-        val route = entityId(leg.routeId, cityId, "route")
+        val route = entityId(leg.routeId, cityId, PublicEntityType.Route)
         if (route.provider != provider) invalid()
         direction(cityId, route.provider, leg.directionId)
         if (
-            entityId(leg.fromStopId, cityId, "stop").provider != route.provider ||
-            entityId(leg.toStopId, cityId, "stop").provider != route.provider
+            entityId(leg.fromStopId, cityId, PublicEntityType.Stop).provider != route.provider ||
+            entityId(leg.toStopId, cityId, PublicEntityType.Stop).provider != route.provider
         ) {
             invalid()
         }
@@ -252,19 +275,19 @@ object NormalizedResponseValidator {
         segment.fromPosition?.let(::point)
         segment.toPosition?.let(::point)
         if (segment.mode == JourneySegmentMode.TRANSIT) {
-            val route = entityId(segment.routeId ?: invalid(), cityId, "route")
+            val route = entityId(segment.routeId ?: invalid(), cityId, PublicEntityType.Route)
             if (route.provider != provider) invalid()
             direction(cityId, route.provider, segment.directionId ?: invalid())
             if (
-                entityId(segment.fromStopId ?: invalid(), cityId, "stop").provider != route.provider ||
-                entityId(segment.toStopId ?: invalid(), cityId, "stop").provider != route.provider
+                entityId(segment.fromStopId ?: invalid(), cityId, PublicEntityType.Stop).provider != route.provider ||
+                entityId(segment.toStopId ?: invalid(), cityId, PublicEntityType.Stop).provider != route.provider
             ) {
                 invalid()
             }
         } else {
             if (segment.routeId != null || segment.directionId != null) invalid()
-            segment.fromStopId?.let { if (entityId(it, cityId, "stop").provider != provider) invalid() }
-            segment.toStopId?.let { if (entityId(it, cityId, "stop").provider != provider) invalid() }
+            segment.fromStopId?.let { if (entityId(it, cityId, PublicEntityType.Stop).provider != provider) invalid() }
+            segment.toStopId?.let { if (entityId(it, cityId, PublicEntityType.Stop).provider != provider) invalid() }
         }
         return timestamp(segment.departureAt) to timestamp(segment.arrivalAt)
     }
@@ -288,11 +311,11 @@ object NormalizedResponseValidator {
     }
 
     private fun direction(cityId: String, provider: String, directionId: String) {
-        if (entityId(directionId, cityId, "direction").provider != provider) invalid()
+        if (entityId(directionId, cityId, PublicEntityType.Direction).provider != provider) invalid()
     }
 
     private fun directionForRoute(cityId: String, route: Route, directionId: String) {
-        val routeId = entityId(route.id, cityId, "route")
+        val routeId = entityId(route.id, cityId, PublicEntityType.Route)
         if (route.directions.none { it.id == directionId }) invalid()
         direction(cityId, routeId.provider, directionId)
     }
@@ -342,20 +365,10 @@ object NormalizedResponseValidator {
         if (value.isBlank() || value.length > MaximumOpaqueValueLength || value.any(Char::isWhitespace)) invalid()
     }
 
-    private fun entityId(value: String, cityId: String, entity: String): PublicId {
-        val match = publicIdPattern.matchEntire(value) ?: invalid()
-        val (idCity, provider, idEntity, suffix) = match.destructured
-        if (value.length > MaximumOpaqueValueLength || idCity != cityId || idEntity != entity) invalid()
-        return PublicId(idCity, provider, idEntity, suffix)
-    }
+    private fun entityId(value: String, cityId: String, entityType: PublicEntityType) =
+        parsePublicId(value, cityId, entityType) ?: invalid()
 
     private fun invalid(): Nothing =
         throw ProviderNormalizedSchemaFailure("The provider returned an invalid normalized response")
 
-    private data class PublicId(
-        val city: String,
-        val provider: String,
-        val entity: String,
-        val suffix: String,
-    )
 }

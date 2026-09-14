@@ -16,3 +16,9 @@ The additive direct-walking API, local fallback, and coordinate privacy
 boundary are recorded in [ADR 0008](0008-direct-walking-estimate-privacy-boundary.md).
 The route-selection draft, bounded city-scoped snapshot migration, and cancel contract are
 recorded in [ADR 0009](0009-route-selection-draft-and-city-scoped-persistence.md).
+The on-demand route arrival board and its idle worker lifecycle are recorded in
+[ADR 0010](0010-demand-driven-route-arrival-workers.md).
+The continuous bulk Batumi feed that supersedes route polling in the configured runtime is recorded
+in [ADR 0011](0011-batumi-continuous-city-feed.md).
+The status-aware stop-chain projection, stable moving-speed ETA, and explicit dwell policy are
+recorded in [ADR 0012](0012-batumi-status-aware-stop-chain-eta.md).

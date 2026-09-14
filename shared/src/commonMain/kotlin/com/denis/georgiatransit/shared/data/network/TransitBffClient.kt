@@ -367,10 +367,10 @@ class TransitBffClient(
     }
 
     private fun TransitMode.toWire(): String = when (this) {
-        TransitMode.Bus -> "bus"
-        TransitMode.Metro -> "metro"
-        TransitMode.Tram -> "tram"
-        TransitMode.Ferry -> "ferry"
+        TransitMode.Bus -> BusModeWireValue
+        TransitMode.Metro -> MetroModeWireValue
+        TransitMode.Tram -> TramModeWireValue
+        TransitMode.Ferry -> FerryModeWireValue
     }
 
     private sealed interface RequestOutcome {
