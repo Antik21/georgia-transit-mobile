@@ -2120,7 +2120,8 @@ class MapViewModel(
         const val MAX_COMMON_VEHICLE_MARKERS = 1_000
         const val MAX_SMOOTHLY_ANIMATED_VEHICLES = 250
         const val HIGH_DENSITY_FRAME_INTERVAL_MILLIS = 100L // 10 fps maximum above the smooth cap.
-        const val STOP_ARRIVALS_LIMIT = 40
+        /** Matches the BFF contract maximum so every candidate inside the ETA horizon can render. */
+        const val STOP_ARRIVALS_LIMIT = 100
         const val STOP_ARRIVALS_POLL_INTERVAL_MILLIS = 20_000L
         const val WALKING_ESTIMATE_DEBOUNCE_MILLIS = 700L
     }

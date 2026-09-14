@@ -9,35 +9,39 @@ positions, and (where reliable) normalized approximate arrivals; it never sees a
 raw ID, or upstream `Name`. The catalog is validated atomically before publication and kept as an
 in-memory LKG for seven days. That cache is lost on process restart.
 
-When the operator has separately authorized a development smoke, the adapter may call only
-`getBusLocsOnRoute` for a route ID from that validated catalog. It has a per-route four-second
-cache/single-flight boundary. Valid `{data:null}` is an empty live snapshot, distinct from an
-upstream timeout/unavailable response. A failed refresh may use its last validated normalized
-snapshot for at most 60 seconds; all such vehicle pages are explicitly `stale=true`. Raw payloads
-are neither logged nor cached. Upstream `Name` becomes a short-lived namespaced internal ID only;
-it is never shown as a bus/fleet number.
+When the operator has separately authorized a development smoke, the application-composed adapter
+uses one fixed BatBus `getAllBuses` request every five seconds for the whole city. A complete
+validated generation atomically replaces the prior snapshot and feeds vehicles plus every stop and
+route arrival board. Failed refreshes retain the prior normalized generation: it becomes stale after
+15 seconds and unavailable after 60 seconds. Runtime capability control gates the poller, so disabling
+both Batumi vehicle positions and arrivals stops upstream egress. Raw payloads are neither logged nor
+cached. Upstream `Name` becomes a short-lived namespaced internal ID only; it is never shown as a
+bus/fleet number. The old route-specific client remains only as an injected test/manual fallback.
 
 `officialArrivals` remains false. `arrivals=true` means only that the BFF can sometimes supply a
-`CLIENT_ESTIMATE`; empty arrival lists are expected whenever direction or movement confidence is
-insufficient. There is no schedule, official ETA, public vehicle number, timestamp, bearing, or
+`CLIENT_ESTIMATE`; empty arrival lists are expected whenever status projection is unavailable.
+There is no schedule, official ETA, public vehicle number, timestamp, bearing, or
 next-stop claim in the upstream data.
+
+The route board endpoint `GET /v1/cities/batumi/routes/{routeId}/arrivals?limitPerStop=N` reads the
+already calculated city generation. Opening a route does not start an upstream request. The common
+worker and its last-known-good snapshot are process-local and are cancelled during BFF shutdown.
 
 ### Approximate ETA policy
 
-The BFF projects each live position and ordered stop on the catalog route polyline. It emits an
-estimate only after three fresh samples (each 2–45 seconds apart) produce two agreeing projected
-movement directions. Samples must move at least 15 m, be within 120 m of the line, imply 1–16 m/s,
-and not be a teleport (more than `min(750 m, elapsed × 30 m/s + 80 m)`). The two speeds are averaged.
-ETA is emitted only for a stop ahead in that direction; a non-loop terminal or a passed stop has no
-ETA. A loop is recognized only where the shape ends within 120 m of its start and may wrap once.
-Intermediate projected stops add 20 seconds dwell each. Estimates over 90 minutes, zero/slow motion,
-stale data, path ambiguity, reversing direction, or insufficient samples are omitted. `expectedAt`
-and rounded-up `expectedInMinutes` always agree, and the app labels the source “approximately” in
-RU/EN/KA.
+The BFF builds a cyclic stop chain ordered by `Status + Order`, preserves the live bus `Status`, and
+projects GPS only onto segments for that route part. The published route shape independently bounds
+GPS to a 150 m corridor. GPS supplies position, not speed: the estimator uses a stable per-route
+moving-speed profile with a 25.1 km/h fallback. Intermediate stops add 60 seconds each; the target
+stop is excluded. A bus up to 150 m beyond a stop is treated as arriving, while a target farther
+behind wraps to the next cycle. Estimates over 45 minutes, an invalid status/projection, or stale
+data are omitted. Every qualifying vehicle is returned, so duplicate route labels are expected. A
+vehicle survives one missing live snapshot, then is removed unless it is reconfirmed. `expectedAt`
+and whole-minute `expectedInMinutes` agree, and the app labels the source “approximately” in RU/EN/KA.
 
-Theta `Status` is bounded/validated as structural evidence but has undocumented semantics, so it
-does not become a passenger direction, destination, or route label. The current catalog exposes one
-neutral technical direction; directional confidence is therefore established by movement first.
+Theta `Status` is bounded and used only as provider-scoped route-part evidence. It does not become a
+passenger direction, destination, or route label. The current catalog exposes one neutral technical
+direction.
 This is intentionally conservative and must not be promoted to production ETA behavior.
 
 For a respectful one-off smoke, use a private operator-owned capability-control path/state directory

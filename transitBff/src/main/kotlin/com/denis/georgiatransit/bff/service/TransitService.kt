@@ -255,6 +255,36 @@ class TransitService(
         return page
     }
 
+    suspend fun routeArrivals(cityId: String, routeId: String, limitPerStop: Int, locale: String): ArrivalPage {
+        val snapshot = snapshot()
+        val effectiveCity = snapshot.city(cityId)
+        requireCapability(cityId, effectiveCity.city.capabilities.arrivals, "Arrivals")
+        route(snapshot, cityId, routeId, locale)
+        val labels = telemetry(effectiveCity, TelemetryOperation.ARRIVALS)
+        // The adapter owns the long-lived polling job. SingleFlight only coalesces callers waiting
+        // for the same first snapshot and remains bounded by the normal realtime timeout.
+        val page = realtime(snapshot, "route-arrival|$cityId|$routeId|$limitPerStop|$locale", labels) {
+            providerCall(
+                adapter = effectiveCity.adapter,
+                labels = labels,
+                loader = {
+                    effectiveCity.adapter.routeArrivals(routeId, limitPerStop, locale).let {
+                        ArrivalPage(it.items, it.source, it.observedAt.toString(), it.stale)
+                    }
+                },
+                validator = { NormalizedResponseValidator.routeArrivalPage(cityId, routeId, it) },
+            )
+        }
+        recordData(
+            labels,
+            Instant.parse(page.observedAt),
+            page.stale,
+            page.items.size,
+            page.items.any { it.realtime },
+        )
+        return page
+    }
+
     suspend fun journeys(cityId: String, query: JourneyQuery): JourneyPage {
         val snapshot = snapshot()
         val effectiveCity = snapshot.city(cityId)

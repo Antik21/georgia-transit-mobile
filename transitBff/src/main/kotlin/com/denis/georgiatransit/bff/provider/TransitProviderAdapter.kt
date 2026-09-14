@@ -40,6 +40,13 @@ interface CityTransitProviderAdapter {
 
     suspend fun arrivals(stopId: String, limit: Int, locale: String): RealtimeArrivals
 
+    /**
+     * Optional route-board seam. Implementations may maintain a continuous city snapshot or a
+     * demand-driven route snapshot so one upstream observation can serve every stop on the route.
+     */
+    suspend fun routeArrivals(routeId: String, limitPerStop: Int, locale: String): RealtimeArrivals =
+        throw ProviderCapabilityUnavailable("Route arrival boards are not available")
+
     suspend fun journeys(query: JourneyQuery): List<Journey>
 
     /** Separate provider boundary so transit journeys are never mistaken for walking directions. */

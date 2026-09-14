@@ -37,6 +37,7 @@ import com.denis.georgiatransit.bff.provider.TtcClient
 import com.denis.georgiatransit.bff.provider.TtcTransitProviderAdapter
 import com.denis.georgiatransit.bff.provider.BatumiThetaTransitProviderAdapter
 import com.denis.georgiatransit.bff.provider.BatumiThetaClient
+import com.denis.georgiatransit.bff.provider.BatumiBatBusAllBusesClient
 import com.denis.georgiatransit.bff.service.TransitService
 import com.denis.georgiatransit.bff.map.MapProxy
 import com.denis.georgiatransit.bff.map.MapProxyFailure
@@ -168,6 +169,8 @@ fun Application.transitBffModule(config: BffConfig = BffConfig.fromEnvironment()
                 BatumiThetaTransitProviderAdapter(
                     activation = config.batumiTheta,
                     client = BatumiThetaClient(config.batumiTheta),
+                    allBusesClient = BatumiBatBusAllBusesClient(),
+                    observability = observability,
                 ),
             )
         }
@@ -184,6 +187,13 @@ fun Application.transitBffModule(config: BffConfig = BffConfig.fromEnvironment()
         audit = environment.log::info,
         capabilityTelemetryObserver = observability::recordCapabilitySnapshot,
     ).also(RuntimeCapabilityControl::start)
+    adapters.filterIsInstance<BatumiThetaTransitProviderAdapter>().forEach { adapter ->
+        adapter.startGlobalFeed {
+            capabilityControl.current().cities["batumi"]?.city?.capabilities?.let { capabilities ->
+                capabilities.vehiclePositions || capabilities.arrivals
+            } == true
+        }
+    }
     val service = TransitService(
         capabilitySnapshots = capabilityControl,
         directoryCacheTtlSeconds = config.directoryCacheTtlSeconds,
@@ -308,6 +318,13 @@ fun Application.transitBffModule(config: BffConfig = BffConfig.fromEnvironment()
                     val cityId = call.pathCityId()
                     val routeId = call.requiredPathPublicId("routeId", cityId, "route")
                     call.respond(service.route(cityId, routeId, call.locale()))
+                }
+                get("/routes/{routeId}/arrivals") {
+                    call.markHttpOperation(HttpOperation.ARRIVALS)
+                    val cityId = call.pathCityId()
+                    val routeId = call.requiredPathPublicId("routeId", cityId, "route")
+                    val limitPerStop = call.requiredQueryInt("limitPerStop", 1, 100)
+                    call.respond(service.routeArrivals(cityId, routeId, limitPerStop, call.locale()))
                 }
                 get("/routes/{routeId}/directions/{directionId}/stops") {
                     call.markHttpOperation(HttpOperation.DIRECTION_STOPS)

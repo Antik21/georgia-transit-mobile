@@ -131,6 +131,7 @@ data class TransitVehicle(
 data class TransitArrival(
     val stopId: StopId,
     val routeId: RouteId,
+    val vehicleId: VehicleId? = null,
     val tripId: TripId?,
     val headsign: LocalizedText,
     val scheduledAt: Instant?,

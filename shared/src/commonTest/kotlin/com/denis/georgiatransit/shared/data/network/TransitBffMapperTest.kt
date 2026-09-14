@@ -60,7 +60,7 @@ class TransitBffMapperTest {
             """{"items":[{"id":"demo:fixture:vehicle:blue-01","routeId":"$routeId","directionId":"$directionId","position":{"latitude":41.716123,"longitude":44.829221},"bearing":62.0,"nextStopId":"$stopId","observedAt":"2030-01-01T00:00:00Z","ageSeconds":4,"positionKind":"GPS"}],"observedAt":"2030-01-01T00:00:00Z","maxAgeSeconds":30,"stale":false}""",
         ).toDomain()
         val arrivals = json.decodeFromString<ArrivalPageDto>(
-            """{"items":[{"stopId":"$stopId","routeId":"$routeId","tripId":"blue-trip-01","headsign":{"ru":"Парк","en":"Park","ka":"პარკი"},"scheduledAt":"2030-01-01T00:05:00Z","expectedAt":"2030-01-01T00:04:00Z","expectedInMinutes":4,"realtime":true,"cancelled":false,"source":"OFFICIAL_REALTIME"}],"source":"OFFICIAL_REALTIME","observedAt":"2030-01-01T00:00:00Z","stale":false}""",
+            """{"items":[{"stopId":"$stopId","routeId":"$routeId","vehicleId":"demo:fixture:vehicle:blue-01","tripId":"blue-trip-01","headsign":{"ru":"Парк","en":"Park","ka":"პარკი"},"scheduledAt":"2030-01-01T00:05:00Z","expectedAt":"2030-01-01T00:04:00Z","expectedInMinutes":4,"realtime":true,"cancelled":false,"source":"OFFICIAL_REALTIME"}],"source":"OFFICIAL_REALTIME","observedAt":"2030-01-01T00:00:00Z","stale":false}""",
         ).toDomain()
         val journeys = json.decodeFromString<JourneyPageDto>(
             """{"items":[{"id":"demo:fixture:journey:blue-direct","departureAt":"2030-01-01T00:00:00Z","arrivalAt":"2030-01-01T00:15:00Z","transfers":0,"legs":[{"routeId":"$routeId","directionId":"$directionId","fromStopId":"$stopId","toStopId":"demo:fixture:stop:park","departureAt":"2030-01-01T00:00:00Z","arrivalAt":"2030-01-01T00:15:00Z"}]}],"observedAt":"2030-01-01T00:00:00Z"}""",
@@ -74,6 +74,7 @@ class TransitBffMapperTest {
         assertEquals(VehiclePositionKind.Gps, vehicles.items.single().positionKind)
         assertEquals(directionId, vehicles.items.single().directionId?.value)
         assertEquals(ArrivalSource.OfficialRealtime, arrivals.source)
+        assertEquals("demo:fixture:vehicle:blue-01", arrivals.items.single().vehicleId?.value)
         assertEquals("blue-trip-01", arrivals.items.single().tripId?.value)
         assertEquals(routeId, journeys.items.single().legs.single().routeId.value)
         assertEquals(listOf(JourneySegmentMode.Transit), journeys.items.single().segments.map { it.mode })

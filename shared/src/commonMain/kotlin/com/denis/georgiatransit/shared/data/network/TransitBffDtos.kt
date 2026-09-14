@@ -144,6 +144,7 @@ internal enum class ArrivalSourceDto {
 internal data class ArrivalDto(
     val stopId: String,
     val routeId: String,
+    val vehicleId: String? = null,
     val tripId: String? = null,
     val headsign: LocalizedTextDto,
     val scheduledAt: String? = null,

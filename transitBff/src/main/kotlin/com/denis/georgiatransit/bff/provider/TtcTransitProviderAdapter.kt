@@ -1151,6 +1151,7 @@ private fun TelemetryOperation.ttcNotFoundFailure(): ProviderFailure = when (thi
     TelemetryOperation.ROUTE,
     TelemetryOperation.SHAPE,
     TelemetryOperation.VEHICLES,
+    TelemetryOperation.GLOBAL_VEHICLES,
     -> ProviderRouteNotFound("The requested route was not found")
     TelemetryOperation.DIRECTION_STOPS,
     TelemetryOperation.NEARBY_STOPS,

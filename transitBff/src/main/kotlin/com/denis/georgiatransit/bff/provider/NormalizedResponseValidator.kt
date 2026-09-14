@@ -120,6 +120,18 @@ object NormalizedResponseValidator {
         page.items.forEach { arrival(cityId, stop.provider, stopId, it) }
     }
 
+    fun routeArrivalPage(cityId: String, routeId: String, page: ArrivalPage) {
+        val route = entityId(routeId, cityId, "route")
+        timestamp(page.observedAt)
+        arrivalSource(page.source)
+        page.items.forEach { item ->
+            val stop = entityId(item.stopId, cityId, "stop")
+            val itemRoute = entityId(item.routeId, cityId, "route")
+            if (stop.provider != route.provider || itemRoute.provider != route.provider || item.routeId != routeId) invalid()
+            arrivalFields(cityId, route.provider, item)
+        }
+    }
+
     fun journeyPage(cityId: String, page: JourneyPage) {
         timestamp(page.observedAt)
         if (page.source !in setOf(ArrivalSource.AGGREGATOR_REALTIME, ArrivalSource.SCHEDULE)) invalid()
@@ -185,6 +197,13 @@ object NormalizedResponseValidator {
         val stop = entityId(arrival.stopId, cityId, "stop")
         val route = entityId(arrival.routeId, cityId, "route")
         if (stop.provider != provider || route.provider != provider || arrival.stopId != requestedStopId) invalid()
+        arrivalFields(cityId, provider, arrival)
+    }
+
+    private fun arrivalFields(cityId: String, provider: String, arrival: Arrival) {
+        arrival.vehicleId?.let { vehicleId ->
+            if (entityId(vehicleId, cityId, "vehicle").provider != provider) invalid()
+        }
         arrival.tripId?.let(::opaque)
         localized(arrival.headsign)
         arrival.scheduledAt?.let(::timestamp)

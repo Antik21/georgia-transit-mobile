@@ -124,6 +124,7 @@ internal fun ArrivalPageDto.toDomain() = ArrivalPage(
 internal fun ArrivalDto.toDomain() = TransitArrival(
     stopId = StopId(stopId.requirePublicId("stop id")),
     routeId = RouteId(routeId.requirePublicId("route id")),
+    vehicleId = vehicleId?.let { VehicleId(it.requirePublicId("vehicle id")) },
     tripId = tripId?.let(::TripId),
     headsign = headsign.toDomain(),
     scheduledAt = scheduledAt?.toUtcInstant("scheduledAt"),

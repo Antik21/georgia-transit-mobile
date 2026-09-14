@@ -169,6 +169,7 @@ enum class ArrivalSource {
 data class Arrival(
     val stopId: String,
     val routeId: String,
+    val vehicleId: String? = null,
     val tripId: String? = null,
     val headsign: LocalizedText,
     val scheduledAt: String? = null,

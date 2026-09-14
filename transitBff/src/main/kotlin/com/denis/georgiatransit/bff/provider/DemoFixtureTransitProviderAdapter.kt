@@ -170,6 +170,17 @@ class DemoFixtureTransitProviderAdapter : CityTransitProviderAdapter {
         )
     }
 
+    override suspend fun routeArrivals(routeId: String, limitPerStop: Int, locale: String): RealtimeArrivals {
+        if (routeId != blueRoute.id) throw ProviderRouteNotFound("Route was not found")
+        val pages = stops.map { arrivals(it.id, limitPerStop, locale) }
+        return RealtimeArrivals(
+            items = pages.flatMap(RealtimeArrivals::items),
+            source = ArrivalSource.OFFICIAL_REALTIME,
+            observedAt = pages.maxOf(RealtimeArrivals::observedAt),
+            stale = false,
+        )
+    }
+
     override suspend fun journeys(query: JourneyQuery): List<Journey> {
         val departure = query.departureAt
         return listOf(

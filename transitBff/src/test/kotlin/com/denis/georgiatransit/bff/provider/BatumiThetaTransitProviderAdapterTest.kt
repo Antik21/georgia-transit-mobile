@@ -3,6 +3,7 @@ package com.denis.georgiatransit.bff.provider
 import java.time.Instant
 import java.time.Clock
 import java.time.ZoneId
+import java.util.concurrent.atomic.AtomicBoolean
 import com.denis.georgiatransit.bff.config.BffConfig
 import com.denis.georgiatransit.bff.api.ArrivalSource
 import com.denis.georgiatransit.bff.service.TransitService
@@ -100,10 +101,83 @@ class BatumiThetaTransitProviderAdapterTest {
     }
 
     @Test
+    fun `bulk live parser maps all known routes and ignores an unknown route`() {
+        val observedAt = Instant.parse("2026-09-10T00:00:00Z")
+        val catalog = BatumiThetaCatalogParser.parse(fixture(true), observedAt)
+        val payload =
+            """{"data":{"r1":[{"Name":"private","Lat":41.64,"Lon":41.65}],"new-route":[]},"updatedAt":1}"""
+        val parsed = BatumiAllBusesParser.parse(payload, catalog, observedAt)
+        assertEquals(1, parsed.size)
+        assertEquals(1, parsed.getValue(catalog.routes.single().id).size)
+        assertTrue(!parsed.getValue(catalog.routes.single().id).single().vehicle.id.contains("private"))
+    }
+
+    @Test
+    fun `catalog and live parsers preserve status and status order`() {
+        val observedAt = Instant.parse("2026-09-10T00:00:00Z")
+        val catalog = BatumiThetaCatalogParser.parse(route10Fixture(), observedAt)
+        val route = catalog.routes.single()
+        assertEquals(listOf(1, 1, 1, 2, 2, 2), catalog.cycle(route.id).chain.map { it.status })
+        assertEquals(listOf("A", "B", "C", "D", "E", "F"), catalog.stopsFor(route.id).map { it.code })
+
+        val live = BatumiThetaLiveParser.parse(
+            """{"data":[{"Name":"bus","Lat":41.64,"Lon":41.64,"Status":2}]}""",
+            route,
+            observedAt,
+        )
+        assertEquals(2, live.single().status)
+    }
+
+    @Test
+    fun `route 10 next stop is immediate stopped bus is retained and dwell is one minute`() = runBlocking {
+        val clock = MutableClock(Instant.parse("2026-09-10T00:00:00Z"))
+        val client = FakeCatalogClient(route10Fixture())
+        BatumiThetaTransitProviderAdapter(activation(), client, clock).use { adapter ->
+            val route = adapter.routes("en", "bus").single()
+            val stops = adapter.stopDirectory("en").associateBy { it.code }
+
+            client.livePayload = """{"data":[{"Name":"route-10","Lat":41.64,"Lon":41.64,"Status":1}]}"""
+            val nextStopArrival = adapter.arrivals(stops.getValue("B").id, 5, "en").items.single()
+            assertEquals(1, nextStopArrival.expectedInMinutes)
+            assertTrue(nextStopArrival.vehicleId?.startsWith("batumi:theta:vehicle:") == true)
+
+            clock.advanceSeconds(5)
+            client.livePayload = """{"data":[{"Name":"route-10","Lat":41.64,"Lon":41.64179,"Status":1}]}"""
+            assertEquals(1, adapter.arrivals(stops.getValue("A").id, 5, "en").items.single().expectedInMinutes)
+
+            clock.advanceSeconds(5)
+            client.livePayload = """{"data":[{"Name":"route-10","Lat":41.64,"Lon":41.64182,"Status":1}]}"""
+            assertTrue(adapter.arrivals(stops.getValue("A").id, 5, "en").items.single().expectedInMinutes!! > 1)
+
+            clock.advanceSeconds(5)
+            client.livePayload = """{"data":[{"Name":"route-10","Lat":41.64,"Lon":41.64,"Status":1}]}"""
+            assertEquals(2, adapter.arrivals(stops.getValue("C").id, 5, "en").items.single().expectedInMinutes)
+            assertEquals(route.id, adapter.arrivals(stops.getValue("C").id, 5, "en").items.single().routeId)
+
+            clock.advanceSeconds(5)
+            client.livePayload = """{"data":[{"Name":"route-10","Lat":41.641,"Lon":41.6484,"Status":2}]}"""
+            assertEquals(1, adapter.arrivals(stops.getValue("E").id, 5, "en").items.single().expectedInMinutes)
+
+            val cycle = BatumiThetaCatalogParser.parse(route10Fixture(), clock.instant()).cycle(route.id)
+            val fromLastStop = cycle.chain.single { it.stop.code == "F" }.cumulativeMeters
+            val wrappedTarget = forwardDistanceForTest(cycle, fromLastStop, "B")
+            assertEquals(1, cycle.stopsBefore(fromLastStop, wrappedTarget))
+        }
+    }
+
+    @Test
+    fun `ETA workload has a hard preallocation budget`() {
+        validateEtaWorkload(listOf(100 to 1_000))
+        assertFailsWith<ProviderNormalizedSchemaFailure> {
+            validateEtaWorkload(listOf(100 to 1_000, 1 to 1))
+        }
+    }
+
+    @Test
     fun `live route is catalog prevalidated cached and stale LKG is marked`() = runBlocking {
         val clock = MutableClock(Instant.parse("2026-09-10T00:00:00Z"))
         val client = FakeCatalogClient(fixture(true)).apply {
-            livePayload = """{"data":[{"Name":"internal-1","Lat":41.6400,"Lon":41.6500,"Status":"x"}]}"""
+            livePayload = """{"data":[{"Name":"internal-1","Lat":41.6400,"Lon":41.6500,"Status":1}]}"""
         }
         BatumiThetaTransitProviderAdapter(activation(), client, clock).use { adapter ->
             val route = adapter.routes("en", "bus").single()
@@ -191,7 +265,177 @@ class BatumiThetaTransitProviderAdapterTest {
     }
 
     @Test
-    fun `ETA is withheld for passed stop zero movement and stale snapshot`() = runBlocking {
+    fun `arrivals retain every approaching vehicle for the same route`() = runBlocking {
+        val clock = MutableClock(Instant.parse("2026-09-10T00:00:00Z"))
+        val client = FakeCatalogClient(fixture(true))
+        BatumiThetaTransitProviderAdapter(activation(), client, clock).use { adapter ->
+            val route = adapter.routes("en", "bus").single()
+            val stop = adapter.stopDirectory("en").single { it.code == "B" }
+            fun live(aLat: Double, aLon: Double, bLat: Double, bLon: Double) {
+                client.livePayload =
+                    """{"data":[{"Name":"a","Lat":$aLat,"Lon":$aLon},{"Name":"b","Lat":$bLat,"Lon":$bLon}]}"""
+            }
+            live(41.6400, 41.6500, 41.6401, 41.6501); adapter.vehicles(route.id, null)
+            clock.advanceSeconds(5)
+            live(41.6403, 41.6503, 41.6404, 41.6504); adapter.vehicles(route.id, null)
+            clock.advanceSeconds(5)
+            live(41.6406, 41.6506, 41.6407, 41.6507); adapter.vehicles(route.id, null)
+
+            val arrivals = adapter.arrivals(stop.id, 5, "en")
+
+            assertEquals(2, arrivals.items.size)
+            assertTrue(arrivals.items.all { it.routeId == route.id && it.expectedInMinutes != null })
+        }
+    }
+
+    @Test
+    fun `route board worker publishes one snapshot covering future route stops`() = runBlocking {
+        val clock = MutableClock(Instant.parse("2026-09-10T00:00:00Z"))
+        val client = FakeCatalogClient(fixture(true))
+        BatumiThetaTransitProviderAdapter(
+            activation = activation(),
+            client = client,
+            clock = clock,
+            routeWorkerPollInterval = java.time.Duration.ofMillis(10),
+            routeWorkerIdleTimeout = java.time.Duration.ofSeconds(1),
+        ).use { adapter ->
+            val route = adapter.routes("en", "bus").single()
+            fun live(lat: Double, lon: Double) {
+                client.livePayload = """{"data":[{"Name":"route-worker","Lat":$lat,"Lon":$lon}]}"""
+            }
+
+            live(41.6400, 41.6500)
+            assertTrue(adapter.routeArrivals(route.id, 2, "en").items.isNotEmpty())
+            clock.advanceSeconds(5)
+            live(41.6403, 41.6503)
+            adapter.vehicles(route.id, null)
+            clock.advanceSeconds(5)
+            live(41.6406, 41.6506)
+            adapter.vehicles(route.id, null)
+
+            delay(35)
+            val board = adapter.routeArrivals(route.id, 2, "en")
+            assertTrue("B" in board.items.map { item ->
+                adapter.stopDirectory("en").single { it.id == item.stopId }.code
+            }.toSet())
+            assertTrue(board.items.all { it.routeId == route.id && it.source == ArrivalSource.CLIENT_ESTIMATE })
+        }
+    }
+
+    @Test
+    fun `global feed polls without users and serves every endpoint without route fetches`() = runBlocking {
+        val clock = MutableClock(Instant.parse("2026-09-10T00:00:00Z"))
+        val routeClient = FakeCatalogClient(fixture(true))
+        val globalClient = FakeAllBusesClient {
+            val coordinate = 41.6400 + it * 0.0003
+            clock.advanceSeconds(5)
+            """{"data":{"r1":[{"Name":"global","Lat":$coordinate,"Lon":${coordinate + 0.01}}]}}"""
+        }
+        BatumiThetaTransitProviderAdapter(
+            activation = activation(),
+            client = routeClient,
+            clock = clock,
+            allBusesClient = globalClient,
+            cityFeedPollInterval = java.time.Duration.ofMillis(50),
+        ).use { adapter ->
+            adapter.startGlobalFeed { true }
+            while (globalClient.calls < 3) delay(2)
+            val route = adapter.routes("en", "bus").single()
+            val vehicles = adapter.vehicles(route.id, null)
+            val board = adapter.routeArrivals(route.id, 2, "en")
+            val stop = adapter.stopDirectory("en").single { it.code == "B" }
+            val stopBoard = adapter.arrivals(stop.id, 2, "en")
+
+            assertEquals(1, vehicles.items.size)
+            assertTrue(board.items.isNotEmpty())
+            assertEquals(
+                board.items.filter { it.stopId == stop.id }.map { it.vehicleId to it.expectedInMinutes },
+                stopBoard.items.map { it.vehicleId to it.expectedInMinutes },
+            )
+            assertEquals(0, routeClient.liveCalls)
+        }
+    }
+
+    @Test
+    fun `global feed makes no upstream calls while runtime capabilities disable it`() = runBlocking {
+        val enabled = AtomicBoolean(false)
+        val globalClient = FakeAllBusesClient { """{"data":{"r1":[]}}""" }
+        BatumiThetaTransitProviderAdapter(
+            activation = activation(),
+            client = FakeCatalogClient(fixture(true)),
+            allBusesClient = globalClient,
+            cityFeedPollInterval = java.time.Duration.ofMillis(10),
+        ).use { adapter ->
+            adapter.startGlobalFeed(enabled::get)
+            delay(35)
+            assertEquals(0, globalClient.calls)
+            enabled.set(true)
+            while (globalClient.calls == 0) delay(2)
+            assertTrue(globalClient.calls > 0)
+        }
+    }
+
+    @Test
+    fun `global feed retains an arrival for one missing vehicle snapshot`() = runBlocking {
+        val clock = MutableClock(Instant.parse("2026-09-10T00:00:00Z"))
+        val globalClient = FakeAllBusesClient { generation ->
+            clock.advanceSeconds(5)
+            if (generation == 0) {
+                """{"data":{"64901c96e25b40c6e2150b34":[{"Name":"global","Lat":41.64,"Lon":41.64,"Status":1}]}}"""
+            } else {
+                """{"data":{"64901c96e25b40c6e2150b34":[]}}"""
+            }
+        }
+        BatumiThetaTransitProviderAdapter(
+            activation = activation(),
+            client = FakeCatalogClient(route10Fixture()),
+            clock = clock,
+            allBusesClient = globalClient,
+            cityFeedPollInterval = java.time.Duration.ofMillis(150),
+        ).use { adapter ->
+            adapter.startGlobalFeed { true }
+            while (globalClient.calls < 1) delay(2)
+            val route = adapter.routes("en", "bus").single()
+            assertTrue(adapter.routeArrivals(route.id, 2, "en").items.isNotEmpty())
+
+            while (globalClient.calls < 2) delay(2)
+            delay(20)
+            assertTrue(adapter.routeArrivals(route.id, 2, "en").items.isNotEmpty())
+
+            while (globalClient.calls < 3) delay(2)
+            delay(20)
+            assertTrue(adapter.routeArrivals(route.id, 2, "en").items.isEmpty())
+        }
+    }
+
+    @Test
+    fun `arrival candidate survives one missing live snapshot then is removed`() = runBlocking {
+        val clock = MutableClock(Instant.parse("2026-09-10T00:00:00Z"))
+        val client = FakeCatalogClient(fixture(true))
+        BatumiThetaTransitProviderAdapter(activation(), client, clock).use { adapter ->
+            val route = adapter.routes("en", "bus").single()
+            val stop = adapter.stopDirectory("en").single { it.code == "B" }
+            fun live(lat: Double, lon: Double) {
+                client.livePayload = """{"data":[{"Name":"same-vehicle","Lat":$lat,"Lon":$lon}]}"""
+            }
+            live(41.6400, 41.6500); adapter.vehicles(route.id, null)
+            clock.advanceSeconds(5)
+            live(41.6403, 41.6503); adapter.vehicles(route.id, null)
+            clock.advanceSeconds(5)
+            live(41.6406, 41.6506); adapter.vehicles(route.id, null)
+            assertEquals(1, adapter.arrivals(stop.id, 5, "en").items.size)
+
+            clock.advanceSeconds(5)
+            client.livePayload = """{"data":null}"""
+            assertEquals(1, adapter.arrivals(stop.id, 5, "en").items.size)
+
+            clock.advanceSeconds(5)
+            assertEquals(0, adapter.arrivals(stop.id, 5, "en").items.size)
+        }
+    }
+
+    @Test
+    fun `stopped vehicle keeps ETA while stale snapshot is withheld`() = runBlocking {
         suspend fun arrive(
             points: List<Pair<Double, Double>>,
             targetCode: String,
@@ -210,9 +454,7 @@ class BatumiThetaTransitProviderAdapterTest {
             adapter.arrivals(adapter.stopDirectory("en").single { it.code == targetCode }.id, 5, "en")
             }
         }
-        // A non-loop route cannot wrap past its terminal to a previous stop.
-        assertEquals(0, arrive(listOf(41.6402 to 41.6502, 41.6405 to 41.6505, 41.6408 to 41.6508), "A").items.size)
-        assertEquals(0, arrive(List(3) { 41.6402 to 41.6502 }, "B").items.size)
+        assertEquals(1, arrive(List(3) { 41.6402 to 41.6502 }, "B").items.size)
         assertTrue(arrive(listOf(41.6400 to 41.6500, 41.6403 to 41.6503, 41.6406 to 41.6506), "B", stale = true).stale)
         Unit
     }
@@ -239,6 +481,14 @@ class BatumiThetaTransitProviderAdapterTest {
 
     private fun loopFixture(): String = """{"data":{"routesNames":[{"RouteIdGeoGps":"loop","RouteNameGeoGps":"L","RouteNameGeoGpsKA":"L","RouteSortOrder":1}],"busStops":[{"BusStopIdGeoGps":"a","BusStopNumber":"A","BusStopNameGeoGps":"Start","Lat":41.64,"Lon":41.65,"routes":{"loop":{"Order":1}}},{"BusStopIdGeoGps":"b","BusStopNumber":"B","BusStopNameGeoGps":"Corner","Lat":41.64,"Lon":41.651,"routes":{"loop":{"Order":2}}}],"routeCoordinatesGrouped":{"loop":[{"lat":41.64,"lon":41.65},{"lat":41.64,"lon":41.651},{"lat":41.641,"lon":41.651},{"lat":41.64,"lon":41.65}]}}}"""
 
+    private fun route10Fixture(): String = """{"data":{"routesNames":[{"RouteIdGeoGps":"64901c96e25b40c6e2150b34","RouteNameGeoGps":"10","RouteNameGeoGpsKA":"10","RouteSortOrder":10}],"busStops":[{"BusStopIdGeoGps":"a","BusStopNumber":"A","BusStopNameGeoGps":"A","Lat":41.64,"Lon":41.64,"routes":{"64901c96e25b40c6e2150b34":{"Status":1,"Order":1}}},{"BusStopIdGeoGps":"b","BusStopNumber":"B","BusStopNameGeoGps":"B","Lat":41.64,"Lon":41.6442,"routes":{"64901c96e25b40c6e2150b34":{"Status":1,"Order":2}}},{"BusStopIdGeoGps":"c","BusStopNumber":"C","BusStopNameGeoGps":"C","Lat":41.64,"Lon":41.6484,"routes":{"64901c96e25b40c6e2150b34":{"Status":1,"Order":3}}},{"BusStopIdGeoGps":"d","BusStopNumber":"D","BusStopNameGeoGps":"D","Lat":41.641,"Lon":41.6484,"routes":{"64901c96e25b40c6e2150b34":{"Status":2,"Order":4}}},{"BusStopIdGeoGps":"e","BusStopNumber":"E","BusStopNameGeoGps":"E","Lat":41.641,"Lon":41.6442,"routes":{"64901c96e25b40c6e2150b34":{"Status":2,"Order":5}}},{"BusStopIdGeoGps":"f","BusStopNumber":"F","BusStopNameGeoGps":"F","Lat":41.641,"Lon":41.64,"routes":{"64901c96e25b40c6e2150b34":{"Status":2,"Order":6}}}],"routeCoordinatesGrouped":{"64901c96e25b40c6e2150b34":[{"lat":41.64,"lon":41.64},{"lat":41.64,"lon":41.6484},{"lat":41.641,"lon":41.6484},{"lat":41.641,"lon":41.64},{"lat":41.64,"lon":41.64}]}}}"""
+
+    private fun forwardDistanceForTest(cycle: RouteCycle, from: Double, targetCode: String): Double {
+        val target = cycle.chain.single { it.stop.code == targetCode }.cumulativeMeters
+        val direct = target - from
+        return if (direct < -150.0) direct + cycle.totalMeters else direct.coerceAtLeast(0.0)
+    }
+
     private class FakeCatalogClient(private val payload: String) : BatumiThetaCatalogClient {
         var calls = 0
         var failAfterFirst = false
@@ -257,6 +507,13 @@ class BatumiThetaTransitProviderAdapterTest {
             if (liveFailure) throw ProviderUnavailable("test")
             return livePayload
         }
+        override fun close() = Unit
+    }
+
+    private class FakeAllBusesClient(private val payload: (Int) -> String) : BatumiAllBusesClient {
+        @Volatile var calls = 0
+
+        override suspend fun getAllBuses(): String = payload(calls++)
         override fun close() = Unit
     }
 

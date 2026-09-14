@@ -49,7 +49,7 @@
     <string name="map_change_city_action">Change city</string>
     <string name="map_my_location_action">My location</string>
     <string name="map_selected_routes">Routes: %1$s</string>
-    <string name="map_route_geometry_title">Selected route lines</string>
+    <string name="map_route_geometry_title">Selected routes</string>
     <string name="map_route_geometry_loading">Loading route line… %1$d of %2$d directions shown</string>
     <string name="map_route_geometry_ready">%1$d of %2$d directions shown</string>
     <string name="map_route_geometry_partial">%1$d of %2$d directions shown; some are unavailable</string>
@@ -63,7 +63,6 @@
     <string name="map_selected_stop">Selected stop: %1$s</string>
     <string name="map_stop_arrivals_title">Stop arrivals</string>
     <string name="map_stop_arrivals_stop_details_unavailable">Stop details unavailable</string>
-    <string name="map_stop_arrivals_stop_code">Stop code: %1$s</string>
     <string name="map_stop_arrivals_routes">Routes serving this stop</string>
     <string name="map_stop_arrivals_selected_route">Selected</string>
     <string name="map_stop_arrivals_route_details_unavailable">Some route details are unavailable.</string>

@@ -37,6 +37,7 @@ enum class TelemetryOperation(val wireValue: String, val capability: TelemetryCa
     SHAPE("shape", TelemetryCapability.ROUTE_GEOMETRY),
     NEARBY_STOPS("nearby_stops", TelemetryCapability.STOPS),
     VEHICLES("vehicles", TelemetryCapability.VEHICLE_POSITIONS),
+    GLOBAL_VEHICLES("global_vehicles", TelemetryCapability.VEHICLE_POSITIONS),
     ARRIVALS("arrivals", TelemetryCapability.ARRIVALS),
     JOURNEYS("journeys", TelemetryCapability.TRIP_PLANNING),
     WALKING_ESTIMATE("walking_estimate", TelemetryCapability.TRIP_PLANNING),
