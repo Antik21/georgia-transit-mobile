@@ -10,13 +10,17 @@ import com.denis.georgiatransit.bff.api.CitySource
 import com.denis.georgiatransit.bff.api.Direction
 import com.denis.georgiatransit.bff.api.GeoPoint
 import com.denis.georgiatransit.bff.api.Journey
+import com.denis.georgiatransit.bff.api.KnownCityIds
 import com.denis.georgiatransit.bff.api.LocalizedText
 import com.denis.georgiatransit.bff.api.PositionKind
+import com.denis.georgiatransit.bff.api.PublicEntityType
 import com.denis.georgiatransit.bff.api.Route
 import com.denis.georgiatransit.bff.api.Shape
 import com.denis.georgiatransit.bff.api.Stop
 import com.denis.georgiatransit.bff.api.Vehicle
 import com.denis.georgiatransit.bff.api.WalkingEstimate
+import com.denis.georgiatransit.bff.api.TransitModeValues
+import com.denis.georgiatransit.bff.api.formatPublicId
 import com.denis.georgiatransit.bff.config.BatumiThetaActivationConfig
 import com.denis.georgiatransit.bff.observability.TelemetryProvider
 import com.denis.georgiatransit.bff.observability.BffObservability
@@ -57,7 +61,8 @@ import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 
-private const val BatumiCityId = "batumi"
+private const val BatumiCityId = KnownCityIds.Batumi
+private const val BatumiProviderId = "theta"
 private const val BatumiMaximumBodyBytes = 2 * 1024 * 1024
 private const val BatumiMaximumRoutes = 128
 private const val BatumiMaximumStops = 2_000
@@ -164,7 +169,7 @@ internal class BatumiThetaTransitProviderAdapter(
     }
 
     override suspend fun routes(locale: String, mode: String?): List<Route> =
-        if (mode == null || mode == "bus") catalog().routes else emptyList()
+        if (mode == null || mode == TransitModeValues.Bus) catalog().routes else emptyList()
 
     override suspend fun route(routeId: String, locale: String): Route =
         catalog().routes.singleOrNull { it.id == routeId } ?: throw ProviderRouteNotFound("The requested route was not found")
@@ -728,7 +733,7 @@ internal object BatumiThetaCatalogParser {
         val routeIds = routesByRaw.keys.associateWith(BatumiIds::route)
         val directions = routeIds.mapValues { (raw, _) -> BatumiIds.direction(raw) }
         val routes = routeEntries.sortedWith(compareBy<RawRoute> { it.order }.thenBy { it.name }).map { raw ->
-            Route(routeIds.getValue(raw.rawId), BatumiIds.opaque(raw.rawId), raw.name, LocalizedText(raw.name, raw.name, raw.ka), "#1479B8", "#FFFFFF", "bus", listOf(technicalDirection(raw.rawId)))
+            Route(routeIds.getValue(raw.rawId), BatumiIds.opaque(raw.rawId), raw.name, LocalizedText(raw.name, raw.name, raw.ka), "#1479B8", "#FFFFFF", TransitModeValues.Bus, listOf(technicalDirection(raw.rawId)))
         }
         val rawStopEntries = rawStops.map { (key, element) -> element.objectValue().let { obj ->
             val raw = obj.stringOr("BusStopIdGeoGps", "BusStopId", "_id", fallback = key ?: "").also { if (!safeString(it)) invalid() }
@@ -752,7 +757,7 @@ internal object BatumiThetaCatalogParser {
                 LocalizedText(raw.name, raw.name, raw.ka),
                 raw.position,
                 raw.memberships.map { routeIds.getValue(it.rawRouteId) }.sorted(),
-                "bus",
+                TransitModeValues.Bus,
             )
         }
         val stops = stopsByRawId.values.sortedBy(Stop::id)
@@ -817,12 +822,18 @@ internal object BatumiThetaCatalogParser {
 
 private object BatumiIds {
     fun opaque(raw: String) = Base64.getUrlEncoder().withoutPadding().encodeToString(raw.toByteArray(StandardCharsets.UTF_8))
-    fun route(raw: String) = "batumi:theta:route:${opaque(raw)}"
-    fun stop(raw: String) = "batumi:theta:stop:${opaque(raw)}"
+    fun route(raw: String) = formatPublicId(BatumiCityId, BatumiProviderId, PublicEntityType.Route, opaque(raw))
+    fun stop(raw: String) = formatPublicId(BatumiCityId, BatumiProviderId, PublicEntityType.Stop, opaque(raw))
     /** The suffix denotes only upstream technical ordering/status, never a passenger headsign. */
-    fun direction(raw: String) = "batumi:theta:direction:${opaque(raw)}-technical"
+    fun direction(raw: String) =
+        formatPublicId(BatumiCityId, BatumiProviderId, PublicEntityType.Direction, "${opaque(raw)}-technical")
     /** Upstream Name is scoped to this response route and is never a passenger-visible fleet ID. */
-    fun vehicle(routeId: String, rawName: String) = "batumi:theta:vehicle:${routeId.substringAfterLast(':')}-${token(rawName)}"
+    fun vehicle(routeId: String, rawName: String) = formatPublicId(
+        BatumiCityId,
+        BatumiProviderId,
+        PublicEntityType.Vehicle,
+        "${routeId.substringAfterLast(':')}-${token(rawName)}",
+    )
     private fun token(raw: String): String = Base64.getUrlEncoder().withoutPadding().encodeToString(
         MessageDigest.getInstance("SHA-256").digest(raw.toByteArray(StandardCharsets.UTF_8)),
     )

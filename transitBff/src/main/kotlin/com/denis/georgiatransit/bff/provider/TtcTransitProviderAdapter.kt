@@ -15,13 +15,17 @@ import com.denis.georgiatransit.bff.api.JourneyLeg
 import com.denis.georgiatransit.bff.api.JourneyPage
 import com.denis.georgiatransit.bff.api.JourneySegment
 import com.denis.georgiatransit.bff.api.JourneySegmentMode
+import com.denis.georgiatransit.bff.api.KnownCityIds
 import com.denis.georgiatransit.bff.api.LocalizedText
 import com.denis.georgiatransit.bff.api.PositionKind
+import com.denis.georgiatransit.bff.api.PublicEntityType
 import com.denis.georgiatransit.bff.api.Route
 import com.denis.georgiatransit.bff.api.Shape
 import com.denis.georgiatransit.bff.api.Stop
 import com.denis.georgiatransit.bff.api.Vehicle
 import com.denis.georgiatransit.bff.api.WalkingEstimate
+import com.denis.georgiatransit.bff.api.TransitModeValues
+import com.denis.georgiatransit.bff.api.formatPublicId
 import com.denis.georgiatransit.bff.config.TtcActivationConfig
 import com.denis.georgiatransit.bff.geo.haversineMeters
 import com.denis.georgiatransit.bff.observability.NoopProviderCallObservability
@@ -76,7 +80,7 @@ import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 
-private const val TtcCityId = "tbilisi"
+private const val TtcCityId = KnownCityIds.Tbilisi
 private const val TtcProviderId = "ttc"
 private const val TtcMaximumResponseBytes = 256 * 1024
 private const val TtcMaximumRoutes = 512
@@ -99,11 +103,14 @@ private const val TtcVehicleMaximumMetersPerSecond = 35.0
 private const val TtcVehicleMatchBaseMeters = 60.0
 private const val TtcVehicleMaximumMatchMeters = 1_000.0
 private const val TtcVehicleAmbiguousMeters = 8.0
+private const val TtcForwardDirectionToken = "F"
+private const val TtcBackwardDirectionToken = "B"
 
 private val TtcJson = Json {
     ignoreUnknownKeys = true
     explicitNulls = false
 }
+private val TtcHexColorPattern = Regex("[0-9A-F]{6}")
 
 /**
  * A TTC v2 adapter. TTC's DTOs and credential are local to this source file and never leave the
@@ -157,14 +164,14 @@ internal class TtcTransitProviderAdapter(
     private val vehicleTracker = TtcVehicleTracker(clock)
 
     override suspend fun routes(locale: String, mode: String?): List<Route> {
-        if (mode != null && mode != "bus") return emptyList()
+        if (mode != null && mode != TransitModeValues.Bus) return emptyList()
         return client.routes(ttcLocale(locale), TelemetryOperation.LIST_ROUTES)
             .map { route -> route.toNormalizedRoute(locale) }
             .sortedWith(compareBy(Route::shortName).thenBy(Route::id))
     }
 
     override suspend fun route(routeId: String, locale: String): Route {
-        val rawRouteId = TtcIds.decode(routeId, "route") { ProviderRouteNotFound("The requested route was not found") }
+        val rawRouteId = TtcIds.decode(routeId, PublicEntityType.Route) { ProviderRouteNotFound("The requested route was not found") }
         return client.routes(ttcLocale(locale), TelemetryOperation.ROUTE)
             .singleOrNull { it.rawId == rawRouteId }
             ?.toNormalizedRoute(locale)
@@ -172,7 +179,7 @@ internal class TtcTransitProviderAdapter(
     }
 
     override suspend fun directionStops(routeId: String, directionId: String, locale: String): List<Stop> {
-        val rawRouteId = TtcIds.decode(routeId, "route") { ProviderRouteNotFound("The requested route was not found") }
+        val rawRouteId = TtcIds.decode(routeId, PublicEntityType.Route) { ProviderRouteNotFound("The requested route was not found") }
         val forward = TtcIds.decodeDirection(directionId, rawRouteId)
         val publicRouteId = TtcIds.routeId(rawRouteId)
         return client.routeStops(rawRouteId, forward, ttcLocale(locale))
@@ -181,7 +188,7 @@ internal class TtcTransitProviderAdapter(
     }
 
     override suspend fun shape(routeId: String, directionId: String): Shape {
-        val rawRouteId = TtcIds.decode(routeId, "route") { ProviderRouteNotFound("The requested route was not found") }
+        val rawRouteId = TtcIds.decode(routeId, PublicEntityType.Route) { ProviderRouteNotFound("The requested route was not found") }
         val forward = TtcIds.decodeDirection(directionId, rawRouteId)
         val polyline = client.polyline(rawRouteId, forward)
         return Shape(
@@ -203,7 +210,7 @@ internal class TtcTransitProviderAdapter(
     }
 
     override suspend fun vehicles(routeId: String, directionId: String?): RealtimeVehicles {
-        val rawRouteId = TtcIds.decode(routeId, "route") { ProviderRouteNotFound("The requested route was not found") }
+        val rawRouteId = TtcIds.decode(routeId, PublicEntityType.Route) { ProviderRouteNotFound("The requested route was not found") }
         val directions = if (directionId == null) {
             listOf(true, false)
         } else {
@@ -230,7 +237,7 @@ internal class TtcTransitProviderAdapter(
     }
 
     override suspend fun arrivals(stopId: String, limit: Int, locale: String): RealtimeArrivals {
-        val rawStopId = TtcIds.decode(stopId, "stop") { ProviderStopNotFound("The requested stop was not found") }
+        val rawStopId = TtcIds.decode(stopId, PublicEntityType.Stop) { ProviderStopNotFound("The requested stop was not found") }
         return freshArrivals(rawStopId, stopId, limit, locale)
     }
 
@@ -441,7 +448,7 @@ private fun TtcRoute.toNormalizedRoute(locale: String): Route {
         longName = localizedTtcText(longName, locale),
         color = normalizedColor,
         textColor = normalizedColor.accessibleTextColor(),
-        mode = "bus",
+        mode = TransitModeValues.Bus,
         directions = listOf(
             Direction(
                 id = TtcIds.directionId(rawId, forward = true),
@@ -464,7 +471,7 @@ private fun TtcStop.toNormalizedStop(locale: String, routeIds: List<String> = em
     name = localizedTtcText(name, locale),
     position = GeoPoint(latitude, longitude),
     routeIds = routeIds,
-    mode = "bus",
+    mode = TransitModeValues.Bus,
 )
 
 private fun TtcStop.isBusStop(): Boolean = mode == "BUS"
@@ -783,11 +790,11 @@ private fun localizedTtcText(value: String, requestedLocale: String): LocalizedT
 
 private fun String.normalizeTtcColor(): String {
     val normalized = removePrefix("#").uppercase()
-    return if (normalized.matches(Regex("[0-9A-F]{6}"))) "#$normalized" else TtcSafeRouteColor
+    return if (normalized.matches(TtcHexColorPattern)) "#$normalized" else TtcSafeRouteColor
 }
 
 private fun String.accessibleTextColor(): String {
-    val components = removePrefix("#").takeIf { it.matches(Regex("[0-9A-F]{6}")) }
+    val components = removePrefix("#").takeIf { it.matches(TtcHexColorPattern) }
         ?.chunked(2)?.map { it.toInt(16) } ?: return TtcSafeTextColor
     fun channel(value: Int): Double = (value / 255.0).let { if (it <= 0.03928) it / 12.92 else ((it + 0.055) / 1.055).let { x -> x * x * x } }
     val luminance = 0.2126 * channel(components[0]) + 0.7152 * channel(components[1]) + 0.0722 * channel(components[2])
@@ -799,20 +806,27 @@ private object TtcIds {
     private val encoder = Base64.getUrlEncoder().withoutPadding()
     private val decoder = Base64.getUrlDecoder()
 
-    fun routeId(raw: String): String = publicId("route", raw)
-    fun stopId(raw: String): String = publicId("stop", raw)
-    fun vehicleId(raw: String): String = publicId("vehicle", raw)
-    fun journeyId(raw: String): String = publicId("journey", raw)
-    fun directionId(routeRaw: String, forward: Boolean): String = publicId("direction", "$routeRaw\u0000${if (forward) "F" else "B"}")
+    fun routeId(raw: String): String = publicId(PublicEntityType.Route, raw)
+    fun stopId(raw: String): String = publicId(PublicEntityType.Stop, raw)
+    fun vehicleId(raw: String): String = publicId(PublicEntityType.Vehicle, raw)
+    fun journeyId(raw: String): String = publicId(PublicEntityType.Journey, raw)
+    fun directionId(routeRaw: String, forward: Boolean): String =
+        publicId(
+            PublicEntityType.Direction,
+            "$routeRaw\u0000${if (forward) TtcForwardDirectionToken else TtcBackwardDirectionToken}",
+        )
 
     fun providerSuffix(raw: String): String {
         validateRaw(raw)
         return encoder.encodeToString(raw.toByteArray(StandardCharsets.UTF_8))
     }
 
-    fun decode(publicId: String, entity: String, failure: () -> ProviderFailure): String = try {
+    fun decode(publicId: String, entityType: PublicEntityType, failure: () -> ProviderFailure): String = try {
         val parts = publicId.split(':')
-        if (parts.size != 4 || parts[0] != TtcCityId || parts[1] != TtcProviderId || parts[2] != entity || parts[3].isBlank()) {
+        if (
+            parts.size != 4 || parts[0] != TtcCityId || parts[1] != TtcProviderId ||
+            parts[2] != entityType.wireValue || parts[3].isBlank()
+        ) {
             throw IllegalArgumentException()
         }
         decoder.decode(parts[3]).toString(StandardCharsets.UTF_8).also { raw ->
@@ -824,21 +838,28 @@ private object TtcIds {
     }
 
     fun decodeDirection(directionId: String, expectedRouteRaw: String): Boolean {
-        val raw = decode(directionId, "direction") { ProviderInvalidArgument("The requested direction is not available") }
+        val raw = decode(directionId, PublicEntityType.Direction) {
+            ProviderInvalidArgument("The requested direction is not available")
+        }
         val separator = raw.lastIndexOf('\u0000')
         if (separator <= 0 || raw.substring(0, separator) != expectedRouteRaw) {
             throw ProviderInvalidArgument("The requested direction is not available")
         }
         return when (raw.substring(separator + 1)) {
-            "F" -> true
-            "B" -> false
+            TtcForwardDirectionToken -> true
+            TtcBackwardDirectionToken -> false
             else -> throw ProviderInvalidArgument("The requested direction is not available")
         }
     }
 
-    private fun publicId(entity: String, raw: String): String {
+    private fun publicId(entityType: PublicEntityType, raw: String): String {
         validateRaw(raw)
-        return "$Prefix:$entity:${encoder.encodeToString(raw.toByteArray(StandardCharsets.UTF_8))}"
+        return formatPublicId(
+            TtcCityId,
+            TtcProviderId,
+            entityType,
+            encoder.encodeToString(raw.toByteArray(StandardCharsets.UTF_8)),
+        )
     }
 
     private fun validateRaw(raw: String) {

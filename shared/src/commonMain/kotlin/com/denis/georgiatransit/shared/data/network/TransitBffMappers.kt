@@ -93,7 +93,7 @@ internal fun ShapeDto.toDomain() = TransitShape(
     encodedPolyline = value,
     precision = precision,
     updatedAt = updatedAt.toUtcInstant("shape updatedAt"),
-).also { require(format == "encoded_polyline") { "shape format is invalid" } }
+).also { require(format == EncodedPolylineShapeFormat) { "shape format is invalid" } }
 
 internal fun VehiclePageDto.toDomain() = VehiclePage(
     items = items.map { it.toDomain() },
@@ -307,7 +307,7 @@ private fun ArrivalSourceDto.toDomain() = when (this) {
     ArrivalSourceDto.ClientEstimate -> ArrivalSource.ClientEstimate
 }
 private fun String.toArgb(): Long {
-    require(matches(Regex("^#[0-9A-Fa-f]{6}$"))) { "color is invalid" }
+    require(ColorPattern.matches(this)) { "color is invalid" }
     return (0xFF000000L or substring(1).toLong(16))
 }
 private fun String.toUtcInstant(field: String): Instant {
@@ -335,3 +335,4 @@ private val CityIdPattern = Regex("^[a-z][a-z0-9-]{1,31}$")
 private val PublicIdPattern = Regex("^[^:\\s]+:[^:\\s]+:[^:\\s]+:[^:\\s]+$")
 private val AttributionIdPattern = Regex("^[a-z][a-z0-9-]{0,31}$")
 private val UrlPattern = Regex("^https://[^\\s/@?#]+(?::[0-9]{1,5})?(?:/[^\\s#]*)?$")
+private val ColorPattern = Regex("^#[0-9A-Fa-f]{6}$")

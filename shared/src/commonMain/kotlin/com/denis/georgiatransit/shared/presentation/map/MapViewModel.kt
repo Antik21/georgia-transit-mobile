@@ -2132,7 +2132,7 @@ private fun String.sanitizedRouteBadgeLabel(): String = asSequence()
     .filter { it.isLetterOrDigit() || it == ' ' || it == '-' }
     .joinToString(separator = "")
     .trim()
-    .replace(Regex("\\s+"), " ")
+    .replace(WhitespacePattern, " ")
     .take(MAX_ROUTE_BADGE_LABEL_LENGTH)
     .ifBlank { "?" }
 
@@ -2191,6 +2191,7 @@ private data class CachedVehicleRouteMotion(
 
 private const val MAX_ROUTE_BADGE_LABEL_LENGTH = 8
 private const val VEHICLE_ROUTE_TEXT_COLOR_ARGB = 0xFFFFFFFF
+private val WhitespacePattern = Regex("\\s+")
 
 private data class VehicleRequestKey(val cityId: CityId, val routeId: RouteId)
 

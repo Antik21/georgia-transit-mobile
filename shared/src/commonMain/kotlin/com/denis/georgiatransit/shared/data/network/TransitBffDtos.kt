@@ -3,6 +3,12 @@ package com.denis.georgiatransit.shared.data.network
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
+internal const val BusModeWireValue = "bus"
+internal const val MetroModeWireValue = "metro"
+internal const val TramModeWireValue = "tram"
+internal const val FerryModeWireValue = "ferry"
+internal const val EncodedPolylineShapeFormat = "encoded_polyline"
+
 /** Transport-only types for the published normalized Transit BFF OpenAPI. */
 @Serializable
 internal data class CityDto(
@@ -98,10 +104,10 @@ internal data class ShapeDto(val format: String, val precision: Int, val value: 
 
 @Serializable
 internal enum class TransportModeDto {
-    @SerialName("bus") Bus,
-    @SerialName("metro") Metro,
-    @SerialName("tram") Tram,
-    @SerialName("ferry") Ferry,
+    @SerialName(BusModeWireValue) Bus,
+    @SerialName(MetroModeWireValue) Metro,
+    @SerialName(TramModeWireValue) Tram,
+    @SerialName(FerryModeWireValue) Ferry,
 }
 
 @Serializable
