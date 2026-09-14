@@ -77,7 +77,7 @@ committed IDs and persist its surviving set.
 
 ```text
 ./gradlew --no-daemon --no-build-cache :shared:compileKotlinIosSimulatorArm64
-./gradlew --no-daemon --no-build-cache :androidApp:assembleDebug
+./gradlew --no-daemon --no-build-cache :androidApp:assembleSandbox
 ./gradlew --no-daemon --no-build-cache spotlessCheck
 ```
 

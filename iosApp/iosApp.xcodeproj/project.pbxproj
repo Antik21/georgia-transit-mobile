@@ -28,7 +28,9 @@
 		0A0000110000000000000008 /* ru */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = ru; path = ru.lproj/InfoPlist.strings; sourceTree = "<group>"; };
 		0A0000110000000000000009 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		0A0000110000000000000010 /* DebugNetworkInspector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DebugNetworkInspector.swift; sourceTree = "<group>"; };
-		0A0000110000000000000011 /* Info.Debug.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.Debug.plist; sourceTree = "<group>"; };
+		0A0000110000000000000011 /* Info.Sandbox.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.Sandbox.plist; sourceTree = "<group>"; };
+		0A0000110000000000000012 /* Sandbox.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Sandbox.xcconfig; sourceTree = "<group>"; };
+		0A0000110000000000000013 /* Prod.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Prod.xcconfig; sourceTree = "<group>"; };
 		0A0000120000000000000001 /* iosApp.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = iosApp.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
@@ -48,6 +50,7 @@
 			isa = PBXGroup;
 			children = (
 				0A0000210000000000000002 /* iosApp */,
+				0A0000210000000000000004 /* Configuration */,
 				0A0000210000000000000003 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -62,7 +65,7 @@
 				0A0000110000000000000005 /* MapLibrePrototypeStyle.json */,
 				0A0000110000000000000009 /* Assets.xcassets */,
 				0A0000110000000000000003 /* Info.plist */,
-				0A0000110000000000000011 /* Info.Debug.plist */,
+				0A0000110000000000000011 /* Info.Sandbox.plist */,
 				0A0000310000000000000002 /* InfoPlist.strings */,
 			);
 			path = iosApp;
@@ -74,6 +77,15 @@
 				0A0000120000000000000001 /* iosApp.app */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		0A0000210000000000000004 /* Configuration */ = {
+			isa = PBXGroup;
+			children = (
+				0A0000110000000000000012 /* Sandbox.xcconfig */,
+				0A0000110000000000000013 /* Prod.xcconfig */,
+			);
+			path = Configuration;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -200,7 +212,7 @@
 /* End PBXVariantGroup section */
 
 /* Begin XCBuildConfiguration section */
-		0A0000710000000000000001 /* Debug */ = {
+		0A0000710000000000000001 /* Sandbox */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
@@ -208,27 +220,38 @@
 				CLANG_ENABLE_MODULES = YES;
 				CLANG_ENABLE_OBJC_ARC = YES;
 				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_TESTABILITY = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = "DEBUG=1 $(inherited)";
 				GCC_WARN_INHIBIT_ALL_WARNINGS = NO;
+				ONLY_ACTIVE_ARCH = YES;
 				SDKROOT = iphoneos;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 			};
-			name = Debug;
+			name = Sandbox;
 		};
-		0A0000710000000000000002 /* Release */ = {
+		0A0000710000000000000002 /* Prod */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
 				CLANG_ENABLE_MODULES = YES;
 				CLANG_ENABLE_OBJC_ARC = YES;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
 				GCC_C_LANGUAGE_STANDARD = gnu17;
 				SDKROOT = iphoneos;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				VALIDATE_PRODUCT = YES;
 			};
-			name = Release;
+			name = Prod;
 		};
-		0A0000720000000000000001 /* Debug */ = {
+		0A0000720000000000000001 /* Sandbox */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = 0A0000110000000000000012 /* Sandbox.xcconfig */;
 			buildSettings = {
+				APP_DISPLAY_NAME = "Georgia Transit Sandbox";
 				CODE_SIGN_STYLE = Automatic;
 				"ARCHS[sdk=iphonesimulator*]" = "$(NATIVE_ARCH_ACTUAL)";
 				CURRENT_PROJECT_VERSION = 1;
@@ -237,24 +260,27 @@
 				ENABLE_PREVIEWS = YES;
 				FRAMEWORK_SEARCH_PATHS = "$(inherited) \"$(SRCROOT)/../shared/build/xcode-frameworks/$(CONFIGURATION)/$(SDK_NAME)\"";
 				GENERATE_INFOPLIST_FILE = NO;
-				INFOPLIST_FILE = iosApp/Info.Debug.plist;
+				INFOPLIST_FILE = iosApp/Info.Sandbox.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+				KOTLIN_FRAMEWORK_BUILD_TYPE = Debug;
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks";
 				MARKETING_VERSION = 0.1.0;
 				OTHER_LDFLAGS = "$(inherited) -framework Shared";
-				PRODUCT_BUNDLE_IDENTIFIER = com.denis.georgiatransit;
+				PRODUCT_BUNDLE_IDENTIFIER = com.denis.georgiatransit.sandbox;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SUPPORTED_PLATFORMS = "iphonesimulator iphoneos";
-				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "$(inherited) DEBUG";
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "$(inherited) DEBUG SANDBOX";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
 			};
-			name = Debug;
+			name = Sandbox;
 		};
-		0A0000720000000000000002 /* Release */ = {
+		0A0000720000000000000002 /* Prod */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = 0A0000110000000000000013 /* Prod.xcconfig */;
 			buildSettings = {
+				APP_DISPLAY_NAME = "Georgia Transit";
 				CODE_SIGN_STYLE = Automatic;
 				"ARCHS[sdk=iphonesimulator*]" = "$(NATIVE_ARCH_ACTUAL)";
 				CURRENT_PROJECT_VERSION = 1;
@@ -266,17 +292,19 @@
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = iosApp/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+				KOTLIN_FRAMEWORK_BUILD_TYPE = Release;
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks";
 				MARKETING_VERSION = 0.1.0;
 				OTHER_LDFLAGS = "$(inherited) -framework Shared";
 				PRODUCT_BUNDLE_IDENTIFIER = com.denis.georgiatransit;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SUPPORTED_PLATFORMS = "iphonesimulator iphoneos";
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "$(inherited) PRODUCTION";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
 			};
-			name = Release;
+			name = Prod;
 		};
 /* End XCBuildConfiguration section */
 
@@ -284,20 +312,20 @@
 		0A0000410000000000000001 /* Build configuration list for PBXProject "iosApp" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
-				0A0000710000000000000001 /* Debug */,
-				0A0000710000000000000002 /* Release */,
+				0A0000710000000000000001 /* Sandbox */,
+				0A0000710000000000000002 /* Prod */,
 			);
 			defaultConfigurationIsVisible = 0;
-			defaultConfigurationName = Release;
+			defaultConfigurationName = Prod;
 		};
 		0A0000410000000000000002 /* Build configuration list for PBXNativeTarget "iosApp" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
-				0A0000720000000000000001 /* Debug */,
-				0A0000720000000000000002 /* Release */,
+				0A0000720000000000000001 /* Sandbox */,
+				0A0000720000000000000002 /* Prod */,
 			);
 			defaultConfigurationIsVisible = 0;
-			defaultConfigurationName = Release;
+			defaultConfigurationName = Prod;
 		};
 /* End XCConfigurationList section */
 

@@ -1,0 +1,5 @@
+// The default reaches the macOS host from iOS Simulator.
+// Create the ignored Sandbox.local.xcconfig next to this file to use a private LAN BFF.
+BFF_BASE_URL = http:/$()/127.0.0.1:8080
+
+#include? "Sandbox.local.xcconfig"

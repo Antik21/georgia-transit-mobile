@@ -22,3 +22,8 @@ The continuous bulk Batumi feed that supersedes route polling in the configured 
 in [ADR 0011](0011-batumi-continuous-city-feed.md).
 The status-aware stop-chain projection, stable moving-speed ETA, and explicit dwell policy are
 recorded in [ADR 0012](0012-batumi-status-aware-stop-chain-eta.md).
+The explicit operator approval, production classification, activation gates, and operational
+bounds for the Batumi Theta catalog and BatBus live feed are recorded in
+[ADR 0013](0013-batumi-theta-production-approval.md).
+The CI-gated Render Docker deployment and persistent capability-control storage are recorded in
+[ADR 0014](0014-render-production-deployment.md).

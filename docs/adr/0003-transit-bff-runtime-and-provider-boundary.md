@@ -2,6 +2,10 @@
 
 Status: Accepted (2026-09-07)
 
+Batumi's former absence and future-adapter status were superseded by
+[ADR 0013](0013-batumi-theta-production-approval.md). The BFF and provider-boundary decisions in
+this ADR remain active.
+
 ## Context
 
 The Android and iOS clients must consume one normalized Georgia Transit API,

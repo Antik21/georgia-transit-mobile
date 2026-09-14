@@ -2,6 +2,10 @@
 
 Status: Accepted (2026-09-14)
 
+Production classification was superseded by
+[ADR 0013](0013-batumi-theta-production-approval.md) on 2026-09-15. Approximate, non-official ETA
+is now approved for production under the safety bounds defined here.
+
 ## Context
 
 The first Batumi ETA implementation inferred direction and speed from three GPS observations. Live
@@ -38,8 +42,7 @@ one-generation candidate continuity rule before atomically publishing the route 
 - Parallel or crossing route branches no longer override the bus's upstream route part.
 - Dwell cost is explicit and testable rather than hidden in a short GPS-derived speed window.
 - The embedded moving-speed table must be reviewed when BatBus changes its route set or calibration.
-- This remains an unreviewed development integration subject to the upstream approval described in
-  ADR 0011.
+- Production use is governed by ADR 0013; ETA remains explicitly approximate and non-official.
 
 ## Alternatives
 
@@ -57,5 +60,5 @@ one-minute intermediate dwell, a stopped bus, the 150-metre passed-stop toleranc
 candidate continuity. Run:
 
 ```text
-./gradlew spotlessCheck :transitBff:check :shared:testAndroidHostTest :androidApp:assembleDebug
+./gradlew spotlessCheck :transitBff:check :shared:testAndroidHostTest :androidApp:assembleSandbox
 ```

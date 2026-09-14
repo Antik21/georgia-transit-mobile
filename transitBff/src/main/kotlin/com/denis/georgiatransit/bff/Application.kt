@@ -194,11 +194,16 @@ fun Application.transitBffModule(config: BffConfig = BffConfig.fromEnvironment()
         capabilityTelemetryObserver = observability::recordCapabilitySnapshot,
     ).also(RuntimeCapabilityControl::start)
     adapters.filterIsInstance<BatumiThetaTransitProviderAdapter>().forEach { adapter ->
-        adapter.startGlobalFeed {
-            capabilityControl.current().cities[KnownCityIds.Batumi]?.city?.capabilities?.let { capabilities ->
-                capabilities.vehiclePositions || capabilities.arrivals
-            } == true
-        }
+        adapter.startGlobalFeed(
+            enabled = {
+                capabilityControl.current().cities[KnownCityIds.Batumi]?.city?.capabilities?.let { capabilities ->
+                    capabilities.vehiclePositions || capabilities.arrivals
+                } == true
+            },
+            onSchemaFailure = { capability ->
+                capabilityControl.observeSchemaDrift(KnownCityIds.Batumi, capability)
+            },
+        )
     }
     val service = TransitService(
         capabilitySnapshots = capabilityControl,

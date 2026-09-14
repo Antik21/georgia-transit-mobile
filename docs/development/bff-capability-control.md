@@ -11,8 +11,9 @@
   identifier, credential, or adapter implementation detail.
 - `UNREVIEWED` plus `UNREVIEWED_ADAPTER` is the intrinsic safe default for an
   adapter that was not explicitly marked reviewed. It is never accepted into
-  the effective city snapshot, except the explicitly configured development-only Batumi Theta
-  adapter described in [its runbook](batumi-theta.md); production always rejects that exception.
+  the effective city snapshot. The production-approved Batumi adapter combines the fixed Theta
+  catalog and hard-coded BatBus live origins and is classified as `PRODUCTION_READY` plus
+  `REVIEWED_ADAPTER`; see [its runbook](batumi-theta.md).
 
 Mobile BFF-client and UI runtime consumption belong to DEN-49 and DEN-47. This
 control plane exposes the authoritative BFF snapshot; it does not create a

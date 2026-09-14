@@ -4,8 +4,12 @@ import java.time.Instant
 import java.time.Clock
 import java.time.ZoneId
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicInteger
 import com.denis.georgiatransit.bff.config.BffConfig
 import com.denis.georgiatransit.bff.api.ArrivalSource
+import com.denis.georgiatransit.bff.api.CityReadiness
+import com.denis.georgiatransit.bff.api.CitySource
+import com.denis.georgiatransit.bff.observability.TelemetryCapability
 import com.denis.georgiatransit.bff.service.TransitService
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -63,7 +67,7 @@ class BatumiThetaTransitProviderAdapterTest {
             activation = BffConfig.fromEnvironment(
                 mapOf(
                     "BATUMI_THETA_ENABLED" to "true",
-                    "BATUMI_THETA_OPERATOR_ACKNOWLEDGEMENT" to "I_UNDERSTAND_THETA_DEV_ONLY",
+                    "BATUMI_THETA_OPERATOR_ACKNOWLEDGEMENT" to "I_APPROVE_THETA_PRODUCTION_USE",
                 ),
             ).batumiTheta,
             client = client,
@@ -225,6 +229,8 @@ class BatumiThetaTransitProviderAdapterTest {
                 val route = service.routes("batumi", "en", "bus").single()
                 val page = service.vehicles("batumi", route.id, null)
                 assertTrue(adapter.city.capabilities.vehiclePositions)
+                assertEquals(CityReadiness.PRODUCTION_READY, adapter.city.availability.readiness)
+                assertEquals(CitySource.REVIEWED_ADAPTER, adapter.city.availability.source)
                 assertEquals(1, page.items.size)
                 assertTrue(!page.items.single().id.contains("internal-only"))
             }
@@ -366,7 +372,7 @@ class BatumiThetaTransitProviderAdapterTest {
             allBusesClient = globalClient,
             cityFeedPollInterval = java.time.Duration.ofMillis(10),
         ).use { adapter ->
-            adapter.startGlobalFeed(enabled::get)
+            adapter.startGlobalFeed(enabled = enabled::get)
             delay(35)
             assertEquals(0, globalClient.calls)
 
@@ -376,6 +382,43 @@ class BatumiThetaTransitProviderAdapterTest {
 
             assertTrue(vehicles.items.isEmpty())
             assertTrue(globalClient.calls > 0)
+        }
+    }
+
+    @Test
+    fun `global feed reports malformed generations for both dependent capabilities and stops when disabled`() = runBlocking {
+        val enabled = AtomicBoolean(true)
+        val vehicleSchemaFailures = AtomicInteger()
+        val arrivalSchemaFailures = AtomicInteger()
+        val globalClient = FakeAllBusesClient { "{not-json" }
+        BatumiThetaTransitProviderAdapter(
+            activation = activation(),
+            client = FakeCatalogClient(fixture(true)),
+            allBusesClient = globalClient,
+            cityFeedPollInterval = java.time.Duration.ofMillis(10),
+        ).use { adapter ->
+            adapter.startGlobalFeed(
+                enabled = enabled::get,
+                onSchemaFailure = { capability ->
+                    when (capability) {
+                        TelemetryCapability.VEHICLE_POSITIONS -> {
+                            vehicleSchemaFailures.incrementAndGet()
+                        }
+                        TelemetryCapability.ARRIVALS -> {
+                            arrivalSchemaFailures.incrementAndGet()
+                        }
+                        else -> error("Unexpected global-feed capability $capability")
+                    }
+                    if (vehicleSchemaFailures.get() >= 3 && arrivalSchemaFailures.get() >= 3) enabled.set(false)
+                    false
+                },
+            )
+            while (globalClient.calls < 3) delay(2)
+            delay(35)
+
+            assertEquals(3, vehicleSchemaFailures.get())
+            assertEquals(3, arrivalSchemaFailures.get())
+            assertEquals(3, globalClient.calls, "polling must stop after both dependent capabilities are disabled")
         }
     }
 
@@ -522,7 +565,10 @@ class BatumiThetaTransitProviderAdapterTest {
     }
 
     private fun activation() = BffConfig.fromEnvironment(
-        mapOf("BATUMI_THETA_ENABLED" to "true", "BATUMI_THETA_OPERATOR_ACKNOWLEDGEMENT" to "I_UNDERSTAND_THETA_DEV_ONLY"),
+        mapOf(
+            "BATUMI_THETA_ENABLED" to "true",
+            "BATUMI_THETA_OPERATOR_ACKNOWLEDGEMENT" to "I_APPROVE_THETA_PRODUCTION_USE",
+        ),
     ).batumiTheta
 
     private class MutableClock(private var instant: Instant) : Clock() {

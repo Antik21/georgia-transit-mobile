@@ -72,8 +72,8 @@ Verify startup explicitly on both platforms:
 
 1. Cold start after clearing app data (Android) or deleting/reinstalling the
    app (iOS): City Selection is shown.
-2. Select Tbilisi or Batumi, continue to Map, terminate the app, then cold
-   start again: Map restores the selected city.
+2. Select an enabled city (Batumi in Prod), continue to Map, terminate the app,
+   then cold start again: Map restores the selected city.
 3. Put the app in the background and return while on City Selection, Map, and
    Routes: the existing common navigation state remains valid for the restored
    city.
@@ -82,18 +82,25 @@ The production Koin binding is the shared BFF repository. Preview data remains
 available only for Compose previews, tests, or explicit local construction; it
 is never a production fallback.
 
-## Mobile BFF endpoint and offline catalog cache
+## Mobile environments, BFF endpoint, and offline catalog cache
 
-The mobile app has no deployed production BFF URL checked in. Release host
-composition supplies no endpoint today, so shared data returns a typed
-configuration failure without sending traffic anywhere. When a reviewed BFF is
-deployed, the native composition boundary must inject its exact non-secret
-`https://` endpoint via `BffEndpointConfiguration`; it must not add a provider
-URL, provider key, or a fallback to preview data. Plain HTTP is rejected except
-for the explicit debug loopbacks: Android emulator `http://10.0.2.2:8080`, Android physical
-device `http://127.0.0.1:8080` through `adb reverse tcp:8080 tcp:8080`, and iOS Simulator
-`http://127.0.0.1:8080`. Debug Android composition selects the emulator or physical-device
-endpoint automatically.
+Both native hosts expose exactly two application environments. `Sandbox` uses local development
+networking and is installed with a distinct name and bundle/application ID; `Prod` uses the
+non-secret HTTPS origin `https://antik21-georgia-transit-bff.onrender.com`. Neither environment
+contains a provider URL or provider key, and preview data is never a runtime fallback.
+
+Android builds `sandboxDebug` with `./gradlew :androidApp:assembleSandbox` and `prodRelease` with
+`./gradlew :androidApp:assembleProd`. Sandbox defaults to `http://10.0.2.2:8080` in the emulator or
+`http://127.0.0.1:8080` on a physical device through `adb reverse tcp:8080 tcp:8080`. A private LAN
+origin can be supplied locally with `-PSANDBOX_BFF_BASE_URL=http://192.168.x.y:8080`. iOS provides
+the shared `Sandbox` and `Prod` schemes. Sandbox defaults to `http://127.0.0.1:8080`; create the
+ignored `iosApp/Configuration/Sandbox.local.xcconfig` with a `BFF_BASE_URL` override for a physical
+device on the same network.
+
+Plain HTTP is accepted only by Sandbox composition and only for loopback, RFC 1918/link-local,
+IPv6 private/link-local, or `.local` hosts. Public HTTP and malformed origins fail closed. Prod
+pins HTTPS independently in its native composition and packages neither cleartext exceptions nor
+the local network inspector.
 
 The common Ktor client applies a five-second connect bound, eight-second bounds
 for vehicles/arrivals, and 20-second bounds for directory and journey calls.
@@ -141,10 +148,11 @@ The synthetic `demo` city is enabled only with both `BFF_MODE=development` and
 `BFF_FIXTURES_ENABLED=true`; it is useful for local contract development, but
 is not real provider readiness. `/v1/cities` labels it
 `DEVELOPMENT_FIXTURE`/`FIXTURE` and always returns all seven granular capability
-booleans. Kutaisi and Batumi are absent until configured adapters are reviewed;
-an absent city returns `CITY_NOT_FOUND`. Trip planning is capability-gated for
-every configured city. In `production`, fixtures are rejected and startup fails
-closed when no reviewed adapter has been explicitly activated.
+booleans. Kutaisi remains absent because it has no reviewed adapter; an absent city returns
+`CITY_NOT_FOUND`. Batumi is available through its reviewed two-origin adapter only after explicit
+operator activation and capability-control approval. Trip planning is capability-gated for every
+configured city. In `production`, fixtures are rejected and startup fails closed when no reviewed
+adapter has been explicitly activated.
 
 The BFF also contains a server-only, disabled-by-default Transitous Tbilisi
 best-effort adapter for arrivals/schedule and approved routing. It does not add
@@ -169,10 +177,17 @@ credential, and request headers remain inside the BFF. See the
 [TTC operator runbook](docs/development/ttc-adapter.md) and its disabled
 [capability-control example](transitBff/ttc-capability-control.example.json).
 
-Batumi's Theta adapter is disabled by default and can be enabled only as an explicitly
-acknowledged development/manual-smoke catalog integration with a private capability-control
-document. It is still `UNREVIEWED`, excludes vehicles/arrivals/planning, and production startup
-fails closed. See the [Batumi Theta runbook](docs/development/batumi-theta.md).
+Batumi's composed adapter is disabled by default and can be enabled for production only with an
+explicit operator acknowledgement, the durable schema interlock, and a private capability-control
+document. The approval and acknowledgement cover exactly the fixed Theta catalog origin
+`https://thetamaps.site:54321/api` and the hard-coded BatBus city-wide live endpoint
+`https://batbus.app/api/getAllBuses`; neither currently requires credentials. A single production
+instance polls the live endpoint once every five seconds and refreshes the healthy catalog at most
+once every ten minutes. The city is exposed as `PRODUCTION_READY`/`REVIEWED_ADAPTER`; routes, stops,
+geometry, vehicle positions, and clearly labelled approximate arrivals are available, while
+official arrivals and trip planning remain disabled. See the
+[Batumi production runbook](docs/development/batumi-theta.md) and
+[ADR 0013](docs/adr/0013-batumi-theta-production-approval.md).
 
 For a future reviewed adapter, an operator-owned JSON capability document can
 atomically enable/disable cities and individual features at runtime. The BFF
@@ -207,7 +222,8 @@ placeholders. `BFF_HOST`, `BFF_PORT`, `BFF_DIRECTORY_CACHE_TTL_SECONDS`
 (1–6 hours), `BFF_SHAPE_CACHE_TTL_SECONDS` (1–24 hours), and
 `BFF_REALTIME_SINGLE_FLIGHT_SECONDS`, control-document path/state pairing,
 poll interval (5–300 seconds), and history bound (2–50 revisions) are parsed
-strictly at startup. `healthz` reports effective readiness and mode without
+strictly at startup. Render's `PORT` is used when the explicit `BFF_PORT`
+override is absent. `healthz` reports effective readiness and mode without
 configuration or credential details. Every response has `X-Request-ID`; errors use the documented
 `{error:{code,message,retryAfterSeconds?,requestId}}` envelope.
 
@@ -219,16 +235,20 @@ BFF_MODE=development BFF_FIXTURES_ENABLED=true \
   transitBff/build/install/transitBff/bin/transitBff
 ```
 
-The supported deployment artifact is `installDist`; no Docker image, hosting
-service, provider credential, or production provider integration is checked in.
-Before deploying a future real adapter, configure operator-managed secrets and
-network policy outside this repository, confirm the provider licence/cost/quota
-and attribution obligations, run the BFF verification commands below, and
-probe `/healthz` through the intended runtime. See
+`installDist` remains the portable application artifact. Production packages it
+in the checked-in multi-stage Docker image and deploys the Batumi-only BFF through
+the Git-backed [`render.yaml`](render.yaml) Blueprint after successful GitHub checks.
+The Render web service uses a persistent disk for capability history and durable
+schema interlocks; applying it creates a paid resource and is therefore a separate
+operator action. The Blueprint needs no deploy-hook secret, and current Batumi
+origins need no credentials. Future provider credentials belong only in Render's
+runtime secret store, never in GitHub build secrets, mobile artifacts, or image
+layers. See the [Render deployment runbook](docs/development/render-deployment.md),
 [ADR 0003](docs/adr/0003-transit-bff-runtime-and-provider-boundary.md) for the
 production boundary and caching/single-flight constraints, and
 [ADR 0004](docs/adr/0004-runtime-capability-control-plane.md) for kill switches,
-audit, last-known-good state, and rollback.
+audit, last-known-good state, and rollback. [ADR 0014](docs/adr/0014-render-production-deployment.md)
+records the production hosting and durable-storage decision.
 
 ## Build and quality checks
 
@@ -245,10 +265,11 @@ Run the same quality checks locally with:
 ```text
 ./gradlew --no-daemon --no-build-cache spotlessCheck
 ./gradlew --no-daemon --no-build-cache :transitBff:compileKotlin :transitBff:check :transitBff:installDist
-./gradlew --no-daemon --no-build-cache :shared:testAndroidHostTest :shared:checkKotlinGradlePluginConfigurationErrors :androidApp:lintDebug :androidApp:assembleDebug
+./gradlew --no-daemon --no-build-cache :shared:testAndroidHostTest :shared:checkKotlinGradlePluginConfigurationErrors :androidApp:lintSandboxDebug :androidApp:lintProdRelease :androidApp:assembleSandbox :androidApp:assembleProd
 SIMULATOR_UDID="<an available iOS Simulator UDID from xcrun simctl list devices available>"
 ./gradlew --no-daemon --no-build-cache :shared:iosSimulatorArm64Test --device "$SIMULATOR_UDID" :shared:checkXcodeProjectConfiguration
-xcodebuild -project iosApp/iosApp.xcodeproj -scheme iosApp -sdk iphonesimulator -configuration Debug -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO build
+xcodebuild -project iosApp/iosApp.xcodeproj -scheme Sandbox -sdk iphonesimulator -configuration Sandbox -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO build
+xcodebuild -project iosApp/iosApp.xcodeproj -scheme Prod -sdk iphonesimulator -configuration Prod -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO build
 git diff --check
 ```
 
@@ -262,8 +283,8 @@ GitHub Actions runs four stable checks for pushes and pull requests targeting `m
 
 - `Quality` checks formatting.
 - `Transit BFF` checks formatting plus the BFF check and build surfaces.
-- `Android` runs shared Android-host unit tests, Kotlin Gradle configuration checks, Android lint, and the debug build.
-- `iOS` validates an Apple Silicon runner, runs arm64 simulator tests against an explicitly created temporary simulator and the Xcode configuration check, then builds the unsigned app for Xcode's generic iOS Simulator destination.
+- `Android` runs shared Android-host unit tests, Kotlin Gradle configuration checks, lint, and builds both Sandbox and Prod.
+- `iOS` validates an Apple Silicon runner, runs arm64 simulator tests against an explicitly created temporary simulator and the Xcode configuration check, then builds unsigned Sandbox and Prod apps for Xcode's generic iOS Simulator destination.
 
 The workflow gives `gradle/actions/setup-gradle` sole ownership of the Gradle User Home cache. Pull requests and non-`main` branches restore caches read-only; `main` may write them after success. It does not cache repository `.gradle`, build outputs, `DerivedData`, `local.properties`, secret/configuration files, or generated app artifacts. Gradle invocations disable the build cache so a cached artifact cannot hide a generation failure.
 
@@ -275,6 +296,6 @@ The cross-platform stable-ID scenario is in ui-tests/maestro/flows/shell-smoke.y
 
 Start with [AGENTS.md](AGENTS.md), the [toolchain](.agents/docs/01-stack-toolchain.md), [architecture boundaries](.agents/docs/02-architecture-boundaries.md), [ADR 0001](docs/adr/0001-kmp-shell.md), [ADR 0002](docs/adr/0002-maplibre-native-and-map-assets.md), and [ADR 0003](docs/adr/0003-transit-bff-runtime-and-provider-boundary.md).
 
-For the Debug-only Android/iOS local HTTP inspector, including smoke, clear,
-privacy, license, and Release-absence checks, see
+For the Sandbox-only Android/iOS local HTTP inspector, including smoke, clear,
+privacy, license, and Prod-absence checks, see
 [network inspector development guide](docs/development/network-inspector.md).

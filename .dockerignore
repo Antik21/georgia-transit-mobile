@@ -1,0 +1,16 @@
+.git
+.github
+.gradle
+.idea
+.kotlin
+.DS_Store
+**/.env
+**/.env.*
+**/build
+**/DerivedData
+*.log
+local.properties
+androidApp
+docs
+iosApp
+shared

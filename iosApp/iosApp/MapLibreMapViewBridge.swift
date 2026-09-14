@@ -126,8 +126,38 @@ private final class LocalMapLibreView: UIView, MLNMapViewDelegate {
         guard url.user == nil, url.password == nil, url.query == nil, url.fragment == nil,
               url.path == "/v1/map/style.json" else { return false }
         if url.scheme == "https" { return url.host != nil }
-        return url.scheme == "http" && ["127.0.0.1", "localhost", "::1"].contains(url.host)
+#if SANDBOX
+        return url.scheme == "http" && url.host.map(isPrivateSandboxHost) == true
+#else
+        return false
+#endif
     }
+
+#if SANDBOX
+    private func isPrivateSandboxHost(_ host: String) -> Bool {
+        let normalized = host.lowercased()
+        if ["localhost", "::1"].contains(normalized) || normalized.hasSuffix(".local") {
+            return true
+        }
+        if normalized.contains(":") && (
+            normalized.hasPrefix("fc") || normalized.hasPrefix("fd") ||
+                ["fe8", "fe9", "fea", "feb"].contains(String(normalized.prefix(3)))
+        ) {
+            return true
+        }
+
+        let octets = normalized.split(separator: ".", omittingEmptySubsequences: false).map { Int($0) }
+        guard octets.count == 4, octets.allSatisfy({ value in value.map { 0...255 ~= $0 } == true }) else {
+            return false
+        }
+        let first = octets[0]!
+        let second = octets[1]!
+        return first == 10 || first == 127 ||
+            first == 169 && second == 254 ||
+            first == 172 && 16...31 ~= second ||
+            first == 192 && second == 168
+    }
+#endif
 
     func mapView(_ mapView: MLNMapView, didFinishLoading style: MLNStyle) {
         guard !released else { return }

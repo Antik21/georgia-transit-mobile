@@ -1,4 +1,4 @@
-# Debug network inspector
+# Sandbox network inspector
 
 `DEN-77` adds a local, developer-only HTTP inspector. It is deliberately a host
 tooling adapter: it neither changes shared product navigation nor creates a
@@ -6,15 +6,15 @@ second BFF client. The current shell has no real BFF calls, so each host exposes
 temporary smoke actions solely to verify the inspector. They never call a
 transit provider or use credentials.
 
-## Android Debug
+## Android Sandbox
 
-Install an `androidApp` **Debug** build and open the ordinary **Georgia Transit**
+Install the `androidApp` **Sandbox** build and open the **Georgia Transit Sandbox**
 launcher icon once; `MainActivity` remains the sole normal launcher and this
-first launch registers the Debug-only dynamic app shortcut. Long-press the app
+first launch registers the Sandbox-only dynamic app shortcut. Long-press the app
 icon and select **Network inspector** (stable shortcut ID
 `debug_network_inspector`). The stable root control IDs are
 `debug_network_inspector_*`. This activity is not exported and has no
-`MAIN`/`LAUNCHER` intent filter, so the Debug-only dynamic shortcut is the
+`MAIN`/`LAUNCHER` intent filter, so the Sandbox-only dynamic shortcut is the
 supported deterministic entry point; direct shell ADB component launches are
 intentionally unavailable.
 
@@ -29,19 +29,19 @@ The inspector has three actions:
    top-right **Clear** action (or its overflow **Clear all** action when shown)
    to remove every stored transaction immediately.
 
-The debug `Application` installs the optional shared Android OkHttp seam before
+The Sandbox `Application` installs the optional shared Android OkHttp seam before
 Koin bootstrap. `createTransitHttpClient()` remains the only factory and keeps
 its existing 5-second connect timeout, 20-second read timeout, and connection
 retry behavior. Chucker is configured as an application interceptor with no
 notification, Chucker-provided launcher shortcut, analytics, cloud reporter, or
 automatic export/upload integration. If a developer explicitly uses Chucker's
 built-in manual export/share UI, it contains only the already-sanitized local
-records. The app's separate Debug-only dynamic shortcut only opens this local
+records. The app's separate Sandbox-only dynamic shortcut only opens this local
 inspector.
 
-## iOS Debug
+## iOS Sandbox
 
-Build and launch the **Debug** iOS app. A native circular network button at the
+Build and launch the **Sandbox** iOS app. A native circular network button at the
 bottom-right of the shared Compose content has the stable accessibility ID
 `debug_network_inspector_open`. It opens the local SwiftUI inspector:
 
@@ -53,7 +53,7 @@ bottom-right of the shared Compose content has the stable accessibility ID
    headers, and supported request/response bodies.
 3. Tap **Clear** to erase the in-memory history immediately.
 
-Before Koin bootstrap, the Debug-only startup path passes the `URLProtocol`
+Before Koin bootstrap, the Sandbox-only startup path passes the `URLProtocol`
 class to the narrow generic iOS adapter. Ktor Darwin applies it with
 `configureSession { protocolClasses = … }` before `createTransitHttpClient()`
 builds its `NSURLSession`. Each smoke action explicitly prepends and deduplicates
@@ -65,13 +65,13 @@ forwards each original request through a private
 `URLSession` whose `protocolClasses` excludes the inspector, so it cannot recur
 or introduce another network library. It retains method, headers, body, cache
 policy, and timeout; redirects and authentication challenges use the platform's
-normal handling. A stopped Debug request is recorded as cancelled, then its
+normal handling. A stopped Sandbox request is recorded as cancelled, then its
 forwarding task/session are cancelled without emitting a second failure callback
 to `URLProtocolClient`.
 
 ## Retention, payloads, and privacy
 
-Both hosts are strictly local to Debug builds. Nothing is sent to a remote
+Both hosts are strictly local to Sandbox builds. Nothing is sent to a remote
 logger, analytics service, or cloud collector.
 
 - Android's Chucker collector retains local transactions for one hour; it has
@@ -104,12 +104,12 @@ logger, analytics service, or cloud collector.
   in its POST body rather than a URL. Existing coordinate-query routes remain
   sensitive and must remain redacted by the inspectors.
 
-## Dependency and Release review
+## Dependency and Prod review
 
-Android Debug uses `com.github.chuckerteam.chucker:library:4.3.1` only. It is
+Android Sandbox uses `com.github.chuckerteam.chucker:library:4.3.1` only. It is
 Apache-2.0, free for production use, actively maintained, and compatible with
 the existing Ktor 3.3.3 OkHttp engine. Its resolved OkHttp 5.x graph is checked
-by the Debug Android compile. No `library-no-op` artifact is used: Release has
+by the Sandbox Android compile. No `library-no-op` artifact is used: Prod has
 no Chucker dependency or reference. iOS has no Pulse, Netfox, SPM inspector, or
 other third-party inspection dependency; its inspector uses Foundation and
 SwiftUI only.
@@ -117,34 +117,34 @@ SwiftUI only.
 Reproduce the absence checks before release:
 
 ```text
-bash ./gradlew --no-daemon --no-build-cache :androidApp:assembleRelease
-bash ./gradlew :androidApp:dependencies --configuration releaseRuntimeClasspath | rg -i chucker
+bash ./gradlew --no-daemon --no-build-cache :androidApp:assembleProd
+bash ./gradlew :androidApp:dependencies --configuration prodReleaseRuntimeClasspath | rg -i chucker
 # Expected: no output.
 
-unzip -l androidApp/build/outputs/apk/release/androidApp-release-unsigned.apk | rg -i chucker
+unzip -l androidApp/build/outputs/apk/prod/release/androidApp-prod-release-unsigned.apk | rg -i chucker
 # Expected: no output.
 
-xcodebuild -project iosApp/iosApp.xcodeproj -scheme iosApp -sdk iphonesimulator \
-  -configuration Release -destination 'generic/platform=iOS Simulator' \
+xcodebuild -project iosApp/iosApp.xcodeproj -scheme Prod -sdk iphonesimulator \
+  -configuration Prod -destination 'generic/platform=iOS Simulator' \
   -derivedDataPath build/den77-release CODE_SIGNING_ALLOWED=NO build
-xcodebuild -project iosApp/iosApp.xcodeproj -scheme iosApp -configuration Release -showBuildSettings \
+xcodebuild -project iosApp/iosApp.xcodeproj -scheme Prod -configuration Prod -showBuildSettings \
   | rg 'EXCLUDED_SOURCE_FILE_NAMES.*DebugNetworkInspector'
 # Expected: DebugNetworkInspector.swift is excluded.
 ```
 
-The Xcode project excludes `DebugNetworkInspector.swift` from Release
+The Xcode project excludes `DebugNetworkInspector.swift` from Prod
 compilation/linking, and the only references in `GeorgiaTransitApp.swift` and
-`ContentView.swift` are behind `#if DEBUG`. The shared iOS URL-protocol seam is
-generic and inert in Release: it has no inspector class, initialization, UI, or
-store reference until the Debug host supplies a class. Inspect the built
+`ContentView.swift` are behind Sandbox compilation conditions. The shared iOS URL-protocol seam is
+generic and inert in Prod: it has no inspector class, initialization, UI, or
+store reference until the Sandbox host supplies a class. Inspect the built
 artifacts as an additional check:
 
 ```text
-strings shared/build/xcode-frameworks/Release/iphonesimulator*/Shared.framework/Shared \
+strings shared/build/xcode-frameworks/Prod/iphonesimulator*/Shared.framework/Shared \
   | rg 'DebugNetworkInspector|debug_network_inspector'
 # Expected: no output.
 
-strings build/den77-release/Build/Products/Release-iphonesimulator/iosApp.app/iosApp \
+strings build/den77-release/Build/Products/Prod-iphonesimulator/iosApp.app/iosApp \
   | rg 'DebugNetworkInspector|debug_network_inspector'
 # Expected: no output.
 ```

@@ -30,14 +30,12 @@ exponential backoff plus injected jitter, respect a bounded `Retry-After`, and
 dispose retry responses. Documented error envelopes and malformed/undocumented
 responses map to typed domain failures; cancellation is always rethrown.
 
-A release host may supply only an explicit HTTPS BFF endpoint; the current
-release supplies none and therefore fails closed with a typed configuration
-result, never falling back to preview or provider traffic. Debug composition
-alone may use `http://10.0.2.2:8080` on the Android emulator,
-`http://127.0.0.1:8080` on a physical Android device through an explicit `adb reverse`, or
-`http://127.0.0.1:8080` on the iOS simulator. Android's debug-only network-security configuration
-permits cleartext only for those two Android development loopbacks; the iOS Debug plist alone
-permits the loopback ATS exception. Release has neither exception.
+Prod hosts pin the reviewed HTTPS BFF endpoint and never fall back to preview or provider traffic.
+Sandbox composition may use `http://10.0.2.2:8080` on the Android emulator,
+`http://127.0.0.1:8080` through Android `adb reverse` or on the iOS simulator, and an explicitly
+configured private LAN origin. Platform cleartext exceptions exist only in Sandbox, while shared
+validation restricts them to loopback, private/link-local, and `.local` hosts. Prod has no
+cleartext exception. The deployment decision is recorded in [ADR 0014](0014-render-production-deployment.md).
 
 Durable mobile cache is deliberately limited to the city/capability snapshot
 and route-list catalogs. Entries use schema version 1. The city/capability
@@ -106,8 +104,8 @@ strict limits/corruption eviction instead of database migration/recovery.
 - **Persisting every BFF response or adding a database now:** rejected because
   the documented offline requirement is only bootstrap/catalog data and larger
   persisted data needs product and operational decisions.
-- **Permissive release cleartext/ATS exceptions:** rejected because no deployed
-  production BFF endpoint exists and release traffic must remain HTTPS-only.
+- **Permissive production cleartext/ATS exceptions:** rejected because Prod is
+  pinned to the Render HTTPS origin and production traffic must remain HTTPS-only.
 
 ## Verification
 
@@ -116,10 +114,11 @@ Run formatting and target compilation appropriate to the changed surface:
 ```text
 ./gradlew spotlessCheck
 ./gradlew :shared:compileCommonMainKotlinMetadata :shared:compileKotlinIosSimulatorArm64
-./gradlew :androidApp:assembleDebug
-xcodebuild -project iosApp/iosApp.xcodeproj -scheme iosApp -sdk iphonesimulator -configuration Debug CODE_SIGNING_ALLOWED=NO build
+./gradlew :androidApp:assembleSandbox
+xcodebuild -project iosApp/iosApp.xcodeproj -scheme Sandbox -sdk iphonesimulator -configuration Sandbox CODE_SIGNING_ALLOWED=NO build
 ```
 
 QA owns shared-target serialization, retry, cache, and freshness tests. Manual
-release verification must confirm that no endpoint configuration fails closed,
-while Debug loopbacks remain restricted to their respective emulator/simulator.
+verification must confirm that Prod uses the pinned Render origin without a
+runtime override, while Sandbox HTTP origins remain restricted to local/private
+network addresses.

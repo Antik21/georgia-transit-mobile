@@ -61,6 +61,12 @@ jobs:
           spotlessCheck
           :transitBff:check
           :transitBff:build
+      - name: Build and smoke-test the production container
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker build --file transitBff/Dockerfile --tag transit-bff:ci .
+          sh transitBff/deploy/render/smoke-test.sh transit-bff:ci
 
   android:
     name: Android
@@ -98,8 +104,10 @@ jobs:
           ./gradlew --no-daemon --no-build-cache --stacktrace
           :shared:testAndroidHostTest
           :shared:checkKotlinGradlePluginConfigurationErrors
-          :androidApp:lintDebug
-          :androidApp:assembleDebug
+          :androidApp:lintSandboxDebug
+          :androidApp:lintProdRelease
+          :androidApp:assembleSandbox
+          :androidApp:assembleProd
 
   ios:
     name: iOS
@@ -159,16 +167,20 @@ jobs:
           :shared:iosSimulatorArm64Test
           --device "${{ steps.simulator.outputs.udid }}"
           :shared:checkXcodeProjectConfiguration
-      - name: Build the iOS simulator app without signing
-        run: >-
-          xcodebuild
-          -project iosApp/iosApp.xcodeproj
-          -scheme iosApp
-          -sdk iphonesimulator
-          -configuration Debug
-          -destination "generic/platform=iOS Simulator"
-          CODE_SIGNING_ALLOWED=NO
-          build
+      - name: Build both iOS simulator environments without signing
+        shell: bash
+        run: |
+          set -euo pipefail
+          for environment in Sandbox Prod; do
+            xcodebuild \
+              -project iosApp/iosApp.xcodeproj \
+              -scheme "$environment" \
+              -sdk iphonesimulator \
+              -configuration "$environment" \
+              -destination "generic/platform=iOS Simulator" \
+              CODE_SIGNING_ALLOWED=NO \
+              build
+          done
       - name: Delete CI simulator
         if: ${{ always() && steps.simulator.outputs.udid != '' }}
         shell: bash

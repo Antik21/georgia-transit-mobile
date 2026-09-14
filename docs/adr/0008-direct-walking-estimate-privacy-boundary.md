@@ -50,7 +50,7 @@ No SDK, analytics system, cache, navigation, DI, or network stack is added.
   and reuses the My Location action where that action is available.
 - Routing may be unavailable or fail; the transparent local fallback preserves
   useful context without representing a straight-line estimate as directions.
-- Android and iOS Debug inspectors redact exact coordinate query/body fields;
+- Android and iOS Sandbox inspectors redact exact coordinate query/body fields;
   iOS usage copy describes the optional BFF request truthfully.
 
 ## Alternatives
@@ -69,7 +69,7 @@ No SDK, analytics system, cache, navigation, DI, or network stack is added.
 ```text
 ./gradlew --no-daemon --no-build-cache :transitBff:compileKotlin
 ./gradlew --no-daemon --no-build-cache :shared:compileAndroidMain
-./gradlew --no-daemon --no-build-cache :androidApp:assembleDebug
+./gradlew --no-daemon --no-build-cache :androidApp:assembleSandbox
 ```
 
 QA additionally verifies permission/freshness gates, cancellation/latest-wins

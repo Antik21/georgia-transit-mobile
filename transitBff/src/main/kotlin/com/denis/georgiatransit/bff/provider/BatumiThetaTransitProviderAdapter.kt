@@ -77,9 +77,9 @@ private val BatumiGlobalFeedFreshAge = Duration.ofSeconds(15)
 private val BatumiJson = Json { ignoreUnknownKeys = true; explicitNulls = false }
 
 /**
- * Unreviewed, development-only Theta adapter. Catalog and live responses are independently
- * validated before publication. No raw upstream payload is retained. Live snapshots have a
- * four-second cadence and may be served stale only for one minute after an upstream outage.
+ * Production-approved Theta adapter. Catalog and live responses are independently validated
+ * before publication. No raw upstream payload is retained. Live snapshots have a four-second
+ * cadence and may be served stale only for one minute after an upstream outage.
  */
 internal class BatumiThetaTransitProviderAdapter(
     private val activation: BatumiThetaActivationConfig,
@@ -91,7 +91,7 @@ internal class BatumiThetaTransitProviderAdapter(
     private val cityFeedPollInterval: Duration = Duration.ofSeconds(5),
     private val observability: BffObservability? = null,
 ) : CityTransitProviderAdapter, AutoCloseable {
-    init { require(activation.isActivated) { "Batumi Theta adapter requires explicit development activation" } }
+    init { require(activation.isActivated) { "Batumi Theta adapter requires explicit operator activation" } }
 
     override val telemetryProvider: TelemetryProvider = TelemetryProvider.BATUMI_THETA
     override val city = City(
@@ -103,7 +103,7 @@ internal class BatumiThetaTransitProviderAdapter(
             routes = true, stops = true, routeGeometry = true, vehiclePositions = true,
             officialArrivals = false, tripPlanning = false, arrivals = true,
         ),
-        availability = CityAvailability(CityReadiness.UNREVIEWED, CitySource.UNREVIEWED_ADAPTER),
+        availability = CityAvailability(CityReadiness.PRODUCTION_READY, CitySource.REVIEWED_ADAPTER),
     )
 
     private var lastKnownGood: TimedCatalog? = null
@@ -127,14 +127,19 @@ internal class BatumiThetaTransitProviderAdapter(
     @Volatile private var cityFeedWorker: ContinuousSnapshotWorker<BatumiAllRoutesSnapshot>? = null
 
     /** Starts once after runtime capability control has published its effective snapshot. */
-    internal fun startGlobalFeed(enabled: () -> Boolean) {
+    internal fun startGlobalFeed(
+        onSchemaFailure: (TelemetryCapability) -> Boolean = { false },
+        enabled: () -> Boolean,
+    ) {
         if (allBusesClient == null || cityFeedWorker != null) return
         synchronized(this) {
             if (cityFeedWorker == null) {
                 cityFeedWorker = ContinuousSnapshotWorker(
                     pollInterval = cityFeedPollInterval,
                     onSuccess = ::recordGlobalFeedSuccess,
-                    onFailure = ::recordGlobalFeedFailure,
+                    onFailure = { failure, durationNanos ->
+                        recordGlobalFeedFailure(failure, durationNanos, onSchemaFailure)
+                    },
                     isEnabled = enabled,
                     loader = ::refreshAllRoutesSnapshot,
                 )
@@ -311,7 +316,11 @@ internal class BatumiThetaTransitProviderAdapter(
         )
     }
 
-    private fun recordGlobalFeedFailure(failure: Throwable, durationNanos: Long) {
+    private fun recordGlobalFeedFailure(
+        failure: Throwable,
+        durationNanos: Long,
+        onSchemaFailure: (TelemetryCapability) -> Boolean,
+    ) {
         val outcome = when (failure) {
             is ProviderTimeout -> ProviderOutcome.TIMEOUT
             is ProviderJsonDecodeFailure -> ProviderOutcome.JSON_DECODE
@@ -320,6 +329,11 @@ internal class BatumiThetaTransitProviderAdapter(
             else -> ProviderOutcome.UNAVAILABLE
         }
         observability?.recordProviderResult(GlobalFeedTelemetryLabels, outcome, durationNanos)
+        if (failure is ProviderJsonDecodeFailure || failure is ProviderNormalizedSchemaFailure) {
+            GlobalFeedSchemaTelemetryLabels.forEach { labels ->
+                if (onSchemaFailure(labels.capability)) observability?.recordSchemaInterlock(labels)
+            }
+        }
     }
 
     /** One city-wide fetch, one normalized generation, and one atomic ETA board for all routes. */
@@ -992,6 +1006,15 @@ private val GlobalFeedTelemetryLabels = ProviderTelemetryLabels(
     provider = TelemetryProvider.BATUMI_THETA,
     capability = TelemetryCapability.VEHICLE_POSITIONS,
     operation = TelemetryOperation.GLOBAL_VEHICLES,
+)
+private val GlobalFeedSchemaTelemetryLabels = listOf(
+    GlobalFeedTelemetryLabels,
+    ProviderTelemetryLabels(
+        city = BatumiCityId,
+        provider = TelemetryProvider.BATUMI_THETA,
+        capability = TelemetryCapability.ARRIVALS,
+        operation = TelemetryOperation.ARRIVALS,
+    ),
 )
 private const val EtaPassedStopToleranceMeters = 150.0
 private const val EtaDwellSeconds = 60.0

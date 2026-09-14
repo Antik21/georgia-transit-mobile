@@ -2,6 +2,10 @@
 
 Status: Accepted (2026-09-14)
 
+Production classification was superseded by
+[ADR 0013](0013-batumi-theta-production-approval.md) on 2026-09-15. The feed architecture and
+bounded polling decisions in this ADR remain active.
+
 ## Context
 
 ADR 0010 introduced demand-driven route arrival workers. The original route-specific estimator
@@ -9,7 +13,8 @@ required three successive observations before the BFF could infer movement, so t
 opening a cold route could see an empty board. Running that worker for every route would
 also multiply upstream requests.
 
-The BatBus web feed exposes one small `getAllBuses` response for the whole city. A measured
+The fixed BatBus web-feed origin `https://batbus.app/api/getAllBuses` exposes one small response for
+the whole city. A measured
 two-minute experiment on 28 routes, 578 stops, and roughly 150 vehicles produced about 8,300 ETA
 candidates per generation. A deliberately unoptimized Node reference calculation averaged 72 ms
 every five seconds and 1.66% of one CPU core. The live response averaged 10.7 KiB, projecting to
@@ -21,7 +26,7 @@ Supersede per-route polling for the configured Batumi runtime with one continuou
 city-feed coroutine. It starts after runtime capability control publishes its first snapshot and
 polls only while Batumi vehicle positions or arrivals remain enabled. Every five seconds it:
 
-1. fetches one bounded `getAllBuses` payload;
+1. fetches one bounded `getAllBuses` payload from that fixed, hard-coded origin;
 2. maps known raw route keys to existing opaque normalized route IDs;
 3. validates and normalizes every vehicle inside the Batumi provider boundary;
 4. preserves each bus's provider-scoped route-part status;
@@ -40,8 +45,10 @@ Bulk polling records only the existing finite Batumi/provider/vehicle telemetry 
 logs a URL, raw route ID, vehicle name, coordinate, or payload. The runtime capability gate prevents
 background egress after the relevant Batumi capabilities are disabled.
 
-This remains an unreviewed development integration. The fixed BatBus endpoint, its usage terms,
-quota, attribution, and schema stability require operator approval before production activation.
+At the time of this decision, this remained an unreviewed development integration. Its production
+classification and operator approval were subsequently recorded in ADR 0013; the polling and
+schema-safety bounds in this ADR remain mandatory. ADR 0013 explicitly approves this BatBus live
+origin together with the distinct Theta catalog origin; the shared acknowledgement covers both.
 
 ## Consequences
 
@@ -74,6 +81,6 @@ node tools/experiments/batumi-all-routes-load.mjs
 ./gradlew spotlessCheck :transitBff:check :transitBff:installDist
 ```
 
-After starting the development Batumi adapter, wait 10–15 seconds and verify that repeated vehicle,
+After starting the Batumi adapter, wait 10–15 seconds and verify that repeated vehicle,
 stop-arrival, and route-arrival requests do not increase route-specific upstream call counts and
 that `/metrics` reports fresh Batumi vehicle observations.
