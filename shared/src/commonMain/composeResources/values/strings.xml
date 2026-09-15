@@ -60,7 +60,6 @@
     <string name="map_route_geometry_retry_accessibility">Try again for route %1$s</string>
     <string name="map_route_geometry_remove">Remove</string>
     <string name="map_route_geometry_remove_accessibility">Remove route %1$s</string>
-    <string name="map_selected_stop">Selected stop: %1$s</string>
     <string name="map_stop_arrivals_title">Stop arrivals</string>
     <string name="map_stop_arrivals_stop_details_unavailable">Stop details unavailable</string>
     <string name="map_stop_arrivals_routes">Routes serving this stop</string>

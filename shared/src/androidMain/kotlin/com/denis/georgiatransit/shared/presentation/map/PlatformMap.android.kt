@@ -337,11 +337,20 @@ private class LocalMapController(
         loadedStyle.addSource(GeoJsonSource(VEHICLES_SOURCE_ID, FeatureCollection.fromFeatures(emptyList())))
         loadedStyle.addSource(GeoJsonSource(ATTENTION_SOURCE_ID, FeatureCollection.fromFeatures(emptyList())))
         loadedStyle.addSource(GeoJsonSource(POLYLINES_SOURCE_ID, FeatureCollection.fromFeatures(emptyList())))
+        loadedStyle.addSource(GeoJsonSource(EMPHASIZED_POLYLINES_SOURCE_ID, FeatureCollection.fromFeatures(emptyList())))
         loadedStyle.addSource(GeoJsonSource(USER_LOCATION_SOURCE_ID, FeatureCollection.fromFeatures(emptyList())))
         loadedStyle.addSource(GeoJsonSource(USER_ACCURACY_SOURCE_ID, FeatureCollection.fromFeatures(emptyList())))
 
         loadedStyle.addLayer(
             LineLayer(POLYLINES_LAYER_ID, POLYLINES_SOURCE_ID).withProperties(
+                lineColor(Expression.get(ROUTE_COLOR_PROPERTY)),
+                lineOpacity(Expression.get(ROUTE_OPACITY_PROPERTY)),
+                lineWidth(Expression.get(ROUTE_WIDTH_PROPERTY)),
+            ),
+        )
+        // A separate layer guarantees that the focused route is drawn over any overlapping route.
+        loadedStyle.addLayer(
+            LineLayer(EMPHASIZED_POLYLINES_LAYER_ID, EMPHASIZED_POLYLINES_SOURCE_ID).withProperties(
                 lineColor(Expression.get(ROUTE_COLOR_PROPERTY)),
                 lineOpacity(Expression.get(ROUTE_OPACITY_PROPERTY)),
                 lineWidth(Expression.get(ROUTE_WIDTH_PROPERTY)),
@@ -432,7 +441,12 @@ private class LocalMapController(
             lastAttentionVehicleSourceRevision = renderState.vehicleSourceRevision
         }
         if (lastPolylineSourceRevision != renderState.polylineSourceRevision) {
-            loadedStyle.getSourceAs<GeoJsonSource>(POLYLINES_SOURCE_ID)?.setGeoJson(polylineFeatures(renderState.polylines))
+            loadedStyle.getSourceAs<GeoJsonSource>(POLYLINES_SOURCE_ID)?.setGeoJson(
+                polylineFeatures(renderState.polylines, emphasized = false),
+            )
+            loadedStyle.getSourceAs<GeoJsonSource>(EMPHASIZED_POLYLINES_SOURCE_ID)?.setGeoJson(
+                polylineFeatures(renderState.polylines, emphasized = true),
+            )
             lastPolylineSourceRevision = renderState.polylineSourceRevision
         }
         if (lastUserLocation != renderState.userLocation) {
@@ -713,13 +727,16 @@ private fun selectedStopFeatures(renderState: MapRenderState): FeatureCollection
         .toList(),
 )
 
-private fun polylineFeatures(polylines: List<MapPolyline>): FeatureCollection = FeatureCollection.fromFeatures(
+private fun polylineFeatures(
+    polylines: List<MapPolyline>,
+    emphasized: Boolean,
+): FeatureCollection = FeatureCollection.fromFeatures(
     polylines
-        .filter { it.routeId.value.isNotBlank() }
         .take(MAX_POLYLINES)
+        .filter { it.isEmphasized == emphasized && it.routeId.value.isNotBlank() }
         .mapIndexedNotNull { index, line ->
-            // Preserve the authoritative common snapshot order. Both adapters apply exactly the
-            // same valid-point filter and caps before replacing their one grouped source.
+            // Preserve the authoritative common snapshot order. Both adapters apply the global
+            // cap before splitting into base and focused layers, then use the same point filter.
             val points = line.points.asSequence().filter(GeoPoint::isMapCoordinate).take(MAX_POLYLINE_POINTS).toList()
             points.takeIf(::isNonDegenerateLine)?.let { validPoints ->
                 Feature.fromGeometry(LineString.fromLngLats(validPoints.map(GeoPoint::asMapPoint))).also { feature ->
@@ -864,6 +881,7 @@ private const val SELECTED_STOP_SOURCE_ID = "gt-selected-stop-source"
 private const val VEHICLES_SOURCE_ID = "gt-vehicles-source"
 private const val ATTENTION_SOURCE_ID = "gt-vehicle-attention-source"
 private const val POLYLINES_SOURCE_ID = "gt-polylines-source"
+private const val EMPHASIZED_POLYLINES_SOURCE_ID = "gt-emphasized-polylines-source"
 private const val USER_LOCATION_SOURCE_ID = "gt-user-location-source"
 private const val USER_ACCURACY_SOURCE_ID = "gt-user-accuracy-source"
 private const val STOPS_LAYER_ID = "gt-stops-layer"
@@ -871,6 +889,7 @@ private const val SELECTED_STOP_LAYER_ID = "gt-selected-stop-layer"
 private const val VEHICLES_LAYER_ID = "gt-vehicles-layer"
 private const val ATTENTION_LAYER_ID = "gt-vehicle-attention-layer"
 private const val POLYLINES_LAYER_ID = "gt-polylines-layer"
+private const val EMPHASIZED_POLYLINES_LAYER_ID = "gt-emphasized-polylines-layer"
 private const val USER_LOCATION_LAYER_ID = "gt-user-location-layer"
 private const val USER_ACCURACY_FILL_LAYER_ID = "gt-user-accuracy-fill-layer"
 private const val USER_ACCURACY_STROKE_LAYER_ID = "gt-user-accuracy-stroke-layer"
@@ -931,8 +950,12 @@ private const val ATTENTION_TICK_MILLIS =
     (1_000L + ATTENTION_MAX_FRAMES_PER_SECOND - 1L) / ATTENTION_MAX_FRAMES_PER_SECOND
 private const val ATTENTION_CYCLE_MILLIS = 1_600L
 private const val TWO_PI = Math.PI * 2.0
-private const val ATTENTION_MIN_RADIUS = BADGE_DIAMETER_PX / 2f * 1.15f
-private const val ATTENTION_MAX_RADIUS = BADGE_DIAMETER_PX / 2f * 2f
+private const val ATTENTION_RADIUS_REDUCTION_FACTOR = 1.5f
+private const val ATTENTION_ADDITIONAL_RADIUS_SCALE = 0.85f
+private const val ATTENTION_MIN_RADIUS =
+    BADGE_DIAMETER_PX / 2f * 1.15f / ATTENTION_RADIUS_REDUCTION_FACTOR * ATTENTION_ADDITIONAL_RADIUS_SCALE
+private const val ATTENTION_MAX_RADIUS =
+    BADGE_DIAMETER_PX / 2f * 2f / ATTENTION_RADIUS_REDUCTION_FACTOR * ATTENTION_ADDITIONAL_RADIUS_SCALE
 private const val ATTENTION_MIN_SIZE_OPACITY = 0.50f
 private const val ATTENTION_MAX_SIZE_OPACITY = 0.10f
 

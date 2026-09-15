@@ -31,7 +31,6 @@ object AutomationId {
     const val MapUnavailable = "map.content.unavailable"
     const val MapOffline = "map.content.offline"
     const val MapLocalPreview = "map.content.local-preview"
-    const val MapSelectedStop = "map.selected-stop"
     const val MapRouteGeometryLegend = "map.route-geometry.legend"
     const val MapRouteGeometryChip = "map.route-geometry.chip"
     const val MapRouteGeometryRetry = "map.route-geometry.retry"

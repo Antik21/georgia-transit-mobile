@@ -60,7 +60,6 @@
     <string name="map_route_geometry_retry_accessibility">ხელახლა ცდა მარშრუტისთვის: %1$s</string>
     <string name="map_route_geometry_remove">წაშლა</string>
     <string name="map_route_geometry_remove_accessibility">მარშრუტის წაშლა: %1$s</string>
-    <string name="map_selected_stop">არჩეული გაჩერება: %1$s</string>
     <string name="map_stop_arrivals_title">გაჩერებაზე მოსვლები</string>
     <string name="map_stop_arrivals_stop_details_unavailable">გაჩერების დეტალები მიუწვდომელია</string>
     <string name="map_stop_arrivals_routes">ამ გაჩერების მარშრუტები</string>

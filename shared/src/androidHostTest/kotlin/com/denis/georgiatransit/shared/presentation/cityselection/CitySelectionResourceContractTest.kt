@@ -148,13 +148,11 @@ class CitySelectionResourceContractTest {
         // delimiters rather than stopping at the first ')': onClick may be a lambda expression.
         // This keeps the enabled binding tied to .selectable and proves attribution is outside
         // that Row's content lambda.
-        val screen = projectRoot.resolve(
-            "shared/src/commonMain/kotlin/com/denis/georgiatransit/shared/presentation/cityselection/CitySelectionScreen.kt",
+        val catalogSection = projectRoot.resolve(
+            "shared/src/commonMain/kotlin/com/denis/georgiatransit/shared/presentation/cityselection/sections/CityCatalogSection.kt",
         ).readText()
-        assertTrue(screen.contains("withLink(LinkAnnotation.Url(item.url))"))
-        val cityRowStart = screen.indexOf("private fun CityRow").also { check(it >= 0) }
-        val cityRowEnd = screen.indexOf("/** Credits are not nested", cityRowStart).also { check(it >= 0) }
-        val cityRow = screen.substring(cityRowStart, cityRowEnd)
+        assertTrue(catalogSection.contains("withLink(LinkAnnotation.Url(item.url))"))
+        val cityRow = catalogSection.functionBody("private fun CityRow")
         val rowOpenParenthesis = Regex("""(?m)^\s*Row\(""").find(cityRow)?.range?.last
             ?: error("CityRow must contain a Row invocation")
         val rowCloseParenthesis = cityRow.matchingDelimiter(rowOpenParenthesis, '(', ')')
@@ -212,6 +210,13 @@ class CitySelectionResourceContractTest {
             }
         }
         error("No closing '$close' for '$open' at $openIndex")
+    }
+
+    private fun String.functionBody(signature: String): String {
+        val functionStart = indexOf(signature).also { check(it >= 0) }
+        val bodyStart = indexOf('{', functionStart).also { check(it >= 0) }
+        val bodyEnd = matchingDelimiter(bodyStart, '{', '}')
+        return substring(functionStart, bodyEnd + 1)
     }
 
     private fun projectRoot(): Path =
