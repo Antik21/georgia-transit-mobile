@@ -228,4 +228,5 @@ private val MaterialInputChipHeight = 32.dp
 private val MaterialInputChipCornerRadius = 16.dp
 private val MaterialInputChipLeadingIconSize = 24.dp
 private val MaterialInputChipCloseIconSize = 18.dp
-private val RouteGeometryActionSize = MaterialInputChipCloseIconSize
+// Keep the visual close icon compact while preserving an accessible pointer target.
+private val RouteGeometryActionSize = 48.dp

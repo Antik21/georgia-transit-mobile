@@ -1,6 +1,5 @@
 package com.denis.georgiatransit.shared.presentation.map
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -14,9 +13,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.material3.Button
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -26,13 +23,10 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.intl.Locale
 import androidx.compose.ui.tooling.preview.Preview
-import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
@@ -49,6 +43,7 @@ import com.denis.georgiatransit.shared.presentation.map.sections.RouteGeometryLe
 import com.denis.georgiatransit.shared.presentation.map.sections.StopArrivalsSheet
 import com.denis.georgiatransit.shared.presentation.map.sections.VehicleAccessibility
 import com.denis.georgiatransit.shared.presentation.ui.automation.AutomationId
+import com.denis.georgiatransit.shared.presentation.ui.theme.GeorgiaTransitTheme
 import com.denis.georgiatransit.shared.presentation.ui.theme.TransitSpacing
 import georgiatransit.shared.generated.resources.Res
 import georgiatransit.shared.generated.resources.location_action_enable
@@ -235,32 +230,14 @@ private fun locationActionEnabled(permission: LocationPermissionState): Boolean 
 @Preview
 @Composable
 private fun Preview() {
-    MaterialTheme {
-        Surface {
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .weight(1f)
-                        .background(Color(0xFFE1F1E4)),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Text(text = "Map preview")
-                }
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedButton(onClick = {}, modifier = Modifier.weight(1f)) {
-                        Text(text = "Change city")
-                    }
-                    Button(onClick = {}, modifier = Modifier.weight(1f)) {
-                        Text(text = "Choose routes")
-                    }
-                }
-            }
-        }
+    GeorgiaTransitTheme {
+        Content(
+            state = ViewState(
+                cityName = "Tbilisi",
+                routesAvailable = true,
+                contentState = MapContentState.Empty,
+            ),
+            onAction = {},
+        )
     }
 }

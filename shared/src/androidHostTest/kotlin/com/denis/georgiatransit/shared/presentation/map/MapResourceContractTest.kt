@@ -18,6 +18,20 @@ import org.w3c.dom.Element
  */
 class MapResourceContractTest {
     @Test
+    fun mapPreviewRendersTheActualStatelessContent() {
+        val screen = projectRoot().resolve(
+            "shared/src/commonMain/kotlin/com/denis/georgiatransit/shared/presentation/map/MapScreen.kt",
+        ).readText()
+
+        assertCodePath(
+            screen.functionBody("private fun Preview"),
+            "GeorgiaTransitTheme",
+            "Content(",
+            "ViewState(",
+        )
+    }
+
+    @Test
     fun englishGeorgianAndRussianMapResourcesStayInParity() {
         val resourceRoot = projectRoot().resolve("shared/src/commonMain/composeResources")
         val english = stringValues(resourceRoot.resolve("values/strings.xml"))
@@ -501,6 +515,7 @@ class MapResourceContractTest {
         assertTrue(legendSource.contains("private val MaterialInputChipCornerRadius = 16.dp"))
         assertTrue(legendSource.contains("private val MaterialInputChipLeadingIconSize = 24.dp"))
         assertTrue(legendSource.contains("private val MaterialInputChipCloseIconSize = 18.dp"))
+        assertTrue(legendSource.contains("private val RouteGeometryActionSize = 48.dp"))
         assertTrue(legendSource.contains("fontWeight = FontWeight.Medium"))
     }
 

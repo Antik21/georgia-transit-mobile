@@ -89,6 +89,9 @@ class RoutesResourceContractTest {
         assertTrue(header.contains("RouteSelectionPolicy.MaximumSelectedRoutes"))
         assertTrue(header.contains("testTag(AutomationId.RoutesSelectionCount)"))
         assertTrue(header.contains("testTag(AutomationId.RoutesSelectionWarning)"))
+        assertTrue(header.contains("modifier: Modifier = Modifier"))
+        assertTrue(header.contains("modifier = modifier"))
+        assertTrue(header.contains("semantics { heading() }"))
         assertTrue(screen.contains("testTag(AutomationId.RoutesScreen)"))
         assertTrue(screen.contains("testTag(AutomationId.RoutesConfirm)"))
     }
