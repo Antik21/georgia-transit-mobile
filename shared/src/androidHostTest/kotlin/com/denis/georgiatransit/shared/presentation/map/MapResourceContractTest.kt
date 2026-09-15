@@ -160,6 +160,8 @@ class MapResourceContractTest {
             "MapStopArrivalsSheet",
             "sheet.stopName",
             "MapStopArrivalsClose",
+            "showOpenStreetMapAttribution",
+            "OpenStreetMapAttribution",
             "passingRouteShortNames",
             "MapStopArrivalsRows",
         )

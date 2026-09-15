@@ -1,8 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<network-security-config>
-    <!--
-      Sandbox-only transport exception. The shared debugSandbox factory still rejects public
-      cleartext origins; Prod does not package this file and requires HTTPS.
-    -->
-    <base-config cleartextTrafficPermitted="true" />
-</network-security-config>

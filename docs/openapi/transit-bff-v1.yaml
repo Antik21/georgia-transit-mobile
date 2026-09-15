@@ -83,7 +83,7 @@ paths:
       operationId: getMapTile
       summary: Return one BFF-proxied raster tile.
       parameters:
-        - {name: z, in: path, required: true, schema: {type: integer, minimum: 0, maximum: 19}}
+        - {name: z, in: path, required: true, schema: {type: integer, minimum: 8, maximum: 19}}
         - {name: x, in: path, required: true, schema: {type: integer, minimum: 0}}
         - {name: y, in: path, required: true, schema: {type: integer, minimum: 0}}
       responses:

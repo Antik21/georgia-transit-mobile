@@ -283,6 +283,7 @@ private fun Content(state: ViewState, onAction: (Action) -> Unit) {
         state.stopArrivalsSheet?.let { sheet ->
             StopArrivalsSheet(
                 sheet = sheet,
+                showOpenStreetMapAttribution = state.baseLayerState == MapBaseLayerState.BffStyle,
                 onDismiss = { onAction(Action.StopArrivalsDismissed) },
                 onRetry = { onAction(Action.RetryStopArrivals) },
                 onMyLocation = { onAction(Action.MyLocationClicked) },
@@ -453,6 +454,7 @@ private val DirectionsBusIcon: ImageVector by lazy {
 @Composable
 private fun StopArrivalsSheet(
     sheet: StopArrivalsSheetUi,
+    showOpenStreetMapAttribution: Boolean,
     onDismiss: () -> Unit,
     onRetry: () -> Unit,
     onMyLocation: () -> Unit,
@@ -492,6 +494,9 @@ private fun StopArrivalsSheet(
                 ) {
                     Text(stringResource(Res.string.map_stop_arrivals_close))
                 }
+            }
+            if (showOpenStreetMapAttribution) {
+                OpenStreetMapAttribution(modifier = Modifier.align(Alignment.CenterHorizontally))
             }
             if (sheet.passingRoutes.isNotEmpty() || sheet.passingRouteShortNames.isNotEmpty()) {
                 Text(
