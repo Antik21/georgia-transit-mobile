@@ -276,8 +276,9 @@ fun Application.transitBffModule(config: BffConfig = BffConfig.fromEnvironment()
                 if (z == null || x == null || y == null) throw InvalidArgument("tile coordinates must be integers")
                 try {
                     MapProxy.validate(z, x, y)
+                    val bytes = mapProxy.tile(z, x, y)
                     call.response.header(HttpHeaders.CacheControl, "public, max-age=$MapTileCacheSeconds")
-                    call.respondBytes(mapProxy.tile(z, x, y), ContentType.Image.PNG)
+                    call.respondBytes(bytes, ContentType.Image.PNG)
                 } catch (failure: IllegalArgumentException) {
                     throw InvalidArgument(failure.message ?: "invalid tile coordinates")
                 } catch (_: MapProxyFailure) {
