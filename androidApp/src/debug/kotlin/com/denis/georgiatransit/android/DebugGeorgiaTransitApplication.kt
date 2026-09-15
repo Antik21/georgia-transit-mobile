@@ -9,11 +9,24 @@ import com.denis.georgiatransit.shared.data.network.installTransitOkHttpIntercep
 
 class DebugGeorgiaTransitApplication : GeorgiaTransitApplication() {
     override val bffEndpointConfiguration: BffEndpointConfiguration =
-        if (isEmulator()) {
-            BffEndpointConfiguration.debugAndroidEmulatorWithMapAssets
-        } else {
-            BffEndpointConfiguration.debugAndroidPhysicalDeviceWithMapAssets
-        }
+        BuildConfig.BFF_BASE_URL
+            .trim()
+            .takeIf(String::isNotEmpty)
+            ?.let { configuredUrl ->
+                BffEndpointConfiguration.debugSandbox(
+                    baseUrl = configuredUrl,
+                    mapAssetsEnabled = true,
+                ).also { endpoint ->
+                    check(endpoint.validationFailure() == null) {
+                        "SANDBOX_BFF_BASE_URL must be HTTPS or a supported private local HTTP origin."
+                    }
+                }
+            }
+            ?: if (isEmulator()) {
+                BffEndpointConfiguration.debugAndroidEmulatorWithMapAssets
+            } else {
+                BffEndpointConfiguration.debugAndroidPhysicalDeviceWithMapAssets
+            }
 
     override fun onCreate() {
         installTransitOkHttpInterceptor(RedactingChuckerInterceptor(this))

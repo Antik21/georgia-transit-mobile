@@ -6,7 +6,6 @@ import com.denis.georgiatransit.bff.api.CityCapabilities
 import com.denis.georgiatransit.bff.api.CityNotFound
 import com.denis.georgiatransit.bff.api.CityReadiness
 import com.denis.georgiatransit.bff.api.CitySource
-import com.denis.georgiatransit.bff.api.KnownCityIds
 import com.denis.georgiatransit.bff.config.BffConfig
 import com.denis.georgiatransit.bff.config.BffConfigurationException
 import com.denis.georgiatransit.bff.config.RuntimeMode
@@ -347,7 +346,7 @@ class RuntimeCapabilityControl(
             val adapter = adapters[control.id] ?: invalidControlDocument()
             val intrinsic = adapter.city
             if (control.availability != intrinsic.availability) invalidControlDocument()
-            validateAllowedAvailability(control.id, control.availability)
+            validateAllowedAvailability(control.availability)
             validateNoCapabilityExpansion(control.capabilities, intrinsic.capabilities)
             if (control.enabled) {
                 val city = intrinsic.copy(capabilities = intrinsic.capabilities.intersect(control.capabilities))
@@ -358,7 +357,7 @@ class RuntimeCapabilityControl(
         return effective.toSortedMap()
     }
 
-    private fun validateAllowedAvailability(cityId: String, availability: CityAvailability) {
+    private fun validateAllowedAvailability(availability: CityAvailability) {
         when (availability.source) {
             CitySource.FIXTURE -> {
                 if (
@@ -372,14 +371,7 @@ class RuntimeCapabilityControl(
             CitySource.REVIEWED_ADAPTER -> {
                 if (availability.readiness != CityReadiness.PRODUCTION_READY) invalidControlDocument()
             }
-            // Theta is explicitly development-only. Keeping the source/readiness unreviewed is
-            // intentional: a local operator document can expose it for manual smoke checks but
-            // cannot make it look production-ready or enable any other unreviewed adapter.
-            CitySource.UNREVIEWED_ADAPTER -> if (
-                config.mode != RuntimeMode.DEVELOPMENT ||
-                    cityId != KnownCityIds.Batumi ||
-                    !config.batumiTheta.isActivated
-            ) invalidControlDocument()
+            CitySource.UNREVIEWED_ADAPTER -> invalidControlDocument()
         }
     }
 

@@ -8,7 +8,7 @@ import com.denis.georgiatransit.shared.data.persistence.AndroidSelectedCityStore
 import com.denis.georgiatransit.shared.di.initGeorgiaTransitKoin
 
 open class GeorgiaTransitApplication : Application() {
-    /** Release has no endpoint until an operator supplies a reviewed HTTPS BFF URL. */
+    /** Each enabled environment variant supplies its reviewed BFF endpoint. */
     protected open val bffEndpointConfiguration: BffEndpointConfiguration? = null
     override fun onCreate() {
         super.onCreate()

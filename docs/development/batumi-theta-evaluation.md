@@ -1,16 +1,24 @@
 # Batumi Theta API evaluation
 
+> Historical evaluation: its 2026-09-10 NO-GO decision was superseded on 2026-09-15 by the
+> explicit operator production approval recorded in
+> [ADR 0013](../adr/0013-batumi-theta-production-approval.md). The observations and safety
+> constraints below remain relevant evidence; the former authorization blocker no longer defines
+> the project's production classification. This evaluation covered the Theta catalog and legacy
+> route-live endpoints only. The later production approval also covers the distinct, hard-coded
+> BatBus bulk live endpoint `https://batbus.app/api/getAllBuses`, evaluated in ADR 0011.
+
 **Evaluation date:** 2026-09-10
 
-**Decision:** **NO-GO** for enabling any production Batumi capability. A tightly bounded,
+**Decision at the time of evaluation:** **NO-GO** for enabling any production Batumi capability. A tightly bounded,
 disabled-by-default development implementation may exist only behind the BFF capability control;
 it does not authorize traffic to the origin or change this production decision.
 
-The published examples and public responses are sufficient to inform a future
-experimental, server-side parser design after permission has been obtained.
-They are not sufficient evidence for a production-ready integration. Anonymous
-GET access is an observation, not permission to reuse, operate against, cache,
-or redistribute the service or its data.
+At the time of evaluation, the published examples and public responses were sufficient to inform
+a future experimental, server-side parser design after permission had been obtained. They were not
+sufficient evidence for a production-ready integration. Anonymous GET access alone was an
+observation, not permission to reuse, operate against, cache, or redistribute the service or its
+data. ADR 0013 records the subsequent operator decision for the bounded two-origin adapter.
 
 ## Scope and sources
 
@@ -86,7 +94,7 @@ with `{data:null}` in all observed cases. Therefore the upstream response
 cannot currently distinguish an unknown route from a valid route with no
 vehicles, and a BFF must not manufacture that distinction.
 
-## Missing production evidence
+## Production evidence missing at the time of evaluation
 
 No `ETag` was observed on successful `/api` responses, and no rate-limit
 response or `Retry-After` was observed. QPS limits, a service-level objective
@@ -96,7 +104,7 @@ evaluation. No stress test was performed. The brief public samples also do not
 establish valid-empty or night-time behavior, freshness semantics, or an
 upstream observation timestamp.
 
-Consequently, the following required gates remain open:
+Consequently, the following gates were recorded as open at the time:
 
 1. Establish the legal operator identity for the origin and data.
 2. Obtain written permission or a license covering reuse and redistribution,
@@ -108,16 +116,15 @@ Consequently, the following required gates remain open:
 6. Establish data-freshness and timestamp semantics suitable for realtime
    presentation.
 
-All gates must be independently reviewed before a Batumi adapter may be
-registered, and before the existing capability control can make Batumi
-effective. An unreviewed adapter, a reachable endpoint, or a public client
-repository is not a substitute for any gate.
+At the time, all gates had to be independently reviewed before a Batumi adapter could be
+registered and before capability control could make Batumi effective. ADR 0013 records the later
+operator review and production approval; reachability alone remains insufficient for any future
+provider decision.
 
-## Conditions for a future experimental adapter
+## Conditions originally set for an experimental adapter
 
-If written permission authorizes a limited experimental implementation,
-it must retain the existing Transit BFF boundary and remain disabled until a
-separate production review. At minimum, it must:
+The evaluation required any later limited experimental implementation to retain the Transit BFF
+boundary and remain disabled until a separate production review. At minimum, it had to:
 
 - run server-side only; mobile clients must never call Theta directly;
 - prevalidate each requested route against a BFF-owned directory before the
@@ -136,5 +143,6 @@ separate production review. At minimum, it must:
 - keep Batumi absent from effective cities until legal, operational, and
   production-contract review is complete.
 
-These constraints do not approve traffic to the origin. They describe the
-minimum safety envelope for a later, expressly authorized experiment.
+At the time, these constraints did not approve traffic to the Theta origin. They now remain the
+minimum safety envelope incorporated into the expressly authorized two-origin production adapter
+by ADR 0013.

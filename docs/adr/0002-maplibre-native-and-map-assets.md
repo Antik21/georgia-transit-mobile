@@ -2,6 +2,10 @@
 
 Status: Accepted (version and licensing review: 2026-09-06)
 
+Production-source restrictions in this decision are superseded by
+[ADR 0015](0015-public-osm-raster-basemap.md); the renderer boundary and owned-asset long-term path
+remain accepted.
+
 ## Context
 
 Georgia Transit needs one map renderer decision for Android and iOS that is
@@ -138,9 +142,9 @@ Implemented verification is local-only and intentionally does not imply a
 production map asset is available:
 
 ```text
-./gradlew :androidApp:assembleDebug
-xcodebuild -resolvePackageDependencies -project iosApp/iosApp.xcodeproj -scheme iosApp
-xcodebuild -project iosApp/iosApp.xcodeproj -scheme iosApp -sdk iphonesimulator -configuration Debug CODE_SIGNING_ALLOWED=NO build
+./gradlew :androidApp:assembleSandbox
+xcodebuild -resolvePackageDependencies -project iosApp/iosApp.xcodeproj -scheme Sandbox
+xcodebuild -project iosApp/iosApp.xcodeproj -scheme Sandbox -sdk iphonesimulator -configuration Sandbox CODE_SIGNING_ALLOWED=NO build
 ```
 
 The Android and iOS adapters must render their local background and any valid

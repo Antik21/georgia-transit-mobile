@@ -15,6 +15,7 @@ import com.denis.georgiatransit.bff.route
 import com.denis.georgiatransit.bff.stop
 import com.denis.georgiatransit.bff.config.BffConfig
 import com.denis.georgiatransit.bff.config.BffConfigurationException
+import com.denis.georgiatransit.bff.config.BatumiThetaActivationConfig
 import com.denis.georgiatransit.bff.observability.TelemetryCapability
 import com.denis.georgiatransit.bff.provider.JourneyQuery
 import com.denis.georgiatransit.bff.provider.ProviderRegistry
@@ -55,6 +56,15 @@ import kotlin.test.fail
 private val fixtureAvailability = CityAvailability(
     readiness = CityReadiness.DEVELOPMENT_FIXTURE,
     source = CitySource.FIXTURE,
+)
+private val batumiProductionAvailability = CityAvailability(
+    readiness = CityReadiness.PRODUCTION_READY,
+    source = CitySource.REVIEWED_ADAPTER,
+)
+private val batumiProductionCapabilities = capabilities(
+    officialArrivals = false,
+    tripPlanning = false,
+    arrivals = true,
 )
 
 private val privateFilePermissions = setOf(
@@ -113,6 +123,92 @@ class RuntimeCapabilityControlTest {
                 Files.getPosixFilePermissions(files.stateDirectory.resolve("documents/fixture-1.json")),
             )
         }
+
+    @Test
+    fun `production accepts reviewed Batumi metadata and rejects its old unreviewed classification`() {
+        withControlFiles { files ->
+            files.writeControl(
+                capabilityDocument(
+                    revision = "batumi-production",
+                    cityEntries = listOf(
+                        cityDocument(
+                            cityId = "batumi",
+                            availability = batumiProductionAvailability,
+                            capabilityValues = batumiProductionCapabilities,
+                        ),
+                    ),
+                ),
+            )
+            RuntimeCapabilityControl(
+                files.productionBatumiConfig(),
+                ProviderRegistry(listOf(batumiProductionAdapter())),
+                {},
+            ).use { control ->
+                control.start()
+                assertEquals(batumiProductionAvailability, control.current().city("batumi").city.availability)
+                assertEquals(batumiProductionCapabilities, control.current().city("batumi").city.capabilities)
+            }
+        }
+
+        withControlFiles { files ->
+            files.writeControl(
+                capabilityDocument(
+                    revision = "batumi-unreviewed",
+                    cityEntries = listOf(
+                        cityDocument(
+                            cityId = "batumi",
+                            availability = CityAvailability(CityReadiness.UNREVIEWED, CitySource.UNREVIEWED_ADAPTER),
+                            capabilityValues = batumiProductionCapabilities,
+                        ),
+                    ),
+                ),
+            )
+            RuntimeCapabilityControl(
+                files.productionBatumiConfig(),
+                ProviderRegistry(listOf(batumiProductionAdapter())),
+                {},
+            ).use { control ->
+                control.start()
+                assertClosed(control)
+            }
+        }
+    }
+
+    @Test
+    fun `Batumi global feed schema capabilities latch durably as one safety boundary`() = withControlFiles { files ->
+        files.writeControl(
+            capabilityDocument(
+                revision = "batumi-schema",
+                cityEntries = listOf(
+                    cityDocument(
+                        cityId = "batumi",
+                        availability = batumiProductionAvailability,
+                        capabilityValues = batumiProductionCapabilities,
+                    ),
+                ),
+            ),
+        )
+        val config = files.productionBatumiConfig()
+        RuntimeCapabilityControl(config, ProviderRegistry(listOf(batumiProductionAdapter())), {}).use { control ->
+            control.start()
+            repeat(2) {
+                assertFalse(control.observeSchemaDrift("batumi", TelemetryCapability.VEHICLE_POSITIONS))
+                assertFalse(control.observeSchemaDrift("batumi", TelemetryCapability.ARRIVALS))
+            }
+            assertTrue(control.observeSchemaDrift("batumi", TelemetryCapability.VEHICLE_POSITIONS))
+            assertTrue(control.observeSchemaDrift("batumi", TelemetryCapability.ARRIVALS))
+            assertFalse(control.current().city("batumi").city.capabilities.vehiclePositions)
+            assertFalse(control.current().city("batumi").city.capabilities.arrivals)
+        }
+
+        RuntimeCapabilityControl(config, ProviderRegistry(listOf(batumiProductionAdapter())), {}).use { restored ->
+            restored.start()
+            assertTrue(restored.isSchemaInterlocked("batumi", TelemetryCapability.VEHICLE_POSITIONS))
+            assertTrue(restored.isSchemaInterlocked("batumi", TelemetryCapability.ARRIVALS))
+            assertFalse(restored.current().city("batumi").city.capabilities.vehiclePositions)
+            assertFalse(restored.current().city("batumi").city.capabilities.arrivals)
+        }
+    }
 
     @Test
     fun `invalid unsafe oversized and deeply nested documents fail closed without a crash`() {
@@ -644,6 +740,14 @@ private fun fixtureAdapter(capabilityValues: CityCapabilities = capabilities()):
     city = FakeAdapter().city.copy(capabilities = capabilityValues, availability = fixtureAvailability),
 )
 
+private fun batumiProductionAdapter(): FakeAdapter = FakeAdapter(
+    city = FakeAdapter().city.copy(
+        id = "batumi",
+        capabilities = batumiProductionCapabilities,
+        availability = batumiProductionAvailability,
+    ),
+)
+
 private fun service(capabilitySnapshots: CapabilitySnapshotSource): TransitService = TransitService(
     capabilitySnapshots = capabilitySnapshots,
     directoryCacheTtlSeconds = 3_600,
@@ -688,6 +792,17 @@ private data class ControlFiles(
             "BFF_CAPABILITY_CONTROL_POLL_SECONDS" to "5",
             "BFF_CAPABILITY_CONTROL_HISTORY_LIMIT" to historyLimit.toString(),
             "BFF_SCHEMA_INTERLOCK_ENABLED" to schemaInterlockEnabled.toString(),
+        ),
+    )
+
+    fun productionBatumiConfig(): BffConfig = BffConfig.fromEnvironment(
+        mapOf(
+            "BFF_MODE" to "production",
+            "BFF_CAPABILITY_CONTROL_PATH" to controlPath.toString(),
+            "BFF_CAPABILITY_CONTROL_STATE_DIR" to stateDirectory.toString(),
+            "BFF_SCHEMA_INTERLOCK_ENABLED" to "true",
+            "BATUMI_THETA_ENABLED" to "true",
+            "BATUMI_THETA_OPERATOR_ACKNOWLEDGEMENT" to BatumiThetaActivationConfig.Acknowledgement,
         ),
     )
 

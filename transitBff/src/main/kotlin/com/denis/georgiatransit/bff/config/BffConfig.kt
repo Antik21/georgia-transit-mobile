@@ -101,11 +101,8 @@ data class BffConfig(
         require(mode != RuntimeMode.PRODUCTION || !ttc.isActivated || schemaInterlockEnabled) {
             "BFF_SCHEMA_INTERLOCK_ENABLED must be true for a production TTC activation"
         }
-        require(mode == RuntimeMode.DEVELOPMENT || !batumiTheta.isActivated) {
-            "BATUMI_THETA_ENABLED is development-only; production startup fails closed"
-        }
-        require(mode == RuntimeMode.DEVELOPMENT || !map.isActivated) {
-            "BFF_MAP_ENABLED is development-only; production startup fails closed"
+        require(mode != RuntimeMode.PRODUCTION || !batumiTheta.isActivated || schemaInterlockEnabled) {
+            "BFF_SCHEMA_INTERLOCK_ENABLED must be true for a production Batumi Theta activation"
         }
         require(!(transitous.isActivated && ttc.isActivated)) {
             "Only one Tbilisi production provider adapter may be activated"
@@ -118,7 +115,11 @@ data class BffConfig(
                 BffConfig(
                     mode = parseMode(environment["BFF_MODE"] ?: "development"),
                     host = environment["BFF_HOST"] ?: "127.0.0.1",
-                    port = parseInt(environment, "BFF_PORT", 8080, 1, 65_535),
+                    port = if ("BFF_PORT" in environment) {
+                        parseInt(environment, "BFF_PORT", 8080, 1, 65_535)
+                    } else {
+                        parseInt(environment, "PORT", 8080, 1, 65_535)
+                    },
                     directoryCacheTtlSeconds = parseLong(
                         environment,
                         "BFF_DIRECTORY_CACHE_TTL_SECONDS",
@@ -252,7 +253,7 @@ data class BffConfig(
     }
 }
 
-/** A narrowly scoped raster proxy, deliberately disabled unless an operator opts in. */
+/** A narrowly scoped raster proxy, disabled unless an operator supplies the complete map contract. */
 data class MapProxyActivationConfig(
     val enabled: Boolean,
     val tileTemplate: String?,
@@ -300,9 +301,9 @@ data class MapProxyActivationConfig(
 }
 
 /**
- * Development-only guard for the unreviewed Theta catalog. Its host and path are deliberately
- * fixed so this opt-in cannot turn the BFF into an arbitrary HTTP proxy. The acknowledgement is
- * an operator assertion, not a license approval; production remains fail-closed.
+ * Explicitly approved Theta activation. Its host and path are deliberately fixed so this opt-in
+ * cannot turn the BFF into an arbitrary HTTP proxy. Production additionally requires the durable
+ * schema interlock and capability-control state configured by [BffConfig].
  */
 data class BatumiThetaActivationConfig(
     val enabled: Boolean,
@@ -315,13 +316,13 @@ data class BatumiThetaActivationConfig(
         if (enabled) {
             require(baseUrl != null) { "BATUMI_THETA_BASE_URL is required when BATUMI_THETA_ENABLED=true" }
             require(operatorAcknowledgement == Acknowledgement) {
-                "BATUMI_THETA_OPERATOR_ACKNOWLEDGEMENT must explicitly acknowledge development-only use"
+                "BATUMI_THETA_OPERATOR_ACKNOWLEDGEMENT must explicitly approve production use"
             }
         }
     }
 
     companion object {
-        const val Acknowledgement = "I_UNDERSTAND_THETA_DEV_ONLY"
+        const val Acknowledgement = "I_APPROVE_THETA_PRODUCTION_USE"
         private const val DefaultBaseUrl = "https://thetamaps.site:54321/api"
 
         fun fromEnvironment(environment: Map<String, String>): BatumiThetaActivationConfig {

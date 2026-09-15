@@ -118,6 +118,7 @@
     <string name="map_vehicle_status_mixed">მარშრუტების ხელმისაწვდომობა განსხვავებულია</string>
     <string name="map_retry_action">ხელახლა ცდა</string>
     <string name="map_attribution_title">მონაცემთა წყაროები და ატრიბუცია</string>
+    <string name="map_openstreetmap_attribution">© OpenStreetMap contributors</string>
     <string name="routes_title">მარშრუტები</string>
     <string name="routes_subtitle">აირჩიეთ რამდენიმე მარშრუტი რუკაზე ერთად საჩვენებლად.</string>
     <string name="routes_cancel_action">გაუქმება</string>

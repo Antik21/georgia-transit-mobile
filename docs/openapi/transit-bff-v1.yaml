@@ -67,9 +67,9 @@ paths:
   /v1/map/style.json:
     get:
       operationId: getMapStyle
-      summary: Return the optional BFF-owned raster style.
+      summary: Return the configured BFF-owned raster style.
       description: |
-        Available only when the BFF map proxy is explicitly activated. The style contains only
+        Available while the BFF map proxy is activated. The style contains only
         an absolute configured BFF tile endpoint and the configured required attribution; it
         never reveals an upstream tile template, request host header, or credentials.
       responses:
@@ -81,14 +81,14 @@ paths:
   /v1/map/tiles/{z}/{x}/{y}.png:
     get:
       operationId: getMapTile
-      summary: Return one optional BFF-proxied raster tile.
+      summary: Return one BFF-proxied raster tile.
       parameters:
-        - {name: z, in: path, required: true, schema: {type: integer, minimum: 0, maximum: 19}}
+        - {name: z, in: path, required: true, schema: {type: integer, minimum: 8, maximum: 19}}
         - {name: x, in: path, required: true, schema: {type: integer, minimum: 0}}
         - {name: y, in: path, required: true, schema: {type: integer, minimum: 0}}
       responses:
         '200':
-          description: PNG tile from the configured upstream under bounded BFF controls.
+          description: PNG tile from the configured upstream under bounded BFF controls and cache policy.
           headers: {Cache-Control: {schema: {type: string}}}
           content: {image/png: {schema: {type: string, format: binary}}}
         '400': {$ref: '#/components/responses/InvalidArgument'}

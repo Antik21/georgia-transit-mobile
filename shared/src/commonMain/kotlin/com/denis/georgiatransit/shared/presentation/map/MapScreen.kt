@@ -115,6 +115,7 @@ import georgiatransit.shared.generated.resources.map_route_geometry_unavailable
 import georgiatransit.shared.generated.resources.map_preview_note
 import georgiatransit.shared.generated.resources.map_routes_action
 import georgiatransit.shared.generated.resources.map_nearby_stops_title
+import georgiatransit.shared.generated.resources.map_openstreetmap_attribution
 import georgiatransit.shared.generated.resources.map_retry_action
 import georgiatransit.shared.generated.resources.map_selected_stop
 import georgiatransit.shared.generated.resources.map_stop_arrivals_arriving
@@ -282,6 +283,7 @@ private fun Content(state: ViewState, onAction: (Action) -> Unit) {
         state.stopArrivalsSheet?.let { sheet ->
             StopArrivalsSheet(
                 sheet = sheet,
+                showOpenStreetMapAttribution = state.baseLayerState == MapBaseLayerState.BffStyle,
                 onDismiss = { onAction(Action.StopArrivalsDismissed) },
                 onRetry = { onAction(Action.RetryStopArrivals) },
                 onMyLocation = { onAction(Action.MyLocationClicked) },
@@ -452,6 +454,7 @@ private val DirectionsBusIcon: ImageVector by lazy {
 @Composable
 private fun StopArrivalsSheet(
     sheet: StopArrivalsSheetUi,
+    showOpenStreetMapAttribution: Boolean,
     onDismiss: () -> Unit,
     onRetry: () -> Unit,
     onMyLocation: () -> Unit,
@@ -491,6 +494,9 @@ private fun StopArrivalsSheet(
                 ) {
                     Text(stringResource(Res.string.map_stop_arrivals_close))
                 }
+            }
+            if (showOpenStreetMapAttribution) {
+                OpenStreetMapAttribution(modifier = Modifier.align(Alignment.CenterHorizontally))
             }
             if (sheet.passingRoutes.isNotEmpty() || sheet.passingRouteShortNames.isNotEmpty()) {
                 Text(
@@ -953,6 +959,37 @@ private fun MapCanvas(
                 .padding(TransitSpacing.Medium)
                 .size(48.dp)
                 .testTag(locationActionAutomationId),
+        )
+        if (baseLayerState == MapBaseLayerState.BffStyle) {
+            OpenStreetMapAttribution(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(TransitSpacing.ExtraSmall),
+            )
+        }
+    }
+}
+
+@Composable
+private fun OpenStreetMapAttribution(modifier: Modifier = Modifier) {
+    val label = stringResource(Res.string.map_openstreetmap_attribution)
+    Surface(
+        modifier = modifier.testTag(AutomationId.MapOpenStreetMapAttribution),
+        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.88f),
+        shape = TransitShapes.Small,
+    ) {
+        Text(
+            text = buildAnnotatedString {
+                withLink(LinkAnnotation.Url("https://www.openstreetmap.org/copyright")) {
+                    append(label)
+                }
+            },
+            modifier = Modifier.padding(
+                horizontal = TransitSpacing.Small,
+                vertical = TransitSpacing.ExtraSmall,
+            ),
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.primary,
         )
     }
 }

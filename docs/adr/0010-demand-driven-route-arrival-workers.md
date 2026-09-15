@@ -2,6 +2,10 @@
 
 Status: Superseded by ADR 0011 (2026-09-14)
 
+Batumi's production classification was later superseded by
+[ADR 0013](0013-batumi-theta-production-approval.md). The configured Batumi runtime now uses the
+continuous feed from ADR 0011; the worker design remains an injected-test/manual fallback.
+
 ## Context
 
 Batumi's reviewed web-client behavior shows that arrival estimates can be derived from a cached
@@ -19,11 +23,11 @@ Add an optional route-arrival operation to `CityTransitProviderAdapter` and expo
 `GET /v1/cities/{cityId}/routes/{routeId}/arrivals`. Its normalized `ArrivalPage` contains arrivals
 for every stop on that route; `limitPerStop` is applied independently to each stop.
 
-The Batumi development adapter owns an in-process, coroutine-based worker registry keyed only by
-normalized route ID. The first route-board request validates the route, starts one worker, and
-waits for its first bounded refresh. Later requests return the latest atomic snapshot and update
-the worker's activity time. The worker polls every five seconds and stops after 30 minutes without
-a route-board request. BFF shutdown cancels all workers.
+At the time of this decision, the Batumi development adapter owned an in-process, coroutine-based
+worker registry keyed only by normalized route ID. The first route-board request validates the
+route, starts one worker, and waits for its first bounded refresh. Later requests return the latest
+atomic snapshot and update the worker's activity time. The worker polls every five seconds and
+stops after 30 minutes without a route-board request. BFF shutdown cancels all workers.
 
 Each refresh fetches or reuses one validated route vehicle snapshot, projects route data once, and
 calculates arrivals for all future stops. Raw provider payloads, raw vehicle names, and provider IDs
@@ -34,9 +38,8 @@ The registry is deliberately per BFF process. Before running multiple production
 a quota-sensitive source, operators must introduce reviewed route affinity or a distributed lease;
 adding a distributed persistence stack is outside this decision.
 
-This decision does not approve BatBus or Theta data for production. Provider terms, quota,
-attribution, schema stability, and prediction accuracy still require an explicit review before the
-Batumi adapter can become production-ready.
+This decision did not approve BatBus or Theta data for production. The later explicit review and
+production approval are recorded in ADR 0013.
 
 ## Consequences
 

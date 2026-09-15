@@ -13,9 +13,10 @@ Commands:
 
 ```text
 ./gradlew :shared:testAndroidHostTest
-./gradlew :androidApp:assembleDebug
+./gradlew :androidApp:assembleSandbox :androidApp:assembleProd
 ./gradlew :shared:iosSimulatorArm64Test
-xcodebuild -project iosApp/iosApp.xcodeproj -scheme iosApp -sdk iphonesimulator -configuration Debug CODE_SIGNING_ALLOWED=NO build
+xcodebuild -project iosApp/iosApp.xcodeproj -scheme Sandbox -sdk iphonesimulator -configuration Sandbox CODE_SIGNING_ALLOWED=NO build
+xcodebuild -project iosApp/iosApp.xcodeproj -scheme Prod -sdk iphonesimulator -configuration Prod CODE_SIGNING_ALLOWED=NO build
 ./gradlew :transitBff:compileKotlin :transitBff:check :transitBff:installDist
 ```
 

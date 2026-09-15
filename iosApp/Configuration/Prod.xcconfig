@@ -1,0 +1,2 @@
+// Non-secret public endpoint. GeorgiaTransitApp.swift independently pins the same production URL.
+BFF_BASE_URL = https:/$()/antik21-georgia-transit-bff.onrender.com

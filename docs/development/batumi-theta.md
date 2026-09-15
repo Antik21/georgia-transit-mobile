@@ -1,22 +1,31 @@
-# Batumi Theta development adapter
+# Batumi production adapter: Theta catalog and BatBus live feed
 
-This is an explicit development/manual-smoke integration only. Theta terms, operational quota,
-and production data-quality evidence have not been accepted, so production startup rejects
-`BATUMI_THETA_ENABLED=true` and the catalog is labelled `UNREVIEWED`.
+The product operator approved this integration for production on 2026-09-15; the decision and its
+operational bounds are recorded in [ADR 0013](../adr/0013-batumi-theta-production-approval.md).
+The adapter remains disabled by default and is published as
+`PRODUCTION_READY`/`REVIEWED_ADAPTER` only after explicit operator activation. The production
+approval covers exactly two fixed HTTPS origins: the Theta catalog at
+`https://thetamaps.site:54321/api` and the hard-coded BatBus live feed at
+`https://batbus.app/api/getAllBuses`. Their schema validation, bounded polling, capability kill
+switches, and non-official ETA semantics remain part of the production safety envelope.
 
-The BFF is the only Theta caller. Mobile receives normalized routes, stops, encoded shapes, live
-positions, and (where reliable) normalized approximate arrivals; it never sees a Theta URL, DTO,
-raw ID, or upstream `Name`. The catalog is validated atomically before publication and kept as an
-in-memory LKG for seven days. That cache is lost on process restart.
+The BFF is the only caller of either upstream. Mobile receives normalized routes, stops, encoded
+shapes, live positions, and (where reliable) normalized approximate arrivals; it never sees a Theta
+URL, DTO, BatBus URL, raw ID, or upstream `Name`. The Theta catalog is validated atomically before
+publication, refreshed at most once every ten minutes while healthy, and kept as an in-memory LKG
+for seven days. After a failed catalog refresh, retries use a twenty-second cooldown. The cache is
+lost on process restart.
 
-When the operator has separately authorized a development smoke, the application-composed adapter
-uses one fixed BatBus `getAllBuses` request every five seconds for the whole city. A complete
+When the operator activates the adapter, the application-composed adapter makes one sequential
+request to the fixed BatBus `getAllBuses` endpoint every five seconds for the whole city while
+`vehiclePositions` or `arrivals` is enabled. A complete
 validated generation atomically replaces the prior snapshot and feeds vehicles plus every stop and
 route arrival board. Failed refreshes retain the prior normalized generation: it becomes stale after
-15 seconds and unavailable after 60 seconds. Runtime capability control gates the poller, so disabling
-both Batumi vehicle positions and arrivals stops upstream egress. Raw payloads are neither logged nor
-cached. Upstream `Name` becomes a short-lived namespaced internal ID only; it is never shown as a
-bus/fleet number. The old route-specific client remains only as an injected test/manual fallback.
+15 seconds and unavailable after 60 seconds. Runtime capability control gates the poller, so
+disabling both Batumi vehicle positions and arrivals stops live-feed upstream egress. Raw payloads
+are neither logged nor cached. Upstream `Name` becomes a short-lived namespaced internal ID only; it
+is never shown as a bus/fleet number. The old route-specific client remains only as an injected
+test/manual fallback.
 
 `officialArrivals` remains false. `arrivals=true` means only that the BFF can sometimes supply a
 `CLIENT_ESTIMATE`; empty arrival lists are expected whenever status projection is unavailable.
@@ -42,35 +51,50 @@ and whole-minute `expectedInMinutes` agree, and the app labels the source “app
 Theta `Status` is bounded and used only as provider-scoped route-part evidence. It does not become a
 passenger direction, destination, or route label. The current catalog exposes one neutral technical
 direction.
-This is intentionally conservative and must not be promoted to production ETA behavior.
+This intentionally conservative policy is the approved production ETA behavior. It must remain
+labelled approximate and must never be represented as an official arrival.
 
-For a respectful one-off smoke, use a private operator-owned capability-control path/state directory
-(not the checked-in file directly), then run:
+For a production run, copy the checked-in example into a private operator-owned capability-control
+path (do not run against the checked-in file directly), create its paired state directory with the
+permissions required by the capability-control runbook, then run:
 
 ```text
-BFF_MODE=development BFF_FIXTURES_ENABLED=false \
+BFF_MODE=production BFF_FIXTURES_ENABLED=false \
 BATUMI_THETA_ENABLED=true \
-BATUMI_THETA_OPERATOR_ACKNOWLEDGEMENT=I_UNDERSTAND_THETA_DEV_ONLY \
+BATUMI_THETA_OPERATOR_ACKNOWLEDGEMENT=I_APPROVE_THETA_PRODUCTION_USE \
 BFF_SCHEMA_INTERLOCK_ENABLED=true \
 BFF_CAPABILITY_CONTROL_PATH=/private/batumi/capabilities.json \
 BFF_CAPABILITY_CONTROL_STATE_DIR=/private/batumi/state \
 ./gradlew :transitBff:run
 ```
 
+Despite its historical `THETA` name, `BATUMI_THETA_OPERATOR_ACKNOWLEDGEMENT` and the
+`I_APPROVE_THETA_PRODUCTION_USE` token acknowledge production traffic to both the fixed Theta
+catalog origin and the hard-coded BatBus live origin. Neither origin currently requires a
+credential. The acknowledgement does not approve a configurable BatBus URL or any other origin.
+
 Copy `transitBff/batumi-theta-capability-control.example.json` into that private control path with
 the ownership/mode requirements in the capability-control runbook. The operator can separately
 disable `vehiclePositions` or `arrivals` immediately; repeated malformed live responses also latch
-the corresponding schema-drift interlock and fail closed. Make one catalog-backed routes,
-nearby-stops, shape, vehicle, and (after enough samples) arrivals request; do not add a live request
-to CI or log an upstream payload.
+the corresponding schema-drift interlock and fail closed. Keep the production service at one
+instance until an aggregate request budget or single-feed-owner design is approved. Verify one
+catalog-backed routes, nearby-stops, shape, vehicle, and arrivals request without adding a live
+upstream request to CI or logging an upstream payload.
 
-To manually smoke the optional basemap in the same development process, additionally set
-`BFF_MAP_ENABLED=true`, an explicit HTTPS raster template, and required attribution. A public OSM
-template is documented only as a manual development check; it is not a production default or
-approval. `BFF_MAP_PUBLIC_BASE_URL` is target-specific and is never inferred from a request Host
+For a complete emergency stop, publish a new capability-control revision with Batumi
+`enabled=false`. That removes the city from the effective snapshot, stops the continuous live feed,
+and prevents passenger requests from reaching the catalog adapter.
+
+On Render, the capability document and writable durable state directory need a process-owned
+persistent mount with the exact POSIX modes required by the capability-control runbook. A Render
+environment secret or secret file alone does not replace the writable state directory. Keep the
+service at one instance and verify the mount initialization before enabling automatic deploys.
+
+To run the basemap in the same development process, additionally set `BFF_MAP_ENABLED=true`, an
+explicit HTTPS raster template, and required attribution. `BFF_MAP_PUBLIC_BASE_URL` is target-specific and is never inferred from a request Host
 header: for Android emulator use `http://10.0.2.2:8080`; for an Android physical device first run
 `adb reverse tcp:8080 tcp:8080` and use `http://127.0.0.1:8080`; for iOS Simulator use
 `http://127.0.0.1:8080`. Run a BFF instance with the matching value for the target under test.
 The BFF style emits that absolute same-BFF tile URL, while host-side `curl` can still call the
-listener at `127.0.0.1`. This slice rejects map activation in production pending an operator-owned
-reviewed provider, quota/abuse controls, and a separate architecture decision.
+listener at `127.0.0.1`. Production uses public OSM raster tiles under the best-effort conditions in
+[ADR 0015](../adr/0015-public-osm-raster-basemap.md).

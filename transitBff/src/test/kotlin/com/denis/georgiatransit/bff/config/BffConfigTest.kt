@@ -53,12 +53,23 @@ class BffConfigTest {
     }
 
     @Test
+    fun `Render port is used when the BFF-specific override is absent`() {
+        assertEquals(10_000, BffConfig.fromEnvironment(mapOf("PORT" to "10000")).port)
+        assertEquals(
+            9_999,
+            BffConfig.fromEnvironment(mapOf("PORT" to "10000", "BFF_PORT" to "9999")).port,
+        )
+    }
+
+    @Test
     fun `invalid environment values fail with configuration error`() {
         val invalid = listOf(
             mapOf("BFF_MODE" to "test"),
             mapOf("BFF_HOST" to ""),
             mapOf("BFF_PORT" to "0"),
             mapOf("BFF_PORT" to "abc"),
+            mapOf("PORT" to "0"),
+            mapOf("PORT" to "abc"),
             mapOf("BFF_DIRECTORY_CACHE_TTL_SECONDS" to "3599"),
             mapOf("BFF_DIRECTORY_CACHE_TTL_SECONDS" to "21601"),
             mapOf("BFF_SHAPE_CACHE_TTL_SECONDS" to "3599"),
@@ -79,14 +90,22 @@ class BffConfigTest {
     }
 
     @Test
-    fun `Batumi Theta is exact-url development-only opt-in`() {
+    fun `Batumi Theta is exact-url production-approved opt-in`() {
         val active = mapOf(
             "BATUMI_THETA_ENABLED" to "true",
             "BATUMI_THETA_OPERATOR_ACKNOWLEDGEMENT" to BatumiThetaActivationConfig.Acknowledgement,
         )
         assertTrue(BffConfig.fromEnvironment(active).batumiTheta.isActivated)
+        val production = active + mapOf(
+            "BFF_MODE" to "production",
+            "BFF_SCHEMA_INTERLOCK_ENABLED" to "true",
+            "BFF_CAPABILITY_CONTROL_PATH" to "/private/batumi/capabilities.json",
+            "BFF_CAPABILITY_CONTROL_STATE_DIR" to "/private/batumi/state",
+        )
+        assertTrue(BffConfig.fromEnvironment(production).batumiTheta.isActivated)
         listOf(
             active - "BATUMI_THETA_OPERATOR_ACKNOWLEDGEMENT",
+            active + ("BATUMI_THETA_OPERATOR_ACKNOWLEDGEMENT" to "I_UNDERSTAND_THETA_DEV_ONLY"),
             active + ("BATUMI_THETA_BASE_URL" to "http://thetamaps.site:54321/api"),
             active + ("BATUMI_THETA_BASE_URL" to "https://thetamaps.site:54321/api/other"),
             active + ("BATUMI_THETA_BASE_URL" to "https://user@thetamaps.site:54321/api"),
@@ -95,7 +114,7 @@ class BffConfigTest {
     }
 
     @Test
-    fun `map proxy needs an explicit template attribution and production acknowledgement`() {
+    fun `map proxy needs an explicit template attribution and supports production`() {
         val active = mapOf(
             "BFF_MAP_ENABLED" to "true",
             "BFF_MAP_TILE_TEMPLATE" to "https://tiles.example/{z}/{x}/{y}.png",
@@ -105,7 +124,7 @@ class BffConfigTest {
         assertTrue(BffConfig.fromEnvironment(active).map.isActivated)
         assertFailsWith<BffConfigurationException> { BffConfig.fromEnvironment(active - "BFF_MAP_ATTRIBUTION") }
         assertFailsWith<BffConfigurationException> { BffConfig.fromEnvironment(active + ("BFF_MAP_TILE_TEMPLATE" to "http://tiles.example/{z}/{x}/{y}.png")) }
-        assertFailsWith<BffConfigurationException> { BffConfig.fromEnvironment(active + ("BFF_MODE" to "production")) }
+        assertTrue(BffConfig.fromEnvironment(active + ("BFF_MODE" to "production")).map.isActivated)
         assertFailsWith<BffConfigurationException> { BffConfig.fromEnvironment(active + ("BFF_MAP_PUBLIC_BASE_URL" to "http://tiles.example")) }
     }
 

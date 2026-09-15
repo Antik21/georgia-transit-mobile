@@ -1,4 +1,4 @@
-#if DEBUG
+#if SANDBOX && DEBUG
 import Foundation
 import Shared
 import SwiftUI

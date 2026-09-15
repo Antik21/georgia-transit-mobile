@@ -62,6 +62,7 @@ object AutomationId {
     const val MapVehiclesLiveNonempty = "map.vehicles.live-nonempty"
     const val MapRetry = "map.retry"
     const val MapAttribution = "map.attribution"
+    const val MapOpenStreetMapAttribution = "map.attribution.openstreetmap"
     fun mapAttributionLink(id: String): String = "map.attribution.link.$id"
     const val RoutesScreen = "routes.screen"
     const val RoutesOption = "routes.option"

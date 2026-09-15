@@ -9,5 +9,8 @@ Capabilities from `/v1/cities` drive city and feature availability. Kutaisi rema
 The repository's `:transitBff` module owns the normalized `/v1` runtime and
 the city-scoped provider adapter registry. It is a server boundary, never a
 shared/mobile dependency. Its current `demo` adapter is an opt-in development
-fixture only; production fails closed until a reviewed provider adapter and
-operator-held credentials are installed. See [the OpenAPI contract](../../docs/openapi/transit-bff-v1.yaml) and [ADR 0003](../../docs/adr/0003-transit-bff-runtime-and-provider-boundary.md).
+fixture only; production fails closed until a reviewed provider adapter is explicitly activated
+with its capability control and any required operator-held credentials. Batumi Theta is the first
+production-approved adapter under [ADR 0013](../../docs/adr/0013-batumi-theta-production-approval.md).
+See [the OpenAPI contract](../../docs/openapi/transit-bff-v1.yaml) and
+[ADR 0003](../../docs/adr/0003-transit-bff-runtime-and-provider-boundary.md).

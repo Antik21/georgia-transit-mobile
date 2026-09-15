@@ -43,6 +43,7 @@ import com.denis.georgiatransit.bff.provider.BatumiBatBusAllBusesClient
 import com.denis.georgiatransit.bff.service.TransitService
 import com.denis.georgiatransit.bff.map.MapProxy
 import com.denis.georgiatransit.bff.map.MapProxyFailure
+import com.denis.georgiatransit.bff.map.MapTileCacheSeconds
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.ContentType
@@ -194,11 +195,16 @@ fun Application.transitBffModule(config: BffConfig = BffConfig.fromEnvironment()
         capabilityTelemetryObserver = observability::recordCapabilitySnapshot,
     ).also(RuntimeCapabilityControl::start)
     adapters.filterIsInstance<BatumiThetaTransitProviderAdapter>().forEach { adapter ->
-        adapter.startGlobalFeed {
-            capabilityControl.current().cities[KnownCityIds.Batumi]?.city?.capabilities?.let { capabilities ->
-                capabilities.vehiclePositions || capabilities.arrivals
-            } == true
-        }
+        adapter.startGlobalFeed(
+            enabled = {
+                capabilityControl.current().cities[KnownCityIds.Batumi]?.city?.capabilities?.let { capabilities ->
+                    capabilities.vehiclePositions || capabilities.arrivals
+                } == true
+            },
+            onSchemaFailure = { capability ->
+                capabilityControl.observeSchemaDrift(KnownCityIds.Batumi, capability)
+            },
+        )
     }
     val service = TransitService(
         capabilitySnapshots = capabilityControl,
@@ -270,8 +276,9 @@ fun Application.transitBffModule(config: BffConfig = BffConfig.fromEnvironment()
                 if (z == null || x == null || y == null) throw InvalidArgument("tile coordinates must be integers")
                 try {
                     MapProxy.validate(z, x, y)
-                    call.response.header(HttpHeaders.CacheControl, "public, max-age=86400")
-                    call.respondBytes(mapProxy.tile(z, x, y), ContentType.Image.PNG)
+                    val bytes = mapProxy.tile(z, x, y)
+                    call.response.header(HttpHeaders.CacheControl, "public, max-age=$MapTileCacheSeconds")
+                    call.respondBytes(bytes, ContentType.Image.PNG)
                 } catch (failure: IllegalArgumentException) {
                     throw InvalidArgument(failure.message ?: "invalid tile coordinates")
                 } catch (_: MapProxyFailure) {

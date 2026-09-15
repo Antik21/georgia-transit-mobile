@@ -6,7 +6,7 @@ import UIKit
 
 /**
  * The Swift-owned end of the typed MapRenderState bridge. MapLibre/UIKit/CoreLocation stay here;
- * the bundled source-free style has no provider URL, key, remote style, or remote tile fallback.
+ * the bundled source-free style is the fallback and the configured remote style is always BFF-owned.
  */
 enum MapLibreMapViewBridge {
     static func makeView(
@@ -67,6 +67,8 @@ private final class LocalMapLibreView: UIView, MLNMapViewDelegate {
         self.onMapEvent = onMapEvent
         super.init(frame: .zero)
 
+        // Public OSM policy forbids speculative tile requests outside the current viewport.
+        mapView.prefetchesTiles = false
         mapView.delegate = self
         mapView.showsUserLocation = false
         mapView.shouldRequestAuthorizationToUseLocationServices = false
@@ -126,8 +128,38 @@ private final class LocalMapLibreView: UIView, MLNMapViewDelegate {
         guard url.user == nil, url.password == nil, url.query == nil, url.fragment == nil,
               url.path == "/v1/map/style.json" else { return false }
         if url.scheme == "https" { return url.host != nil }
-        return url.scheme == "http" && ["127.0.0.1", "localhost", "::1"].contains(url.host)
+#if SANDBOX
+        return url.scheme == "http" && url.host.map(isPrivateSandboxHost) == true
+#else
+        return false
+#endif
     }
+
+#if SANDBOX
+    private func isPrivateSandboxHost(_ host: String) -> Bool {
+        let normalized = host.lowercased()
+        if ["localhost", "::1"].contains(normalized) || normalized.hasSuffix(".local") {
+            return true
+        }
+        if normalized.contains(":") && (
+            normalized.hasPrefix("fc") || normalized.hasPrefix("fd") ||
+                ["fe8", "fe9", "fea", "feb"].contains(String(normalized.prefix(3)))
+        ) {
+            return true
+        }
+
+        let octets = normalized.split(separator: ".", omittingEmptySubsequences: false).map { Int($0) }
+        guard octets.count == 4, octets.allSatisfy({ value in value.map { 0...255 ~= $0 } == true }) else {
+            return false
+        }
+        let first = octets[0]!
+        let second = octets[1]!
+        return first == 10 || first == 127 ||
+            first == 169 && second == 254 ||
+            first == 172 && 16...31 ~= second ||
+            first == 192 && second == 168
+    }
+#endif
 
     func mapView(_ mapView: MLNMapView, didFinishLoading style: MLNStyle) {
         guard !released else { return }

@@ -1,0 +1,64 @@
+previews:
+  generation: "off"
+
+services:
+  - type: web
+    name: antik21-georgia-transit-bff
+    runtime: docker
+    region: frankfurt
+    plan: 0.5c-512mb
+    branch: main
+    numInstances: 1
+    dockerfilePath: ./transitBff/Dockerfile
+    dockerContext: .
+    healthCheckPath: /healthz
+    autoDeployTrigger: checksPass
+    maxShutdownDelaySeconds: 30
+    disk:
+      name: transit-bff-control-state
+      mountPath: /app/storage
+      sizeGB: 1
+    buildFilter:
+      paths:
+        - .dockerignore
+        - build.gradle.kts
+        - gradle.properties
+        - gradle/**
+        - gradlew
+        - render.yaml
+        - settings.gradle.kts
+        - transitBff/**
+      ignoredPaths: []
+    envVars:
+      - key: BFF_MODE
+        value: production
+      - key: BFF_HOST
+        value: 0.0.0.0
+      - key: BFF_FIXTURES_ENABLED
+        value: "false"
+      - key: BFF_MAP_ENABLED
+        value: "true"
+      - key: BFF_MAP_TILE_TEMPLATE
+        value: https://tile.openstreetmap.org/{z}/{x}/{y}.png
+      - key: BFF_MAP_ATTRIBUTION
+        value: '<a href="https://www.openstreetmap.org/copyright">© OpenStreetMap contributors</a>'
+      - key: BFF_MAP_PUBLIC_BASE_URL
+        value: https://antik21-georgia-transit-bff.onrender.com
+      - key: BFF_METRICS_ENABLED
+        value: "false"
+      - key: BFF_PROBES_ENABLED
+        value: "false"
+      - key: TRANSITOUS_ENABLED
+        value: "false"
+      - key: TTC_ENABLED
+        value: "false"
+      - key: BATUMI_THETA_ENABLED
+        value: "true"
+      - key: BATUMI_THETA_OPERATOR_ACKNOWLEDGEMENT
+        value: I_APPROVE_THETA_PRODUCTION_USE
+      - key: BFF_SCHEMA_INTERLOCK_ENABLED
+        value: "true"
+      - key: BFF_CAPABILITY_CONTROL_PATH
+        value: /app/storage/control/capabilities.json
+      - key: BFF_CAPABILITY_CONTROL_STATE_DIR
+        value: /app/storage/state

@@ -117,7 +117,7 @@ a second networking stack.
 ./gradlew --no-daemon --no-build-cache spotlessCheck
 ./gradlew --no-daemon --no-build-cache :transitBff:compileKotlin :transitBff:check
 ./gradlew --no-daemon --no-build-cache :shared:compileCommonMainKotlinMetadata :shared:compileKotlinIosSimulatorArm64
-./gradlew --no-daemon --no-build-cache :androidApp:assembleDebug
+./gradlew --no-daemon --no-build-cache :androidApp:assembleSandbox
 ```
 
 QA must add contract tests for disabled construction, control-plane kill switches,
