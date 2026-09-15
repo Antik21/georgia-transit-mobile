@@ -103,7 +103,6 @@ class MapResourceContractTest {
             AutomationId.MapUnavailable,
             AutomationId.MapOffline,
             AutomationId.MapLocalPreview,
-            AutomationId.MapSelectedStop,
             AutomationId.MapNearbyStops,
             AutomationId.MapNearbyStop,
             AutomationId.MapVehicles,
@@ -133,7 +132,6 @@ class MapResourceContractTest {
         assertEquals("map.my-location", AutomationId.MapMyLocation)
         assertEquals("map.location-settings", AutomationId.MapLocationSettings)
         assertEquals("map.content.local-preview", AutomationId.MapLocalPreview)
-        assertEquals("map.selected-stop", AutomationId.MapSelectedStop)
         assertEquals("map.nearby-stops", AutomationId.MapNearbyStops)
         assertEquals("map.nearby-stop", AutomationId.MapNearbyStop)
         assertEquals("map.vehicles", AutomationId.MapVehicles)
@@ -147,13 +145,11 @@ class MapResourceContractTest {
 
     @Test
     fun commonStopArrivalsSheetContractUsesLocalizedLabelsAndNeverRendersOpaqueIds() {
-        val screen = projectRoot().resolve(
-            "shared/src/commonMain/kotlin/com/denis/georgiatransit/shared/presentation/map/MapScreen.kt",
-        ).readText()
-        val sheet = screen.functionBody("private fun StopArrivalsSheet")
-        val routeChip = screen.functionBody("private fun StopRouteChip")
-        val status = screen.functionBody("private fun StopArrivalsStatus")
-        val row = screen.functionBody("private fun StopArrivalRow")
+        val stopArrivals = projectRoot().mapSectionSource("StopArrivalsSheet.kt")
+        val sheet = stopArrivals.functionBody("fun StopArrivalsSheet")
+        val routeChip = stopArrivals.functionBody("private fun StopRouteChip")
+        val status = stopArrivals.functionBody("private fun StopArrivalsStatus")
+        val row = stopArrivals.functionBody("private fun StopArrivalRow")
 
         assertCodePath(
             sheet,
@@ -206,14 +202,16 @@ class MapResourceContractTest {
         val screen = projectRoot().resolve(
             "shared/src/commonMain/kotlin/com/denis/georgiatransit/shared/presentation/map/MapScreen.kt",
         ).readText()
+        val canvasSource = projectRoot().mapSectionSource("MapCanvasSection.kt")
+        val stopArrivalsSource = projectRoot().mapSectionSource("StopArrivalsSheet.kt")
         val viewModel = projectRoot().resolve(
             "shared/src/commonMain/kotlin/com/denis/georgiatransit/shared/presentation/map/MapViewModel.kt",
         ).readText()
-        val canvas = screen.functionBody("private fun MapCanvas")
-        val contentOverlay = screen.functionBody("private fun MapContentOverlay")
-        val baseLayerOverlay = screen.functionBody("private fun BaseLayerOverlay")
+        val canvas = canvasSource.functionBody("fun MapCanvas")
+        val contentOverlay = canvasSource.functionBody("private fun MapContentOverlay")
+        val baseLayerOverlay = canvasSource.functionBody("private fun BaseLayerOverlay")
         val content = screen.functionBody("private fun Content")
-        val stopArrivalsSheet = screen.functionBody("private fun StopArrivalsSheet")
+        val stopArrivalsSheet = stopArrivalsSource.functionBody("fun StopArrivalsSheet")
         val selectedStopUi = viewModel.functionBody("private fun selectedStopUi")
         val stopDisplayName = viewModel.functionBody("private fun TransitStop.displayName")
         val stopAccessibilityLabel = viewModel.functionBody("private fun TransitStop.accessibilityLabel")
@@ -248,7 +246,7 @@ class MapResourceContractTest {
             "customActions = accessibleStops.take(MAX_ACCESSIBILITY_CUSTOM_ACTIONS).map",
             "MapPlatformEvent.StopTapped",
         )
-        assertTrue(screen.contains("private const val MAX_ACCESSIBILITY_CUSTOM_ACTIONS = 31"))
+        assertTrue(canvasSource.contains("private const val MAX_ACCESSIBILITY_CUSTOM_ACTIONS = 31"))
         assertTrue(
             viewModel.compactWhitespace().contains("accessibilityLabel = stop.accessibilityLabel(currentLocale)"),
         )
@@ -262,7 +260,8 @@ class MapResourceContractTest {
         )
         assertCodePath(content, "StopArrivalsSheet(", "onDismiss = { onAction(Action.StopArrivalsDismissed) }")
         assertCodePath(stopArrivalsSheet, "onDismissRequest = onDismiss", "onClick = onDismiss")
-        assertCodePath(content, "state.selectedStop?.let", "MapSelectedStop", "liveRegion = LiveRegionMode.Polite")
+        assertFalse(content.contains("map_selected_stop"))
+        assertFalse(content.contains("MapSelectedStop"))
     }
 
     @Test
@@ -356,8 +355,18 @@ class MapResourceContractTest {
         )
         assertTrue(android.contains("clearRenderedLayerState()"))
         assertTrue(android.contains("layersInstalled = false"))
-        assertTrue(android.contains("ATTENTION_MIN_RADIUS = BADGE_DIAMETER_PX / 2f * 1.15f"))
-        assertTrue(android.contains("ATTENTION_MAX_RADIUS = BADGE_DIAMETER_PX / 2f * 2f"))
+        assertTrue(android.contains("ATTENTION_RADIUS_REDUCTION_FACTOR = 1.5f"))
+        assertTrue(android.contains("ATTENTION_ADDITIONAL_RADIUS_SCALE = 0.85f"))
+        assertTrue(
+            android.contains(
+                "BADGE_DIAMETER_PX / 2f * 1.15f / ATTENTION_RADIUS_REDUCTION_FACTOR * ATTENTION_ADDITIONAL_RADIUS_SCALE",
+            ),
+        )
+        assertTrue(
+            android.contains(
+                "BADGE_DIAMETER_PX / 2f * 2f / ATTENTION_RADIUS_REDUCTION_FACTOR * ATTENTION_ADDITIONAL_RADIUS_SCALE",
+            ),
+        )
         assertFalse(android.contains("MarkerView"), "Source smoke: no Android per-vehicle view adapter")
         assertCodePath(
             swift,
@@ -371,6 +380,18 @@ class MapResourceContractTest {
         assertTrue(swift.contains("func mapView(_ mapView: MLNMapView, didFinishLoading style: MLNStyle)"))
         assertTrue(swift.contains("func releaseResources()"))
         assertTrue(swift.contains("badgeImageNames.removeAll()"))
+        assertTrue(swift.contains("attentionRadiusReductionFactor = 1.5"))
+        assertTrue(swift.contains("attentionAdditionalRadiusScale = 0.85"))
+        assertTrue(
+            swift.contains(
+                "attentionMinimumRadius = vehicleBadgeDiameter / 2 * 1.15 / attentionRadiusReductionFactor * attentionAdditionalRadiusScale",
+            ),
+        )
+        assertTrue(
+            swift.contains(
+                "attentionMaximumRadius = vehicleBadgeDiameter / 2 * 2.0 / attentionRadiusReductionFactor * attentionAdditionalRadiusScale",
+            ),
+        )
         assertFalse(swift.contains("AnnotationView"), "Source smoke: no iOS per-vehicle view adapter")
     }
 
@@ -441,13 +462,11 @@ class MapResourceContractTest {
 
     @Test
     fun routeGeometryLegendUsesAccessibleBusChipsAndTypedActions() {
-        val screen = projectRoot().resolve(
-            "shared/src/commonMain/kotlin/com/denis/georgiatransit/shared/presentation/map/MapScreen.kt",
-        ).readText()
+        val legendSource = projectRoot().mapSectionSource("RouteGeometryLegend.kt")
         val automation = projectRoot().resolve(
             "shared/src/commonMain/kotlin/com/denis/georgiatransit/shared/presentation/ui/automation/AutomationId.kt",
         ).readText()
-        val legend = screen.functionBody("private fun RouteGeometryLegend")
+        val legend = legendSource.functionBody("fun RouteGeometryLegend")
 
         listOf(
             AutomationId.MapRouteGeometryLegend,
@@ -467,15 +486,22 @@ class MapResourceContractTest {
             "selected = route.isFocused",
             "onFocus(route.routeId)",
             "MapRouteGeometryChip",
+            ".height(MaterialInputChipHeight)",
             "DirectionsBusIcon",
             ".size(RouteGeometryActionSize)",
+            ".clip(CircleShape)",
             "MapRouteGeometryRemove",
             "onRemove(route.routeId)",
+            "CloseIcon",
             "if (route.canRetry)",
             "MapRouteGeometryRetry",
             "onRetry(route.routeId)",
         )
-        assertTrue(screen.contains("private val RouteGeometryActionSize = 48.dp"))
+        assertTrue(legendSource.contains("private val MaterialInputChipHeight = 32.dp"))
+        assertTrue(legendSource.contains("private val MaterialInputChipCornerRadius = 16.dp"))
+        assertTrue(legendSource.contains("private val MaterialInputChipLeadingIconSize = 24.dp"))
+        assertTrue(legendSource.contains("private val MaterialInputChipCloseIconSize = 18.dp"))
+        assertTrue(legendSource.contains("fontWeight = FontWeight.Medium"))
     }
 
     @Test
@@ -495,7 +521,9 @@ class MapResourceContractTest {
         assertCodePath(
             android,
             "GeoJsonSource(POLYLINES_SOURCE_ID",
+            "GeoJsonSource(EMPHASIZED_POLYLINES_SOURCE_ID",
             "LineLayer(POLYLINES_LAYER_ID, POLYLINES_SOURCE_ID)",
+            "LineLayer(EMPHASIZED_POLYLINES_LAYER_ID, EMPHASIZED_POLYLINES_SOURCE_ID)",
             "lineColor(Expression.get(ROUTE_COLOR_PROPERTY))",
             "lineOpacity(Expression.get(ROUTE_OPACITY_PROPERTY))",
             "lineWidth(Expression.get(ROUTE_WIDTH_PROPERTY))",
@@ -509,15 +537,27 @@ class MapResourceContractTest {
             "polylinesLayer.lineOpacity = NSExpression(forKeyPath: Self.routeOpacityProperty)",
         )
         assertCodePath(
+            swift,
+            "MLNShapeSource(identifier: Self.emphasizedPolylinesSourceID",
+            "let emphasizedPolylinesLayer = MLNLineStyleLayer(",
+            "identifier: Self.emphasizedPolylinesLayerID",
+            "source: emphasizedPolylinesSource",
+            "emphasizedPolylinesLayer.lineColor = NSExpression(forKeyPath: Self.routeColorProperty)",
+            "emphasizedPolylinesLayer.lineWidth = NSExpression(forKeyPath: Self.routeWidthProperty)",
+            "emphasizedPolylinesLayer.lineOpacity = NSExpression(forKeyPath: Self.routeOpacityProperty)",
+        )
+        assertCodePath(
             androidUpdates,
             "if (lastPolylineSourceRevision != renderState.polylineSourceRevision)",
-            "polylineFeatures(renderState.polylines)",
+            "polylineFeatures(renderState.polylines, emphasized = false)",
+            "polylineFeatures(renderState.polylines, emphasized = true)",
             "lastPolylineSourceRevision = renderState.polylineSourceRevision",
         )
         assertCodePath(
             iosRender,
             "if lastPolylineSourceRevision != state.polylineSourceRevision",
-            "polylineFeatures(state.polylines)",
+            "polylineFeatures(state.polylines, emphasized: false)",
+            "polylineFeatures(state.polylines, emphasized: true)",
             "lastPolylineSourceRevision = state.polylineSourceRevision",
         )
         assertFalse(androidPolylines.contains("sorted"), "Android must preserve common route/direction order, not opaque-ID sort.")
@@ -525,6 +565,7 @@ class MapResourceContractTest {
         assertCodePath(
             androidPolylines,
             ".take(MAX_POLYLINES)",
+            "it.isEmphasized == emphasized",
             ".take(MAX_POLYLINE_POINTS)",
             "ROUTE_WIDTH_PROPERTY, line.strokeWidth.safePolylineWidth()",
             "ROUTE_OPACITY_PROPERTY, line.opacity.safePolylineOpacity()",
@@ -532,6 +573,7 @@ class MapResourceContractTest {
         assertCodePath(
             iosPolylines,
             ".prefix(Self.maximumPolylines)",
+            "$0.isEmphasized == emphasized",
             ".prefix(Self.maximumPolylinePoints)",
             "Self.routeWidthProperty: safePolylineWidth(polyline.strokeWidth)",
             "Self.routeOpacityProperty: safePolylineOpacity(polyline.opacity)",
@@ -1009,6 +1051,10 @@ class MapResourceContractTest {
             ?: error("Could not parse numeric declaration '$name'")
     }
 
+    private fun Path.mapSectionSource(fileName: String): String = resolve(
+        "shared/src/commonMain/kotlin/com/denis/georgiatransit/shared/presentation/map/sections/$fileName",
+    ).readText()
+
     private fun projectRoot(): Path =
         generateSequence(Path.of("").toAbsolutePath()) { it.parent }
             .firstOrNull { Files.isDirectory(it.resolve("shared/src/commonMain/composeResources")) }
@@ -1038,7 +1084,6 @@ class MapResourceContractTest {
             "map_change_city_action",
             "map_my_location_action",
             "map_selected_routes",
-            "map_selected_stop",
             "map_stop_arrivals_title",
             "map_stop_arrivals_stop_details_unavailable",
             "map_stop_arrivals_routes",

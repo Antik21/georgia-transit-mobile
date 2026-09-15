@@ -13,6 +13,12 @@ plugins {
     alias(libs.plugins.compose.compiler)
 }
 
+// Android Studio resolves previews from this KMP module's Android runtime classpath.
+// This is not packaged into the consuming application's runtime variants.
+dependencies {
+    androidRuntimeClasspath(libs.compose.ui.tooling)
+}
+
 tasks.withType<Test>().configureEach {
     testLogging {
         exceptionFormat = TestExceptionFormat.FULL
