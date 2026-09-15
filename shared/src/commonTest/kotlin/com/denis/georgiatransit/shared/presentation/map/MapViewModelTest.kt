@@ -80,6 +80,7 @@ class MapViewModelTest {
                 ),
             )
             assertEquals("map.attribution", AutomationId.MapAttribution)
+            assertEquals("map.attribution.openstreetmap", AutomationId.MapOpenStreetMapAttribution)
             assertEquals("map.attribution.link.transitous", AutomationId.mapAttributionLink(attribution.id))
             cancelAndIgnoreRemainingItems()
         }

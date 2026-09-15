@@ -13,26 +13,20 @@ Kotlin Multiplatform shell for a Georgia public-transit app. Shared Compose UI c
 
 ## Maps
 
-The screen uses a bundled, blank local MapLibre style in a fail-closed mode unless host
-composition supplies a validated same-BFF style URL. The optional BFF endpoints
-`/v1/map/style.json` and `/v1/map/tiles/{z}/{x}/{y}.png` are disabled by default; the generated
-style contains only BFF tile URLs and required attribution, never an upstream provider URL. It
-accepts the shared, SDK-free typed render state; until normalized state supplies
-stops, vehicles, or route polylines, those layers remain empty. It has no
-production basemap by default, provider key, remote style, or public
-tile fallback, and it never presents synthetic transit data as real data. This
-keeps the renderer/layer/camera boundary verifiable without using a
-public/community endpoint.
+The screen uses a same-BFF MapLibre style by default. The BFF endpoints
+`/v1/map/style.json` and `/v1/map/tiles/{z}/{x}/{y}.png` proxy the public OpenStreetMap raster
+tiles configured by the operator; the generated style contains only BFF tile URLs and the required
+OpenStreetMap attribution, never the upstream URL. Both Sandbox and Prod therefore show a basemap
+without an API key. The bundled, source-free local style remains an emergency fallback when map
+assets are disabled or unavailable. Stops, vehicles, and route polylines continue to come only from
+the shared, SDK-free typed render state, and synthetic transit data is never presented as real data.
 
-Production map assets are a future BFF concern: Georgia-scoped OSM data will be
-generated with Planetiler, served by owned infrastructure (for example Martin),
-and exposed only through BFF-controlled style/tile endpoints. Owned styles,
-sprites, and OFL-licensed Noto Sans Georgian glyphs must retain their attribution
-manifest. The SDK/software/API license cost is $0; hosting, storage, egress,
-CDN, generation, and operations cost are variable. See
-[ADR 0002](docs/adr/0002-maplibre-native-and-map-assets.md) for exact licenses,
-attribution, quotas, alternatives, cache/offline, accessibility, and geocoding
-rules.
+Public OSM tiles are a best-effort dependency with no SLA. The proxy identifies Georgia Transit,
+serves a seven-day cache policy, does not prefetch or offer offline downloads, and retains visible
+OSM attribution. Operator-owned Georgia vector tiles remain the long-term escape hatch if public
+capacity or policy becomes a product problem. See [ADR 0002](docs/adr/0002-maplibre-native-and-map-assets.md)
+for the renderer and owned-asset direction and
+[ADR 0015](docs/adr/0015-public-osm-raster-basemap.md) for the accepted temporary production source.
 
 Android version declarations remain in `gradle/libs.versions.toml`. iOS uses a
 direct Xcode Swift Package Manager dependency instead of CocoaPods; its exact

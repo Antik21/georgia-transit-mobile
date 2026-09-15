@@ -118,6 +118,7 @@
     <string name="map_vehicle_status_mixed">разная доступность маршрутов</string>
     <string name="map_retry_action">Повторить</string>
     <string name="map_attribution_title">Источники данных и атрибуция</string>
+    <string name="map_openstreetmap_attribution">© OpenStreetMap contributors</string>
     <string name="routes_title">Маршруты</string>
     <string name="routes_subtitle">Выберите несколько маршрутов, чтобы показать их вместе на карте.</string>
     <string name="routes_cancel_action">Отмена</string>

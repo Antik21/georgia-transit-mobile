@@ -104,9 +104,6 @@ data class BffConfig(
         require(mode != RuntimeMode.PRODUCTION || !batumiTheta.isActivated || schemaInterlockEnabled) {
             "BFF_SCHEMA_INTERLOCK_ENABLED must be true for a production Batumi Theta activation"
         }
-        require(mode == RuntimeMode.DEVELOPMENT || !map.isActivated) {
-            "BFF_MAP_ENABLED is development-only; production startup fails closed"
-        }
         require(!(transitous.isActivated && ttc.isActivated)) {
             "Only one Tbilisi production provider adapter may be activated"
         }
@@ -256,7 +253,7 @@ data class BffConfig(
     }
 }
 
-/** A narrowly scoped raster proxy, deliberately disabled unless an operator opts in. */
+/** A narrowly scoped raster proxy, disabled unless an operator supplies the complete map contract. */
 data class MapProxyActivationConfig(
     val enabled: Boolean,
     val tileTemplate: String?,

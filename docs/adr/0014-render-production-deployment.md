@@ -3,6 +3,9 @@
 - Status: Accepted
 - Date: 2026-09-15
 
+The map-proxy-disabled part of this deployment decision is superseded by
+[ADR 0015](0015-public-osm-raster-basemap.md).
+
 ## Context
 
 The Transit BFF now has an explicitly reviewed Batumi adapter and durable runtime capability
@@ -35,7 +38,8 @@ documents.
 - On an empty disk, atomically install the reviewed Batumi-only capability document with mode
   `0600`; create control and state directories with mode `0700`. Existing documents and state are
   validated and reused, never overwritten by a deploy.
-- Keep Tbilisi adapters, fixtures, map proxying, probes, and public metrics disabled in production.
+- Keep Tbilisi adapters, fixtures, probes, and public metrics disabled in production. Map proxying
+  follows ADR 0015.
 - Gate automatic deploys from `main` with `autoDeployTrigger: checksPass`. GitHub Actions builds the
   versioned Dockerfile from pinned base inputs and smoke-tests it twice against one Docker volume
   to verify initial provisioning and

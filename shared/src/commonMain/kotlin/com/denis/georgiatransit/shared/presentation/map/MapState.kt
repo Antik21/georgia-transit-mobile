@@ -29,7 +29,7 @@ sealed interface MapContentState {
 /** Availability of the visual base layer, independent of nearby transit data. */
 @Immutable
 sealed interface MapBaseLayerState {
-    /** No BFF-approved basemap asset contract exists yet, so the renderer is deliberately local. */
+    /** The BFF map contract is disabled or unavailable, so the renderer uses its local fallback. */
     @Immutable data object LocalPreview : MapBaseLayerState
 
     /** Host composition supplied the validated BFF style endpoint used by the native renderer. */

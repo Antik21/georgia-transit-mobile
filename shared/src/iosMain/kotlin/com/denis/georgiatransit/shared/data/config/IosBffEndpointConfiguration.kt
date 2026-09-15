@@ -8,5 +8,5 @@ fun debugIosSandboxBffEndpointConfiguration(baseUrl: String): BffEndpointConfigu
 fun productionIosBffEndpointConfiguration(): BffEndpointConfiguration =
     BffEndpointConfiguration(
         baseUrl = "https://antik21-georgia-transit-bff.onrender.com",
-        mapAssetsEnabled = false,
+        mapAssetsEnabled = true,
     )

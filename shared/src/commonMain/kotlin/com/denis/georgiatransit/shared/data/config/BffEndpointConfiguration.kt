@@ -11,7 +11,7 @@ data class BffEndpointConfiguration(
     val baseUrl: String,
     val allowInsecureDebugLoopback: Boolean = false,
     private val allowInsecureDebugPrivateNetwork: Boolean = false,
-    /** Explicit BFF map-assets opt-in; false preserves the local native base style. */
+    /** Shipping compositions enable BFF map assets explicitly; false preserves the local fallback. */
     val mapAssetsEnabled: Boolean = false,
 ) {
     fun validationFailure(): ValidationFailure? {

@@ -2,8 +2,8 @@
 
 The production BFF is defined by the repository-root [`render.yaml`](../../render.yaml). It creates
 one paid Docker web service in Frankfurt with a 1 GB persistent disk. The Blueprint intentionally
-serves Batumi only; fixtures, Tbilisi adapters, the development map proxy, probes, and public metrics
-remain disabled.
+serves Batumi only; fixtures, Tbilisi adapters, probes, and public metrics remain disabled. The map
+proxy uses the public OpenStreetMap raster endpoint with visible attribution and requires no key.
 
 ## Before the first deployment
 

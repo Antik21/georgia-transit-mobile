@@ -118,6 +118,7 @@
     <string name="map_vehicle_status_mixed">mixed route availability</string>
     <string name="map_retry_action">Try again</string>
     <string name="map_attribution_title">Data sources and attribution</string>
+    <string name="map_openstreetmap_attribution">© OpenStreetMap contributors</string>
     <string name="routes_title">Routes</string>
     <string name="routes_subtitle">Select several routes to show them together on the map.</string>
     <string name="routes_cancel_action">Cancel</string>

@@ -6,7 +6,7 @@ import UIKit
 
 /**
  * The Swift-owned end of the typed MapRenderState bridge. MapLibre/UIKit/CoreLocation stay here;
- * the bundled source-free style has no provider URL, key, remote style, or remote tile fallback.
+ * the bundled source-free style is the fallback and the configured remote style is always BFF-owned.
  */
 enum MapLibreMapViewBridge {
     static func makeView(

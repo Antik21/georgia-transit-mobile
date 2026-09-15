@@ -37,7 +37,13 @@ services:
       - key: BFF_FIXTURES_ENABLED
         value: "false"
       - key: BFF_MAP_ENABLED
-        value: "false"
+        value: "true"
+      - key: BFF_MAP_TILE_TEMPLATE
+        value: https://tile.openstreetmap.org/{z}/{x}/{y}.png
+      - key: BFF_MAP_ATTRIBUTION
+        value: '<a href="https://www.openstreetmap.org/copyright">© OpenStreetMap contributors</a>'
+      - key: BFF_MAP_PUBLIC_BASE_URL
+        value: https://antik21-georgia-transit-bff.onrender.com
       - key: BFF_METRICS_ENABLED
         value: "false"
       - key: BFF_PROBES_ENABLED

@@ -2,6 +2,10 @@
 
 Status: Accepted (version and licensing review: 2026-09-06)
 
+Production-source restrictions in this decision are superseded by
+[ADR 0015](0015-public-osm-raster-basemap.md); the renderer boundary and owned-asset long-term path
+remain accepted.
+
 ## Context
 
 Georgia Transit needs one map renderer decision for Android and iOS that is
