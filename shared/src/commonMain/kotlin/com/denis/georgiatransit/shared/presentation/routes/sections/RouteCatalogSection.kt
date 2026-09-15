@@ -48,7 +48,7 @@ internal fun RouteCatalogSection(
     onSearchChanged: (String) -> Unit,
     onRouteToggled: (RouteId) -> Unit,
     onRetry: () -> Unit,
-    modifier: Modifier,
+    modifier: Modifier = Modifier,
 ) {
     when (catalog) {
         CatalogState.Loading -> LoadingState(

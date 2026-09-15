@@ -3,6 +3,7 @@ package com.denis.georgiatransit.shared.presentation.map.sections
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.size
@@ -55,99 +56,105 @@ internal fun RouteGeometryLegend(
     onFocus: (RouteId) -> Unit,
     onRetry: (RouteId) -> Unit,
     onRemove: (RouteId) -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     if (routes.isEmpty()) return
-    Text(stringResource(Res.string.map_route_geometry_title), style = MaterialTheme.typography.labelLarge)
-    LazyRow(
-        modifier = Modifier.fillMaxWidth().testTag(AutomationId.MapRouteGeometryLegend),
-        horizontalArrangement = Arrangement.spacedBy(TransitSpacing.Small),
+    Column(
+        modifier = modifier,
+        verticalArrangement = Arrangement.spacedBy(TransitSpacing.Small),
     ) {
-        items(routes, key = { it.routeId.value }) { route ->
-            val foreground = Color(route.textColorArgb)
-            val background = Color(route.colorArgb)
-            val removeDescription = stringResource(Res.string.map_route_geometry_remove_accessibility, route.routeLabel)
-            val retryDescription = stringResource(Res.string.map_route_geometry_retry_accessibility, route.routeLabel)
-            val status = routeGeometryStatusLabel(route)
-            InputChip(
-                selected = route.isFocused,
-                onClick = { onFocus(route.routeId) },
-                modifier = Modifier
-                    .testTag(AutomationId.MapRouteGeometryChip)
-                    .height(MaterialInputChipHeight)
-                    .semantics {
-                        contentDescription = "${route.routeLabel}. $status"
-                        selected = route.isFocused
-                        if (route.canRetry) {
-                            customActions = listOf(
-                                CustomAccessibilityAction(retryDescription) {
-                                    onRetry(route.routeId)
-                                    true
-                                },
+        Text(stringResource(Res.string.map_route_geometry_title), style = MaterialTheme.typography.labelLarge)
+        LazyRow(
+            modifier = Modifier.fillMaxWidth().testTag(AutomationId.MapRouteGeometryLegend),
+            horizontalArrangement = Arrangement.spacedBy(TransitSpacing.Small),
+        ) {
+            items(routes, key = { it.routeId.value }) { route ->
+                val foreground = Color(route.textColorArgb)
+                val background = Color(route.colorArgb)
+                val removeDescription = stringResource(Res.string.map_route_geometry_remove_accessibility, route.routeLabel)
+                val retryDescription = stringResource(Res.string.map_route_geometry_retry_accessibility, route.routeLabel)
+                val status = routeGeometryStatusLabel(route)
+                InputChip(
+                    selected = route.isFocused,
+                    onClick = { onFocus(route.routeId) },
+                    modifier = Modifier
+                        .testTag(AutomationId.MapRouteGeometryChip)
+                        .height(RouteGeometryActionSize)
+                        .semantics {
+                            contentDescription = "${route.routeLabel}. $status"
+                            selected = route.isFocused
+                            if (route.canRetry) {
+                                customActions = listOf(
+                                    CustomAccessibilityAction(retryDescription) {
+                                        onRetry(route.routeId)
+                                        true
+                                    },
+                                )
+                            }
+                        },
+                    label = {
+                        Text(
+                            text = route.routeLabel,
+                            maxLines = 1,
+                            style = MaterialTheme.typography.labelLarge,
+                            fontWeight = FontWeight.Medium,
+                        )
+                    },
+                    leadingIcon = {
+                        Icon(
+                            imageVector = DirectionsBusIcon,
+                            contentDescription = null,
+                            modifier = Modifier.size(MaterialInputChipLeadingIconSize),
+                        )
+                    },
+                    trailingIcon = {
+                        Box(
+                            modifier = Modifier
+                                .size(RouteGeometryActionSize)
+                                .clip(CircleShape)
+                                .testTag(AutomationId.MapRouteGeometryRemove)
+                                .semantics(mergeDescendants = true) {
+                                    contentDescription = removeDescription
+                                }
+                                .clickable { onRemove(route.routeId) },
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Icon(
+                                imageVector = CloseIcon,
+                                contentDescription = null,
+                                modifier = Modifier.size(MaterialInputChipCloseIconSize),
                             )
                         }
                     },
-                label = {
-                    Text(
-                        text = route.routeLabel,
-                        maxLines = 1,
-                        style = MaterialTheme.typography.labelLarge,
-                        fontWeight = FontWeight.Medium,
-                    )
-                },
-                leadingIcon = {
-                    Icon(
-                        imageVector = DirectionsBusIcon,
-                        contentDescription = null,
-                        modifier = Modifier.size(MaterialInputChipLeadingIconSize),
-                    )
-                },
-                trailingIcon = {
+                    shape = RoundedCornerShape(MaterialInputChipCornerRadius),
+                    colors = InputChipDefaults.inputChipColors(
+                        containerColor = background,
+                        labelColor = foreground,
+                        leadingIconColor = foreground,
+                        trailingIconColor = foreground,
+                        selectedContainerColor = background,
+                        selectedLabelColor = foreground,
+                        selectedLeadingIconColor = foreground,
+                        selectedTrailingIconColor = foreground,
+                    ),
+                )
+                if (route.canRetry) {
+                    // A real target keeps both accessibility and automated recovery actionable.
                     Box(
                         modifier = Modifier
                             .size(RouteGeometryActionSize)
-                            .clip(CircleShape)
-                            .testTag(AutomationId.MapRouteGeometryRemove)
-                            .semantics(mergeDescendants = true) {
-                                contentDescription = removeDescription
-                            }
-                            .clickable { onRemove(route.routeId) },
+                            .testTag(AutomationId.MapRouteGeometryRetry)
+                            .semantics(mergeDescendants = true) { contentDescription = retryDescription }
+                            .clickable { onRetry(route.routeId) },
                         contentAlignment = Alignment.Center,
                     ) {
-                        Icon(
-                            imageVector = CloseIcon,
-                            contentDescription = null,
-                            modifier = Modifier.size(MaterialInputChipCloseIconSize),
+                        Text(
+                            text = "↻",
+                            color = foreground,
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
                         )
                     }
-                },
-                shape = RoundedCornerShape(MaterialInputChipCornerRadius),
-                colors = InputChipDefaults.inputChipColors(
-                    containerColor = background,
-                    labelColor = foreground,
-                    leadingIconColor = foreground,
-                    trailingIconColor = foreground,
-                    selectedContainerColor = background,
-                    selectedLabelColor = foreground,
-                    selectedLeadingIconColor = foreground,
-                    selectedTrailingIconColor = foreground,
-                ),
-            )
-            if (route.canRetry) {
-                // A real target keeps both accessibility and automated recovery actionable.
-                Box(
-                    modifier = Modifier
-                        .size(RouteGeometryActionSize)
-                        .testTag(AutomationId.MapRouteGeometryRetry)
-                        .semantics(mergeDescendants = true) { contentDescription = retryDescription }
-                        .clickable { onRetry(route.routeId) },
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Text(
-                        text = "↻",
-                        color = foreground,
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                    )
                 }
             }
         }
@@ -223,8 +230,7 @@ private val CloseIcon: ImageVector by lazy {
     }.build()
 }
 
-// Material 2 input-chip measurements: 32dp container, 24dp leading icon, and 18dp close icon.
-private val MaterialInputChipHeight = 32.dp
+// Keep Material 2 icon proportions while the chip provides the minimum interaction height.
 private val MaterialInputChipCornerRadius = 16.dp
 private val MaterialInputChipLeadingIconSize = 24.dp
 private val MaterialInputChipCloseIconSize = 18.dp

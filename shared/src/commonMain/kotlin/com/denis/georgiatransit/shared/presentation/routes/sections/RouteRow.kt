@@ -49,6 +49,7 @@ internal fun RouteRow(
     selected: Boolean,
     selectionLimitReached: Boolean,
     onClick: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     val isToggleEnabled = selected || !selectionLimitReached
     val mode = route.mode.displayName()
@@ -69,7 +70,7 @@ internal fun RouteRow(
     } else {
         "$description. ${stringResource(Res.string.routes_row_limit_reached)}"
     }
-    Card(modifier = Modifier.fillMaxWidth()) {
+    Card(modifier = modifier.fillMaxWidth()) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()

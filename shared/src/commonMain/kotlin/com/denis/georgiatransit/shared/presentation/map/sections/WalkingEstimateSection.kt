@@ -51,9 +51,10 @@ internal fun WalkingEstimateSection(
     estimate: WalkingEstimateUi,
     onMyLocation: () -> Unit,
     isLocationActionable: Boolean,
+    modifier: Modifier = Modifier,
 ) {
     Surface(
-        modifier = Modifier.fillMaxWidth().testTag(AutomationId.MapWalkingEstimate),
+        modifier = modifier.fillMaxWidth().testTag(AutomationId.MapWalkingEstimate),
         shape = TransitShapes.Small,
         color = MaterialTheme.colorScheme.surfaceVariant,
     ) {

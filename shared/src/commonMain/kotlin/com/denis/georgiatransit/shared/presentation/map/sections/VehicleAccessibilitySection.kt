@@ -34,6 +34,7 @@ import org.jetbrains.compose.resources.stringResource
 internal fun VehicleAccessibility(
     layerState: VehicleLayerState,
     routes: List<VehicleRouteAccessibilityUi>,
+    modifier: Modifier = Modifier,
 ) {
     if (layerState == VehicleLayerState.Hidden || routes.isEmpty()) return
     val status = vehicleStatusLabel(layerState)
@@ -58,7 +59,7 @@ internal fun VehicleAccessibility(
     }
     if (hasLiveNonemptyRoute) {
         // Transparent text retains real semantics bounds without restoring the visual status row.
-        Box(modifier = Modifier.fillMaxWidth().testTag(AutomationId.MapVehiclesLiveNonempty)) {
+        Box(modifier = modifier.fillMaxWidth().testTag(AutomationId.MapVehiclesLiveNonempty)) {
             Text(
                 text = summary,
                 modifier = summaryModifier,
@@ -70,7 +71,7 @@ internal fun VehicleAccessibility(
     } else {
         Text(
             text = summary,
-            modifier = summaryModifier,
+            modifier = modifier.then(summaryModifier),
             color = Color.Transparent,
             maxLines = 1,
             style = MaterialTheme.typography.bodySmall,

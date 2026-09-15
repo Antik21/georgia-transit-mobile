@@ -79,9 +79,11 @@ internal fun StopArrivalsSheet(
     onRetry: () -> Unit,
     onMyLocation: () -> Unit,
     isLocationActionable: Boolean,
+    modifier: Modifier = Modifier,
 ) {
     ModalBottomSheet(
         onDismissRequest = onDismiss,
+        modifier = modifier,
     ) {
         Column(
             // ModalBottomSheet owns a separate Android semantics tree. Re-enable the bridge on

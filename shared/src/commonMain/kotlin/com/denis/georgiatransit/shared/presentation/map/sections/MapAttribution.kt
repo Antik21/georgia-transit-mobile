@@ -50,10 +50,10 @@ internal fun OpenStreetMapAttribution(modifier: Modifier = Modifier) {
 
 /** Link annotations retain accessible link semantics on Android and iOS Compose hosts. */
 @Composable
-internal fun CityAttribution(attribution: List<TransitAttribution>) {
+internal fun CityAttribution(attribution: List<TransitAttribution>, modifier: Modifier = Modifier) {
     if (attribution.isEmpty()) return
     Column(
-        modifier = Modifier.fillMaxWidth().testTag(AutomationId.MapAttribution),
+        modifier = modifier.fillMaxWidth().testTag(AutomationId.MapAttribution),
         verticalArrangement = Arrangement.spacedBy(TransitSpacing.ExtraSmall),
     ) {
         Text(

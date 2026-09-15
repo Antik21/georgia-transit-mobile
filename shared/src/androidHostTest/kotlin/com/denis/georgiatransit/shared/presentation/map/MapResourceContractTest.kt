@@ -494,13 +494,15 @@ class MapResourceContractTest {
         }
         assertCodePath(
             legend,
+            "Column(",
+            "modifier = modifier",
             "MapRouteGeometryLegend",
             "items(routes, key = { it.routeId.value })",
             "InputChip",
             "selected = route.isFocused",
             "onFocus(route.routeId)",
             "MapRouteGeometryChip",
-            ".height(MaterialInputChipHeight)",
+            ".height(RouteGeometryActionSize)",
             "DirectionsBusIcon",
             ".size(RouteGeometryActionSize)",
             ".clip(CircleShape)",
@@ -511,11 +513,11 @@ class MapResourceContractTest {
             "MapRouteGeometryRetry",
             "onRetry(route.routeId)",
         )
-        assertTrue(legendSource.contains("private val MaterialInputChipHeight = 32.dp"))
         assertTrue(legendSource.contains("private val MaterialInputChipCornerRadius = 16.dp"))
         assertTrue(legendSource.contains("private val MaterialInputChipLeadingIconSize = 24.dp"))
         assertTrue(legendSource.contains("private val MaterialInputChipCloseIconSize = 18.dp"))
         assertTrue(legendSource.contains("private val RouteGeometryActionSize = 48.dp"))
+        assertTrue(legendSource.contains("modifier: Modifier = Modifier"))
         assertTrue(legendSource.contains("fontWeight = FontWeight.Medium"))
     }
 
