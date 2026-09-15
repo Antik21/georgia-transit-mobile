@@ -769,6 +769,18 @@ class MapResourceContractTest {
         )
         assertTrue(android.contains("MapLibre.setConnected(false)"))
         assertCodePath(
+            android,
+            "mapView.getMapAsync",
+            "mapLibreMap.setPrefetchZoomDelta(0)",
+            "loadStyle(mapLibreMap, Style.Builder().fromJson(LOCAL_STYLE_JSON), remote = false)",
+        )
+        assertCodePath(
+            swift,
+            "super.init(frame: .zero)",
+            "mapView.prefetchesTiles = false",
+            "mapView.delegate = self",
+        )
+        assertCodePath(
             androidCamera,
             "lastAppliedCameraRevision == renderState.camera.revision",
             "viewportBottomPadding(command)",

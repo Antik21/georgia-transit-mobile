@@ -240,6 +240,8 @@ private class LocalMapController(
         mapView.addOnDidFailLoadingMapListener(styleFailureListener)
         mapView.getMapAsync { mapLibreMap ->
             if (destroyed) return@getMapAsync
+            // ADR 0015 forbids speculative requests while the BFF fronts public OSM tiles.
+            mapLibreMap.setPrefetchZoomDelta(0)
             map = mapLibreMap
             mapLibreMap.addOnCameraIdleListener(cameraIdleListener)
             mapLibreMap.addOnMapClickListener(mapClickListener)
