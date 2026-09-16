@@ -203,9 +203,10 @@ private final class LocalMapLibreView: UIView, MLNMapViewDelegate {
         let vehiclesSource = MLNShapeSource(identifier: Self.vehiclesSourceID, shape: nil, options: nil)
         let attentionSource = MLNShapeSource(identifier: Self.attentionSourceID, shape: nil, options: nil)
         let polylinesSource = MLNShapeSource(identifier: Self.polylinesSourceID, shape: nil, options: nil)
+        let emphasizedPolylinesSource = MLNShapeSource(identifier: Self.emphasizedPolylinesSourceID, shape: nil, options: nil)
         let userLocationSource = MLNShapeSource(identifier: Self.userLocationSourceID, shape: nil, options: nil)
         let userAccuracySource = MLNShapeSource(identifier: Self.userAccuracySourceID, shape: nil, options: nil)
-        [stopsSource, selectedStopSource, vehiclesSource, attentionSource, polylinesSource, userLocationSource, userAccuracySource]
+        [stopsSource, selectedStopSource, vehiclesSource, attentionSource, polylinesSource, emphasizedPolylinesSource, userLocationSource, userAccuracySource]
             .forEach(style.addSource)
 
         let polylinesLayer = MLNLineStyleLayer(identifier: Self.polylinesLayerID, source: polylinesSource)
@@ -213,6 +214,16 @@ private final class LocalMapLibreView: UIView, MLNMapViewDelegate {
         polylinesLayer.lineWidth = NSExpression(forKeyPath: Self.routeWidthProperty)
         polylinesLayer.lineOpacity = NSExpression(forKeyPath: Self.routeOpacityProperty)
         style.addLayer(polylinesLayer)
+
+        // This layer is installed after the base routes so the focused route always stays on top.
+        let emphasizedPolylinesLayer = MLNLineStyleLayer(
+            identifier: Self.emphasizedPolylinesLayerID,
+            source: emphasizedPolylinesSource
+        )
+        emphasizedPolylinesLayer.lineColor = NSExpression(forKeyPath: Self.routeColorProperty)
+        emphasizedPolylinesLayer.lineWidth = NSExpression(forKeyPath: Self.routeWidthProperty)
+        emphasizedPolylinesLayer.lineOpacity = NSExpression(forKeyPath: Self.routeOpacityProperty)
+        style.addLayer(emphasizedPolylinesLayer)
 
         let accuracyFillLayer = MLNFillStyleLayer(identifier: Self.userAccuracyFillLayerID, source: userAccuracySource)
         accuracyFillLayer.fillColor = NSExpression(forConstantValue: UIColor(red: 0.10, green: 0.46, blue: 0.82, alpha: 1))
@@ -301,7 +312,16 @@ private final class LocalMapLibreView: UIView, MLNMapViewDelegate {
             lastAttentionVehicleSourceRevision = state.vehicleSourceRevision
         }
         if lastPolylineSourceRevision != state.polylineSourceRevision {
-            updateSource(style: style, identifier: Self.polylinesSourceID, features: polylineFeatures(state.polylines))
+            updateSource(
+                style: style,
+                identifier: Self.polylinesSourceID,
+                features: polylineFeatures(state.polylines, emphasized: false)
+            )
+            updateSource(
+                style: style,
+                identifier: Self.emphasizedPolylinesSourceID,
+                features: polylineFeatures(state.polylines, emphasized: true)
+            )
             lastPolylineSourceRevision = state.polylineSourceRevision
         }
         let userLocation = userLocationRenderInput(state.userLocation)
@@ -632,10 +652,10 @@ private final class LocalMapLibreView: UIView, MLNMapViewDelegate {
             }
     }
 
-    private func polylineFeatures(_ polylines: [MapPolyline]) -> [[String: Any]] {
+    private func polylineFeatures(_ polylines: [MapPolyline], emphasized: Bool) -> [[String: Any]] {
         polylines
-            .filter { !$0.stableRouteId.isEmpty }
             .prefix(Self.maximumPolylines)
+            .filter { $0.isEmphasized == emphasized && !$0.stableRouteId.isEmpty }
             .enumerated()
             .compactMap { (index: Int, polyline: MapPolyline) -> [String: Any]? in
                 let points = Array(polyline.points.filter(isCoordinateValid).prefix(Self.maximumPolylinePoints))
@@ -830,6 +850,7 @@ private final class LocalMapLibreView: UIView, MLNMapViewDelegate {
     private static let vehiclesSourceID = "gt-vehicles-source"
     private static let attentionSourceID = "gt-vehicle-attention-source"
     private static let polylinesSourceID = "gt-polylines-source"
+    private static let emphasizedPolylinesSourceID = "gt-emphasized-polylines-source"
     private static let userLocationSourceID = "gt-user-location-source"
     private static let userAccuracySourceID = "gt-user-accuracy-source"
     private static let stopsLayerID = "gt-stops-layer"
@@ -837,6 +858,7 @@ private final class LocalMapLibreView: UIView, MLNMapViewDelegate {
     private static let vehiclesLayerID = "gt-vehicles-layer"
     private static let attentionLayerID = "gt-vehicle-attention-layer"
     private static let polylinesLayerID = "gt-polylines-layer"
+    private static let emphasizedPolylinesLayerID = "gt-emphasized-polylines-layer"
     private static let userLocationLayerID = "gt-user-location-layer"
     private static let userAccuracyFillLayerID = "gt-user-accuracy-fill-layer"
     private static let userAccuracyStrokeLayerID = "gt-user-accuracy-stroke-layer"
@@ -883,8 +905,10 @@ private final class LocalMapLibreView: UIView, MLNMapViewDelegate {
     private static let attentionFramesPerSecond = 15
     private static let attentionCycleDuration: CFTimeInterval = 1.6
     private static let vehicleBadgeDiameter = 80.0
-    private static let attentionMinimumRadius = vehicleBadgeDiameter / 2 * 1.15
-    private static let attentionMaximumRadius = vehicleBadgeDiameter / 2 * 2.0
+    private static let attentionRadiusReductionFactor = 1.5
+    private static let attentionAdditionalRadiusScale = 0.85
+    private static let attentionMinimumRadius = vehicleBadgeDiameter / 2 * 1.15 / attentionRadiusReductionFactor * attentionAdditionalRadiusScale
+    private static let attentionMaximumRadius = vehicleBadgeDiameter / 2 * 2.0 / attentionRadiusReductionFactor * attentionAdditionalRadiusScale
     private static let attentionMinimumSizeOpacity = 0.50
     private static let attentionMaximumSizeOpacity = 0.10
 }

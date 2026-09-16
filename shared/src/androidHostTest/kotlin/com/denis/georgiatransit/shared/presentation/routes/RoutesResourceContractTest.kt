@@ -40,9 +40,10 @@ class RoutesResourceContractTest {
 
     @Test
     fun routeScreenUsesStableSelectorsKeyedRowsAndOneCheckableSemanticTargetPerRow() {
-        val screen = projectRoot().resolve(
-            "shared/src/commonMain/kotlin/com/denis/georgiatransit/shared/presentation/routes/RoutesScreen.kt",
-        ).readText()
+        val screen = routeSource("RoutesScreen.kt")
+        val catalog = routeSource("sections/RouteCatalogSection.kt")
+        val header = routeSource("sections/RoutesHeaderSection.kt")
+        val rowSource = routeSource("sections/RouteRow.kt")
         val automation = listOf(
             AutomationId.RoutesScreen,
             AutomationId.RoutesSearch,
@@ -62,10 +63,11 @@ class RoutesResourceContractTest {
 
         assertEquals(automation.size, automation.toSet().size)
         assertTrue(automation.all { it.startsWith("routes.") })
-        assertTrue(screen.contains("items(state.visibleRoutes, key = { it.id.value })"))
-        assertTrue(screen.contains("rememberSaveable(state.cityId?.value, saver = LazyListState.Saver)"))
+        assertFalse(catalog.contains("ViewState"), "Child sections receive only the immutable state slices they render.")
+        assertTrue(catalog.contains("items(visibleRoutes, key = { it.id.value })"))
+        assertTrue(catalog.contains("rememberSaveable(cityId?.value, saver = LazyListState.Saver)"))
         assertCodePath(
-            screen.functionBody("private fun RouteRow"),
+            rowSource.functionBody("internal fun RouteRow"),
             "testTag(AutomationId.RoutesOption)",
             "selectable(",
             "role = Role.Checkbox",
@@ -75,7 +77,7 @@ class RoutesResourceContractTest {
             "Checkbox(",
             "enabled = isToggleEnabled",
         )
-        val row = screen.functionBody("private fun RouteRow")
+        val row = rowSource.functionBody("internal fun RouteRow")
         assertFalse(row.contains("route.id"), "Rows expose localized public labels, never opaque route identifiers.")
         assertTrue(row.contains("routes_row_limit_reached"))
         assertCodePath(
@@ -84,17 +86,20 @@ class RoutesResourceContractTest {
             "selectable(",
             "enabled = isToggleEnabled",
         )
-        assertTrue(screen.contains("RouteSelectionPolicy.MaximumSelectedRoutes"))
-        assertTrue(screen.contains("testTag(AutomationId.RoutesSelectionCount)"))
-        assertTrue(screen.contains("testTag(AutomationId.RoutesSelectionWarning)"))
+        assertTrue(header.contains("RouteSelectionPolicy.MaximumSelectedRoutes"))
+        assertTrue(header.contains("testTag(AutomationId.RoutesSelectionCount)"))
+        assertTrue(header.contains("testTag(AutomationId.RoutesSelectionWarning)"))
+        assertTrue(header.contains("modifier: Modifier = Modifier"))
+        assertTrue(header.contains("modifier = modifier"))
+        assertTrue(header.contains("semantics { heading() }"))
+        assertTrue(screen.contains("testTag(AutomationId.RoutesScreen)"))
+        assertTrue(screen.contains("testTag(AutomationId.RoutesConfirm)"))
     }
 
     @Test
     fun modesAndDirectionAreLocalizedAndTheMapRouteActionIsCapabilityGated() {
         val root = projectRoot()
-        val routesScreen = root.resolve(
-            "shared/src/commonMain/kotlin/com/denis/georgiatransit/shared/presentation/routes/RoutesScreen.kt",
-        ).readText()
+        val routeRow = routeSource("sections/RouteRow.kt")
         val mapScreen = root.resolve(
             "shared/src/commonMain/kotlin/com/denis/georgiatransit/shared/presentation/map/MapScreen.kt",
         ).readText()
@@ -103,14 +108,14 @@ class RoutesResourceContractTest {
         ).readText()
 
         assertCodePath(
-            routesScreen.functionBody("private fun RouteRow"),
+            routeRow.functionBody("internal fun RouteRow"),
             "routes_row_description_with_direction",
             "routes_row_description",
             "Res.string.routes_direction",
             "Text(mode",
         )
         assertCodePath(
-            routesScreen.functionBody("private fun TransitMode.displayName"),
+            routeRow.functionBody("private fun TransitMode.displayName"),
             "TransitMode.Bus -> Res.string.routes_mode_bus",
             "TransitMode.Metro -> Res.string.routes_mode_metro",
             "TransitMode.Tram -> Res.string.routes_mode_tram",
@@ -276,6 +281,11 @@ class RoutesResourceContractTest {
             previous = index
         }
     }
+
+    private fun routeSource(relativePath: String): String = projectRoot()
+        .resolve("shared/src/commonMain/kotlin/com/denis/georgiatransit/shared/presentation/routes")
+        .resolve(relativePath)
+        .readText()
 
     private fun projectRoot(): Path =
         generateSequence(Path.of("").toAbsolutePath()) { it.parent }
