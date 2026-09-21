@@ -118,7 +118,7 @@ internal fun StopArrivalsSheet(
                 }
             }
             if (showOpenStreetMapAttribution) {
-                OpenStreetMapAttribution(modifier = Modifier.align(Alignment.CenterHorizontally))
+                OpenStreetMapAttribution(modifier = Modifier.align(Alignment.End))
             }
             if (sheet.passingRoutes.isNotEmpty() || sheet.passingRouteShortNames.isNotEmpty()) {
                 Text(

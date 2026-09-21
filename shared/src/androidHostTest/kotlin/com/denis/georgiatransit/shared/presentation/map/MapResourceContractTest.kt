@@ -508,20 +508,22 @@ class MapResourceContractTest {
             "selected = route.isFocused",
             "onFocus(route.routeId)",
             "MapRouteGeometryChip",
-            ".height(RouteGeometryActionSize)",
+            ".height(InputChipDefaults.Height)",
             "DirectionsBusIcon",
-            ".size(RouteGeometryActionSize)",
+            ".size(InputChipDefaults.IconSize)",
             ".clip(CircleShape)",
             "MapRouteGeometryRemove",
             "onRemove(route.routeId)",
             "CloseIcon",
+            "shape = CircleShape",
             "if (route.canRetry)",
             "MapRouteGeometryRetry",
             "onRetry(route.routeId)",
         )
-        assertTrue(legendSource.contains("private val MaterialInputChipCornerRadius = 16.dp"))
-        assertTrue(legendSource.contains("private val MaterialInputChipLeadingIconSize = 24.dp"))
-        assertTrue(legendSource.contains("private val MaterialInputChipCloseIconSize = 18.dp"))
+        assertFalse(legend.contains(".height(RouteGeometryActionSize)"))
+        assertFalse(legendSource.contains("MaterialInputChipCornerRadius"))
+        assertFalse(legendSource.contains("MaterialInputChipLeadingIconSize"))
+        assertFalse(legendSource.contains("MaterialInputChipCloseIconSize"))
         assertTrue(legendSource.contains("private val RouteGeometryActionSize = 48.dp"))
         assertTrue(legendSource.contains("modifier: Modifier = Modifier"))
         assertTrue(legendSource.contains("fontWeight = FontWeight.Medium"))

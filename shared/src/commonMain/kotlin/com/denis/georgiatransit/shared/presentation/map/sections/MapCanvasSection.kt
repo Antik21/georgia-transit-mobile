@@ -168,19 +168,27 @@ internal fun MapCanvas(
                 .windowInsetsPadding(
                     WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal + WindowInsetsSides.Bottom),
                 )
-                .padding(TransitSpacing.Medium)
+                .padding(
+                    start = TransitSpacing.Medium,
+                    top = TransitSpacing.Medium,
+                    end = TransitSpacing.Medium,
+                    bottom = TransitSpacing.Medium + OpenStreetMapAttributionHeight,
+                )
                 .size(48.dp)
                 .testTag(locationActionAutomationId),
         )
         if (baseLayerState == MapBaseLayerState.BffStyle) {
             OpenStreetMapAttribution(
                 modifier = Modifier
-                    .align(Alignment.BottomCenter)
+                    .align(Alignment.BottomEnd)
                     .padding(TransitSpacing.ExtraSmall),
             )
         }
     }
 }
+
+// Reserves room above the compact copyright label for the location action.
+private val OpenStreetMapAttributionHeight = 28.dp
 
 @Composable
 private fun MapStatusOverlays(
