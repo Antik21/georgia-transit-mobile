@@ -1,11 +1,13 @@
 package com.denis.georgiatransit.shared.presentation.map.sections
 
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
@@ -18,10 +20,13 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.InputChipDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.SheetValue
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -44,7 +49,6 @@ import com.denis.georgiatransit.shared.presentation.ui.theme.TransitShapes
 import com.denis.georgiatransit.shared.presentation.ui.theme.TransitSpacing
 import georgiatransit.shared.generated.resources.Res
 import georgiatransit.shared.generated.resources.map_stop_arrivals_arriving
-import georgiatransit.shared.generated.resources.map_stop_arrivals_close
 import georgiatransit.shared.generated.resources.map_stop_arrivals_empty
 import georgiatransit.shared.generated.resources.map_stop_arrivals_error
 import georgiatransit.shared.generated.resources.map_stop_arrivals_headsign_unavailable
@@ -68,20 +72,27 @@ import georgiatransit.shared.generated.resources.map_stop_arrivals_stop_details_
 import georgiatransit.shared.generated.resources.map_stop_arrivals_time_unavailable
 import georgiatransit.shared.generated.resources.map_stop_arrivals_title
 import georgiatransit.shared.generated.resources.map_stop_arrivals_unavailable
+import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.stringResource
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun StopArrivalsSheet(
     sheet: StopArrivalsSheetUi,
-    showOpenStreetMapAttribution: Boolean,
     onDismiss: () -> Unit,
     onRetry: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val sheetState = rememberModalBottomSheetState()
+    val scope = rememberCoroutineScope()
+    val handleInteractionSource = remember { MutableInteractionSource() }
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         modifier = modifier,
+        sheetState = sheetState,
+        // The Material handle hard-wires a rectangular ripple. Keep its tap behavior, but render
+        // the affordance ourselves with no visual press indication.
+        dragHandle = null,
     ) {
         Column(
             // ModalBottomSheet owns a separate Android semantics tree. Re-enable the bridge on
@@ -92,32 +103,40 @@ internal fun StopArrivalsSheet(
                 .padding(horizontal = TransitSpacing.Medium),
             verticalArrangement = Arrangement.spacedBy(TransitSpacing.Small),
         ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = StopArrivalsHandleVerticalPadding)
+                    .clickable(
+                        interactionSource = handleInteractionSource,
+                        indication = null,
+                    ) {
+                        when (sheetState.currentValue) {
+                            SheetValue.Expanded -> scope.launch {
+                                sheetState.hide()
+                                if (!sheetState.isVisible) onDismiss()
+                            }
+                            SheetValue.PartiallyExpanded -> scope.launch { sheetState.expand() }
+                            SheetValue.Hidden -> scope.launch { sheetState.show() }
+                        }
+                    },
+                contentAlignment = Alignment.Center,
             ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        stringResource(Res.string.map_stop_arrivals_title),
-                        style = MaterialTheme.typography.labelLarge,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                    Text(
-                        sheet.stopName.ifBlank { stringResource(Res.string.map_stop_arrivals_stop_details_unavailable) },
-                        style = MaterialTheme.typography.titleLarge,
-                    )
-                }
-                TextButton(
-                    onClick = onDismiss,
-                    modifier = Modifier.heightIn(min = 48.dp).testTag(AutomationId.MapStopArrivalsClose),
-                ) {
-                    Text(stringResource(Res.string.map_stop_arrivals_close))
-                }
+                Surface(
+                    modifier = Modifier.size(StopArrivalsHandleWidth, StopArrivalsHandleHeight),
+                    shape = RoundedCornerShape(StopArrivalsHandleHeight / 2),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = StopArrivalsHandleAlpha),
+                ) {}
             }
-            if (showOpenStreetMapAttribution) {
-                OpenStreetMapAttribution(modifier = Modifier.align(Alignment.End))
-            }
+            Text(
+                stringResource(Res.string.map_stop_arrivals_title),
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Text(
+                sheet.stopName.ifBlank { stringResource(Res.string.map_stop_arrivals_stop_details_unavailable) },
+                style = MaterialTheme.typography.titleLarge,
+            )
             if (sheet.passingRoutes.isNotEmpty() || sheet.passingRouteShortNames.isNotEmpty()) {
                 Text(
                     stringResource(Res.string.map_stop_arrivals_routes),
@@ -192,6 +211,11 @@ internal fun StopArrivalsSheet(
         }
     }
 }
+
+private val StopArrivalsHandleWidth = 32.dp
+private val StopArrivalsHandleHeight = 4.dp
+private val StopArrivalsHandleVerticalPadding = 22.dp
+private const val StopArrivalsHandleAlpha = 0.40f
 
 /** Informational counterpart of the selected-route chip: no dismiss or click affordance. */
 @Composable

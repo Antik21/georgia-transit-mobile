@@ -72,7 +72,6 @@
     <string name="map_stop_arrivals_error">Прибытия временно недоступны.</string>
     <string name="map_stop_arrivals_unavailable">Прибытия недоступны для этой остановки.</string>
     <string name="map_stop_arrivals_retry">Повторить</string>
-    <string name="map_stop_arrivals_close">Закрыть прибытия</string>
     <string name="map_stop_arrivals_refreshing">Обновляем прибытия…</string>
     <string name="map_stop_arrivals_stale">Показана более старая информация о прибытиях.</string>
     <string name="map_stop_arrivals_route_unavailable">Сведения о маршруте недоступны</string>

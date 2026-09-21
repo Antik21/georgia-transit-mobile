@@ -132,7 +132,6 @@ class MapResourceContractTest {
             AutomationId.MapStopArrivalsError,
             AutomationId.MapStopArrivalsUnavailable,
             AutomationId.MapStopArrivalsRetry,
-            AutomationId.MapStopArrivalsClose,
             AutomationId.MapStopArrivalsRows,
             AutomationId.MapStopArrivalsRow,
             AutomationId.MapStopArrivalsSource,
@@ -153,7 +152,6 @@ class MapResourceContractTest {
         assertEquals("map.retry", AutomationId.MapRetry)
         assertEquals("map.attribution.link.transitous", AutomationId.mapAttributionLink("transitous"))
         assertEquals("map.stop-arrivals.sheet", AutomationId.MapStopArrivalsSheet)
-        assertEquals("map.stop-arrivals.close", AutomationId.MapStopArrivalsClose)
         assertEquals("map.stop-arrivals.row", AutomationId.MapStopArrivalsRow)
     }
 
@@ -169,9 +167,6 @@ class MapResourceContractTest {
             sheet,
             "MapStopArrivalsSheet",
             "sheet.stopName",
-            "MapStopArrivalsClose",
-            "showOpenStreetMapAttribution",
-            "OpenStreetMapAttribution",
             "passingRouteShortNames",
             "MapStopArrivalsRows",
         )
@@ -273,7 +268,16 @@ class MapResourceContractTest {
             "Accessibility labels must never surface opaque stop IDs.",
         )
         assertCodePath(content, "StopArrivalsSheet(", "onDismiss = { onAction(Action.StopArrivalsDismissed) }")
-        assertCodePath(stopArrivalsSheet, "onDismissRequest = onDismiss", "onClick = onDismiss")
+        assertCodePath(
+            stopArrivalsSheet,
+            "onDismissRequest = onDismiss",
+            "dragHandle = null",
+            ".clickable(",
+            "indication = null",
+            "SheetValue.Expanded",
+            "StopArrivalsHandleWidth",
+            "sheet.stopName",
+        )
         assertFalse(content.contains("map_selected_stop"))
         assertFalse(content.contains("MapSelectedStop"))
     }
@@ -335,9 +339,7 @@ class MapResourceContractTest {
             AutomationId.MapStopArrivalsRows,
             AutomationId.MapStopArrivalsRow,
             AutomationId.MapStopArrivalsSource,
-            AutomationId.MapStopArrivalsClose,
         ).forEach { id -> assertTrue(flow.contains("id: $id"), "Missing stable stop-arrivals selector '$id'") }
-        assertTrue(flow.contains("tapOn:\n    id: ${AutomationId.MapStopArrivalsClose}"))
         assertTrue(harness.contains("fixture_is_our_process"))
         assertTrue(harness.contains("verify_owned_fixture"))
         assertTrue(harness.contains("kill \"\$fixture_pid\""))
@@ -1120,7 +1122,6 @@ class MapResourceContractTest {
             "map_stop_arrivals_error",
             "map_stop_arrivals_unavailable",
             "map_stop_arrivals_retry",
-            "map_stop_arrivals_close",
             "map_stop_arrivals_refreshing",
             "map_stop_arrivals_stale",
             "map_stop_arrivals_route_unavailable",

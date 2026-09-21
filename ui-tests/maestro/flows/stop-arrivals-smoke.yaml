@@ -32,16 +32,3 @@ appId: com.denis.georgiatransit
     id: map.stop-arrivals.row
 - assertVisible:
     id: map.stop-arrivals.source
-- tapOn:
-    id: map.stop-arrivals.close
-- assertNotVisible:
-    id: map.stop-arrivals.sheet
-- tapOn:
-    id: map.nearby-stop
-    index: 0
-- assertVisible:
-    id: map.stop-arrivals.sheet
-- extendedWaitUntil:
-    visible:
-        id: map.stop-arrivals.rows
-    timeout: 15000

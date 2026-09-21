@@ -72,7 +72,6 @@
     <string name="map_stop_arrivals_error">მოსვლები დროებით მიუწვდომელია.</string>
     <string name="map_stop_arrivals_unavailable">ამ გაჩერებისთვის მოსვლები მიუწვდომელია.</string>
     <string name="map_stop_arrivals_retry">ხელახლა ცდა</string>
-    <string name="map_stop_arrivals_close">მოსვლების დახურვა</string>
     <string name="map_stop_arrivals_refreshing">მოსვლები ახლდება…</string>
     <string name="map_stop_arrivals_stale">ნაჩვენებია მოსვლების ძველი ინფორმაცია.</string>
     <string name="map_stop_arrivals_route_unavailable">მარშრუტის დეტალები მიუწვდომელია</string>

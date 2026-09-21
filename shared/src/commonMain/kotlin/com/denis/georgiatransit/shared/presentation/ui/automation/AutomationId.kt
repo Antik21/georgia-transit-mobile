@@ -44,7 +44,6 @@ object AutomationId {
     const val MapStopArrivalsError = "map.stop-arrivals.error"
     const val MapStopArrivalsUnavailable = "map.stop-arrivals.unavailable"
     const val MapStopArrivalsRetry = "map.stop-arrivals.retry"
-    const val MapStopArrivalsClose = "map.stop-arrivals.close"
     const val MapStopArrivalsRows = "map.stop-arrivals.rows"
     const val MapStopArrivalsRow = "map.stop-arrivals.row"
     const val MapStopArrivalsSource = "map.stop-arrivals.source"

@@ -72,7 +72,6 @@
     <string name="map_stop_arrivals_error">Arrivals are temporarily unavailable.</string>
     <string name="map_stop_arrivals_unavailable">Arrivals are unavailable for this stop.</string>
     <string name="map_stop_arrivals_retry">Try again</string>
-    <string name="map_stop_arrivals_close">Close arrivals</string>
     <string name="map_stop_arrivals_refreshing">Refreshing arrivals…</string>
     <string name="map_stop_arrivals_stale">Showing older arrival information.</string>
     <string name="map_stop_arrivals_route_unavailable">Route details unavailable</string>
