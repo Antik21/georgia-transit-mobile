@@ -243,6 +243,8 @@ class StopArrivalsMapViewModelTest {
             assertNull(dismissed.stopArrivalsSheet)
             assertTrue(dismissed.nearbyStops.none { it.isSelected })
             assertTrue(dismissedRender.stops.none { it.isSelected })
+            assertEquals(fixture.stopA.position, dismissedRender.camera.center)
+            assertEquals(selectedRender.camera.zoom, dismissedRender.camera.zoom)
             assertEquals(MapViewportInsets.None, dismissedRender.camera.viewportInsets)
             assertEquals(selectedRender.camera.revision + 1, dismissedRender.camera.revision)
 

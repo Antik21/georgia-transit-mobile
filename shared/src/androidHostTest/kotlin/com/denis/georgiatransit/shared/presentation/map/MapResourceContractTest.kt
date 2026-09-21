@@ -362,9 +362,12 @@ class MapResourceContractTest {
             android,
             "GeoJsonSource(VEHICLES_SOURCE_ID",
             "SymbolLayer(VEHICLES_LAYER_ID, VEHICLES_SOURCE_ID)",
+            "iconRotate(Expression.get(BEARING_PROPERTY))",
+            "iconRotationAlignment(\"map\")",
             "lastVehicleSourceRevision != renderState.vehicleSourceRevision",
             "lastVehicleBadgeRevision != renderState.vehicleBadgeRevision",
             "MAX_VEHICLE_BADGE_IMAGES = 256",
+            "BUS_MARKER_SIZE_PX = 112",
             "STALE_VEHICLE_OPACITY",
         )
         assertTrue(android.contains("clearRenderedLayerState()"))
@@ -386,10 +389,13 @@ class MapResourceContractTest {
             swift,
             "MLNShapeSource(identifier: Self.vehiclesSourceID",
             "MLNSymbolStyleLayer(identifier: Self.vehiclesLayerID, source: vehiclesSource)",
+            "vehiclesLayer.iconRotation = NSExpression(forKeyPath: Self.bearingProperty)",
+            "vehiclesLayer.iconRotationAlignment = NSExpression(forConstantValue: \"map\")",
             "lastVehicleSourceRevision != state.vehicleSourceRevision",
             "lastVehicleBadgeRevision != state.vehicleBadgeRevision",
             "maximumVehicleBadgeImages = 256",
             "staleVehicleOpacity",
+            "let size = CGSize(width: 112, height: 112)",
         )
         assertTrue(swift.contains("func mapView(_ mapView: MLNMapView, didFinishLoading style: MLNStyle)"))
         assertTrue(swift.contains("func releaseResources()"))

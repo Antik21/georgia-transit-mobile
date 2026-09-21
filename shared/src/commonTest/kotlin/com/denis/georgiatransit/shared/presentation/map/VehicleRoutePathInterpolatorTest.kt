@@ -34,6 +34,42 @@ class VehicleRoutePathInterpolatorTest {
     }
 
     @Test
+    fun `bearing follows the current route leg through a corner`() {
+        val path = prepared(
+            GeoPoint(0.0, 0.0),
+            GeoPoint(0.0, 0.001),
+            GeoPoint(0.001, 0.001),
+        )
+        val motion = assertNotNull(
+            VehicleRoutePathInterpolator.motion(
+                from = GeoPoint(0.0, 0.0),
+                to = GeoPoint(0.001, 0.001),
+                directionId = directionId,
+                candidates = listOf(path),
+            ),
+        )
+
+        assertBearingNear(90.0, assertNotNull(motion.bearingAt(0.25)))
+        assertBearingNear(0.0, assertNotNull(motion.bearingAt(0.75)))
+    }
+
+    @Test
+    fun `bearing reverses when observed movement runs backward along a path`() {
+        val path = prepared(GeoPoint(0.0, 0.0), GeoPoint(0.0, 0.001))
+        val motion = assertNotNull(
+            VehicleRoutePathInterpolator.motion(
+                from = GeoPoint(0.0, 0.0008),
+                to = GeoPoint(0.0, 0.0002),
+                directionId = directionId,
+                candidates = listOf(path),
+            ),
+        )
+
+        assertTrue(motion.deltaMeters < 0.0)
+        assertBearingNear(270.0, assertNotNull(motion.bearingAt(0.5)))
+    }
+
+    @Test
     fun `loop movement crosses the route seam without travelling around the whole loop`() {
         val path = prepared(
             GeoPoint(0.0, 0.0),
@@ -135,6 +171,11 @@ class VehicleRoutePathInterpolatorTest {
 
     private fun assertNear(expected: Double, actual: Double, tolerance: Double = 0.00001) {
         assertTrue(abs(expected - actual) <= tolerance, "expected $expected, actual $actual")
+    }
+
+    private fun assertBearingNear(expected: Double, actual: Double, tolerance: Double = 1.0) {
+        val difference = abs(((actual - expected + 540.0) % 360.0) - 180.0)
+        assertTrue(difference <= tolerance, "expected bearing $expected, actual $actual")
     }
 
     private companion object {

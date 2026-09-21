@@ -752,7 +752,12 @@ class MapViewModel(
                 val track = tracksById[marker.id]
                 if (track != null && marker.id in animatedTrackIds) {
                     val nextPosition = vehicleMarkerPosition(track, monotonicNow, interpolate = true)
-                    if (nextPosition == marker.position) marker else marker.copy(position = nextPosition)
+                    val nextBearing = vehicleMarkerBearing(track, monotonicNow, interpolate = true)
+                    if (nextPosition == marker.position && nextBearing == marker.bearingDegrees) {
+                        marker
+                    } else {
+                        marker.copy(position = nextPosition, bearingDegrees = nextBearing)
+                    }
                 } else {
                     marker
                 }
@@ -800,7 +805,7 @@ class MapViewModel(
             directionId = directionId,
             position = vehicleMarkerPosition(this, monotonicNowMillis, interpolate),
             routeColorArgb = routeSelection.backgroundArgb,
-            bearingDegrees = bearingDegrees,
+            bearingDegrees = vehicleMarkerBearing(this, monotonicNowMillis, interpolate),
             positionKind = positionKind,
             freshness = freshness,
             routeLabel = routeSelection.displayLabel.sanitizedRouteBadgeLabel(),
@@ -819,6 +824,32 @@ class MapViewModel(
         monotonicNowMillis: Long,
         interpolate: Boolean,
     ): GeoPoint {
+        val motion = vehicleRouteMotion(track)
+        if (motion == null) {
+            // Provider GPS can be outside the route or the shape can be genuinely unusable. Keep
+            // temporal continuity in that case: a short direct fallback is less disruptive than
+            // teleporting the marker, while valid projections still follow the street geometry.
+            return if (interpolate) VehicleRealtimeReducer.frame(track, monotonicNowMillis) else track.to
+        }
+        if (!interpolate) return motion.endPoint
+        val startedAt = track.interpolationStartedAtMonotonicMillis ?: return motion.endPoint
+        return motion.positionAt(interpolationFraction(startedAt, monotonicNowMillis))
+    }
+
+    /** Rotation is deliberately separate so it can never gate or replace the position frame. */
+    private fun vehicleMarkerBearing(
+        track: VehicleTrack,
+        monotonicNowMillis: Long,
+        interpolate: Boolean,
+    ): Double? {
+        val motion = vehicleRouteMotion(track) ?: return track.bearingDegrees
+        if (!interpolate) return motion.bearingAt(1.0) ?: track.bearingDegrees
+        val startedAt = track.interpolationStartedAtMonotonicMillis
+            ?: return motion.bearingAt(1.0) ?: track.bearingDegrees
+        return motion.bearingAt(interpolationFraction(startedAt, monotonicNowMillis)) ?: track.bearingDegrees
+    }
+
+    private fun vehicleRouteMotion(track: VehicleTrack): VehicleRouteMotion? {
         refreshVehicleRoutePaths()
         val routePaths = vehicleRoutePaths[track.routeId].orEmpty()
         val cached = vehicleRouteMotions[track.id]
@@ -835,18 +866,11 @@ class MapViewModel(
                 vehicleRouteMotions[track.id] = CachedVehicleRouteMotion.from(track, resolved)
             }
         }
-        if (motion == null) {
-            // Provider GPS can be outside the route or the shape can be genuinely unusable. Keep
-            // temporal continuity in that case: a short direct fallback is less disruptive than
-            // teleporting the marker, while valid projections still follow the street geometry.
-            return if (interpolate) VehicleRealtimeReducer.frame(track, monotonicNowMillis) else track.to
-        }
-        if (!interpolate) return motion.endPoint
-        val startedAt = track.interpolationStartedAtMonotonicMillis ?: return motion.endPoint
-        val elapsed = (monotonicNowMillis - startedAt).coerceAtLeast(0L)
-        val fraction = elapsed.toDouble() / VEHICLE_INTERPOLATION_DURATION_MILLIS
-        return motion.positionAt(fraction)
+        return motion
     }
+
+    private fun interpolationFraction(startedAt: Long, monotonicNowMillis: Long): Double =
+        (monotonicNowMillis - startedAt).coerceAtLeast(0L).toDouble() / VEHICLE_INTERPOLATION_DURATION_MILLIS
 
     private fun refreshVehicleRoutePaths() {
         val revision = routeGeometrySnapshot.polylineSourceRevision
@@ -1330,14 +1354,14 @@ class MapViewModel(
     private fun dismissStopArrivals() = intent {
         if (selectedStopId == null && stopArrivalsStop == null && state.stopArrivalsSheet == null) return@intent
         val previousCamera = cameraCommand
-        val viewport = lastViewport
+        val retainedZoom = previousCamera?.zoom ?: lastViewport?.zoom
         resetStopArrivalsState()
         selectedStopId = null
         mapViewportInsets = MapViewportInsets.None
         if (previousCamera != null) {
             cameraCommand = nextCameraCommand(
-                center = viewport?.center ?: previousCamera.center,
-                zoom = viewport?.zoom ?: previousCamera.zoom,
+                center = previousCamera.center,
+                zoom = previousCamera.zoom,
                 viewportInsets = MapViewportInsets.None,
             )
         }
@@ -1345,7 +1369,7 @@ class MapViewModel(
         val city = currentCity
         reduce {
             state.copy(
-                renderState = city?.let { renderStateFor(it, state.location.fix, viewport?.zoom) },
+                renderState = city?.let { renderStateFor(it, state.location.fix, retainedZoom) },
                 selectedStop = null,
                 nearbyStops = nearbyStopItems(),
                 stopArrivalsSheet = null,
