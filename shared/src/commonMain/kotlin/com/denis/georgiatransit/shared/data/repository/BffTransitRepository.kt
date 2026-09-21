@@ -20,7 +20,6 @@ import com.denis.georgiatransit.shared.domain.model.TransitRoute
 import com.denis.georgiatransit.shared.domain.model.TransitShape
 import com.denis.georgiatransit.shared.domain.model.TransitStop
 import com.denis.georgiatransit.shared.domain.model.VehiclePage
-import com.denis.georgiatransit.shared.domain.model.WalkingEstimate
 import com.denis.georgiatransit.shared.domain.repository.RouteListRequest
 import com.denis.georgiatransit.shared.domain.repository.TransitFailure
 import com.denis.georgiatransit.shared.domain.repository.TransitFreshness
@@ -183,14 +182,6 @@ class BffTransitRepository(
         maxTransfers: Int,
     ): TransitLoadResult<JourneyPage> =
         invalidateRouteVariantsForCityScopedFailure(cityId, client.journeys(cityId, from, to, departureAt, locale, maxTransfers))
-
-    /** Intentionally bypasses every durable/in-memory repository cache. */
-    override suspend fun walkingEstimate(
-        cityId: CityId,
-        from: GeoPoint,
-        to: GeoPoint,
-        locale: TransitLocale,
-    ): TransitLoadResult<WalkingEstimate> = client.walkingEstimate(cityId, from, to, locale)
 
     private suspend fun ensureHydrated() {
         hydrationMutex.withLock {

@@ -30,7 +30,7 @@
 	<key>NSLocalNetworkUsageDescription</key>
 	<string>Georgia Transit Sandbox connects to a Transit BFF running on your development network.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>Georgia Transit uses your location to center the map, show nearby stops, and, if you choose, request an approximate walking estimate to a selected stop from the Georgia Transit service.</string>
+	<string>Georgia Transit uses your location to center the map and show nearby stops.</string>
 	<key>UILaunchScreen</key>
 	<dict>
 		<key>UIColorName</key>

@@ -4,6 +4,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.fillMaxSize
@@ -11,6 +12,7 @@ import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
@@ -158,37 +160,41 @@ internal fun MapCanvas(
                 )
                 .padding(TransitSpacing.Medium),
         )
-        PlatformMyLocationButton(
-            contentDescription = locationActionLabel,
-            automationId = locationActionAutomationId,
-            enabled = locationActionEnabled,
-            onClick = onMyLocationClick,
-            modifier = Modifier
-                .align(Alignment.BottomEnd)
-                .windowInsetsPadding(
-                    WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal + WindowInsetsSides.Bottom),
-                )
-                .padding(
-                    start = TransitSpacing.Medium,
-                    top = TransitSpacing.Medium,
-                    end = TransitSpacing.Medium,
-                    bottom = TransitSpacing.Medium + OpenStreetMapAttributionHeight,
-                )
-                .size(48.dp)
-                .testTag(locationActionAutomationId),
-        )
         if (baseLayerState == MapBaseLayerState.BffStyle) {
-            OpenStreetMapAttribution(
+            Column(
                 modifier = Modifier
                     .align(Alignment.BottomEnd)
                     .padding(TransitSpacing.ExtraSmall),
+                horizontalAlignment = Alignment.End,
+            ) {
+                PlatformMyLocationButton(
+                    contentDescription = locationActionLabel,
+                    automationId = locationActionAutomationId,
+                    enabled = locationActionEnabled,
+                    onClick = onMyLocationClick,
+                    modifier = Modifier.size(48.dp).testTag(locationActionAutomationId),
+                )
+                Spacer(Modifier.height(32.dp))
+                OpenStreetMapAttribution()
+            }
+        } else {
+            PlatformMyLocationButton(
+                contentDescription = locationActionLabel,
+                automationId = locationActionAutomationId,
+                enabled = locationActionEnabled,
+                onClick = onMyLocationClick,
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .windowInsetsPadding(
+                        WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal + WindowInsetsSides.Bottom),
+                    )
+                    .padding(TransitSpacing.Medium)
+                    .size(48.dp)
+                    .testTag(locationActionAutomationId),
             )
         }
     }
 }
-
-// Reserves room above the compact copyright label for the location action.
-private val OpenStreetMapAttributionHeight = 28.dp
 
 @Composable
 private fun MapStatusOverlays(

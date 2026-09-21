@@ -77,8 +77,6 @@ internal fun StopArrivalsSheet(
     showOpenStreetMapAttribution: Boolean,
     onDismiss: () -> Unit,
     onRetry: () -> Unit,
-    onMyLocation: () -> Unit,
-    isLocationActionable: Boolean,
     modifier: Modifier = Modifier,
 ) {
     ModalBottomSheet(
@@ -157,11 +155,6 @@ internal fun StopArrivalsSheet(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
-            WalkingEstimateSection(
-                estimate = sheet.walkingEstimate,
-                onMyLocation = onMyLocation,
-                isLocationActionable = isLocationActionable,
-            )
             if (sheet.isRefreshing) {
                 Text(
                     stringResource(Res.string.map_stop_arrivals_refreshing),

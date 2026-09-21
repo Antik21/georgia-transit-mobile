@@ -32,7 +32,6 @@ import com.denis.georgiatransit.shared.domain.model.TripId
 import com.denis.georgiatransit.shared.domain.model.VehicleId
 import com.denis.georgiatransit.shared.domain.model.VehiclePage
 import com.denis.georgiatransit.shared.domain.model.VehiclePositionKind
-import com.denis.georgiatransit.shared.domain.model.WalkingEstimate
 import kotlin.time.Instant
 
 /** Mapping failures are converted into typed [TransitFailure.Serialization] at the client edge. */
@@ -271,13 +270,6 @@ private fun GeoPointDto.toDomain() = GeoPoint(
 
 internal fun GeoPoint.toDto() = GeoPointDto(latitude = latitude, longitude = longitude)
 
-internal fun WalkingEstimateDto.toDomain() = WalkingEstimate(
-    distanceMeters = distanceMeters.requireFinite("walking distance").also {
-        require(it >= 0.0) { "walking distance is invalid" }
-    },
-    durationSeconds = durationSeconds.also { require(it > 0L) { "walking duration is invalid" } },
-    observedAt = observedAt.toUtcInstant("walking observedAt"),
-)
 private fun CityAvailabilityDto.toDomain() = CityAvailability(readiness.toDomain(), source.toDomain())
 private fun CityReadinessDto.toDomain() = when (this) {
     CityReadinessDto.DevelopmentFixture -> CityReadiness.DevelopmentFixture

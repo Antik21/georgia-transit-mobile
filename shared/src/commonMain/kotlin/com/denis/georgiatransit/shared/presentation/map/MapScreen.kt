@@ -162,8 +162,6 @@ private fun Content(state: ViewState, onAction: (Action) -> Unit) {
                 showOpenStreetMapAttribution = state.baseLayerState == MapBaseLayerState.BffStyle,
                 onDismiss = { onAction(Action.StopArrivalsDismissed) },
                 onRetry = { onAction(Action.RetryStopArrivals) },
-                onMyLocation = { onAction(Action.MyLocationClicked) },
-                isLocationActionable = isLocationActionable,
             )
         }
     }
