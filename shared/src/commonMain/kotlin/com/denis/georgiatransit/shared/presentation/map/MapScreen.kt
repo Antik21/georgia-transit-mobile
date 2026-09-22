@@ -121,48 +121,46 @@ private fun Content(state: ViewState, onAction: (Action) -> Unit) {
                 baseLayerState = state.baseLayerState,
                 modifier = mapModifier,
             )
-            Column(
+            Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .windowInsetsPadding(
                         WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal + WindowInsetsSides.Bottom),
                     )
                     .padding(TransitSpacing.Medium),
-                verticalArrangement = Arrangement.spacedBy(TransitSpacing.Small),
             ) {
                 VehicleAccessibility(
                     layerState = state.vehicleLayerState,
                     routes = state.vehicleRoutes,
                 )
-                RouteGeometryLegend(
-                    routes = state.routeGeometryLegends,
-                    onFocus = { routeId -> onAction(Action.RouteGeometryFocused(routeId)) },
-                    onRetry = { routeId -> onAction(Action.RetryRouteGeometry(routeId)) },
-                    onRemove = { routeId -> onAction(Action.RemoveRouteGeometry(routeId)) },
-                )
-                Row(horizontalArrangement = Arrangement.spacedBy(TransitSpacing.Small)) {
-                    OutlinedButton(
-                        onClick = { onAction(Action.ChangeCityClicked) },
-                        modifier = Modifier.weight(1f).testTag(AutomationId.MapChangeCity),
-                    ) { Text(stringResource(Res.string.map_change_city_action)) }
-                    if (state.routesAvailable) {
-                        Button(
-                            onClick = { onAction(Action.RoutesClicked) },
-                            modifier = Modifier.weight(1f).testTag(AutomationId.MapRoutes),
-                        ) { Text(stringResource(Res.string.map_routes_action)) }
+                Column(verticalArrangement = Arrangement.spacedBy(TransitSpacing.Small)) {
+                    RouteGeometryLegend(
+                        routes = state.routeGeometryLegends,
+                        onFocus = { routeId -> onAction(Action.RouteGeometryFocused(routeId)) },
+                        onRetry = { routeId -> onAction(Action.RetryRouteGeometry(routeId)) },
+                        onRemove = { routeId -> onAction(Action.RemoveRouteGeometry(routeId)) },
+                    )
+                    Row(horizontalArrangement = Arrangement.spacedBy(TransitSpacing.Small)) {
+                        OutlinedButton(
+                            onClick = { onAction(Action.ChangeCityClicked) },
+                            modifier = Modifier.weight(1f).testTag(AutomationId.MapChangeCity),
+                        ) { Text(stringResource(Res.string.map_change_city_action)) }
+                        if (state.routesAvailable) {
+                            Button(
+                                onClick = { onAction(Action.RoutesClicked) },
+                                modifier = Modifier.weight(1f).testTag(AutomationId.MapRoutes),
+                            ) { Text(stringResource(Res.string.map_routes_action)) }
+                        }
                     }
+                    CityAttribution(state.attribution)
                 }
-                CityAttribution(state.attribution)
             }
         }
         state.stopArrivalsSheet?.let { sheet ->
             StopArrivalsSheet(
                 sheet = sheet,
-                showOpenStreetMapAttribution = state.baseLayerState == MapBaseLayerState.BffStyle,
                 onDismiss = { onAction(Action.StopArrivalsDismissed) },
                 onRetry = { onAction(Action.RetryStopArrivals) },
-                onMyLocation = { onAction(Action.MyLocationClicked) },
-                isLocationActionable = isLocationActionable,
             )
         }
     }

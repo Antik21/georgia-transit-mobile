@@ -124,6 +124,7 @@ class MapResourceContractTest {
             AutomationId.MapRetry,
             AutomationId.MapAttribution,
             AutomationId.MapStopArrivalsSheet,
+            AutomationId.MapStopArrivalsHandle,
             AutomationId.MapStopArrivalsLoading,
             AutomationId.MapStopArrivalsEmpty,
             AutomationId.MapStopArrivalsPartial,
@@ -132,7 +133,6 @@ class MapResourceContractTest {
             AutomationId.MapStopArrivalsError,
             AutomationId.MapStopArrivalsUnavailable,
             AutomationId.MapStopArrivalsRetry,
-            AutomationId.MapStopArrivalsClose,
             AutomationId.MapStopArrivalsRows,
             AutomationId.MapStopArrivalsRow,
             AutomationId.MapStopArrivalsSource,
@@ -153,7 +153,7 @@ class MapResourceContractTest {
         assertEquals("map.retry", AutomationId.MapRetry)
         assertEquals("map.attribution.link.transitous", AutomationId.mapAttributionLink("transitous"))
         assertEquals("map.stop-arrivals.sheet", AutomationId.MapStopArrivalsSheet)
-        assertEquals("map.stop-arrivals.close", AutomationId.MapStopArrivalsClose)
+        assertEquals("map.stop-arrivals.handle", AutomationId.MapStopArrivalsHandle)
         assertEquals("map.stop-arrivals.row", AutomationId.MapStopArrivalsRow)
     }
 
@@ -168,10 +168,8 @@ class MapResourceContractTest {
         assertCodePath(
             sheet,
             "MapStopArrivalsSheet",
+            "MapStopArrivalsHandle",
             "sheet.stopName",
-            "MapStopArrivalsClose",
-            "showOpenStreetMapAttribution",
-            "OpenStreetMapAttribution",
             "passingRouteShortNames",
             "MapStopArrivalsRows",
         )
@@ -273,7 +271,26 @@ class MapResourceContractTest {
             "Accessibility labels must never surface opaque stop IDs.",
         )
         assertCodePath(content, "StopArrivalsSheet(", "onDismiss = { onAction(Action.StopArrivalsDismissed) }")
-        assertCodePath(stopArrivalsSheet, "onDismissRequest = onDismiss", "onClick = onDismiss")
+        assertCodePath(
+            stopArrivalsSheet,
+            "onDismissRequest = onDismiss",
+            "dragHandle = null",
+            ".clickable(",
+            "indication = null",
+            "onClickLabel = handleActionLabel",
+            "SheetValue.Expanded",
+            "StopArrivalsHandleWidth",
+            "sheet.stopName",
+        )
+        assertTrue(stopArrivalsSheet.contains("map_stop_arrivals_handle_accessibility"))
+        assertTrue(stopArrivalsSheet.contains("map_stop_arrivals_expand_accessibility"))
+        assertTrue(stopArrivalsSheet.contains("map_stop_arrivals_hide_accessibility"))
+        assertCodePath(
+            canvas,
+            "MapBaseLayerState.BffStyle",
+            "OpenStreetMapAttribution(",
+            "Alignment.TopEnd",
+        )
         assertFalse(content.contains("map_selected_stop"))
         assertFalse(content.contains("MapSelectedStop"))
     }
@@ -331,13 +348,12 @@ class MapResourceContractTest {
             AutomationId.MapScreen,
             AutomationId.MapNearbyStop,
             AutomationId.MapStopArrivalsSheet,
+            AutomationId.MapStopArrivalsHandle,
             AutomationId.MapStopArrivalsLoading,
             AutomationId.MapStopArrivalsRows,
             AutomationId.MapStopArrivalsRow,
             AutomationId.MapStopArrivalsSource,
-            AutomationId.MapStopArrivalsClose,
         ).forEach { id -> assertTrue(flow.contains("id: $id"), "Missing stable stop-arrivals selector '$id'") }
-        assertTrue(flow.contains("tapOn:\n    id: ${AutomationId.MapStopArrivalsClose}"))
         assertTrue(harness.contains("fixture_is_our_process"))
         assertTrue(harness.contains("verify_owned_fixture"))
         assertTrue(harness.contains("kill \"\$fixture_pid\""))
@@ -362,9 +378,12 @@ class MapResourceContractTest {
             android,
             "GeoJsonSource(VEHICLES_SOURCE_ID",
             "SymbolLayer(VEHICLES_LAYER_ID, VEHICLES_SOURCE_ID)",
+            "iconRotate(Expression.get(BEARING_PROPERTY))",
+            "iconRotationAlignment(\"map\")",
             "lastVehicleSourceRevision != renderState.vehicleSourceRevision",
             "lastVehicleBadgeRevision != renderState.vehicleBadgeRevision",
             "MAX_VEHICLE_BADGE_IMAGES = 256",
+            "BUS_MARKER_SIZE_PX = 112",
             "STALE_VEHICLE_OPACITY",
         )
         assertTrue(android.contains("clearRenderedLayerState()"))
@@ -386,10 +405,13 @@ class MapResourceContractTest {
             swift,
             "MLNShapeSource(identifier: Self.vehiclesSourceID",
             "MLNSymbolStyleLayer(identifier: Self.vehiclesLayerID, source: vehiclesSource)",
+            "vehiclesLayer.iconRotation = NSExpression(forKeyPath: Self.bearingProperty)",
+            "vehiclesLayer.iconRotationAlignment = NSExpression(forConstantValue: \"map\")",
             "lastVehicleSourceRevision != state.vehicleSourceRevision",
             "lastVehicleBadgeRevision != state.vehicleBadgeRevision",
             "maximumVehicleBadgeImages = 256",
             "staleVehicleOpacity",
+            "let size = CGSize(width: 112, height: 112)",
         )
         assertTrue(swift.contains("func mapView(_ mapView: MLNMapView, didFinishLoading style: MLNStyle)"))
         assertTrue(swift.contains("func releaseResources()"))
@@ -504,18 +526,20 @@ class MapResourceContractTest {
             "MapRouteGeometryChip",
             ".height(RouteGeometryActionSize)",
             "DirectionsBusIcon",
-            ".size(RouteGeometryActionSize)",
+            ".size(InputChipDefaults.IconSize)",
             ".clip(CircleShape)",
             "MapRouteGeometryRemove",
             "onRemove(route.routeId)",
             "CloseIcon",
+            "shape = CircleShape",
             "if (route.canRetry)",
             "MapRouteGeometryRetry",
             "onRetry(route.routeId)",
         )
-        assertTrue(legendSource.contains("private val MaterialInputChipCornerRadius = 16.dp"))
-        assertTrue(legendSource.contains("private val MaterialInputChipLeadingIconSize = 24.dp"))
-        assertTrue(legendSource.contains("private val MaterialInputChipCloseIconSize = 18.dp"))
+        assertFalse(legend.contains(".height(InputChipDefaults.Height)"))
+        assertFalse(legendSource.contains("MaterialInputChipCornerRadius"))
+        assertFalse(legendSource.contains("MaterialInputChipLeadingIconSize"))
+        assertFalse(legendSource.contains("MaterialInputChipCloseIconSize"))
         assertTrue(legendSource.contains("private val RouteGeometryActionSize = 48.dp"))
         assertTrue(legendSource.contains("modifier: Modifier = Modifier"))
         assertTrue(legendSource.contains("fontWeight = FontWeight.Medium"))
@@ -1112,7 +1136,6 @@ class MapResourceContractTest {
             "map_stop_arrivals_error",
             "map_stop_arrivals_unavailable",
             "map_stop_arrivals_retry",
-            "map_stop_arrivals_close",
             "map_stop_arrivals_refreshing",
             "map_stop_arrivals_stale",
             "map_stop_arrivals_route_unavailable",

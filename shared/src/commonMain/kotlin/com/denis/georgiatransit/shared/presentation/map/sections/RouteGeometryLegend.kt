@@ -10,7 +10,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.InputChip
 import androidx.compose.material3.InputChipDefaults
@@ -104,7 +103,7 @@ internal fun RouteGeometryLegend(
                         Icon(
                             imageVector = DirectionsBusIcon,
                             contentDescription = null,
-                            modifier = Modifier.size(MaterialInputChipLeadingIconSize),
+                            modifier = Modifier.size(InputChipDefaults.IconSize),
                         )
                     },
                     trailingIcon = {
@@ -122,11 +121,11 @@ internal fun RouteGeometryLegend(
                             Icon(
                                 imageVector = CloseIcon,
                                 contentDescription = null,
-                                modifier = Modifier.size(MaterialInputChipCloseIconSize),
+                                modifier = Modifier.size(InputChipDefaults.IconSize),
                             )
                         }
                     },
-                    shape = RoundedCornerShape(MaterialInputChipCornerRadius),
+                    shape = CircleShape,
                     colors = InputChipDefaults.inputChipColors(
                         containerColor = background,
                         labelColor = foreground,
@@ -230,9 +229,5 @@ private val CloseIcon: ImageVector by lazy {
     }.build()
 }
 
-// Keep Material 2 icon proportions while the chip provides the minimum interaction height.
-private val MaterialInputChipCornerRadius = 16.dp
-private val MaterialInputChipLeadingIconSize = 24.dp
-private val MaterialInputChipCloseIconSize = 18.dp
-// Keep the visual close icon compact while preserving an accessible pointer target.
+// Retry is a standalone action, so it keeps an explicit accessible pointer target.
 private val RouteGeometryActionSize = 48.dp

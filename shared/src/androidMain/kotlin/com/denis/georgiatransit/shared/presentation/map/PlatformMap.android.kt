@@ -5,6 +5,8 @@ import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
+import android.graphics.Path
+import android.graphics.PointF
 import android.graphics.RectF
 import android.graphics.Typeface
 import android.os.SystemClock
@@ -48,6 +50,8 @@ import org.maplibre.android.style.layers.PropertyFactory.iconAllowOverlap
 import org.maplibre.android.style.layers.PropertyFactory.iconIgnorePlacement
 import org.maplibre.android.style.layers.PropertyFactory.iconImage
 import org.maplibre.android.style.layers.PropertyFactory.iconOpacity
+import org.maplibre.android.style.layers.PropertyFactory.iconRotate
+import org.maplibre.android.style.layers.PropertyFactory.iconRotationAlignment
 import org.maplibre.android.style.layers.PropertyFactory.lineColor
 import org.maplibre.android.style.layers.PropertyFactory.lineOpacity
 import org.maplibre.android.style.layers.PropertyFactory.lineWidth
@@ -189,6 +193,7 @@ private class LocalMapController(
     private var latestState: MapRenderState? = null
     private var layersInstalled = false
     private var lastAppliedCameraRevision: Long? = null
+    private var lastAppliedCameraCommand: MapCameraCommand? = null
     private var lastStops: List<MapStopMarker>? = null
     private var lastStopClusters: List<MapStopCluster>? = null
     private var lastStopSourceRevision: Long? = null
@@ -279,6 +284,7 @@ private class LocalMapController(
         style = null
         layersInstalled = false
         lastAppliedCameraRevision = null
+        lastAppliedCameraCommand = null
         clearRenderedLayerState()
         mapLibreMap.setStyle(builder) styleLoaded@{ loadedStyle ->
             if (destroyed || generation != styleRequestGeneration) return@styleLoaded
@@ -317,6 +323,7 @@ private class LocalMapController(
         stopAttentionTicker()
         layersInstalled = false
         lastAppliedCameraRevision = null
+        lastAppliedCameraCommand = null
         clearRenderedLayerState()
     }
 
@@ -381,6 +388,8 @@ private class LocalMapController(
             SymbolLayer(VEHICLES_LAYER_ID, VEHICLES_SOURCE_ID).withProperties(
                 iconImage(Expression.get(VEHICLE_BADGE_IMAGE_PROPERTY)),
                 iconOpacity(Expression.get(VEHICLE_OPACITY_PROPERTY)),
+                iconRotate(Expression.get(BEARING_PROPERTY)),
+                iconRotationAlignment("map"),
                 iconAllowOverlap(true),
                 iconIgnorePlacement(true),
             ),
@@ -464,18 +473,49 @@ private class LocalMapController(
             mapView.post { latestState?.let(::applyCameraIfNeeded) }
             return
         }
-        map?.moveCamera(
+        val currentMap = map ?: return
+        val target = LatLng(command.center.latitude, command.center.longitude)
+        val previousCommand = lastAppliedCameraCommand
+        val preservedScreenPoint = previousCommand
+            ?.takeIf { previous -> shouldPreserveScreenAnchor(previous, command) }
+            ?.let { currentMap.projection.toScreenLocation(target) }
+        currentMap.moveCamera(
             CameraUpdateFactory.newCameraPosition(
                 CameraPosition.Builder()
-                    .target(LatLng(command.center.latitude, command.center.longitude))
+                    .target(target)
                     .zoom(command.zoom.coerceIn(MIN_ZOOM, MAX_ZOOM))
                     .padding(0.0, 0.0, 0.0, viewportBottomPadding(command))
                     .build(),
             ),
         )
+        preservedScreenPoint?.let { originalPoint ->
+            val centeredPoint = currentMap.projection.toScreenLocation(target)
+            val compensatedCenter = currentMap.projection.fromScreenLocation(
+                PointF(
+                    centeredPoint.x * 2f - originalPoint.x,
+                    centeredPoint.y * 2f - originalPoint.y,
+                ),
+            )
+            currentMap.moveCamera(
+                CameraUpdateFactory.newCameraPosition(
+                    CameraPosition.Builder()
+                        .target(compensatedCenter)
+                        .zoom(command.zoom.coerceIn(MIN_ZOOM, MAX_ZOOM))
+                        .padding(0.0, 0.0, 0.0, viewportBottomPadding(command))
+                        .build(),
+                ),
+            )
+        }
         lastAppliedCameraRevision = command.revision
+        lastAppliedCameraCommand = command
         mapView.post { notifyViewportSettled() }
     }
+
+    private fun shouldPreserveScreenAnchor(previous: MapCameraCommand, current: MapCameraCommand): Boolean =
+        previous.viewportInsets.bottomOcclusionFraction > 0.0 &&
+            current.viewportInsets.bottomOcclusionFraction == 0.0 &&
+            previous.center == current.center &&
+            previous.zoom == current.zoom
 
     private fun viewportBottomPadding(command: MapCameraCommand): Double {
         val fraction = command.viewportInsets.bottomOcclusionFraction
@@ -562,7 +602,10 @@ private class LocalMapController(
                     feature.addStringProperty(VEHICLE_BADGE_IMAGE_PROPERTY, badgeImageIds[marker.badgeStyle()] ?: OVERFLOW_BADGE_IMAGE_ID)
                     feature.addNumberProperty(VEHICLE_OPACITY_PROPERTY, if (marker.isStale) STALE_VEHICLE_OPACITY else 1.0)
                     feature.addStringProperty(POSITION_KIND_PROPERTY, marker.positionKind.name)
-                    marker.bearingDegrees?.takeIf(Double::isFinite)?.let { feature.addNumberProperty(BEARING_PROPERTY, it.normalizedBearing()) }
+                    feature.addNumberProperty(
+                        BEARING_PROPERTY,
+                        marker.bearingDegrees?.takeIf(Double::isFinite)?.normalizedBearing() ?: DEFAULT_VEHICLE_BEARING,
+                    )
                 }
             }
             .toList(),
@@ -808,26 +851,55 @@ private fun String.asNativeBadgeLabel(): String = asSequence()
 private fun VehicleBadgeStyle.toBitmap(): Bitmap {
     val textPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = textArgb.toInt()
-        textSize = BADGE_TEXT_SIZE_PX
+        textSize = BUS_LABEL_TEXT_SIZE_PX
         typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
         textAlign = Paint.Align.CENTER
     }
-    if (textPaint.measureText(label) > BADGE_TEXT_MAX_WIDTH_PX) {
-        textPaint.textSize *= BADGE_TEXT_MAX_WIDTH_PX / textPaint.measureText(label)
+    if (textPaint.measureText(label) > BUS_LABEL_TEXT_MAX_WIDTH_PX) {
+        textPaint.textSize *= BUS_LABEL_TEXT_MAX_WIDTH_PX / textPaint.measureText(label)
     }
-    val bitmap = Bitmap.createBitmap(BADGE_DIAMETER_PX, BADGE_DIAMETER_PX, Bitmap.Config.ARGB_8888)
+    val bitmap = Bitmap.createBitmap(BUS_MARKER_SIZE_PX, BUS_MARKER_SIZE_PX, Bitmap.Config.ARGB_8888)
     val canvas = Canvas(bitmap)
-    val background = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = backgroundArgb.toInt() }
-    val center = BADGE_DIAMETER_PX / 2f
-    val radius = center - BADGE_WHITE_STROKE_WIDTH_DP / 2f
-    canvas.drawCircle(center, center, radius, background)
-    val whiteBorder = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+    val body = RectF(BUS_BODY_LEFT_PX, BUS_BODY_TOP_PX, BUS_BODY_RIGHT_PX, BUS_BODY_BOTTOM_PX)
+    val shadow = RectF(body).apply { offset(BUS_SHADOW_OFFSET_PX, BUS_SHADOW_OFFSET_PX) }
+    canvas.drawRoundRect(
+        shadow,
+        BUS_BODY_CORNER_RADIUS_PX,
+        BUS_BODY_CORNER_RADIUS_PX,
+        Paint(Paint.ANTI_ALIAS_FLAG).apply { color = BUS_SHADOW_COLOR },
+    )
+    canvas.drawRoundRect(
+        body,
+        BUS_BODY_CORNER_RADIUS_PX,
+        BUS_BODY_CORNER_RADIUS_PX,
+        Paint(Paint.ANTI_ALIAS_FLAG).apply { color = backgroundArgb.toInt() },
+    )
+    val outline = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = Color.WHITE
         style = Paint.Style.STROKE
-        strokeWidth = BADGE_WHITE_STROKE_WIDTH_DP
+        strokeWidth = BUS_OUTLINE_WIDTH_PX
     }
-    canvas.drawCircle(center, center, radius, whiteBorder)
-    val baseline = center - (textPaint.ascent() + textPaint.descent()) / 2f
+    canvas.drawRoundRect(body, BUS_BODY_CORNER_RADIUS_PX, BUS_BODY_CORNER_RADIUS_PX, outline)
+
+    val glass = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = BUS_GLASS_COLOR }
+    canvas.drawRoundRect(
+        RectF(BUS_WINDOW_LEFT_PX, BUS_FRONT_WINDOW_TOP_PX, BUS_WINDOW_RIGHT_PX, BUS_FRONT_WINDOW_BOTTOM_PX),
+        BUS_WINDOW_CORNER_RADIUS_PX,
+        BUS_WINDOW_CORNER_RADIUS_PX,
+        glass,
+    )
+    canvas.drawRoundRect(
+        RectF(BUS_WINDOW_LEFT_PX, BUS_REAR_WINDOW_TOP_PX, BUS_WINDOW_RIGHT_PX, BUS_REAR_WINDOW_BOTTOM_PX),
+        BUS_WINDOW_CORNER_RADIUS_PX,
+        BUS_WINDOW_CORNER_RADIUS_PX,
+        glass,
+    )
+    val light = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = BUS_HEADLIGHT_COLOR }
+    canvas.drawCircle(BUS_LEFT_LIGHT_CENTER_X_PX, BUS_LIGHT_CENTER_Y_PX, BUS_LIGHT_RADIUS_PX, light)
+    canvas.drawCircle(BUS_RIGHT_LIGHT_CENTER_X_PX, BUS_LIGHT_CENTER_Y_PX, BUS_LIGHT_RADIUS_PX, light)
+
+    val center = BUS_MARKER_SIZE_PX / 2f
+    val baseline = BUS_LABEL_CENTER_Y_PX - (textPaint.ascent() + textPaint.descent()) / 2f
     canvas.drawText(label, center, baseline, textPaint)
     if (stale) {
         // Hatching is deliberately shape-based, so stale is not communicated by opacity/color alone.
@@ -836,20 +908,27 @@ private fun VehicleBadgeStyle.toBitmap(): Bitmap {
             alpha = STALE_CUE_ALPHA
             strokeWidth = STALE_CUE_STROKE_PX
         }
+        canvas.save()
+        canvas.clipPath(
+            Path().apply {
+                addRoundRect(body, BUS_BODY_CORNER_RADIUS_PX, BUS_BODY_CORNER_RADIUS_PX, Path.Direction.CW)
+            },
+        )
         canvas.drawLine(
-            BADGE_STALE_INSET_PX,
-            BADGE_DIAMETER_PX - BADGE_STALE_INSET_PX,
-            BADGE_DIAMETER_PX - BADGE_STALE_INSET_PX,
-            BADGE_STALE_INSET_PX,
+            BUS_BODY_LEFT_PX,
+            BUS_BODY_BOTTOM_PX - BUS_STALE_INSET_PX,
+            BUS_BODY_RIGHT_PX,
+            BUS_BODY_TOP_PX + BUS_STALE_INSET_PX,
             cue,
         )
         canvas.drawLine(
-            BADGE_DIAMETER_PX / 2f,
-            BADGE_DIAMETER_PX - BADGE_STALE_INSET_PX,
-            BADGE_DIAMETER_PX + BADGE_DIAMETER_PX / 2f - BADGE_STALE_INSET_PX,
-            BADGE_STALE_INSET_PX,
+            BUS_BODY_LEFT_PX + BUS_STALE_STRIPE_SPACING_PX,
+            BUS_BODY_BOTTOM_PX,
+            BUS_BODY_RIGHT_PX,
+            BUS_BODY_TOP_PX + BUS_STALE_INSET_PX + BUS_STALE_STRIPE_SPACING_PX,
             cue,
         )
+        canvas.restore()
     }
     return bitmap
 }
@@ -937,14 +1016,38 @@ private const val MIN_STOP_TARGET_DP = 48f
 private const val EARTH_RADIUS_METERS = 6_371_008.8
 private const val OVERFLOW_BADGE_IMAGE_ID = "gt-vehicle-badge-overflow"
 private const val MAX_BADGE_LABEL_LENGTH = 8
-private const val BADGE_TEXT_SIZE_PX = 36f
 private const val BADGE_DIAMETER_PX = 80
-private const val BADGE_TEXT_MAX_WIDTH_PX = 57.6f
-private const val BADGE_WHITE_STROKE_WIDTH_DP = 3f
-private const val BADGE_STALE_INSET_PX = 10f
+private const val BUS_MARKER_SIZE_PX = 112
+private const val BUS_BODY_LEFT_PX = 27f
+private const val BUS_BODY_TOP_PX = 12f
+private const val BUS_BODY_RIGHT_PX = 85f
+private const val BUS_BODY_BOTTOM_PX = 98f
+private const val BUS_BODY_CORNER_RADIUS_PX = 15f
+private const val BUS_SHADOW_OFFSET_PX = 3f
+private const val BUS_SHADOW_COLOR = 0x40000000
+private const val BUS_OUTLINE_WIDTH_PX = 3f
+private const val BUS_WINDOW_LEFT_PX = 34f
+private const val BUS_WINDOW_RIGHT_PX = 78f
+private const val BUS_FRONT_WINDOW_TOP_PX = 20f
+private const val BUS_FRONT_WINDOW_BOTTOM_PX = 36f
+private const val BUS_REAR_WINDOW_TOP_PX = 82f
+private const val BUS_REAR_WINDOW_BOTTOM_PX = 91f
+private const val BUS_WINDOW_CORNER_RADIUS_PX = 4f
+private val BUS_GLASS_COLOR = 0xB3263440.toInt()
+private val BUS_HEADLIGHT_COLOR = 0xFFFFE082.toInt()
+private const val BUS_LEFT_LIGHT_CENTER_X_PX = 36f
+private const val BUS_RIGHT_LIGHT_CENTER_X_PX = 76f
+private const val BUS_LIGHT_CENTER_Y_PX = 16f
+private const val BUS_LIGHT_RADIUS_PX = 2.5f
+private const val BUS_LABEL_CENTER_Y_PX = 58f
+private const val BUS_LABEL_TEXT_SIZE_PX = 28f
+private const val BUS_LABEL_TEXT_MAX_WIDTH_PX = 48f
+private const val BUS_STALE_INSET_PX = 8f
+private const val BUS_STALE_STRIPE_SPACING_PX = 22f
 private const val STALE_CUE_STROKE_PX = 4f
 private const val STALE_CUE_ALPHA = 180
 private const val STALE_VEHICLE_OPACITY = 0.62
+private const val DEFAULT_VEHICLE_BEARING = 0.0
 private const val ATTENTION_MAX_FRAMES_PER_SECOND = 15L
 private const val ATTENTION_TICK_MILLIS =
     (1_000L + ATTENTION_MAX_FRAMES_PER_SECOND - 1L) / ATTENTION_MAX_FRAMES_PER_SECOND

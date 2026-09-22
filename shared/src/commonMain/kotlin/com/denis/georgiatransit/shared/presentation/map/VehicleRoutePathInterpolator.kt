@@ -56,6 +56,24 @@ internal class PreparedVehicleRoutePath private constructor(
         return interpolate(points[low], points[low + 1], fraction)
     }
 
+    /**
+     * Returns the travel heading along the route near [alongMeters]. Sampling a short distance
+     * ahead blends the heading as the marker enters a corner instead of snapping only after the
+     * projected position has crossed a polyline vertex.
+     */
+    fun bearingAt(alongMeters: Double, forward: Boolean): Double? {
+        val direction = if (forward) 1.0 else -1.0
+        val current = positionAt(alongMeters)
+        val ahead = positionAt(alongMeters + direction * BEARING_SAMPLE_METERS)
+        if (distanceMeters(current, ahead) >= MIN_BEARING_DISTANCE_METERS) {
+            return bearingDegrees(current, ahead)
+        }
+        val behind = positionAt(alongMeters - direction * BEARING_SAMPLE_METERS)
+        return bearingDegrees(behind, current).takeIf {
+            distanceMeters(behind, current) >= MIN_BEARING_DISTANCE_METERS
+        }
+    }
+
     fun alongSeparation(first: Double, second: Double): Double {
         val direct = abs(first - second)
         return if (isLoop) minOf(direct, lengthMeters - direct) else direct
@@ -105,6 +123,13 @@ internal data class VehicleRouteMotion(
 
     fun positionAt(fraction: Double): GeoPoint =
         path.positionAt(startAlongMeters + deltaMeters * fraction.coerceIn(0.0, 1.0))
+
+    fun bearingAt(fraction: Double): Double? = path.bearingAt(
+        alongMeters = startAlongMeters + deltaMeters * fraction.coerceIn(0.0, 1.0),
+        // Direction-specific shapes are ordered in travel direction. A zero-length first
+        // observation therefore points along the shape until movement supplies stronger evidence.
+        forward = deltaMeters >= 0.0,
+    )
 }
 
 internal object VehicleRoutePathInterpolator {
@@ -213,12 +238,24 @@ private fun distanceMeters(from: GeoPoint, to: GeoPoint): Double {
     return EARTH_RADIUS_METERS * 2.0 * atan2(sqrt(a), sqrt(1.0 - a))
 }
 
+private fun bearingDegrees(from: GeoPoint, to: GeoPoint): Double {
+    val firstLatitude = from.latitude * PI / 180.0
+    val secondLatitude = to.latitude * PI / 180.0
+    val longitudeDelta = (to.longitude - from.longitude) * PI / 180.0
+    val y = sin(longitudeDelta) * cos(secondLatitude)
+    val x = cos(firstLatitude) * sin(secondLatitude) -
+        sin(firstLatitude) * cos(secondLatitude) * cos(longitudeDelta)
+    return ((atan2(y, x) * 180.0 / PI) % 360.0 + 360.0) % 360.0
+}
+
 private fun Double.positiveModulo(divisor: Double): Double = ((this % divisor) + divisor) % divisor
 
 private const val EARTH_RADIUS_METERS = 6_371_008.8
 private const val METERS_PER_LATITUDE_DEGREE = 111_320.0
 private const val MIN_LONGITUDE_SCALE = 1.0
 private const val MIN_SEGMENT_METERS = 0.25
+private const val MIN_BEARING_DISTANCE_METERS = 0.1
+private const val BEARING_SAMPLE_METERS = 4.0
 private const val MIN_PATH_METERS = 1.0
 private const val LOOP_CLOSURE_METERS = 50.0
 private const val MAX_PROJECTION_METERS = 120.0

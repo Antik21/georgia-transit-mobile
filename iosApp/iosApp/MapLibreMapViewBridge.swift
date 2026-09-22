@@ -38,6 +38,7 @@ private final class LocalMapLibreView: UIView, MLNMapViewDelegate {
     private var layersInstalled = false
     private var requestedBffStyleURL: URL?
     private var lastAppliedCameraRevision: Int64?
+    private var lastAppliedCamera: AppliedCamera?
     private var lastStops: [StopRenderInput]?
     private var lastStopSourceRevision: Int64?
     private var lastPolylineSourceRevision: Int64?
@@ -165,6 +166,7 @@ private final class LocalMapLibreView: UIView, MLNMapViewDelegate {
         guard !released else { return }
         layersInstalled = false
         lastAppliedCameraRevision = nil
+        lastAppliedCamera = nil
         clearRenderedLayerState()
         installSourcesAndLayersIfNeeded(style: style)
         pendingRenderState.map { render($0, style: style) }
@@ -186,6 +188,7 @@ private final class LocalMapLibreView: UIView, MLNMapViewDelegate {
         guard !released else { return }
         released = true
         pendingRenderState = nil
+        lastAppliedCamera = nil
         mapView.delegate = nil
         mapView.showsUserLocation = false
         mapView.disableLocationManager()
@@ -246,6 +249,8 @@ private final class LocalMapLibreView: UIView, MLNMapViewDelegate {
         let vehiclesLayer = MLNSymbolStyleLayer(identifier: Self.vehiclesLayerID, source: vehiclesSource)
         vehiclesLayer.iconImageName = NSExpression(forKeyPath: Self.vehicleBadgeImageProperty)
         vehiclesLayer.iconOpacity = NSExpression(forKeyPath: Self.vehicleOpacityProperty)
+        vehiclesLayer.iconRotation = NSExpression(forKeyPath: Self.bearingProperty)
+        vehiclesLayer.iconRotationAlignment = NSExpression(forConstantValue: "map")
         vehiclesLayer.iconAllowsOverlap = NSExpression(forConstantValue: true)
         vehiclesLayer.iconIgnoresPlacement = NSExpression(forConstantValue: true)
         style.addLayer(vehiclesLayer)
@@ -346,13 +351,40 @@ private final class LocalMapLibreView: UIView, MLNMapViewDelegate {
 
     private func applyCameraIfNeeded(_ command: MapCameraCommand) {
         guard lastAppliedCameraRevision != command.revision, isCoordinateValid(command.center), command.zoom.isFinite else { return }
+        let target = CLLocationCoordinate2D(latitude: command.center.latitude, longitude: command.center.longitude)
+        let nextCamera = AppliedCamera(
+            latitude: command.center.latitude,
+            longitude: command.center.longitude,
+            zoom: command.zoom,
+            bottomOcclusionFraction: normalizedBottomOcclusionFraction(command.viewportInsets)
+        )
+        let preservedScreenPoint = lastAppliedCamera
+            .flatMap { previous in shouldPreserveScreenAnchor(previous, nextCamera) ? mapView.convert(target, toPointTo: mapView) : nil }
         applyViewportInsets(command.viewportInsets)
         mapView.setCenter(
-            CLLocationCoordinate2D(latitude: command.center.latitude, longitude: command.center.longitude),
+            target,
             zoomLevel: min(max(command.zoom, Self.minimumZoom), Self.maximumZoom),
             animated: false
         )
+        if let originalPoint = preservedScreenPoint {
+            let centeredPoint = mapView.convert(target, toPointTo: mapView)
+            let compensatedCenter = mapView.convert(
+                CGPoint(
+                    x: centeredPoint.x * 2 - originalPoint.x,
+                    y: centeredPoint.y * 2 - originalPoint.y
+                ),
+                toCoordinateFrom: mapView
+            )
+            if CLLocationCoordinate2DIsValid(compensatedCenter) {
+                mapView.setCenter(
+                    compensatedCenter,
+                    zoomLevel: min(max(command.zoom, Self.minimumZoom), Self.maximumZoom),
+                    animated: false
+                )
+            }
+        }
         lastAppliedCameraRevision = command.revision
+        lastAppliedCamera = nextCamera
         DispatchQueue.main.async { [weak self] in self?.reportSettledViewport() }
     }
 
@@ -361,6 +393,20 @@ private final class LocalMapLibreView: UIView, MLNMapViewDelegate {
             ? min(max(insets.bottomOcclusionFraction, 0), Self.maximumBottomOcclusionFraction)
             : 0
         mapView.contentInset = UIEdgeInsets(top: 0, left: 0, bottom: bounds.height * fraction, right: 0)
+    }
+
+    private func normalizedBottomOcclusionFraction(_ insets: MapViewportInsets) -> Double {
+        insets.bottomOcclusionFraction.isFinite
+            ? min(max(insets.bottomOcclusionFraction, 0), Self.maximumBottomOcclusionFraction)
+            : 0
+    }
+
+    private func shouldPreserveScreenAnchor(_ previous: AppliedCamera, _ current: AppliedCamera) -> Bool {
+        previous.bottomOcclusionFraction > 0 &&
+            current.bottomOcclusionFraction == 0 &&
+            previous.latitude == current.latitude &&
+            previous.longitude == current.longitude &&
+            previous.zoom == current.zoom
     }
 
     private func ordinaryStopFeatures(_ markers: [MapStopMarker], sourceRevision: Int64) -> [[String: Any]] {
@@ -643,6 +689,8 @@ private final class LocalMapLibreView: UIView, MLNMapViewDelegate {
                 ]
                 if let bearing = marker.bearingDegrees?.doubleValue, bearing.isFinite {
                     properties[Self.bearingProperty] = normalizedBearing(bearing)
+                } else {
+                    properties[Self.bearingProperty] = Self.defaultVehicleBearing
                 }
                 return feature(
                     id: marker.stableId,
@@ -890,6 +938,7 @@ private final class LocalMapLibreView: UIView, MLNMapViewDelegate {
     private static let maximumStopMarkers = 1_000
     private static let maximumVehicleMarkers = 2_000
     private static let maximumVehicleBadgeImages = 256
+    private static let defaultVehicleBearing = 0.0
     private static let maximumAttentionMarkers = 32
     private static let maximumPolylines = 256
     private static let maximumPolylinePoints = 20_000
@@ -942,6 +991,13 @@ private struct UserLocationRenderInput: Equatable {
     let precision: String
 }
 
+private struct AppliedCamera {
+    let latitude: Double
+    let longitude: Double
+    let zoom: Double
+    let bottomOcclusionFraction: Double
+}
+
 private struct VehicleBadgeStyle: Hashable {
     let label: String
     let backgroundArgb: Int64
@@ -953,29 +1009,40 @@ private struct VehicleBadgeStyle: Hashable {
     }
 
     func image() -> UIImage {
-        var font = UIFont.boldSystemFont(ofSize: 28.8)
-        let maximumTextWidth: CGFloat = 57.6
+        var font = UIFont.boldSystemFont(ofSize: 28)
+        let maximumTextWidth: CGFloat = 48
         let initialTextWidth = (label as NSString).size(withAttributes: [.font: font]).width
         if initialTextWidth > maximumTextWidth {
-            font = UIFont.boldSystemFont(ofSize: max(18, font.pointSize * maximumTextWidth / initialTextWidth))
+            font = UIFont.boldSystemFont(ofSize: max(11, font.pointSize * maximumTextWidth / initialTextWidth))
         }
         let textAttributes: [NSAttributedString.Key: Any] = [
             .font: font,
             .foregroundColor: UIColor(argb: textArgb),
         ]
         let textSize = (label as NSString).size(withAttributes: textAttributes)
-        let size = CGSize(width: 80, height: 80)
+        let size = CGSize(width: 112, height: 112)
         return UIGraphicsImageRenderer(size: size).image { _ in
-            let circleRect = CGRect(origin: .zero, size: size).insetBy(dx: 0.5, dy: 0.5)
+            let bodyRect = CGRect(x: 27, y: 12, width: 58, height: 86)
+            let bodyPath = UIBezierPath(roundedRect: bodyRect, cornerRadius: 15)
+            UIColor.black.withAlphaComponent(0.25).setFill()
+            UIBezierPath(roundedRect: bodyRect.offsetBy(dx: 3, dy: 3), cornerRadius: 15).fill()
             UIColor(argb: backgroundArgb).setFill()
-            UIBezierPath(ovalIn: circleRect).fill()
+            bodyPath.fill()
             UIColor.white.setStroke()
-            let border = UIBezierPath(ovalIn: circleRect)
+            let border = UIBezierPath(roundedRect: bodyRect, cornerRadius: 15)
             border.lineWidth = 3
             border.stroke()
+
+            UIColor(red: 0.15, green: 0.20, blue: 0.25, alpha: 0.70).setFill()
+            UIBezierPath(roundedRect: CGRect(x: 34, y: 20, width: 44, height: 16), cornerRadius: 4).fill()
+            UIBezierPath(roundedRect: CGRect(x: 34, y: 82, width: 44, height: 9), cornerRadius: 4).fill()
+            UIColor(red: 1, green: 0.88, blue: 0.51, alpha: 1).setFill()
+            UIBezierPath(ovalIn: CGRect(x: 33.5, y: 13.5, width: 5, height: 5)).fill()
+            UIBezierPath(ovalIn: CGRect(x: 73.5, y: 13.5, width: 5, height: 5)).fill()
+
             let textRect = CGRect(
                 x: 0,
-                y: (size.height - textSize.height) / 2,
+                y: 58 - textSize.height / 2,
                 width: size.width,
                 height: textSize.height
             )
@@ -984,11 +1051,12 @@ private struct VehicleBadgeStyle: Hashable {
             (label as NSString).draw(in: textRect, withAttributes: centeredTextAttributes)
             if stale {
                 // Two diagonal strokes remain recognisable even when colour and opacity are unavailable.
+                bodyPath.addClip()
                 let cue = UIBezierPath()
-                cue.move(to: CGPoint(x: 10, y: size.height - 10))
-                cue.addLine(to: CGPoint(x: size.height - 10, y: 10))
-                cue.move(to: CGPoint(x: size.height / 2, y: size.height - 10))
-                cue.addLine(to: CGPoint(x: size.height + size.height / 2 - 10, y: 10))
+                cue.move(to: CGPoint(x: 27, y: 90))
+                cue.addLine(to: CGPoint(x: 85, y: 20))
+                cue.move(to: CGPoint(x: 49, y: 98))
+                cue.addLine(to: CGPoint(x: 85, y: 42))
                 UIColor(argb: textArgb).withAlphaComponent(0.7).setStroke()
                 cue.lineWidth = 4
                 cue.stroke()

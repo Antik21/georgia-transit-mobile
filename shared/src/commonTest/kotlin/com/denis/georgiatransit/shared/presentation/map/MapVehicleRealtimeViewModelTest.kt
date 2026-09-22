@@ -205,6 +205,56 @@ class MapVehicleRealtimeViewModelTest {
     }
 
     @Test
+    fun acceptedLocationUpdatePublishesIntermediatePositionFramesInsteadOfJumpingAtTheNextPoll() = runTest {
+        val target = origin.copy(longitude = origin.longitude + 0.0002)
+        val repository = ScriptedVehicleRepository(routes = listOf(route(routeA))).apply {
+            vehicleHandler = { _, routeId ->
+                requests += routeId
+                val observation = now + (requests.size - 1).toLong().toDuration(DurationUnit.SECONDS)
+                val position = if (requests.size == 1) origin else target
+                TransitLoadResult.Data(
+                    page(
+                        items = listOf(vehicle("moving", routeId, position, observation)),
+                        observedAt = observation,
+                    ),
+                    TransitFreshness.Network,
+                )
+            }
+        }
+        val session = selectedSession(repository, routes = setOf(routeA))
+        val viewModel = MapViewModel(
+            repository,
+            session,
+            RuntimeLocationSession(scope = this),
+            testClock(),
+            ticker(pollMillis = 1_000, frameMillis = 50),
+        )
+
+        viewModel.test(this) {
+            runOnCreate()
+            this@runTest.runCurrent()
+            viewModel.dispatchAction(Action.RealtimeVisibilityChanged(true))
+            this@runTest.runCurrent()
+            assertEquals(origin, viewModel.container.stateFlow.value.renderState?.vehicles?.single()?.position)
+
+            this@runTest.advanceTimeBy(1_000)
+            this@runTest.runCurrent()
+            val acceptedRevision = requireNotNull(viewModel.container.stateFlow.value.renderState).vehicleSourceRevision
+
+            this@runTest.advanceTimeBy(500)
+            this@runTest.runCurrent()
+            val animated = requireNotNull(viewModel.container.stateFlow.value.renderState)
+            val animatedPosition = animated.vehicles.single().position
+            assertTrue(animatedPosition.longitude > origin.longitude, "the frame ticker must advance beyond the old location")
+            assertTrue(animatedPosition.longitude < target.longitude, "the marker must still be between observations")
+            assertTrue(animated.vehicleSourceRevision > acceptedRevision, "an intermediate GeoJSON frame must be published")
+
+            cancelViewModel(viewModel)
+            cancelAndIgnoreRemainingItems()
+        }
+    }
+
+    @Test
     fun routeAndCityChangesRejectLateNonCooperativeVehicleResults() = runTest {
         val routeResult = CompletableDeferred<TransitLoadResult<VehiclePage>>()
         val cityResult = CompletableDeferred<TransitLoadResult<VehiclePage>>()

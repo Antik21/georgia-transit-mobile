@@ -21,17 +21,12 @@ import com.denis.georgiatransit.shared.domain.repository.TransitRepository
 import com.denis.georgiatransit.shared.domain.repository.TransitSession
 import com.denis.georgiatransit.shared.domain.repository.RouteListRequest
 import com.denis.georgiatransit.shared.domain.repository.canUseLastKnownGood
-import com.denis.georgiatransit.shared.domain.interactor.EstimateWalkingToStop
 import com.denis.georgiatransit.shared.presentation.location.LocationCommandId
 import com.denis.georgiatransit.shared.presentation.location.LocationPermissionState
 import com.denis.georgiatransit.shared.presentation.location.LocationPlatformCommand
 import com.denis.georgiatransit.shared.presentation.location.LocationPlatformEvent
 import com.denis.georgiatransit.shared.presentation.location.LocationSession
-import com.denis.georgiatransit.shared.presentation.location.LocationFreshnessClock
-import com.denis.georgiatransit.shared.presentation.location.SystemLocationFreshnessClock
 import com.denis.georgiatransit.shared.presentation.location.UserLocationFix
-import com.denis.georgiatransit.shared.presentation.location.MAX_FIX_AGE_MILLIS
-import com.denis.georgiatransit.shared.presentation.location.MAX_PRECISE_ACCURACY_METERS
 import com.denis.georgiatransit.shared.presentation.ui.contrastSafeRouteTextColor
 import com.denis.georgiatransit.shared.presentation.ui.RouteColorAvailability
 import com.denis.georgiatransit.shared.presentation.ui.RouteSelectionProjection
@@ -69,9 +64,6 @@ class MapViewModel(
     private val locationSession: LocationSession,
     private val realtimeClock: VehicleRealtimeClock = SystemVehicleRealtimeClock(),
     private val realtimeTickerPolicy: VehicleRealtimeTickerPolicy = DefaultVehicleRealtimeTickerPolicy,
-    /** DI supplies this in production; the default preserves existing host/test constructor shape. */
-    private val estimateWalkingToStop: EstimateWalkingToStop = EstimateWalkingToStop(repository),
-    private val locationFreshnessClock: LocationFreshnessClock = SystemLocationFreshnessClock,
     /** Entry-scoped via DI; its decoded shape cache deliberately cannot outlive this Map VM. */
     private val routeGeometryCoordinator: RouteGeometryCoordinator = RouteGeometryCoordinator(repository),
     /** Injected from a validated BFF endpoint; null retains the bundled/offline base layer. */
@@ -108,10 +100,6 @@ class MapViewModel(
     private val stopArrivalsRequestLock = Mutex()
     private val stopArrivalsRouteRequestLock = Mutex()
     private var stopArrivalsRouteRefreshJob: Job? = null
-    private var walkingEstimateJob: Job? = null
-    private var walkingEstimateGeneration = 0L
-    /** One in-memory key only for the currently-visible sheet; never a cache or persistence key. */
-    private var walkingEstimateRequest: WalkingEstimateRequestKey? = null
     /** The active city's canonical BFF catalogue; never a cross-city or persisted selection cache. */
     private var routeCatalog: List<TransitRoute> = emptyList()
     /** The one committed selection/style source shared by map overlays, sheets, and vehicle badges. */
@@ -233,7 +221,6 @@ class MapViewModel(
                 startVehicleRealtimeIfEligible()
                 startSelectedRouteStopLoadsIfEligible()
                 startStopArrivalsPollingIfEligible()
-                refreshWalkingEstimate(location)
             }
         },
     )
@@ -407,13 +394,11 @@ class MapViewModel(
         if (isVisibleAndStarted) {
             startSelectedRouteStopLoadsIfEligible()
             startStopArrivalsPollingIfEligible()
-            refreshWalkingEstimate(locationSession.state.value)
         } else {
             pauseSelectedRouteStopLoads()
             // Cancelling and advancing the generation makes a non-cooperative BFF client unable
             // to republish while the app is backgrounded. The selected marker stays selected.
             pauseStopArrivalsPolling()
-            pauseWalkingEstimate()
         }
     }
 
@@ -752,7 +737,12 @@ class MapViewModel(
                 val track = tracksById[marker.id]
                 if (track != null && marker.id in animatedTrackIds) {
                     val nextPosition = vehicleMarkerPosition(track, monotonicNow, interpolate = true)
-                    if (nextPosition == marker.position) marker else marker.copy(position = nextPosition)
+                    val nextBearing = vehicleMarkerBearing(track, monotonicNow, interpolate = true)
+                    if (nextPosition == marker.position && nextBearing == marker.bearingDegrees) {
+                        marker
+                    } else {
+                        marker.copy(position = nextPosition, bearingDegrees = nextBearing)
+                    }
                 } else {
                     marker
                 }
@@ -800,7 +790,7 @@ class MapViewModel(
             directionId = directionId,
             position = vehicleMarkerPosition(this, monotonicNowMillis, interpolate),
             routeColorArgb = routeSelection.backgroundArgb,
-            bearingDegrees = bearingDegrees,
+            bearingDegrees = vehicleMarkerBearing(this, monotonicNowMillis, interpolate),
             positionKind = positionKind,
             freshness = freshness,
             routeLabel = routeSelection.displayLabel.sanitizedRouteBadgeLabel(),
@@ -819,6 +809,32 @@ class MapViewModel(
         monotonicNowMillis: Long,
         interpolate: Boolean,
     ): GeoPoint {
+        val motion = vehicleRouteMotion(track)
+        if (motion == null) {
+            // Provider GPS can be outside the route or the shape can be genuinely unusable. Keep
+            // temporal continuity in that case: a short direct fallback is less disruptive than
+            // teleporting the marker, while valid projections still follow the street geometry.
+            return if (interpolate) VehicleRealtimeReducer.frame(track, monotonicNowMillis) else track.to
+        }
+        if (!interpolate) return motion.endPoint
+        val startedAt = track.interpolationStartedAtMonotonicMillis ?: return motion.endPoint
+        return motion.positionAt(interpolationFraction(startedAt, monotonicNowMillis))
+    }
+
+    /** Rotation is deliberately separate so it can never gate or replace the position frame. */
+    private fun vehicleMarkerBearing(
+        track: VehicleTrack,
+        monotonicNowMillis: Long,
+        interpolate: Boolean,
+    ): Double? {
+        val motion = vehicleRouteMotion(track) ?: return track.bearingDegrees
+        if (!interpolate) return motion.bearingAt(1.0) ?: track.bearingDegrees
+        val startedAt = track.interpolationStartedAtMonotonicMillis
+            ?: return motion.bearingAt(1.0) ?: track.bearingDegrees
+        return motion.bearingAt(interpolationFraction(startedAt, monotonicNowMillis)) ?: track.bearingDegrees
+    }
+
+    private fun vehicleRouteMotion(track: VehicleTrack): VehicleRouteMotion? {
         refreshVehicleRoutePaths()
         val routePaths = vehicleRoutePaths[track.routeId].orEmpty()
         val cached = vehicleRouteMotions[track.id]
@@ -835,18 +851,11 @@ class MapViewModel(
                 vehicleRouteMotions[track.id] = CachedVehicleRouteMotion.from(track, resolved)
             }
         }
-        if (motion == null) {
-            // Provider GPS can be outside the route or the shape can be genuinely unusable. Keep
-            // temporal continuity in that case: a short direct fallback is less disruptive than
-            // teleporting the marker, while valid projections still follow the street geometry.
-            return if (interpolate) VehicleRealtimeReducer.frame(track, monotonicNowMillis) else track.to
-        }
-        if (!interpolate) return motion.endPoint
-        val startedAt = track.interpolationStartedAtMonotonicMillis ?: return motion.endPoint
-        val elapsed = (monotonicNowMillis - startedAt).coerceAtLeast(0L)
-        val fraction = elapsed.toDouble() / VEHICLE_INTERPOLATION_DURATION_MILLIS
-        return motion.positionAt(fraction)
+        return motion
     }
+
+    private fun interpolationFraction(startedAt: Long, monotonicNowMillis: Long): Double =
+        (monotonicNowMillis - startedAt).coerceAtLeast(0L).toDouble() / VEHICLE_INTERPOLATION_DURATION_MILLIS
 
     private fun refreshVehicleRoutePaths() {
         val revision = routeGeometrySnapshot.polylineSourceRevision
@@ -1011,7 +1020,6 @@ class MapViewModel(
         nextStopSourceRevision()
         val city = currentCity
         val localizedStopArrivals = restartStopArrivalsForLocale(state.stopArrivalsSheet)
-            ?.withLocalizedWalkingEstimate(locale)
         reduce {
             state.copy(
                 renderState = city?.let { renderStateFor(it, state.location.fix, lastViewport?.zoom) },
@@ -1295,7 +1303,6 @@ class MapViewModel(
             )
         }
         startStopArrivalsPollingIfEligible()
-        refreshWalkingEstimate(locationSession.state.value)
     }
 
     /** Opens from the nearby-stop snapshot so later viewport results cannot rewrite the header. */
@@ -1320,9 +1327,6 @@ class MapViewModel(
             } else {
                 StopArrivalsSheetState.Unavailable
             },
-            walkingEstimate = WalkingEstimateUi.Unavailable(
-                walkingUnavailableReason(locationSession.state.value),
-            ),
         )
     }
 
@@ -1330,14 +1334,14 @@ class MapViewModel(
     private fun dismissStopArrivals() = intent {
         if (selectedStopId == null && stopArrivalsStop == null && state.stopArrivalsSheet == null) return@intent
         val previousCamera = cameraCommand
-        val viewport = lastViewport
+        val retainedZoom = previousCamera?.zoom ?: lastViewport?.zoom
         resetStopArrivalsState()
         selectedStopId = null
         mapViewportInsets = MapViewportInsets.None
         if (previousCamera != null) {
             cameraCommand = nextCameraCommand(
-                center = viewport?.center ?: previousCamera.center,
-                zoom = viewport?.zoom ?: previousCamera.zoom,
+                center = previousCamera.center,
+                zoom = previousCamera.zoom,
                 viewportInsets = MapViewportInsets.None,
             )
         }
@@ -1345,7 +1349,7 @@ class MapViewModel(
         val city = currentCity
         reduce {
             state.copy(
-                renderState = city?.let { renderStateFor(it, state.location.fix, viewport?.zoom) },
+                renderState = city?.let { renderStateFor(it, state.location.fix, retainedZoom) },
                 selectedStop = null,
                 nearbyStops = nearbyStopItems(),
                 stopArrivalsSheet = null,
@@ -1425,7 +1429,6 @@ class MapViewModel(
         stopArrivalsCatalogRoutes = emptyList()
         stopArrivalsPage = null
         stopArrivalsFreshness = null
-        resetWalkingEstimateRequest()
     }
 
     /** Keeps the selected-stop snapshot and previous rows, but makes every old response stale. */
@@ -1435,149 +1438,6 @@ class MapViewModel(
         stopArrivalsRouteRefreshJob?.cancel()
         stopArrivalsRouteRefreshJob = null
         stopArrivalsGeneration++
-    }
-
-    /**
-     * Starts at most one debounced direct-walking request for the visible stop/fix tuple. It is
-     * deliberately independent from arrivals polling, whose availability must never be affected.
-     */
-    private fun refreshWalkingEstimate(location: com.denis.georgiatransit.shared.presentation.location.LocationState) {
-        val city = currentCity
-        val stop = stopArrivalsStop
-        val sheet = container.stateFlow.value.stopArrivalsSheet
-        if (city == null || stop == null || sheet == null || selectedStopId != stop.id || !realtimeVisibleAndStarted) {
-            return
-        }
-        when (val eligibility = walkingEligibility(location)) {
-            is WalkingEligibility.Unavailable -> {
-                resetWalkingEstimateRequest()
-                publishWalkingUnavailable(eligibility.reason)
-            }
-            is WalkingEligibility.Eligible -> {
-                val key = WalkingEstimateRequestKey(city.id, stop.id, eligibility.fix)
-                if (walkingEstimateRequest == key) return
-                resetWalkingEstimateRequest()
-                walkingEstimateRequest = key
-                val generation = walkingEstimateGeneration
-                publishWalkingLoading(generation, key)
-                walkingEstimateJob = viewModelScope.launch {
-                    delay(WALKING_ESTIMATE_DEBOUNCE_MILLIS)
-                    if (!isCurrentWalkingEstimate(generation, key)) return@launch
-                    val currentFix = locationSession.state.value.fix
-                    // Re-check immediately before sharing a precise coordinate with the BFF.
-                    if (currentFix !== key.fix || walkingEligibility(locationSession.state.value) !is WalkingEligibility.Eligible) {
-                        return@launch
-                    }
-                    val result = try {
-                        estimateWalkingToStop(city, key.fix.point, stop.position, currentLocale)
-                    } catch (cancelled: CancellationException) {
-                        throw cancelled
-                    }
-                    if (!isCurrentWalkingEstimate(generation, key)) return@launch
-                    val checked = walkingEligibility(locationSession.state.value)
-                    if (checked !is WalkingEligibility.Eligible || checked.fix !== key.fix) return@launch
-                    publishWalkingReady(generation, key, result.estimate.distanceMeters, result.estimate.durationSeconds, result.source)
-                }
-            }
-        }
-    }
-
-    private fun resetWalkingEstimateRequest() {
-        walkingEstimateJob?.cancel()
-        walkingEstimateJob = null
-        walkingEstimateGeneration++
-        walkingEstimateRequest = null
-    }
-
-    /** Background work is cancelled and its request identity discarded rather than cached. */
-    private fun pauseWalkingEstimate() {
-        if (walkingEstimateRequest == null && walkingEstimateJob == null) return
-        resetWalkingEstimateRequest()
-        val reason = walkingUnavailableReason(locationSession.state.value)
-        intent {
-            val sheet = state.stopArrivalsSheet ?: return@intent
-            reduce { state.copy(stopArrivalsSheet = sheet.copy(walkingEstimate = WalkingEstimateUi.Unavailable(reason))) }
-        }
-    }
-
-    private fun publishWalkingLoading(generation: Long, key: WalkingEstimateRequestKey) = intent {
-        if (!isCurrentWalkingEstimate(generation, key)) return@intent
-        val sheet = state.stopArrivalsSheet ?: return@intent
-        reduce { state.copy(stopArrivalsSheet = sheet.copy(walkingEstimate = WalkingEstimateUi.Loading)) }
-    }
-
-    private fun publishWalkingReady(
-        generation: Long,
-        key: WalkingEstimateRequestKey,
-        distanceMeters: Double,
-        durationSeconds: Long,
-        source: com.denis.georgiatransit.shared.domain.model.WalkingEstimateSource,
-    ) = intent {
-        // This check is inside Orbit's scheduled intent so ignored cancellation can never publish.
-        if (!isCurrentWalkingEstimate(generation, key)) return@intent
-        val sheet = state.stopArrivalsSheet ?: return@intent
-        reduce {
-            state.copy(
-                stopArrivalsSheet = sheet.copy(
-                    walkingEstimate = WalkingEstimateUi.Ready(
-                        source = source,
-                        distanceMeters = distanceMeters,
-                        durationSeconds = durationSeconds,
-                        locale = currentLocale,
-                    ),
-                ),
-            )
-        }
-    }
-
-    private fun publishWalkingUnavailable(reason: WalkingEstimateUnavailableReason) = intent {
-        val sheet = state.stopArrivalsSheet ?: return@intent
-        if (sheet.walkingEstimate is WalkingEstimateUi.Unavailable && sheet.walkingEstimate.reason == reason) return@intent
-        reduce { state.copy(stopArrivalsSheet = sheet.copy(walkingEstimate = WalkingEstimateUi.Unavailable(reason))) }
-    }
-
-    private fun isCurrentWalkingEstimate(generation: Long, key: WalkingEstimateRequestKey): Boolean {
-        if (generation != walkingEstimateGeneration || walkingEstimateRequest != key || !realtimeVisibleAndStarted) return false
-        if (currentCity?.id != key.cityId || selectedStopId != key.stopId || stopArrivalsStop?.id != key.stopId) return false
-        val eligibility = walkingEligibility(locationSession.state.value)
-        return eligibility is WalkingEligibility.Eligible && eligibility.fix === key.fix
-    }
-
-    /** Rechecks permission, identity, time bounds, coordinates, and <=250m accuracy on every edge. */
-    private fun walkingEligibility(
-        location: com.denis.georgiatransit.shared.presentation.location.LocationState,
-    ): WalkingEligibility {
-        val permission = location.permission
-        if (permission !is LocationPermissionState.Granted) {
-            return WalkingEligibility.Unavailable(walkingUnavailableReason(location))
-        }
-        val fix = location.fix ?: return WalkingEligibility.Unavailable(WalkingEstimateUnavailableReason.NoAccurateFix)
-        val now = locationFreshnessClock.nowEpochMillis()
-        val valid = fix.point.latitude.isFinite() && fix.point.latitude in -90.0..90.0 &&
-            fix.point.longitude.isFinite() && fix.point.longitude in -180.0..180.0 &&
-            fix.accuracyMeters.isFinite() && fix.accuracyMeters >= 0.0 && fix.accuracyMeters <= MAX_PRECISE_ACCURACY_METERS &&
-            fix.capturedAtEpochMillis in 0..now &&
-            fix.expiresAtEpochMillis > now &&
-            fix.expiresAtEpochMillis >= fix.capturedAtEpochMillis &&
-            fix.expiresAtEpochMillis - fix.capturedAtEpochMillis <= MAX_FIX_AGE_MILLIS &&
-            now - fix.capturedAtEpochMillis <= MAX_FIX_AGE_MILLIS
-        return if (valid) WalkingEligibility.Eligible(fix) else {
-            WalkingEligibility.Unavailable(WalkingEstimateUnavailableReason.NoAccurateFix)
-        }
-    }
-
-    private fun walkingUnavailableReason(
-        location: com.denis.georgiatransit.shared.presentation.location.LocationState,
-    ): WalkingEstimateUnavailableReason = when (location.permission) {
-        LocationPermissionState.NotDetermined -> WalkingEstimateUnavailableReason.PermissionRequired
-        LocationPermissionState.Denied -> WalkingEstimateUnavailableReason.PermissionDenied
-        LocationPermissionState.SettingsRequired -> WalkingEstimateUnavailableReason.SettingsRequired
-        LocationPermissionState.Restricted -> WalkingEstimateUnavailableReason.Restricted
-        LocationPermissionState.ServicesDisabled -> WalkingEstimateUnavailableReason.ServicesDisabled
-        is LocationPermissionState.Unavailable,
-        is LocationPermissionState.Error,
-        -> WalkingEstimateUnavailableReason.LocationUnavailable
-        is LocationPermissionState.Granted -> WalkingEstimateUnavailableReason.NoAccurateFix
     }
 
     /** One sequential loop plus a mutex makes every stop-arrivals request non-overlapping. */
@@ -1779,14 +1639,6 @@ class MapViewModel(
     /** Selection/style changes only remap current presentation; they never restart sheet I/O. */
     private fun reprojectStopArrivalsSheet(current: StopArrivalsSheetUi?): StopArrivalsSheetUi? =
         current?.withCurrentArrivalPage()
-
-    /** Locale changes alter only presentation fields and never trigger another walking request. */
-    private fun StopArrivalsSheetUi.withLocalizedWalkingEstimate(locale: TransitLocale): StopArrivalsSheetUi = copy(
-        walkingEstimate = when (val walking = walkingEstimate) {
-            is WalkingEstimateUi.Ready -> walking.copy(locale = locale)
-            else -> walking
-        },
-    )
 
     private fun StopArrivalsSheetUi.withArrivalPage(
         page: ArrivalPage,
@@ -2123,7 +1975,6 @@ class MapViewModel(
         /** Matches the BFF contract maximum so every candidate inside the ETA horizon can render. */
         const val STOP_ARRIVALS_LIMIT = 100
         const val STOP_ARRIVALS_POLL_INTERVAL_MILLIS = 20_000L
-        const val WALKING_ESTIMATE_DEBOUNCE_MILLIS = 700L
     }
 }
 
@@ -2220,15 +2071,3 @@ private data class ArrivalUiDetails(
     val hasUnavailableRouteDetails: Boolean,
     val hasRejectedRows: Boolean,
 )
-
-/** Holds a single visible-sheet identity only; this is neither a cache nor persisted state. */
-private data class WalkingEstimateRequestKey(
-    val cityId: CityId,
-    val stopId: StopId,
-    val fix: UserLocationFix,
-)
-
-private sealed interface WalkingEligibility {
-    data class Eligible(val fix: UserLocationFix) : WalkingEligibility
-    data class Unavailable(val reason: WalkingEstimateUnavailableReason) : WalkingEligibility
-}
