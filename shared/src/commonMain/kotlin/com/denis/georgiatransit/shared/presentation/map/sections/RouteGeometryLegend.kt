@@ -109,7 +109,7 @@ internal fun RouteGeometryLegend(
                     trailingIcon = {
                         Box(
                             modifier = Modifier
-                                .size(InputChipDefaults.IconSize)
+                                .size(RouteGeometryActionSize)
                                 .clip(CircleShape)
                                 .testTag(AutomationId.MapRouteGeometryRemove)
                                 .semantics(mergeDescendants = true) {

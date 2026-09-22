@@ -274,9 +274,19 @@ class MapResourceContractTest {
             "dragHandle = null",
             ".clickable(",
             "indication = null",
+            "onClickLabel = handleActionLabel",
             "SheetValue.Expanded",
             "StopArrivalsHandleWidth",
             "sheet.stopName",
+        )
+        assertTrue(stopArrivalsSheet.contains("map_stop_arrivals_handle_accessibility"))
+        assertTrue(stopArrivalsSheet.contains("map_stop_arrivals_expand_accessibility"))
+        assertTrue(stopArrivalsSheet.contains("map_stop_arrivals_hide_accessibility"))
+        assertCodePath(
+            canvas,
+            "MapBaseLayerState.BffStyle",
+            "OpenStreetMapAttribution(",
+            "Alignment.TopEnd",
         )
         assertFalse(content.contains("map_selected_stop"))
         assertFalse(content.contains("MapSelectedStop"))

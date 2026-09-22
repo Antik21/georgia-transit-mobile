@@ -61,6 +61,9 @@
     <string name="map_route_geometry_remove">Remove</string>
     <string name="map_route_geometry_remove_accessibility">Remove route %1$s</string>
     <string name="map_stop_arrivals_title">Stop arrivals</string>
+    <string name="map_stop_arrivals_handle_accessibility">Stop arrivals</string>
+    <string name="map_stop_arrivals_expand_accessibility">Expand stop arrivals</string>
+    <string name="map_stop_arrivals_hide_accessibility">Hide stop arrivals</string>
     <string name="map_stop_arrivals_stop_details_unavailable">Stop details unavailable</string>
     <string name="map_stop_arrivals_routes">Routes serving this stop</string>
     <string name="map_stop_arrivals_selected_route">Selected</string>

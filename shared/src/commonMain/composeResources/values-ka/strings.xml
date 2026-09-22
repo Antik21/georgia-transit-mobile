@@ -61,6 +61,9 @@
     <string name="map_route_geometry_remove">წაშლა</string>
     <string name="map_route_geometry_remove_accessibility">მარშრუტის წაშლა: %1$s</string>
     <string name="map_stop_arrivals_title">გაჩერებაზე მოსვლები</string>
+    <string name="map_stop_arrivals_handle_accessibility">გაჩერებაზე მოსვლები</string>
+    <string name="map_stop_arrivals_expand_accessibility">გაჩერებაზე მოსვლების გაშლა</string>
+    <string name="map_stop_arrivals_hide_accessibility">გაჩერებაზე მოსვლების დამალვა</string>
     <string name="map_stop_arrivals_stop_details_unavailable">გაჩერების დეტალები მიუწვდომელია</string>
     <string name="map_stop_arrivals_routes">ამ გაჩერების მარშრუტები</string>
     <string name="map_stop_arrivals_selected_route">არჩეულია</string>

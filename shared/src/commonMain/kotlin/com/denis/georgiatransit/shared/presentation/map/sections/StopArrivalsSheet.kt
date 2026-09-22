@@ -51,7 +51,10 @@ import georgiatransit.shared.generated.resources.Res
 import georgiatransit.shared.generated.resources.map_stop_arrivals_arriving
 import georgiatransit.shared.generated.resources.map_stop_arrivals_empty
 import georgiatransit.shared.generated.resources.map_stop_arrivals_error
+import georgiatransit.shared.generated.resources.map_stop_arrivals_expand_accessibility
+import georgiatransit.shared.generated.resources.map_stop_arrivals_handle_accessibility
 import georgiatransit.shared.generated.resources.map_stop_arrivals_headsign_unavailable
+import georgiatransit.shared.generated.resources.map_stop_arrivals_hide_accessibility
 import georgiatransit.shared.generated.resources.map_stop_arrivals_loading
 import georgiatransit.shared.generated.resources.map_stop_arrivals_minutes
 import georgiatransit.shared.generated.resources.map_stop_arrivals_offline
@@ -86,6 +89,15 @@ internal fun StopArrivalsSheet(
     val sheetState = rememberModalBottomSheetState()
     val scope = rememberCoroutineScope()
     val handleInteractionSource = remember { MutableInteractionSource() }
+    val handleDescription = stringResource(Res.string.map_stop_arrivals_handle_accessibility)
+    val handleActionLabel = stringResource(
+        when (sheetState.currentValue) {
+            SheetValue.Expanded -> Res.string.map_stop_arrivals_hide_accessibility
+            SheetValue.PartiallyExpanded,
+            SheetValue.Hidden,
+            -> Res.string.map_stop_arrivals_expand_accessibility
+        },
+    )
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         modifier = modifier,
@@ -107,9 +119,13 @@ internal fun StopArrivalsSheet(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(vertical = StopArrivalsHandleVerticalPadding)
+                    .semantics {
+                        contentDescription = handleDescription
+                    }
                     .clickable(
                         interactionSource = handleInteractionSource,
                         indication = null,
+                        onClickLabel = handleActionLabel,
                     ) {
                         when (sheetState.currentValue) {
                             SheetValue.Expanded -> scope.launch {
