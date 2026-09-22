@@ -119,6 +119,7 @@ internal fun StopArrivalsSheet(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(vertical = StopArrivalsHandleVerticalPadding)
+                    .testTag(AutomationId.MapStopArrivalsHandle)
                     .semantics {
                         contentDescription = handleDescription
                     }

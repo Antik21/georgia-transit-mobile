@@ -32,3 +32,9 @@ appId: com.denis.georgiatransit
     id: map.stop-arrivals.row
 - assertVisible:
     id: map.stop-arrivals.source
+- tapOn:
+    id: map.stop-arrivals.handle
+- tapOn:
+    id: map.stop-arrivals.handle
+- assertNotVisible:
+    id: map.stop-arrivals.sheet

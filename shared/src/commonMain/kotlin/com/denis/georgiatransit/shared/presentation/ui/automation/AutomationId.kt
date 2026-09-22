@@ -36,6 +36,7 @@ object AutomationId {
     const val MapRouteGeometryRetry = "map.route-geometry.retry"
     const val MapRouteGeometryRemove = "map.route-geometry.remove"
     const val MapStopArrivalsSheet = "map.stop-arrivals.sheet"
+    const val MapStopArrivalsHandle = "map.stop-arrivals.handle"
     const val MapStopArrivalsLoading = "map.stop-arrivals.loading"
     const val MapStopArrivalsEmpty = "map.stop-arrivals.empty"
     const val MapStopArrivalsPartial = "map.stop-arrivals.partial"

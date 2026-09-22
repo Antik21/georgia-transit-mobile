@@ -1,6 +1,6 @@
 # ADR 0008: Direct walking estimate privacy boundary
 
-Status: Accepted (2026-09-08)
+Status: Superseded in part by ADR 0016 (2026-09-22)
 
 ## Context
 

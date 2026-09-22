@@ -124,6 +124,7 @@ class MapResourceContractTest {
             AutomationId.MapRetry,
             AutomationId.MapAttribution,
             AutomationId.MapStopArrivalsSheet,
+            AutomationId.MapStopArrivalsHandle,
             AutomationId.MapStopArrivalsLoading,
             AutomationId.MapStopArrivalsEmpty,
             AutomationId.MapStopArrivalsPartial,
@@ -152,6 +153,7 @@ class MapResourceContractTest {
         assertEquals("map.retry", AutomationId.MapRetry)
         assertEquals("map.attribution.link.transitous", AutomationId.mapAttributionLink("transitous"))
         assertEquals("map.stop-arrivals.sheet", AutomationId.MapStopArrivalsSheet)
+        assertEquals("map.stop-arrivals.handle", AutomationId.MapStopArrivalsHandle)
         assertEquals("map.stop-arrivals.row", AutomationId.MapStopArrivalsRow)
     }
 
@@ -166,6 +168,7 @@ class MapResourceContractTest {
         assertCodePath(
             sheet,
             "MapStopArrivalsSheet",
+            "MapStopArrivalsHandle",
             "sheet.stopName",
             "passingRouteShortNames",
             "MapStopArrivalsRows",
@@ -345,6 +348,7 @@ class MapResourceContractTest {
             AutomationId.MapScreen,
             AutomationId.MapNearbyStop,
             AutomationId.MapStopArrivalsSheet,
+            AutomationId.MapStopArrivalsHandle,
             AutomationId.MapStopArrivalsLoading,
             AutomationId.MapStopArrivalsRows,
             AutomationId.MapStopArrivalsRow,
@@ -520,7 +524,7 @@ class MapResourceContractTest {
             "selected = route.isFocused",
             "onFocus(route.routeId)",
             "MapRouteGeometryChip",
-            ".height(InputChipDefaults.Height)",
+            ".height(RouteGeometryActionSize)",
             "DirectionsBusIcon",
             ".size(InputChipDefaults.IconSize)",
             ".clip(CircleShape)",
@@ -532,7 +536,7 @@ class MapResourceContractTest {
             "MapRouteGeometryRetry",
             "onRetry(route.routeId)",
         )
-        assertFalse(legend.contains(".height(RouteGeometryActionSize)"))
+        assertFalse(legend.contains(".height(InputChipDefaults.Height)"))
         assertFalse(legendSource.contains("MaterialInputChipCornerRadius"))
         assertFalse(legendSource.contains("MaterialInputChipLeadingIconSize"))
         assertFalse(legendSource.contains("MaterialInputChipCloseIconSize"))
