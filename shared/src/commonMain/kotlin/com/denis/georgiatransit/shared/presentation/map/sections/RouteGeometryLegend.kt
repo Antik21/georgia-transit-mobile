@@ -78,7 +78,7 @@ internal fun RouteGeometryLegend(
                     onClick = { onFocus(route.routeId) },
                     modifier = Modifier
                         .testTag(AutomationId.MapRouteGeometryChip)
-                        .height(InputChipDefaults.Height)
+                        .height(RouteGeometryActionSize)
                         .semantics {
                             contentDescription = "${route.routeLabel}. $status"
                             selected = route.isFocused

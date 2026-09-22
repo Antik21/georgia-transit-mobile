@@ -159,7 +159,6 @@ private fun Content(state: ViewState, onAction: (Action) -> Unit) {
         state.stopArrivalsSheet?.let { sheet ->
             StopArrivalsSheet(
                 sheet = sheet,
-                showOpenStreetMapAttribution = state.baseLayerState == MapBaseLayerState.BffStyle,
                 onDismiss = { onAction(Action.StopArrivalsDismissed) },
                 onRetry = { onAction(Action.RetryStopArrivals) },
             )

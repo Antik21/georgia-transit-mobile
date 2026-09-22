@@ -27,5 +27,7 @@ bounds for the Batumi Theta catalog and BatBus live feed are recorded in
 [ADR 0013](0013-batumi-theta-production-approval.md).
 The CI-gated Render Docker deployment and persistent capability-control storage are recorded in
 [ADR 0014](0014-render-production-deployment.md).
+The removal of the mobile walking-estimate experience while preserving the BFF's privacy-safe
+operation is recorded in [ADR 0016](0016-remove-mobile-walking-estimate.md).
 The BFF-owned deterministic route color and accessible text-color contract is recorded in
-[ADR 0016](0016-bff-owned-stable-route-colors.md).
+[ADR 0017](0017-bff-owned-stable-route-colors.md).

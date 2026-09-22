@@ -61,6 +61,9 @@
     <string name="map_route_geometry_remove">Убрать</string>
     <string name="map_route_geometry_remove_accessibility">Убрать маршрут %1$s</string>
     <string name="map_stop_arrivals_title">Прибытия на остановку</string>
+    <string name="map_stop_arrivals_handle_accessibility">Прибытия на остановку</string>
+    <string name="map_stop_arrivals_expand_accessibility">Развернуть прибытия на остановку</string>
+    <string name="map_stop_arrivals_hide_accessibility">Скрыть прибытия на остановку</string>
     <string name="map_stop_arrivals_stop_details_unavailable">Данные остановки недоступны</string>
     <string name="map_stop_arrivals_routes">Маршруты этой остановки</string>
     <string name="map_stop_arrivals_selected_route">Выбран</string>
@@ -72,7 +75,6 @@
     <string name="map_stop_arrivals_error">Прибытия временно недоступны.</string>
     <string name="map_stop_arrivals_unavailable">Прибытия недоступны для этой остановки.</string>
     <string name="map_stop_arrivals_retry">Повторить</string>
-    <string name="map_stop_arrivals_close">Закрыть прибытия</string>
     <string name="map_stop_arrivals_refreshing">Обновляем прибытия…</string>
     <string name="map_stop_arrivals_stale">Показана более старая информация о прибытиях.</string>
     <string name="map_stop_arrivals_route_unavailable">Сведения о маршруте недоступны</string>

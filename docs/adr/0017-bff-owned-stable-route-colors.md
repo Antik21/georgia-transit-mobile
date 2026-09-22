@@ -1,4 +1,4 @@
-# ADR 0016: BFF-owned stable route colors
+# ADR 0017: BFF-owned stable route colors
 
 Status: Accepted (2026-09-22)
 

@@ -15,6 +15,6 @@ production-approved adapter under [ADR 0013](../../docs/adr/0013-batumi-theta-pr
 The BFF also owns the stable route `color` and accessible `textColor` pair. Mobile renderers may
 defensively repair text contrast, but must not reassign a route background based on catalogue
 order or the current selection; see
-[ADR 0016](../../docs/adr/0016-bff-owned-stable-route-colors.md).
+[ADR 0017](../../docs/adr/0017-bff-owned-stable-route-colors.md).
 See [the OpenAPI contract](../../docs/openapi/transit-bff-v1.yaml) and
 [ADR 0003](../../docs/adr/0003-transit-bff-runtime-and-provider-boundary.md).

@@ -160,37 +160,28 @@ internal fun MapCanvas(
                 )
                 .padding(TransitSpacing.Medium),
         )
-        if (baseLayerState == MapBaseLayerState.BffStyle) {
-            Column(
-                modifier = Modifier
-                    .align(Alignment.BottomEnd)
-                    .padding(TransitSpacing.ExtraSmall),
-                horizontalAlignment = Alignment.End,
-            ) {
-                PlatformMyLocationButton(
-                    contentDescription = locationActionLabel,
-                    automationId = locationActionAutomationId,
-                    enabled = locationActionEnabled,
-                    onClick = onMyLocationClick,
-                    modifier = Modifier.size(48.dp).testTag(locationActionAutomationId),
+        PlatformMyLocationButton(
+            contentDescription = locationActionLabel,
+            automationId = locationActionAutomationId,
+            enabled = locationActionEnabled,
+            onClick = onMyLocationClick,
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .windowInsetsPadding(
+                    WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal + WindowInsetsSides.Bottom),
                 )
-                Spacer(Modifier.height(32.dp))
-                OpenStreetMapAttribution()
-            }
-        } else {
-            PlatformMyLocationButton(
-                contentDescription = locationActionLabel,
-                automationId = locationActionAutomationId,
-                enabled = locationActionEnabled,
-                onClick = onMyLocationClick,
+                .padding(TransitSpacing.Medium)
+                .size(48.dp)
+                .testTag(locationActionAutomationId),
+        )
+        if (baseLayerState == MapBaseLayerState.BffStyle) {
+            OpenStreetMapAttribution(
                 modifier = Modifier
-                    .align(Alignment.BottomEnd)
+                    .align(Alignment.TopEnd)
                     .windowInsetsPadding(
-                        WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal + WindowInsetsSides.Bottom),
+                        WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal + WindowInsetsSides.Top),
                     )
-                    .padding(TransitSpacing.Medium)
-                    .size(48.dp)
-                    .testTag(locationActionAutomationId),
+                    .padding(TransitSpacing.ExtraSmall),
             )
         }
     }
