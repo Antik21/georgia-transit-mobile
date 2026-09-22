@@ -7,41 +7,33 @@ import kotlin.math.pow
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
-import kotlin.test.assertNotEquals
 import kotlin.test.assertTrue
 
 class RouteSelectionProjectorTest {
     @Test
-    fun canonicalCatalogOrderUsesDeterministicFallbacksAndContrastSafeText() {
+    fun canonicalServerColorsStayStableAcrossSelectionSetsAndKeepContrastSafeText() {
         val first = route("z-provider", "Z", color = 0xFF0057B8, textColor = 0xFFFFFFFF)
         val duplicateProviderColor = route("a-provider", "A", color = 0xFF0057B8, textColor = 0xFF0057B8)
-        val transparentProviderColor = route("transparent", "T", color = 0x7F0057B8, textColor = 0x00777777)
         val lowContrastProviderColor = route("light", "L", color = 0xFFF5F5F5, textColor = 0xFF777777)
-        val catalog = listOf(first, duplicateProviderColor, transparentProviderColor, lowContrastProviderColor)
+        val catalog = listOf(first, duplicateProviderColor, lowContrastProviderColor)
         val selected = catalog.mapTo(linkedSetOf(), TransitRoute::id)
 
         val firstProjection = RouteSelectionProjector.resolve(catalog, selected)
-        val secondProjection = RouteSelectionProjector.resolve(catalog, selected)
+        val routeAlone = RouteSelectionProjector.resolve(catalog, setOf(duplicateProviderColor.id))
 
         assertEquals(catalog.map(TransitRoute::id), firstProjection.routes.map(ResolvedRouteSelection::routeId))
-        assertEquals(firstProjection, secondProjection, "Fallback assignment must be stable across renderers.")
         assertEquals(first.colorArgb, firstProjection.routes.first().backgroundArgb)
-        assertNotEquals(
+        assertEquals(
             duplicateProviderColor.colorArgb,
             firstProjection.byId.getValue(duplicateProviderColor.id).backgroundArgb,
-            "A duplicate provider color must not create ambiguous route identity.",
         )
-        assertNotEquals(
-            transparentProviderColor.colorArgb,
-            firstProjection.byId.getValue(transparentProviderColor.id).backgroundArgb,
-        )
-        assertNotEquals(
+        assertEquals(
             lowContrastProviderColor.colorArgb,
             firstProjection.byId.getValue(lowContrastProviderColor.id).backgroundArgb,
         )
         assertEquals(
-            firstProjection.routes.size,
-            firstProjection.routes.map(ResolvedRouteSelection::backgroundArgb).toSet().size,
+            firstProjection.byId.getValue(duplicateProviderColor.id),
+            routeAlone.byId.getValue(duplicateProviderColor.id),
         )
         assertTrue(firstProjection.routes.all { it.colorAvailability == RouteColorAvailability.Assigned })
         assertTrue(firstProjection.routes.all { route -> contrastRatio(route.backgroundArgb, route.textArgb) >= 4.5 })

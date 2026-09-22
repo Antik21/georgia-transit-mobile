@@ -40,7 +40,6 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertIs
-import kotlin.test.assertNotEquals
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import kotlin.time.Instant
@@ -282,11 +281,12 @@ class StopArrivalsMapViewModelTest {
             assertEquals(fixture.stopA.id, afterSheet.stopId)
             assertEquals(listOf(fixture.routeA.id, fixture.routeB.id), afterSheet.passingRoutes.map(StopRouteBadgeUi::routeId))
             assertFalse(removedBadge.isSelected, "The previously selected badge must lose committed-selection styling.")
-            assertNotEquals(
+            assertEquals(
                 selectedBadge.backgroundArgb,
                 removedBadge.backgroundArgb,
-                "The sheet must fall back to its passing-route style once the committed selection removes B.",
+                "Removing a route from the selection must not change its BFF-owned identity color.",
             )
+            assertEquals(selectedBadge.textArgb, removedBadge.textArgb)
             assertTrue(after.nearbyStops.all { it.routeHighlight.style == StopRouteHighlightStyle.None })
             assertEquals(nearbyRequests, fixture.nearbyRequests)
             assertEquals(arrivalsRequests, fixture.arrivalsRequests)

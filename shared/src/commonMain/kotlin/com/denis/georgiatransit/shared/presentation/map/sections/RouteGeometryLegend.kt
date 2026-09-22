@@ -39,7 +39,7 @@ import com.denis.georgiatransit.shared.presentation.ui.theme.TransitSpacing
 import georgiatransit.shared.generated.resources.Res
 import georgiatransit.shared.generated.resources.map_route_geometry_loading
 import georgiatransit.shared.generated.resources.map_route_geometry_partial
-import georgiatransit.shared.generated.resources.map_route_geometry_palette_overflow
+import georgiatransit.shared.generated.resources.map_route_geometry_selection_overflow
 import georgiatransit.shared.generated.resources.map_route_geometry_ready
 import georgiatransit.shared.generated.resources.map_route_geometry_remove_accessibility
 import georgiatransit.shared.generated.resources.map_route_geometry_retry_accessibility
@@ -187,7 +187,7 @@ private fun routeGeometryStatusLabel(route: RouteGeometryLegendUi): String = whe
         route.failedDirections,
         route.totalDirections,
     )
-    RouteGeometryLegendState.PaletteOverflow -> stringResource(Res.string.map_route_geometry_palette_overflow)
+    RouteGeometryLegendState.SelectionOverflow -> stringResource(Res.string.map_route_geometry_selection_overflow)
 }
 
 private val RouteGeometryLegendUi.failedDirections: Int

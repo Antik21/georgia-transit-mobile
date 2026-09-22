@@ -32,7 +32,6 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertIs
-import kotlin.test.assertNotEquals
 import kotlin.test.assertTrue
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -114,7 +113,7 @@ class RoutesViewModelTest {
                 assertEquals(projection.getValue(route.id).backgroundArgb, rows.getValue(route.id).colorArgb)
                 assertEquals(projection.getValue(route.id).textArgb, rows.getValue(route.id).textColorArgb)
             }
-            assertNotEquals(route2.colorArgb, rows.getValue(route2.id).colorArgb)
+            assertEquals(route2.colorArgb, rows.getValue(route2.id).colorArgb)
             cancelAndIgnoreRemainingItems()
         }
     }

@@ -392,56 +392,25 @@ class RouteGeometryCoordinatorTest {
     }
 
     @Test
-    fun providerAndFallbackColorsAreDeterministicDistinctAndMeetMapContrastForTenLines() = runCoordinatorTest {
+    fun serverColorsRemainStableForEverySelectionAndOverflowStillFailsClosed() = runCoordinatorTest {
         val routes = (1..10).map { index ->
             route(
                 index = index,
-                // The first is an accepted provider color; repeated valid and light invalid values
-                // make the resolver exercise both collision fallback and contrast rejection.
-                color = when (index) {
-                    1, 2 -> 0xFF0057B8
-                    3 -> 0xFFF5F5F5
-                    else -> 0xFF0057B8
-                },
+                color = if (index % 2 == 0) 0xFF0057B8 else 0xFF5B21B6,
             )
         }
         val first = RouteGeometryCoordinator(ControlledShapeRepository()).update(this, cityId, true, routes, false) { }
-        val second = RouteGeometryCoordinator(ControlledShapeRepository()).update(this, cityId, true, routes, false) { }
-        val colors = first.legends.map(RouteGeometryLegendUi::colorArgb)
-
-        assertEquals(colors, second.legends.map(RouteGeometryLegendUi::colorArgb))
-        assertEquals(10, colors.toSet().size)
-        assertTrue(colors.all { contrastAgainstMap(it) >= 3.0 })
-        colors.forEachIndexed { index, color ->
-            colors.drop(index + 1).forEach { other ->
-                assertTrue(
-                    rgbDistanceSquared(color, other) >= MinimumRgbDistanceSquared,
-                    "Every assigned pair must meet the renderer's RGB distinguishability floor",
-                )
-            }
-        }
-        assertTrue(first.legends.all { it.colorAvailability == RouteGeometryColorAvailability.Assigned })
-
-        // #FF5A21B6 is an accessible provider color. #FF5B21B6 is also accessible, but only one
-        // RGB unit away, so it must be rejected as a provider collision and probed past by the
-        // fallback palette rather than emitting an ambiguous near-duplicate line.
-        val nearCollision = listOf(
-            route(index = 101, color = 0xFF5A21B6),
-            route(index = 102, color = 0xFF5B21B6),
-        )
-        val collisionSnapshot = RouteGeometryCoordinator(ControlledShapeRepository()).update(
+        val routeAlone = RouteGeometryCoordinator(ControlledShapeRepository()).update(
             this,
             cityId,
             true,
-            nearCollision,
+            listOf(routes.last()),
             false,
         ) { }
-        val provider = collisionSnapshot.legends[0]
-        val fallback = collisionSnapshot.legends[1]
-        assertEquals(0xFF5A21B6, provider.colorArgb)
-        assertNotEquals(0xFF5B21B6, fallback.colorArgb)
-        assertEquals(RouteGeometryColorAvailability.Assigned, fallback.colorAvailability)
-        assertTrue(rgbDistanceSquared(provider.colorArgb, fallback.colorArgb) >= MinimumRgbDistanceSquared)
+
+        assertEquals(routes.map(TransitRoute::colorArgb), first.legends.map(RouteGeometryLegendUi::colorArgb))
+        assertEquals(routes.last().colorArgb, routeAlone.legends.single().colorArgb)
+        assertTrue(first.legends.all { it.colorAvailability == RouteGeometryColorAvailability.Assigned })
 
         val overflow = RouteGeometryCoordinator(ControlledShapeRepository()).update(
             this,
@@ -450,8 +419,8 @@ class RouteGeometryCoordinatorTest {
             routes + route(11),
             false,
         ) { }
-        assertEquals(RouteGeometryLegendState.PaletteOverflow, overflow.legends.last().state)
-        assertEquals(RouteGeometryColorAvailability.PaletteOverflow, overflow.legends.last().colorAvailability)
+        assertEquals(RouteGeometryLegendState.SelectionOverflow, overflow.legends.last().state)
+        assertEquals(RouteGeometryColorAvailability.SelectionOverflow, overflow.legends.last().colorAvailability)
     }
 
     private fun route(
@@ -506,22 +475,6 @@ class RouteGeometryCoordinatorTest {
         append(value.toInt().plus(63).toChar())
     }
 
-    private fun contrastAgainstMap(color: Long): Double {
-        fun channel(shift: Int): Double {
-            val value = ((color shr shift) and 0xFF).toDouble() / 255.0
-            return if (value <= 0.03928) value / 12.92 else ((value + 0.055) / 1.055).pow(2.4)
-        }
-        val luminance = 0.2126 * channel(16) + 0.7152 * channel(8) + 0.0722 * channel(0)
-        return (maxOf(luminance, MapBackgroundLuminance) + 0.05) / (minOf(luminance, MapBackgroundLuminance) + 0.05)
-    }
-
-    private fun rgbDistanceSquared(first: Long, second: Long): Long {
-        val red = ((first shr 16) and 0xFF) - ((second shr 16) and 0xFF)
-        val green = ((first shr 8) and 0xFF) - ((second shr 8) and 0xFF)
-        val blue = (first and 0xFF) - (second and 0xFF)
-        return red * red + green * green + blue * blue
-    }
-
     private class MutableClock(var nowMillis: Long = 0L) : RouteGeometryClock {
         override fun nowEpochMillis(): Long = nowMillis
     }
@@ -569,8 +522,6 @@ class RouteGeometryCoordinatorTest {
     private companion object {
         val cityId = CityId("test-city")
         const val CacheTtlMillis = 24L * 60L * 60L * 1_000L
-        const val MapBackgroundLuminance = 0.8589768
-        const val MinimumRgbDistanceSquared = 2_500L
     }
 }
 

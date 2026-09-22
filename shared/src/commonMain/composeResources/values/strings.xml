@@ -55,7 +55,7 @@
     <string name="map_route_geometry_partial">%1$d of %2$d directions shown; some are unavailable</string>
     <string name="map_route_geometry_retryable">%1$d of %2$d directions could not be loaded.</string>
     <string name="map_route_geometry_unavailable">%1$d of %2$d directions are unavailable.</string>
-    <string name="map_route_geometry_palette_overflow">Too many selected routes to assign a distinct line color.</string>
+    <string name="map_route_geometry_selection_overflow">Too many routes are selected to display this line.</string>
     <string name="map_route_geometry_retry">Try again</string>
     <string name="map_route_geometry_retry_accessibility">Try again for route %1$s</string>
     <string name="map_route_geometry_remove">Remove</string>

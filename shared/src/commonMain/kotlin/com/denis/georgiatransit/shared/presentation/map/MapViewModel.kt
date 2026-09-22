@@ -104,7 +104,7 @@ class MapViewModel(
     private var routeCatalog: List<TransitRoute> = emptyList()
     /** The one committed selection/style source shared by map overlays, sheets, and vehicle badges. */
     private var selectedRouteProjection = RouteSelectionProjection()
-    /** Includes explicit palette-overflow rows so geometry can display an honest unavailable legend. */
+    /** Includes explicit selection-overflow rows so geometry can display an honest unavailable legend. */
     private var selectedCatalogRoutes: List<TransitRoute> = emptyList()
     private var selectedVehicleRoutes: List<TransitRoute> = emptyList()
     private var lastSelectedRouteIds: Set<RouteId> = emptySet()
