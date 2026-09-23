@@ -32,7 +32,9 @@ upstream data continues to trigger the existing safe schema-drift response.
 
 Mobile presentation preserves the BFF background even when another selected route has the same or
 a similar color. It retains only a defensive foreground contrast repair and an explicit selection
-overflow state for malformed selections beyond the ten-route product limit.
+overflow state for malformed selections beyond the ten-route product limit. The mobile route-list
+cache uses a new route-style namespace and deletes the prior namespace during cold-start hydration,
+so provider-colored catalogs persisted by an older app cannot bypass the canonical BFF mapping.
 
 ## Consequences
 

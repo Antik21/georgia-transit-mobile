@@ -37,7 +37,8 @@ import kotlin.time.Clock
 import kotlin.time.Instant
 
 private const val CityCacheKey = "transit-bff-v1.cities"
-private const val RouteCachePrefix = "transit-bff-v1.routes."
+private const val RouteCachePrefix = "transit-bff-v1.routes-style-v2."
+private const val LegacyRouteCachePrefix = "transit-bff-v1.routes."
 private const val NearbyCachePrefix = "transit-bff-v1.nearby."
 private const val CityMaxChars = 64 * 1024
 private const val RouteMaxChars = 128 * 1024
@@ -189,6 +190,9 @@ class BffTransitRepository(
             refreshMutex.withLock {
                 val hydratedSnapshot = withCache {
                     val now = clock.nowEpochMillis()
+                    // Pre-canonical-style catalogs contain provider colors. They must never enter
+                    // memory after upgrading because the client now preserves BFF-owned colors.
+                    cache.keys(LegacyRouteCachePrefix).forEach(cache::remove)
                     val cityEntry = cache.read<List<TransitCity>>(
                         key = CityCacheKey,
                         maxEncodedChars = CityMaxChars,

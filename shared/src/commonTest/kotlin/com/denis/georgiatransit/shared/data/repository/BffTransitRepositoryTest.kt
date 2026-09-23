@@ -219,6 +219,32 @@ class BffTransitRepositoryTest {
     }
 
     @Test
+    fun legacyRouteCatalogIsEvictedAndRefetchedBeforeCanonicalColorsArePublished() = runTest {
+        val store = MemoryStore()
+        val clock = MutableClock(1_000_000L)
+        val request = RouteListRequest(CityId("demo"))
+        val writer = repository(store, clock) { jsonResponse(routesJson(suffix = "legacy"), eTag = "legacy") }
+        writer.refreshRoutes(request)
+
+        val currentKey = routeCacheKeyForTest(request)
+        val legacyKey = routeCacheKeyForTest(request, LegacyRouteCachePrefixForTest)
+        store.values[legacyKey] = requireNotNull(store.values.remove(currentKey))
+
+        var networkCalls = 0
+        val reader = repository(store, clock) {
+            networkCalls += 1
+            jsonResponse(routesJson(suffix = "canonical"), eTag = "canonical")
+        }
+        val refreshed = assertIs<TransitLoadResult.Data<List<TransitRoute>>>(reader.refreshRoutes(request))
+
+        assertEquals(TransitFreshness.Network, refreshed.freshness)
+        assertEquals(listOf(RouteId("demo:fixture:route:canonical")), refreshed.value.map(TransitRoute::id))
+        assertEquals(1, networkCalls)
+        assertTrue(store.keys(LegacyRouteCachePrefixForTest).isEmpty())
+        assertTrue(store.keys(RouteCachePrefixForTest).contains(currentKey))
+    }
+
+    @Test
     fun route200AtomicallyReplacesPayloadEtagAndBothTimestamps() = runTest {
         val store = MemoryStore()
         val clock = MutableClock(1_000_000L)
@@ -354,19 +380,19 @@ class BffTransitRepositoryTest {
         }
         val request = RouteListRequest(CityId("demo"))
         repository.refreshRoutes(request)
-        assertTrue(store.keys("transit-bff-v1.routes.").isNotEmpty())
+        assertTrue(store.keys(RouteCachePrefixForTest).isNotEmpty())
 
         phase = 1
         clock.now += ROUTE_TTL_MILLIS
         assertIs<TransitFailure.ProviderIdChanged>(assertIs<TransitLoadResult.Failure>(repository.refreshRoutes(request)).error)
-        assertTrue(store.keys("transit-bff-v1.routes.").isEmpty())
+        assertTrue(store.keys(RouteCachePrefixForTest).isEmpty())
         assertTrue(repository.routes(CityId("demo")).isEmpty())
 
         phase = 0
         repository.refreshRoutes(request)
         phase = 2
         repository.refreshCityCapabilities()
-        assertTrue(store.keys("transit-bff-v1.routes.").isEmpty())
+        assertTrue(store.keys(RouteCachePrefixForTest).isEmpty())
         assertTrue(repository.routes(CityId("demo")).isEmpty())
     }
 
@@ -407,13 +433,13 @@ class BffTransitRepositoryTest {
             repository.refreshRoutes(RouteListRequest(CityId("city$index")))
             clock.now += 1L
         }
-        assertEquals(12, store.keys("transit-bff-v1.routes.").size)
+        assertEquals(12, store.keys(RouteCachePrefixForTest).size)
         assertFalse(store.keys(RouteCachePrefixForTest).any { it.contains("city0.") })
 
         repository.refreshRoutes(RouteListRequest(CityId("demo"), TransitLocale.Russian, TransitMode.Bus))
         repository.refreshRoutes(RouteListRequest(CityId("demo"), TransitLocale.English, TransitMode.Metro))
-        assertTrue(store.keys("transit-bff-v1.routes.").any { it.endsWith("demo.Russian.Bus") })
-        assertTrue(store.keys("transit-bff-v1.routes.").any { it.endsWith("demo.English.Metro") })
+        assertTrue(store.keys(RouteCachePrefixForTest).any { it.endsWith("demo.Russian.Bus") })
+        assertTrue(store.keys(RouteCachePrefixForTest).any { it.endsWith("demo.English.Metro") })
     }
 
     @Test
@@ -799,8 +825,10 @@ class BffTransitRepositoryTest {
         repository.refreshRoutes(RouteListRequest(CityId("other")))
     }
 
-    private fun routeCacheKeyForTest(request: RouteListRequest): String =
-        "$RouteCachePrefixForTest${request.cityId.value}.${request.locale.name}.${request.mode?.name ?: "all"}"
+    private fun routeCacheKeyForTest(
+        request: RouteListRequest,
+        prefix: String = RouteCachePrefixForTest,
+    ): String = "$prefix${request.cityId.value}.${request.locale.name}.${request.mode?.name ?: "all"}"
 
     private fun routeEntry(store: MemoryStore, request: RouteListRequest): String =
         requireNotNull(store.values[routeCacheKeyForTest(request)])
@@ -852,7 +880,8 @@ class BffTransitRepositoryTest {
 
     private companion object {
         const val CityCacheKeyForTest = "transit-bff-v1.cities"
-        const val RouteCachePrefixForTest = "transit-bff-v1.routes."
+        const val RouteCachePrefixForTest = "transit-bff-v1.routes-style-v2."
+        const val LegacyRouteCachePrefixForTest = "transit-bff-v1.routes."
         const val NearbyCachePrefixForTest = "transit-bff-v1.nearby."
         const val ROUTE_TTL_MILLIS = 48L * 60L * 60L * 1_000L
         const val NEARBY_TTL_MILLIS = 5L * 60L * 1_000L
