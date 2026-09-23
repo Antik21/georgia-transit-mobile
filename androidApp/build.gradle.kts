@@ -265,12 +265,12 @@ android {
             dimension = "environment"
             applicationIdSuffix = ".sandbox"
             versionNameSuffix = "-sandbox"
-            resValue("string", "app_name", "Georgia Transit Sandbox")
+            resValue("string", "app_name", "Geo Transit Sandbox")
             buildConfigField("String", "BFF_BASE_URL", buildConfigString(sandboxEndpoint.baseUrl))
         }
         create("prod") {
             dimension = "environment"
-            resValue("string", "app_name", "Georgia Transit")
+            resValue("string", "app_name", "Geo Transit")
             buildConfigField("String", "BFF_BASE_URL", buildConfigString(productionBffBaseUrl))
         }
     }

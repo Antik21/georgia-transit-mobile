@@ -28,9 +28,9 @@
 		<true/>
 	</dict>
 	<key>NSLocalNetworkUsageDescription</key>
-	<string>Georgia Transit Sandbox connects to a Transit BFF running on your development network.</string>
+	<string>Geo Transit Sandbox connects to a Transit BFF running on your development network.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>Georgia Transit uses your location to center the map and show nearby stops.</string>
+	<string>Geo Transit uses your location to center the map and show nearby stops.</string>
 	<key>UILaunchScreen</key>
 	<dict>
 		<key>UIColorName</key>

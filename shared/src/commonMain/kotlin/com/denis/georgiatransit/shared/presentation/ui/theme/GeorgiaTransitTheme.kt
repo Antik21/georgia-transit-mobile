@@ -16,11 +16,17 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
 object TransitColors {
+    val Primary = Color(0xFF8E1B2D)
+    val Accent = Color(0xFFFF6B5F)
+    val Background = Color(0xFFF7F7F5)
+    val Dark = Color(0xFF18191B)
+    val SecondaryGray = Color(0xFFA8ADB4)
+    val Success = Color(0xFF27AE7A)
+
     /** Matches the native launch background so launch handoff has no visible seam. */
-    val LaunchBackground = Color(0xFFF7FAF9)
-    val Brand = Color(0xFF2A9D8F)
-    val BrandDark = Color(0xFF0B625A)
-    val Accent = Color(0xFFE76F51)
+    val LaunchBackground = Background
+
+    // Map-specific colors are functional tokens rather than part of the brand palette.
     val MapWater = Color(0xFFB9DFE7)
     val MapLand = Color(0xFFE7F1EB)
     val RouteBlue = Color(0xFF457B9D)
@@ -68,20 +74,39 @@ private val TransitMaterialShapes = Shapes(
 )
 
 private val LightColors = lightColorScheme(
-    primary = TransitColors.BrandDark,
-    onPrimary = Color.White,
-    primaryContainer = Color(0xFFC0F0E8),
-    onPrimaryContainer = Color(0xFF00201D),
+    primary = TransitColors.Primary,
+    onPrimary = TransitColors.Background,
+    primaryContainer = TransitColors.Accent,
+    onPrimaryContainer = TransitColors.Dark,
     secondary = TransitColors.Accent,
-    background = Color(0xFFF7FAF9),
-    surface = Color(0xFFF7FAF9),
+    onSecondary = TransitColors.Dark,
+    tertiary = TransitColors.Success,
+    onTertiary = TransitColors.Dark,
+    background = TransitColors.Background,
+    onBackground = TransitColors.Dark,
+    surface = TransitColors.Background,
+    onSurface = TransitColors.Dark,
+    surfaceVariant = TransitColors.SecondaryGray,
+    onSurfaceVariant = TransitColors.Dark,
+    outline = TransitColors.SecondaryGray,
 )
 
 private val DarkColors = darkColorScheme(
-    primary = Color(0xFF76D6C8),
-    secondary = Color(0xFFFFB59F),
-    background = Color(0xFF101514),
-    surface = Color(0xFF101514),
+    primary = TransitColors.Accent,
+    onPrimary = TransitColors.Dark,
+    primaryContainer = TransitColors.Primary,
+    onPrimaryContainer = TransitColors.Background,
+    secondary = TransitColors.Success,
+    onSecondary = TransitColors.Dark,
+    tertiary = TransitColors.Primary,
+    onTertiary = TransitColors.Background,
+    background = TransitColors.Dark,
+    onBackground = TransitColors.Background,
+    surface = TransitColors.Dark,
+    onSurface = TransitColors.Background,
+    surfaceVariant = TransitColors.Dark,
+    onSurfaceVariant = TransitColors.SecondaryGray,
+    outline = TransitColors.SecondaryGray,
 )
 
 @Composable

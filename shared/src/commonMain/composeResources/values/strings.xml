@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name">Georgia Transit</string>
+    <string name="app_name">Geo Transit</string>
     <string name="bootstrap_loading">Preparing transit…</string>
     <string name="bootstrap_title">Transit is unavailable</string>
     <string name="bootstrap_error_timeout">Loading took too long. Check your connection and try again.</string>

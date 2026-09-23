@@ -176,7 +176,7 @@ sealed interface StopArrivalTimeUi {
 @Immutable
 enum class ArrivalSourceUi { OfficialRealtime, AggregatorRealtime, Schedule, Approximate }
 
-const val DefaultStopBackgroundArgb = 0xFF2A9D8FL
+const val DefaultStopBackgroundArgb = 0xFF8E1B2DL
 const val DefaultStopTextArgb = 0xFFFFFFFFL
 const val MultiRouteStopBackgroundArgb = 0xFF455A64L
 const val DefaultStopRadius = 5.0

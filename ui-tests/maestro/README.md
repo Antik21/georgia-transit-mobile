@@ -1,7 +1,7 @@
 # Maestro runtime checks
 
 The granted-location flow must be launched through a platform harness. Each harness resets only
-the Georgia Transit app, installs the supplied build, grants foreground location, injects a known
+the Geo Transit app, installs the supplied build, grants foreground location, injects a known
 Tbilisi simulator fix, and then runs a flow whose `launchApp` step does not clear app state.
 
 Android accepts emulator serials only:
