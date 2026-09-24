@@ -12,5 +12,9 @@ shared/mobile dependency. Its current `demo` adapter is an opt-in development
 fixture only; production fails closed until a reviewed provider adapter is explicitly activated
 with its capability control and any required operator-held credentials. Batumi Theta is the first
 production-approved adapter under [ADR 0013](../../docs/adr/0013-batumi-theta-production-approval.md).
+The BFF also owns the stable route `color` and accessible `textColor` pair. Mobile renderers may
+defensively repair text contrast, but must not reassign a route background based on catalogue
+order or the current selection; see
+[ADR 0017](../../docs/adr/0017-bff-owned-stable-route-colors.md).
 See [the OpenAPI contract](../../docs/openapi/transit-bff-v1.yaml) and
 [ADR 0003](../../docs/adr/0003-transit-bff-runtime-and-provider-boundary.md).

@@ -19,6 +19,7 @@ import com.denis.georgiatransit.bff.config.BatumiThetaActivationConfig
 import com.denis.georgiatransit.bff.observability.TelemetryCapability
 import com.denis.georgiatransit.bff.provider.JourneyQuery
 import com.denis.georgiatransit.bff.provider.ProviderRegistry
+import com.denis.georgiatransit.bff.service.CanonicalRouteStylePolicy
 import com.denis.georgiatransit.bff.service.TransitService
 import io.ktor.client.request.get
 import io.ktor.client.statement.bodyAsText
@@ -330,7 +331,10 @@ class RuntimeCapabilityControlTest {
         try {
             control.start()
             assertEquals(listOf("test"), runBlocking { service.cities().map { it.id } })
-            assertEquals(listOf(route), runBlocking { service.routes("test", "en", null) })
+            assertEquals(
+                listOf(CanonicalRouteStylePolicy.apply(route)),
+                runBlocking { service.routes("test", "en", null) },
+            )
             assertEquals(1, adapter.routesCalls.get())
 
             files.writeControl(capabilityDocument(revision = "disabled", enabled = false))
@@ -413,11 +417,11 @@ class RuntimeCapabilityControlTest {
             source.update(snapshot(generation = 2, adapter = adapter, capabilityValues = capabilities(routes = false)))
 
             release.complete(Unit)
-            assertEquals(listOf(route), first.await())
+            assertEquals(listOf(CanonicalRouteStylePolicy.apply(route)), first.await())
             assertFailsWith<CapabilityNotAvailable> { service.routes("test", "en", null) }
 
             source.update(snapshot(generation = 3, adapter = adapter))
-            assertEquals(listOf(route), service.routes("test", "en", null))
+            assertEquals(listOf(CanonicalRouteStylePolicy.apply(route)), service.routes("test", "en", null))
             assertEquals(2, adapter.routesCalls.get())
         } finally {
             service.close()

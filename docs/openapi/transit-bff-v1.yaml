@@ -465,8 +465,14 @@ components:
         providerId: {type: string}
         shortName: {type: string}
         longName: {$ref: '#/components/schemas/LocalizedText'}
-        color: {type: string, pattern: '^#[0-9A-Fa-f]{6}$'}
-        textColor: {type: string, pattern: '^#[0-9A-Fa-f]{6}$'}
+        color:
+          type: string
+          pattern: '^#[0-9A-Fa-f]{6}$'
+          description: Stable BFF-owned route identity color derived from the opaque route ID.
+        textColor:
+          type: string
+          pattern: '^#[0-9A-Fa-f]{6}$'
+          description: BFF-selected accessible text color for use on `color`.
         mode: {type: string, enum: [bus, metro, tram, ferry]}
         directions: {type: array, items: {$ref: '#/components/schemas/Direction'}}
     Stop:

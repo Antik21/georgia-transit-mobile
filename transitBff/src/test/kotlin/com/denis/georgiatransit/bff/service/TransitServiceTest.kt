@@ -115,6 +115,25 @@ class TransitServiceTest {
     }
 
     @Test
+    fun `route list and detail expose the same BFF owned style`() = runTest {
+        val listRoute = route.copy(color = "#000000", textColor = "#FFFFFF")
+        val detailRoute = route.copy(color = "#FFFFFF", textColor = "#000000")
+        val adapter = FakeAdapter().apply {
+            routesResult = { listOf(listRoute) }
+            routeResult = { detailRoute }
+        }
+        service(adapter).use { transit ->
+            val listed = transit.routes("test", "en", null).single()
+            val detailed = transit.route("test", route.id, "ka")
+
+            assertEquals("#C2410C", listed.color)
+            assertEquals("#FFFFFF", listed.textColor)
+            assertEquals(listed.color, detailed.color)
+            assertEquals(listed.textColor, detailed.textColor)
+        }
+    }
+
+    @Test
     fun `JSON decode and normalized schema classifications remain internal safe 502 responses`() = runTest {
         listOf(
             ProviderJsonDecodeFailure("raw-json-provider-payload"),
@@ -168,7 +187,10 @@ class TransitServiceTest {
             }
 
             adapter.routesResult = { listOf(route) }
-            assertEquals(listOf(route), transit.routes("test", "valid-after-failures", null))
+            assertEquals(
+                listOf(CanonicalRouteStylePolicy.apply(route)),
+                transit.routes("test", "valid-after-failures", null),
+            )
         }
     }
 
@@ -190,7 +212,7 @@ class TransitServiceTest {
             started.await()
             release.complete(Unit)
 
-            assertEquals(List(20) { listOf(route) }, calls.awaitAll())
+            assertEquals(List(20) { listOf(CanonicalRouteStylePolicy.apply(route)) }, calls.awaitAll())
             assertEquals(1, loads.get())
         }
     }

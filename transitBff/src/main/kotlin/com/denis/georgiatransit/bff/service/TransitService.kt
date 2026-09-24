@@ -113,7 +113,7 @@ class TransitService(
                 labels = labels,
                 loader = { effectiveCity.adapter.routes(locale, mode) },
                 validator = { NormalizedResponseValidator.routes(effectiveCity.city, it) },
-            )
+            ).map(CanonicalRouteStylePolicy::apply)
         }
     }
 
@@ -137,7 +137,7 @@ class TransitService(
                 labels = labels,
                 loader = { effectiveCity.adapter.route(routeId, locale) },
                 validator = { NormalizedResponseValidator.route(cityId, it, routeId) },
-            )
+            ).let(CanonicalRouteStylePolicy::apply)
         }
     }
 

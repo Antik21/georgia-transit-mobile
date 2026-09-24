@@ -46,7 +46,7 @@ sealed interface RouteGeometryLegendState {
     /** Geometry is disabled, absent, malformed, or outside the shared renderer safety cap. */
     @Immutable data object Unavailable : RouteGeometryLegendState
     /** Selection exceeded the shared distinct-color capacity; no ambiguous line is emitted. */
-    @Immutable data object PaletteOverflow : RouteGeometryLegendState
+    @Immutable data object SelectionOverflow : RouteGeometryLegendState
 }
 
 /** Distinguishes a renderable route color from an explicit selection-limit overflow. */
@@ -387,7 +387,7 @@ class RouteGeometryCoordinator(
     private fun activeDirectionSpecs(): List<DirectionSpec> {
         val cityId = input.cityId ?: return emptyList()
         return input.routes.asSequence()
-            // A palette overflow is an explicit no-style state: do not start requests for a
+            // A selection overflow is an explicit no-style state: do not start requests for a
             // geometry that can never become a safely distinguishable native line.
             .filter { route -> input.selection.byId[route.id]?.colorAvailability == RouteColorAvailability.Assigned }
             .flatMap { route ->
@@ -478,8 +478,8 @@ class RouteGeometryCoordinator(
                 routeLabel = "—",
                 colorArgb = UnavailableRouteColor,
                 textColorArgb = 0xFFFFFFFF,
-                colorAvailability = RouteColorAvailability.PaletteOverflow,
-                state = RouteGeometryLegendState.PaletteOverflow,
+                colorAvailability = RouteColorAvailability.SelectionOverflow,
+                state = RouteGeometryLegendState.SelectionOverflow,
                 successfulDirections = 0,
                 totalDirections = route.directions.size,
                 isFocused = false,
@@ -508,7 +508,8 @@ class RouteGeometryCoordinator(
                 textColorArgb = routeSelection.textArgb,
                 colorAvailability = routeSelection.colorAvailability,
                 state = when {
-                    routeSelection.colorAvailability == RouteColorAvailability.PaletteOverflow -> RouteGeometryLegendState.PaletteOverflow
+                    routeSelection.colorAvailability == RouteColorAvailability.SelectionOverflow ->
+                        RouteGeometryLegendState.SelectionOverflow
                     !input.routeGeometryEnabled || routeDirections.isEmpty() -> RouteGeometryLegendState.Unavailable
                     ready == routeDirections.size -> RouteGeometryLegendState.Ready
                     ready > 0 -> RouteGeometryLegendState.Partial
