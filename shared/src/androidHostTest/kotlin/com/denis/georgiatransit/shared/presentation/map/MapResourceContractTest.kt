@@ -933,6 +933,7 @@ class MapResourceContractTest {
             "MLNCircleStyleLayer(identifier: Self.stopsLayerID, source: stopsSource)",
             "MLNSymbolStyleLayer(identifier: Self.vehiclesLayerID, source: vehiclesSource)",
             "MLNCircleStyleLayer(identifier: Self.selectedStopLayerID, source: selectedStopSource)",
+            "UIColor(red: 1, green: 107.0 / 255.0, blue: 95.0 / 255.0, alpha: 1)",
         )
         assertTrue(
             swift.numericDeclaration("minimumStopTargetPoints") >= 44.0,

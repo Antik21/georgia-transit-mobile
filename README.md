@@ -37,7 +37,7 @@ direct `embedAndSignAppleFrameworkForXcode` host.
 
 ## Startup and selected-city recovery
 
-Both native hosts begin with the same plain `#F7FAF9` launch background; the
+Both native hosts begin with the same plain `#F7F7F5` launch background; the
 shared Compose splash owns all visible loading and recovery content. It has no
 native logo or text duplicate and adds no artificial visibility delay.
 

@@ -2,8 +2,8 @@ appId: com.denis.georgiatransit
 ---
 # Precondition: launch the Debug app once, then open the Android app drawer with KEYCODE_ALL_APPS.
 # The inspector is intentionally non-exported; reach it only through this app-owned dynamic shortcut.
-- assertVisible: Georgia Transit
-- longPressOn: Georgia Transit
+- assertVisible: Geo Transit
+- longPressOn: Geo Transit
 - assertVisible: Network inspector
 - tapOn: Network inspector
 - assertVisible:

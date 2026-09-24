@@ -264,7 +264,7 @@ private final class LocalMapLibreView: UIView, MLNMapViewDelegate {
 
         let selectedStopLayer = MLNCircleStyleLayer(identifier: Self.selectedStopLayerID, source: selectedStopSource)
         selectedStopLayer.circleColor = NSExpression(
-            forConstantValue: UIColor(red: 0.91, green: 0.44, blue: 0.32, alpha: 1)
+            forConstantValue: UIColor(red: 1, green: 107.0 / 255.0, blue: 95.0 / 255.0, alpha: 1)
         )
         selectedStopLayer.circleRadius = NSExpression(forConstantValue: Self.selectedStopRadius)
         selectedStopLayer.circleStrokeColor = NSExpression(forConstantValue: UIColor.white)

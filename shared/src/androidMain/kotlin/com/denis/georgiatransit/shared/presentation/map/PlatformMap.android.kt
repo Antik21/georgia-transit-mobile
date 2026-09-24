@@ -984,7 +984,7 @@ private const val CLUSTER_COUNT_PROPERTY = "clusterCount"
 private const val FEATURE_KIND_STOP = "stop"
 private const val FEATURE_KIND_CLUSTER = "cluster"
 private const val FEATURE_KIND_VEHICLE = "vehicle"
-private const val SELECTED_STOP_COLOR = "#E76F51"
+private const val SELECTED_STOP_COLOR = "#FF6B5F"
 private const val CLUSTER_COLOR = "#264653"
 private const val SELECTED_STOP_RADIUS = 9
 private const val CLUSTER_RADIUS = 12
@@ -1066,7 +1066,7 @@ private const val ATTENTION_MAX_SIZE_OPACITY = 0.10f
 private const val LOCAL_STYLE_JSON = """
     {
       "version": 8,
-      "name": "Georgia Transit local fallback",
+      "name": "Geo Transit local fallback",
       "sources": {},
       "layers": [
         {

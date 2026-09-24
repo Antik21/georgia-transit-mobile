@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name">საქართველოს ტრანსპორტი</string>
+    <string name="app_name">Geo Transit</string>
     <string name="bootstrap_loading">ტრანსპორტის მომზადება…</string>
     <string name="bootstrap_title">ტრანსპორტი მიუწვდომელია</string>
     <string name="bootstrap_error_timeout">ჩატვირთვას ძალიან დიდი დრო დასჭირდა. შეამოწმეთ კავშირი და სცადეთ თავიდან.</string>

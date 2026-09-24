@@ -40,8 +40,8 @@ class PreviewTransitRepository : TransitRepository {
     )
 
     private val routeList = listOf(
-        TransitRoute(RouteId("tbilisi:preview:route:301"), CityId("tbilisi"), "301", "Station Square — Varketili", 0xFF2A9D8F),
-        TransitRoute(RouteId("tbilisi:preview:route:337"), CityId("tbilisi"), "337", "Airport — Station Square", 0xFFE76F51),
+        TransitRoute(RouteId("tbilisi:preview:route:301"), CityId("tbilisi"), "301", "Station Square — Varketili", 0xFF8E1B2D),
+        TransitRoute(RouteId("tbilisi:preview:route:337"), CityId("tbilisi"), "337", "Airport — Station Square", 0xFFFF6B5F),
         TransitRoute(RouteId("tbilisi:preview:route:395"), CityId("tbilisi"), "395", "University — Freedom Square", 0xFF457B9D),
         TransitRoute(RouteId("batumi:preview:route:1"), CityId("batumi"), "1", "Airport — Botanical Garden", 0xFF6D597A),
         TransitRoute(RouteId("batumi:preview:route:10"), CityId("batumi"), "10", "Old Boulevard — Airport", 0xFFF4A261),
