@@ -21,6 +21,7 @@ object TransitColors {
     val Background = Color(0xFFF7F7F5)
     val Dark = Color(0xFF18191B)
     val SecondaryGray = Color(0xFFA8ADB4)
+    val LightOutline = Color(0xFF7C8188)
     val Success = Color(0xFF27AE7A)
 
     /** Matches the native launch background so launch handoff has no visible seam. */
@@ -88,7 +89,7 @@ private val LightColors = lightColorScheme(
     onSurface = TransitColors.Dark,
     surfaceVariant = TransitColors.SecondaryGray,
     onSurfaceVariant = TransitColors.Dark,
-    outline = TransitColors.SecondaryGray,
+    outline = TransitColors.LightOutline,
 )
 
 private val DarkColors = darkColorScheme(
