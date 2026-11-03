@@ -480,6 +480,10 @@ class RoutesViewModelTest {
             this@runTest.runCurrent()
             awaitItem()
             assertEquals(CatalogState.Loading, viewModel.container.stateFlow.value.catalog)
+            // The first request must own firstGate before changing cities. Orbit may publish
+            // Loading before its child coroutine enters the repository on a busy CI worker.
+            repository.refreshStarted.await()
+            assertEquals(listOf(firstCity.id), repository.refreshRequests.map(RouteListRequest::cityId))
 
             session.selectCity(secondCity)
             this@runTest.runCurrent()
@@ -487,6 +491,10 @@ class RoutesViewModelTest {
             assertEquals(secondCity.id, viewModel.container.stateFlow.value.cityId)
             assertEquals(CatalogState.Loading, viewModel.container.stateFlow.value.catalog)
             assertEquals(emptySet(), session.selectedRouteIds.value)
+            assertEquals(
+                listOf(firstCity.id, secondCity.id),
+                repository.refreshRequests.map(RouteListRequest::cityId),
+            )
 
             firstGate.complete(TransitLoadResult.Data(listOf(firstRoute), TransitFreshness.Network))
             this@runTest.runCurrent()
