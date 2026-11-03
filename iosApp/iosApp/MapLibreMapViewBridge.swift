@@ -1020,8 +1020,16 @@ private struct VehicleBadgeStyle: Hashable {
             .foregroundColor: UIColor(argb: textArgb),
         ]
         let textSize = (label as NSString).size(withAttributes: textAttributes)
-        let size = CGSize(width: 112, height: 112)
-        return UIGraphicsImageRenderer(size: size).image { _ in
+        // These 112-unit coordinates match Android's bitmap artwork, not UIKit points.
+        // Keep the on-map canvas compact at 40 points; the renderer supplies Retina pixels.
+        // Rendering the design directly at 112 points makes iOS buses several times too large.
+        let drawingSize = CGSize(width: 112, height: 112)
+        let displaySize = CGSize(width: 40, height: 40)
+        return UIGraphicsImageRenderer(size: displaySize).image { context in
+            context.cgContext.scaleBy(
+                x: displaySize.width / drawingSize.width,
+                y: displaySize.height / drawingSize.height
+            )
             let bodyRect = CGRect(x: 27, y: 12, width: 58, height: 86)
             let bodyPath = UIBezierPath(roundedRect: bodyRect, cornerRadius: 15)
             UIColor.black.withAlphaComponent(0.25).setFill()
@@ -1043,7 +1051,7 @@ private struct VehicleBadgeStyle: Hashable {
             let textRect = CGRect(
                 x: 0,
                 y: 58 - textSize.height / 2,
-                width: size.width,
+                width: drawingSize.width,
                 height: textSize.height
             )
             var centeredTextAttributes = textAttributes
