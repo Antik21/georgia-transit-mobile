@@ -117,6 +117,9 @@ internal data class VehicleRouteMotion(
     val startAlongMeters: Double,
     val deltaMeters: Double,
     val score: Double,
+    val travelForward: Boolean = deltaMeters >= 0.0,
+    val oppositeEvidenceMeters: Double = 0.0,
+    val oppositeEvidenceCount: Int = 0,
 ) {
     val endAlongMeters: Double get() = startAlongMeters + deltaMeters
     val endPoint: GeoPoint get() = path.positionAt(startAlongMeters + deltaMeters)
@@ -126,9 +129,7 @@ internal data class VehicleRouteMotion(
 
     fun bearingAt(fraction: Double): Double? = path.bearingAt(
         alongMeters = startAlongMeters + deltaMeters * fraction.coerceIn(0.0, 1.0),
-        // Direction-specific shapes are ordered in travel direction. A zero-length first
-        // observation therefore points along the shape until movement supplies stronger evidence.
-        forward = deltaMeters >= 0.0,
+        forward = travelForward,
     )
 }
 
@@ -153,7 +154,34 @@ internal object VehicleRoutePathInterpolator {
         ) {
             return null
         }
-        return best
+        return best.withStableDirection(previousMotion?.takeIf { it.path === best.path })
+    }
+
+    /** A single GPS setback must not turn a vehicle around on an otherwise stable route. */
+    private fun VehicleRouteMotion.withStableDirection(previous: VehicleRouteMotion?): VehicleRouteMotion {
+        if (previous == null) return this
+        if (abs(deltaMeters) < MIN_DIRECTION_EVIDENCE_METERS) {
+            return copy(
+                travelForward = previous.travelForward,
+                oppositeEvidenceMeters = previous.oppositeEvidenceMeters,
+                oppositeEvidenceCount = previous.oppositeEvidenceCount,
+            )
+        }
+        val observedForward = deltaMeters > 0.0
+        if (observedForward == previous.travelForward) {
+            return copy(travelForward = previous.travelForward)
+        }
+        val evidenceMeters = previous.oppositeEvidenceMeters + abs(deltaMeters)
+        val evidenceCount = previous.oppositeEvidenceCount + 1
+        return if (evidenceCount >= MIN_OPPOSITE_OBSERVATIONS && evidenceMeters >= MIN_OPPOSITE_TRAVEL_METERS) {
+            copy(travelForward = observedForward)
+        } else {
+            copy(
+                travelForward = previous.travelForward,
+                oppositeEvidenceMeters = evidenceMeters,
+                oppositeEvidenceCount = evidenceCount,
+            )
+        }
     }
 
     private fun motionOnPath(
@@ -268,3 +296,6 @@ private const val MAX_PATH_TO_DIRECT_RATIO = 5.0
 private const val PATH_DISTANCE_ALLOWANCE_METERS = 80.0
 private const val MOVEMENT_SCORE_WEIGHT = 0.25
 private const val CONTINUITY_SCORE_WEIGHT = 2.0
+private const val MIN_DIRECTION_EVIDENCE_METERS = 3.0
+private const val MIN_OPPOSITE_TRAVEL_METERS = 30.0
+private const val MIN_OPPOSITE_OBSERVATIONS = 3
