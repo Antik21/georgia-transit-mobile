@@ -160,7 +160,7 @@ internal object VehicleRoutePathInterpolator {
     /** A single GPS setback must not turn a vehicle around on an otherwise stable route. */
     private fun VehicleRouteMotion.withStableDirection(previous: VehicleRouteMotion?): VehicleRouteMotion {
         if (previous == null) return this
-        if (abs(deltaMeters) < MIN_DIRECTION_EVIDENCE_METERS) {
+        if (abs(deltaMeters) < MIN_MEANINGFUL_MOVEMENT_METERS) {
             return copy(
                 travelForward = previous.travelForward,
                 oppositeEvidenceMeters = previous.oppositeEvidenceMeters,
@@ -169,7 +169,18 @@ internal object VehicleRoutePathInterpolator {
         }
         val observedForward = deltaMeters > 0.0
         if (observedForward == previous.travelForward) {
-            return copy(travelForward = previous.travelForward)
+            // Small forward recoveries must cancel earlier GPS setbacks too. Otherwise several
+            // independent setbacks can add up to a false reversal while the vehicle stays put.
+            val remainingEvidence = (previous.oppositeEvidenceMeters - abs(deltaMeters)).coerceAtLeast(0.0)
+            return if (remainingEvidence < MIN_RETAINED_OPPOSITE_EVIDENCE_METERS) {
+                copy(travelForward = previous.travelForward)
+            } else {
+                copy(
+                    travelForward = previous.travelForward,
+                    oppositeEvidenceMeters = remainingEvidence,
+                    oppositeEvidenceCount = previous.oppositeEvidenceCount,
+                )
+            }
         }
         val evidenceMeters = previous.oppositeEvidenceMeters + abs(deltaMeters)
         val evidenceCount = previous.oppositeEvidenceCount + 1
@@ -296,6 +307,7 @@ private const val MAX_PATH_TO_DIRECT_RATIO = 5.0
 private const val PATH_DISTANCE_ALLOWANCE_METERS = 80.0
 private const val MOVEMENT_SCORE_WEIGHT = 0.25
 private const val CONTINUITY_SCORE_WEIGHT = 2.0
-private const val MIN_DIRECTION_EVIDENCE_METERS = 3.0
+private const val MIN_MEANINGFUL_MOVEMENT_METERS = 0.1
+private const val MIN_RETAINED_OPPOSITE_EVIDENCE_METERS = 3.0
 private const val MIN_OPPOSITE_TRAVEL_METERS = 30.0
 private const val MIN_OPPOSITE_OBSERVATIONS = 3

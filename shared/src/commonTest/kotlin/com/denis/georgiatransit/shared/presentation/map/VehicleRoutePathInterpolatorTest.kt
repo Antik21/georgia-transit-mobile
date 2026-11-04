@@ -95,6 +95,42 @@ class VehicleRoutePathInterpolatorTest {
         assertBearingNear(270.0, assertNotNull(third.bearingAt(0.5)))
     }
 
+    @Test
+    fun `small recoveries cancel repeated GPS setbacks`() {
+        val path = prepared(GeoPoint(0.0, 0.0), GeoPoint(0.0, 0.002))
+        var longitude = 0.001
+        var previous = motion(path, 0.0005, longitude)
+
+        repeat(3) {
+            val setback = longitude - 0.00012
+            previous = motion(path, longitude, setback, previous)
+            longitude = setback
+            assertBearingNear(90.0, assertNotNull(previous.bearingAt(0.5)))
+            repeat(6) {
+                val next = longitude + 0.00002
+                previous = motion(path, longitude, next, previous)
+                longitude = next
+                assertBearingNear(90.0, assertNotNull(previous.bearingAt(0.5)))
+            }
+            assertTrue(previous.oppositeEvidenceCount == 0)
+        }
+    }
+
+    @Test
+    fun `small sustained reverse steps still establish a real reversal`() {
+        val path = prepared(GeoPoint(0.0, 0.0), GeoPoint(0.0, 0.002))
+        var longitude = 0.0015
+        var previous = motion(path, 0.001, longitude)
+
+        repeat(14) {
+            val next = longitude - 0.00002
+            previous = motion(path, longitude, next, previous)
+            longitude = next
+        }
+
+        assertBearingNear(270.0, assertNotNull(previous.bearingAt(0.5)))
+    }
+
     private fun motion(
         path: PreparedVehicleRoutePath,
         fromLongitude: Double,
