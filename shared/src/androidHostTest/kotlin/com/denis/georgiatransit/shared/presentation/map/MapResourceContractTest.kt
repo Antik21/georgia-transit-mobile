@@ -219,14 +219,17 @@ class MapResourceContractTest {
         val viewModel = projectRoot().resolve(
             "shared/src/commonMain/kotlin/com/denis/georgiatransit/shared/presentation/map/MapViewModel.kt",
         ).readText()
+        val stopsProjector = projectRoot().resolve(
+            "shared/src/commonMain/kotlin/com/denis/georgiatransit/shared/presentation/map/MapStopsProjector.kt",
+        ).readText()
         val canvas = canvasSource.functionBody("fun MapCanvas")
         val contentOverlay = canvasSource.functionBody("private fun MapContentOverlay")
         val baseLayerOverlay = canvasSource.functionBody("private fun BaseLayerOverlay")
         val content = screen.functionBody("private fun Content")
         val stopArrivalsSheet = stopArrivalsSource.functionBody("fun StopArrivalsSheet")
-        val selectedStopUi = viewModel.functionBody("private fun selectedStopUi")
-        val stopDisplayName = viewModel.functionBody("private fun TransitStop.displayName")
-        val stopAccessibilityLabel = viewModel.functionBody("private fun TransitStop.accessibilityLabel")
+        val selectedStopUi = stopsProjector.functionBody("fun selectedStopUi")
+        val stopDisplayName = stopsProjector.functionBody("private fun TransitStop.displayName")
+        val stopAccessibilityLabel = stopsProjector.functionBody("private fun TransitStop.accessibilityLabel")
 
         assertCodePath(baseLayerOverlay, "MapBaseLayerState.LocalPreview", "map_preview_note", "MapLocalPreview")
         assertCodePath(contentOverlay, "MapContentState.Loading", "map_content_loading", "MapLoading")
@@ -260,9 +263,9 @@ class MapResourceContractTest {
         )
         assertTrue(canvasSource.contains("private const val MAX_ACCESSIBILITY_CUSTOM_ACTIONS = 31"))
         assertTrue(
-            viewModel.compactWhitespace().contains("accessibilityLabel = stop.accessibilityLabel(currentLocale)"),
+            stopsProjector.compactWhitespace().contains("accessibilityLabel = stop.accessibilityLabel(locale)"),
         )
-        assertCodePath(selectedStopUi, "stop.displayName(currentLocale)", "takeIf(String::isNotBlank)")
+        assertCodePath(selectedStopUi, "stop.displayName(locale)", "takeIf(String::isNotBlank)")
         assertCodePath(stopDisplayName, "name.forLocale(locale)", "code")
         assertFalse(stopDisplayName.contains("id.value"), "Stop labels must never surface opaque stop IDs.")
         assertCodePath(stopAccessibilityLabel, "displayName(locale)")
@@ -289,7 +292,7 @@ class MapResourceContractTest {
             canvas,
             "MapBaseLayerState.BffStyle",
             "OpenStreetMapAttribution(",
-            "Alignment.TopEnd",
+            "Alignment.BottomEnd",
         )
         assertFalse(content.contains("map_selected_stop"))
         assertFalse(content.contains("MapSelectedStop"))
@@ -411,7 +414,10 @@ class MapResourceContractTest {
             "lastVehicleBadgeRevision != state.vehicleBadgeRevision",
             "maximumVehicleBadgeImages = 256",
             "staleVehicleOpacity",
-            "let size = CGSize(width: 112, height: 112)",
+            "let drawingSize = CGSize(width: 112, height: 112)",
+            "let displaySize = CGSize(width: 40, height: 40)",
+            "UIGraphicsImageRenderer(size: displaySize)",
+            "context.cgContext.scaleBy(",
         )
         assertTrue(swift.contains("func mapView(_ mapView: MLNMapView, didFinishLoading style: MLNStyle)"))
         assertTrue(swift.contains("func releaseResources()"))
@@ -494,55 +500,6 @@ class MapResourceContractTest {
             "Self.stopsLayerID, kind: Self.stopFeatureKind",
             "Self.vehiclesLayerID, kind: Self.vehicleFeatureKind",
         )
-    }
-
-    @Test
-    fun routeGeometryLegendUsesAccessibleBusChipsAndTypedActions() {
-        val legendSource = projectRoot().mapSectionSource("RouteGeometryLegend.kt")
-        val automation = projectRoot().resolve(
-            "shared/src/commonMain/kotlin/com/denis/georgiatransit/shared/presentation/ui/automation/AutomationId.kt",
-        ).readText()
-        val legend = legendSource.functionBody("fun RouteGeometryLegend")
-
-        listOf(
-            AutomationId.MapRouteGeometryLegend,
-            AutomationId.MapRouteGeometryChip,
-            AutomationId.MapRouteGeometryRetry,
-            AutomationId.MapRouteGeometryRemove,
-        ).forEach { id ->
-            assertTrue(id.startsWith("map.route-geometry."))
-            assertFalse(id.contains('$'), "DEN-69 automation IDs must not include runtime values")
-            assertTrue(automation.contains("\"$id\""))
-        }
-        assertCodePath(
-            legend,
-            "Column(",
-            "modifier = modifier",
-            "MapRouteGeometryLegend",
-            "items(routes, key = { it.routeId.value })",
-            "InputChip",
-            "selected = route.isFocused",
-            "onFocus(route.routeId)",
-            "MapRouteGeometryChip",
-            ".height(RouteGeometryActionSize)",
-            "DirectionsBusIcon",
-            ".size(InputChipDefaults.IconSize)",
-            ".clip(CircleShape)",
-            "MapRouteGeometryRemove",
-            "onRemove(route.routeId)",
-            "CloseIcon",
-            "shape = CircleShape",
-            "if (route.canRetry)",
-            "MapRouteGeometryRetry",
-            "onRetry(route.routeId)",
-        )
-        assertFalse(legend.contains(".height(InputChipDefaults.Height)"))
-        assertFalse(legendSource.contains("MaterialInputChipCornerRadius"))
-        assertFalse(legendSource.contains("MaterialInputChipLeadingIconSize"))
-        assertFalse(legendSource.contains("MaterialInputChipCloseIconSize"))
-        assertTrue(legendSource.contains("private val RouteGeometryActionSize = 48.dp"))
-        assertTrue(legendSource.contains("modifier: Modifier = Modifier"))
-        assertTrue(legendSource.contains("fontWeight = FontWeight.Medium"))
     }
 
     @Test

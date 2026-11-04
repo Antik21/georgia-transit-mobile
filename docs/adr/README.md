@@ -31,3 +31,5 @@ The removal of the mobile walking-estimate experience while preserving the BFF's
 operation is recorded in [ADR 0016](0016-remove-mobile-walking-estimate.md).
 The BFF-owned deterministic route color and accessible text-color contract is recorded in
 [ADR 0017](0017-bff-owned-stable-route-colors.md).
+The Map presentation MVI ownership decision is recorded in
+[ADR 0018](0018-map-presentation-mvi.md).

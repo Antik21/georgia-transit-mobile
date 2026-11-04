@@ -168,18 +168,25 @@ internal fun MapCanvas(
             modifier = Modifier
                 .align(Alignment.BottomEnd)
                 .windowInsetsPadding(
-                    WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal + WindowInsetsSides.Bottom),
+                    // This canvas ends above the screen controls, outside the bottom system inset.
+                    WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal),
                 )
-                .padding(TransitSpacing.Medium)
+                // Reserve the bottom-right edge for the compact OSM attribution.
+                .padding(
+                    start = TransitSpacing.Medium,
+                    top = TransitSpacing.Medium,
+                    end = TransitSpacing.Medium,
+                    bottom = TransitSpacing.ExtraLarge + TransitSpacing.Medium,
+                )
                 .size(48.dp)
                 .testTag(locationActionAutomationId),
         )
         if (baseLayerState == MapBaseLayerState.BffStyle) {
             OpenStreetMapAttribution(
                 modifier = Modifier
-                    .align(Alignment.TopEnd)
+                    .align(Alignment.BottomEnd)
                     .windowInsetsPadding(
-                        WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal + WindowInsetsSides.Top),
+                        WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal),
                     )
                     .padding(TransitSpacing.ExtraSmall),
             )
