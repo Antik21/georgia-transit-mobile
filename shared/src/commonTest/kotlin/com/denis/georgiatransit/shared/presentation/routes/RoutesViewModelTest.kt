@@ -488,6 +488,8 @@ class RoutesViewModelTest {
             session.selectCity(secondCity)
             this@runTest.runCurrent()
             awaitItem()
+            // State publication and the child refresh can be scheduled separately on CI.
+            repository.secondRefreshStarted.await()
             assertEquals(secondCity.id, viewModel.container.stateFlow.value.cityId)
             assertEquals(CatalogState.Loading, viewModel.container.stateFlow.value.catalog)
             assertEquals(emptySet(), session.selectedRouteIds.value)
@@ -761,6 +763,7 @@ class RoutesViewModelTest {
         var snapshotCalls = 0
             private set
         val refreshStarted = CompletableDeferred<Unit>()
+        val secondRefreshStarted = CompletableDeferred<Unit>()
         val cancellationThrown = CompletableDeferred<Unit>()
         val refreshCallerJob = CompletableDeferred<Job>()
         val refreshRequests = mutableListOf<RouteListRequest>()
@@ -776,6 +779,7 @@ class RoutesViewModelTest {
 
         override suspend fun refreshRoutes(request: RouteListRequest): TransitLoadResult<List<TransitRoute>> {
             refreshRequests += request
+            if (refreshRequests.size == 2) secondRefreshStarted.complete(Unit)
             refreshCallerJob.complete(requireNotNull(currentCoroutineContext()[Job]))
             refreshStarted.complete(Unit)
             return when (val response = responses.removeFirstOrNull()) {
