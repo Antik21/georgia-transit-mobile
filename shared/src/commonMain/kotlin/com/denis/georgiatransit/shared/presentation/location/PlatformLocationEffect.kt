@@ -9,7 +9,10 @@ sealed interface LocationPlatformCommand {
 
     data class QueryPermission(override val id: LocationCommandId) : LocationPlatformCommand
     data class RequestPermission(override val id: LocationCommandId) : LocationPlatformCommand
-    data class RequestLocation(override val id: LocationCommandId) : LocationPlatformCommand
+    data class RequestLocation(
+        override val id: LocationCommandId,
+        val isRefresh: Boolean = false,
+    ) : LocationPlatformCommand
     data class OpenAppSettings(override val id: LocationCommandId) : LocationPlatformCommand
     data class OpenLocationSettings(override val id: LocationCommandId) : LocationPlatformCommand
 }

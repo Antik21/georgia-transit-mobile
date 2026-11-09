@@ -6,14 +6,6 @@ appId: com.denis.georgiatransit
     permissions:
       all: deny
 - assertVisible:
-    id: city-selection.screen
-- assertVisible:
-    id: city-selection.location
-- tapOn:
-    id: city-selection.demo
-- tapOn:
-    id: city-selection.continue
-- assertVisible:
     id: map.screen
 - assertVisible:
     id: map.content.local-preview

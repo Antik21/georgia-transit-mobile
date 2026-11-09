@@ -55,6 +55,7 @@ data class ViewState(
     /** Independent from nearby-stop loading: vehicle polling must never replace stop feedback. */
     val vehicleLayerState: VehicleLayerState = VehicleLayerState.Hidden,
     val vehicleRoutes: List<VehicleRouteAccessibilityUi> = emptyList(),
+    val canChangeCity: Boolean = true,
 )
 
 /** Product-level realtime availability. No transport or provider details reach the UI. */
@@ -200,6 +201,7 @@ sealed interface Action {
     data object RoutesClicked : Action
     data object ChangeCityClicked : Action
     data object MyLocationClicked : Action
+    data object RefreshLocation : Action
     data class LocationEventReceived(val event: LocationPlatformEvent) : Action
     data class MapEventReceived(val event: MapPlatformEvent) : Action
     data class StopSelected(val stopId: StopId, val sourceRevision: Long) : Action

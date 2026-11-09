@@ -78,6 +78,9 @@ fun MapScreen(viewModel: MapViewModel, handleNavigation: suspend (NavigationEffe
     MapRealtimeVisibilityEffect { visibleAndStarted ->
         viewModel.dispatchAction(Action.RealtimeVisibilityChanged(visibleAndStarted))
     }
+    MapLocationRefreshEffect(state.location.permission is LocationPermissionState.Granted) {
+        viewModel.dispatchAction(Action.RefreshLocation)
+    }
     var platformCommand by remember { mutableStateOf<LocationPlatformCommand?>(null) }
     viewModel.collectSideEffect { effect ->
         when (effect) {
@@ -141,10 +144,12 @@ private fun Content(state: ViewState, onAction: (Action) -> Unit) {
                         onRemove = { routeId -> onAction(Action.RemoveRouteGeometry(routeId)) },
                     )
                     Row(horizontalArrangement = Arrangement.spacedBy(TransitSpacing.Small)) {
-                        OutlinedButton(
-                            onClick = { onAction(Action.ChangeCityClicked) },
-                            modifier = Modifier.weight(1f).testTag(AutomationId.MapChangeCity),
-                        ) { Text(stringResource(Res.string.map_change_city_action)) }
+                        if (state.canChangeCity) {
+                            OutlinedButton(
+                                onClick = { onAction(Action.ChangeCityClicked) },
+                                modifier = Modifier.weight(1f).testTag(AutomationId.MapChangeCity),
+                            ) { Text(stringResource(Res.string.map_change_city_action)) }
+                        }
                         if (state.routesAvailable) {
                             Button(
                                 onClick = { onAction(Action.RoutesClicked) },

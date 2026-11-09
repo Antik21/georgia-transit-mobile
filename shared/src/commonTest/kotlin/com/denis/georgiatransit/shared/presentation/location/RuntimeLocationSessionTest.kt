@@ -241,6 +241,43 @@ class RuntimeLocationSessionTest {
         assertNull(session.state.value.fix)
     }
 
+    @Test
+    fun refreshKeepsLastFixThroughFailureAndPublishesWithoutRecentering() = runTest {
+        val session = locationSession()
+        session.updatePermission(PRECISE_PERMISSION)
+        val initial = session.nextCommandId()
+        assertTrue(session.beginLocationRequest(initial))
+        session.accept(initial, validCandidate())
+        val initialFix = session.state.value.fix
+
+        val refresh = session.nextCommandId()
+        assertTrue(session.beginLocationRequest(refresh, isRefresh = true))
+        assertFalse(session.beginLocationRequest(session.nextCommandId(), isRefresh = true))
+        assertEquals(initialFix, session.state.value.fix)
+        assertFalse(session.state.value.isLocating)
+        session.fail(refresh, LocationFailure.TimedOut)
+        assertEquals(initialFix, session.state.value.fix)
+        assertNull(session.state.value.failure)
+
+        val next = session.nextCommandId()
+        assertTrue(session.beginLocationRequest(next, isRefresh = true))
+        session.accept(next, validCandidate(latitude = 42.0))
+        assertEquals(42.0, session.state.value.fix?.point?.latitude)
+        assertEquals(false, session.state.value.fix?.recenterMap)
+    }
+
+    @Test
+    fun manualRequestCanCenterOnTheResultOfAnInFlightRefresh() = runTest {
+        val session = locationSession()
+        session.updatePermission(PRECISE_PERMISSION)
+        val refresh = session.nextCommandId()
+        assertTrue(session.beginLocationRequest(refresh, isRefresh = true))
+        assertFalse(session.beginLocationRequest(session.nextCommandId()))
+        assertTrue(session.state.value.isLocating)
+        session.accept(refresh, validCandidate())
+        assertEquals(true, session.state.value.fix?.recenterMap)
+    }
+
     private fun TestScope.locationSession(): RuntimeLocationSession = RuntimeLocationSession(
         scope = this,
         nowMillis = { NOW_MILLIS + testScheduler.currentTime },

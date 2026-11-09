@@ -3,15 +3,9 @@ appId: com.denis.georgiatransit
 - launchApp:
     clearState: true
 - assertVisible:
-    id: city-selection.screen
-- assertVisible:
-    id: city-selection.location
-- tapOn:
-    id: city-selection.demo
-- tapOn:
-    id: city-selection.continue
-- assertVisible:
     id: map.screen
+- assertNotVisible:
+    id: map.change-city
 - assertVisible:
     id: map.content.local-preview
 - assertVisible:

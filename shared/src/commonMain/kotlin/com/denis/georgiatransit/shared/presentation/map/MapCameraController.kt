@@ -31,7 +31,7 @@ internal class MapCameraController {
             lastAcceptedFix = null
         } else if (fix != lastAcceptedFix) {
             lastAcceptedFix = fix
-            next(fix.point, 15.0)
+            if (fix.recenterMap) next(fix.point, 15.0)
         }
         return checkNotNull(command)
     }

@@ -39,8 +39,11 @@ internal class MapLocationActions(private val session: LocationSession) {
         return null
     }
 
-    private fun beginLocationRequest(): LocationPlatformCommand.RequestLocation? {
+    fun refresh(): LocationPlatformCommand.RequestLocation? = beginLocationRequest(isRefresh = true)
+
+    private fun beginLocationRequest(isRefresh: Boolean = false): LocationPlatformCommand.RequestLocation? {
         val requestId = session.nextCommandId()
-        return LocationPlatformCommand.RequestLocation(requestId).takeIf { session.beginLocationRequest(requestId) }
+        return LocationPlatformCommand.RequestLocation(requestId, isRefresh)
+            .takeIf { session.beginLocationRequest(requestId, isRefresh) }
     }
 }

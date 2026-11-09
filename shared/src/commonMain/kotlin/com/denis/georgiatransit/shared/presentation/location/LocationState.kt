@@ -30,6 +30,7 @@ data class UserLocationFix(
     val precision: LocationPrecision,
     val capturedAtEpochMillis: Long,
     val expiresAtEpochMillis: Long,
+    val recenterMap: Boolean = true,
 )
 
 @Immutable
@@ -61,7 +62,7 @@ interface LocationSession {
 
     fun nextCommandId(): LocationCommandId
     fun updatePermission(permission: LocationPermissionState)
-    fun beginLocationRequest(requestId: LocationCommandId): Boolean
+    fun beginLocationRequest(requestId: LocationCommandId, isRefresh: Boolean = false): Boolean
     fun accept(requestId: LocationCommandId, candidate: LocationFixCandidate)
     fun fail(requestId: LocationCommandId, failure: LocationFailure)
     fun cancelRequest(requestId: LocationCommandId)

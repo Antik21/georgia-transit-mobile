@@ -586,7 +586,7 @@ struct DebugNetworkInspectorOverlay: View {
             ComposeViewController()
                 // Keep the debug host aligned with the release host: the map extends beneath
                 // the system chrome while Compose positions interactive controls safely.
-                .ignoresSafeArea(.container, edges: .all)
+                .ignoresSafeArea(edges: .all)
             Button {
                 isPresented = true
             } label: {
