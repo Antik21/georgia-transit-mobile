@@ -251,6 +251,16 @@ class MapNearbyViewModelTest {
             assertEquals(StopRouteHighlightStyle.MultipleRoutes, highlights.getValue("a-and-b").routeHighlight.style)
             assertEquals(listOf(routeA.id, routeB.id), highlights.getValue("a-and-b").routeHighlight.matchingRouteIds)
             val initialRender = requireNotNull(initial.renderState)
+            val renderedHighlights = initialRender.stops.associate { it.id.value to it.routeHighlight }
+            val routeAColor = renderedHighlights.getValue("only-a").backgroundArgb
+            val routeBColor = renderedHighlights.getValue("only-b").backgroundArgb
+            val singlePin = renderedHighlights.getValue("only-a").pinArtwork
+            val sharedPin = renderedHighlights.getValue("a-and-b").pinArtwork
+            assertEquals(routeAColor, singlePin.backgroundArgb)
+            assertTrue(singlePin.badges.isEmpty())
+            assertEquals(MultiRouteStopBackgroundArgb, sharedPin.backgroundArgb)
+            assertEquals(listOf("A", "B"), sharedPin.badges.map(StopPinBadge::label))
+            assertEquals(listOf(routeAColor, routeBColor), sharedPin.badges.map(StopPinBadge::backgroundArgb))
             assertTrue(
                 setOf(StopId("only-a"), StopId("only-b"), StopId("a-and-b")).all { id ->
                     initialRender.stops.any { it.id == id }
@@ -281,6 +291,7 @@ class MapNearbyViewModelTest {
                 "The open selected stop must remain visible after its route highlight is removed.",
             )
             assertEquals(listOf(StopId("only-b")), replacementRender.stops.map { it.id })
+            assertTrue(replacementRender.stops.single().routeHighlight.pinArtwork.badges.isEmpty())
             assertTrue(replacementRender.stopClusters.isEmpty())
             cancelAndIgnoreRemainingItems()
         }

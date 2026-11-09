@@ -84,6 +84,7 @@ internal data class VehicleTrack(
     val freshness: TransitFreshness,
     val isStale: Boolean,
     val interpolationStartedAtMonotonicMillis: Long?,
+    val directTravelBearing: Double? = null,
 )
 
 @Immutable
@@ -344,11 +345,12 @@ internal object VehicleRealtimeReducer {
 
         // A stale predecessor can recover only through this same bounded interpolation, never by
         // snapping an exact opaque ID to an arbitrary coordinate.
+        val start = frame(this, monotonicNowMillis)
         return VehicleTrack(
             id = id,
             routeId = vehicle.routeId,
             directionId = vehicle.directionId,
-            from = frame(this, monotonicNowMillis),
+            from = start,
             to = vehicle.position,
             bearingDegrees = vehicle.bearing,
             positionKind = vehicle.positionKind,
@@ -358,6 +360,7 @@ internal object VehicleRealtimeReducer {
             freshness = freshness,
             isStale = false,
             interpolationStartedAtMonotonicMillis = monotonicNowMillis,
+            directTravelBearing = directVehicleTravelBearing(start, vehicle.position) ?: directTravelBearing,
         )
     }
 

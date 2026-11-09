@@ -386,7 +386,6 @@ class MapResourceContractTest {
             "lastVehicleSourceRevision != renderState.vehicleSourceRevision",
             "lastVehicleBadgeRevision != renderState.vehicleBadgeRevision",
             "MAX_VEHICLE_BADGE_IMAGES = 256",
-            "BUS_MARKER_SIZE_PX = 112",
             "STALE_VEHICLE_OPACITY",
         )
         assertTrue(android.contains("clearRenderedLayerState()"))
@@ -461,19 +460,20 @@ class MapResourceContractTest {
             "!it.isSelected",
             "!it.routeHighlight.isHighlighted",
             "SOURCE_REVISION_PROPERTY, renderState.stopSourceRevision.toString()",
-            "marker.routeHighlight.backgroundArgb.asMapColor()",
+            "marker.routeHighlight.pinArtwork.imageId",
             "marker.routeHighlight.markerRadius",
-            "marker.routeHighlight.textArgb.asMapColor()",
+            "MARKER_STROKE_COLOR_PROPERTY, TRANSPARENT_STOP_COLOR",
             "marker.routeHighlight.markerStrokeWidth",
         )
         assertCodePath(
             iosStops,
             "!$0.isSelected",
             "first.routeHighlight.isHighlighted",
+            "marker.routeHighlight.pinArtwork.imageId",
             "Self.sourceRevisionProperty: String(sourceRevision)",
-            "mapColor(marker.routeHighlight.backgroundArgb)",
+            "Self.stopPinProperty: pin",
             "marker.routeHighlight.markerRadius",
-            "mapColor(marker.routeHighlight.textArgb)",
+            "Self.markerStrokeColorProperty: Self.transparentStopColor",
             "marker.routeHighlight.markerStrokeWidth",
         )
         assertCodePath(
@@ -890,7 +890,8 @@ class MapResourceContractTest {
             "MLNCircleStyleLayer(identifier: Self.stopsLayerID, source: stopsSource)",
             "MLNSymbolStyleLayer(identifier: Self.vehiclesLayerID, source: vehiclesSource)",
             "MLNCircleStyleLayer(identifier: Self.selectedStopLayerID, source: selectedStopSource)",
-            "UIColor(red: 1, green: 107.0 / 255.0, blue: 95.0 / 255.0, alpha: 1)",
+            "selectedStopLayer.circleColor = NSExpression(forKeyPath: Self.markerColorProperty)",
+            "stopPinLayer(source: selectedStopSource, scale: 1.1)",
         )
         assertTrue(
             swift.numericDeclaration("minimumStopTargetPoints") >= 44.0,

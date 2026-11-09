@@ -72,6 +72,9 @@ internal class MapStopsProjector(
                 matchingRouteLabels = matching.map { route -> route.displayLabel },
                 style = StopRouteHighlightStyle.MultipleRoutes,
                 backgroundArgb = MultiRouteStopBackgroundArgb,
+                pinBadges = matching.map { route ->
+                    StopPinBadge(route.displayLabel, route.backgroundArgb, route.textArgb)
+                },
                 textArgb = contrastSafeRouteTextColor(MultiRouteStopBackgroundArgb, 0xFFFFFFFFL),
             )
         }

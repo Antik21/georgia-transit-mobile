@@ -236,11 +236,11 @@ internal class MapVehiclePresentation(
         monotonicNowMillis: Long,
         interpolate: Boolean,
     ): Double? {
-        val motion = vehicleRouteMotion(track) ?: return track.bearingDegrees
-        if (!interpolate) return motion.bearingAt(1.0) ?: track.bearingDegrees
+        val fallback = track.directTravelBearing ?: track.bearingDegrees
+        val motion = vehicleRouteMotion(track) ?: return fallback
         val startedAt = track.interpolationStartedAtMonotonicMillis
-            ?: return motion.bearingAt(1.0) ?: track.bearingDegrees
-        return motion.bearingAt(interpolationFraction(startedAt, monotonicNowMillis)) ?: track.bearingDegrees
+        val fraction = if (interpolate && startedAt != null) interpolationFraction(startedAt, monotonicNowMillis) else 1.0
+        return motion.bearingAt(fraction) ?: fallback
     }
 
     private fun vehicleRouteMotion(track: VehicleTrack): VehicleRouteMotion? {

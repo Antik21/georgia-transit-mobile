@@ -1,14 +1,8 @@
 package com.denis.georgiatransit.shared.presentation.map
 
 import android.animation.ValueAnimator
-import android.graphics.Bitmap
-import android.graphics.Canvas
-import android.graphics.Color
-import android.graphics.Paint
-import android.graphics.Path
 import android.graphics.PointF
 import android.graphics.RectF
-import android.graphics.Typeface
 import android.os.SystemClock
 import android.view.View
 import androidx.compose.runtime.Composable
@@ -52,6 +46,7 @@ import org.maplibre.android.style.layers.PropertyFactory.iconImage
 import org.maplibre.android.style.layers.PropertyFactory.iconOpacity
 import org.maplibre.android.style.layers.PropertyFactory.iconRotate
 import org.maplibre.android.style.layers.PropertyFactory.iconRotationAlignment
+import org.maplibre.android.style.layers.PropertyFactory.iconSize
 import org.maplibre.android.style.layers.PropertyFactory.lineColor
 import org.maplibre.android.style.layers.PropertyFactory.lineOpacity
 import org.maplibre.android.style.layers.PropertyFactory.lineWidth
@@ -194,6 +189,7 @@ private class LocalMapController(
     private var layersInstalled = false
     private var lastAppliedCameraRevision: Long? = null
     private var lastAppliedCameraCommand: MapCameraCommand? = null
+    private val stopPinImages = StopPinImages()
     private var lastStops: List<MapStopMarker>? = null
     private var lastStopClusters: List<MapStopCluster>? = null
     private var lastStopSourceRevision: Long? = null
@@ -201,9 +197,11 @@ private class LocalMapController(
     private var lastUserLocation: UserLocationFix? = null
     private var lastVehicleSourceRevision: Long? = null
     private var lastVehicleBadgeRevision: Long? = null
+    private var vehicleLabelCameraBearing: Double? = null
     private var lastAttentionVehicleSourceRevision: Long? = null
     private val badgeImageIds = linkedMapOf<VehicleBadgeStyle, String>()
     private var nextBadgeImageIndex = 0L
+    private var overflowBadgeImagesInstalled = false
     private var hasAttentionMarkers = false
     private var mapLifecycleResumed = false
     private var attentionTickerScheduled = false
@@ -217,6 +215,7 @@ private class LocalMapController(
         }
     }
     private var destroyed = false
+    private val cameraMoveListener = MapLibreMap.OnCameraMoveListener { updateVehicleLabelOrientation() }
     private val cameraIdleListener = MapLibreMap.OnCameraIdleListener { notifyViewportSettled() }
     private val mapClickListener = MapLibreMap.OnMapClickListener { point -> onMapClick(point) }
     private val styleLoadedListener = MapView.OnDidFinishLoadingStyleListener {
@@ -249,6 +248,7 @@ private class LocalMapController(
             mapLibreMap.setPrefetchZoomDelta(0)
             map = mapLibreMap
             mapLibreMap.addOnCameraIdleListener(cameraIdleListener)
+            mapLibreMap.addOnCameraMoveListener(cameraMoveListener)
             mapLibreMap.addOnMapClickListener(mapClickListener)
             loadStyle(mapLibreMap, Style.Builder().fromJson(LOCAL_STYLE_JSON), remote = false)
         }
@@ -310,6 +310,7 @@ private class LocalMapController(
         if (destroyed) return
         destroyed = true
         map?.removeOnCameraIdleListener(cameraIdleListener)
+        map?.removeOnCameraMoveListener(cameraMoveListener)
         map?.removeOnMapClickListener(mapClickListener)
         mapView.removeOnLayoutChangeListener(layoutChangeListener)
         mapView.removeOnDidFinishLoadingStyleListener(styleLoadedListener)
@@ -384,9 +385,11 @@ private class LocalMapController(
                 circleStrokeWidth(Expression.get(MARKER_STROKE_WIDTH_PROPERTY)),
             ),
         )
+        loadedStyle.addLayer(stopPinLayer(STOPS_SOURCE_ID))
         loadedStyle.addLayer(
             SymbolLayer(VEHICLES_LAYER_ID, VEHICLES_SOURCE_ID).withProperties(
-                iconImage(Expression.get(VEHICLE_BADGE_IMAGE_PROPERTY)),
+                iconImage(vehicleBadgeImage(map?.cameraPosition?.bearing ?: 0.0)),
+                iconSize(VEHICLE_ICON_SCALE),
                 iconOpacity(Expression.get(VEHICLE_OPACITY_PROPERTY)),
                 iconRotate(Expression.get(BEARING_PROPERTY)),
                 iconRotationAlignment("map"),
@@ -405,12 +408,13 @@ private class LocalMapController(
         )
         loadedStyle.addLayer(
             CircleLayer(SELECTED_STOP_LAYER_ID, SELECTED_STOP_SOURCE_ID).withProperties(
-                circleColor(SELECTED_STOP_COLOR),
+                circleColor(Expression.get(MARKER_COLOR_PROPERTY)),
                 circleRadius(SELECTED_STOP_RADIUS.toFloat()),
-                circleStrokeColor("#FFFFFF"),
+                circleStrokeColor(Expression.get(MARKER_STROKE_COLOR_PROPERTY)),
                 circleStrokeWidth(2f),
             ),
         )
+        loadedStyle.addLayer(stopPinLayer(SELECTED_STOP_SOURCE_ID, scale = 1.1f))
         loadedStyle.addLayer(
             CircleLayer(USER_LOCATION_LAYER_ID, USER_LOCATION_SOURCE_ID).withProperties(
                 circleColor("#1565C0"),
@@ -427,6 +431,7 @@ private class LocalMapController(
             lastStops != renderState.stops || lastStopClusters != renderState.stopClusters ||
             lastStopSourceRevision != renderState.stopSourceRevision
         ) {
+            stopPinImages.update(loadedStyle, renderState.stops)
             loadedStyle.getSourceAs<GeoJsonSource>(STOPS_SOURCE_ID)?.setGeoJson(ordinaryStopFeatures(renderState))
             loadedStyle.getSourceAs<GeoJsonSource>(SELECTED_STOP_SOURCE_ID)?.setGeoJson(selectedStopFeatures(renderState))
             lastStops = renderState.stops
@@ -604,7 +609,8 @@ private class LocalMapController(
                     feature.addStringProperty(POSITION_KIND_PROPERTY, marker.positionKind.name)
                     feature.addNumberProperty(
                         BEARING_PROPERTY,
-                        marker.bearingDegrees?.takeIf(Double::isFinite)?.normalizedBearing() ?: DEFAULT_VEHICLE_BEARING,
+                        marker.bearingDegrees?.takeIf(Double::isFinite)
+                            ?.let { (it - EASTWARD_ARTWORK_BEARING).normalizedBearing() } ?: DEFAULT_VEHICLE_ROTATION,
                     )
                 }
             }
@@ -615,18 +621,36 @@ private class LocalMapController(
         val styles = renderInput.styles
         val obsolete = badgeImageIds.keys.filter { it !in styles }
         obsolete.forEach { badgeStyle ->
-            badgeImageIds.remove(badgeStyle)?.let(style::removeImage)
+            val imageId = checkNotNull(badgeImageIds.remove(badgeStyle))
+            style.removeImage(imageId)
+            style.removeImage(imageId + FLIPPED_VEHICLE_LABEL_SUFFIX)
         }
         styles.forEach { badgeStyle ->
             if (badgeStyle !in badgeImageIds) {
                 val imageId = "gt-vehicle-badge-${++nextBadgeImageIndex}"
-                style.addImage(imageId, badgeStyle.toBitmap())
+                addVehicleBadgeImages(style, imageId, badgeStyle)
                 badgeImageIds[badgeStyle] = imageId
             }
         }
-        if (renderInput.needsOverflow && badgeImageIds.values.none { it == OVERFLOW_BADGE_IMAGE_ID }) {
-            style.addImage(OVERFLOW_BADGE_IMAGE_ID, VehicleBadgeStyle("?", 0xFF455A64, 0xFFFFFFFF, false).toBitmap())
+        if (renderInput.needsOverflow && !overflowBadgeImagesInstalled) {
+            val overflow = VehicleBadgeStyle("?", 0xFF455A64, 0xFFFFFFFF, false)
+            addVehicleBadgeImages(style, OVERFLOW_BADGE_IMAGE_ID, overflow)
+            overflowBadgeImagesInstalled = true
         }
+    }
+
+    private fun addVehicleBadgeImages(style: Style, imageId: String, badge: VehicleBadgeStyle) {
+        val metrics = mapView.resources.displayMetrics
+        style.addImage(imageId, badge.toBitmap(metrics, flipLabel = false))
+        style.addImage(imageId + FLIPPED_VEHICLE_LABEL_SUFFIX, badge.toBitmap(metrics, flipLabel = true))
+    }
+
+    private fun updateVehicleLabelOrientation() {
+        val bearing = map?.cameraPosition?.bearing ?: return
+        if (bearing == vehicleLabelCameraBearing) return
+        val layer = style?.getLayerAs<SymbolLayer>(VEHICLES_LAYER_ID) ?: return
+        layer.setProperties(iconImage(vehicleBadgeImage(bearing)))
+        vehicleLabelCameraBearing = bearing
     }
 
     /** A deterministic bounded subset keeps the decoration cost independent of fleet size. */
@@ -709,8 +733,11 @@ private class LocalMapController(
         lastVehicleSourceRevision = null
         lastVehicleBadgeRevision = null
         lastAttentionVehicleSourceRevision = null
+        stopPinImages.clear()
         badgeImageIds.clear()
         nextBadgeImageIndex = 0L
+        overflowBadgeImagesInstalled = false
+        vehicleLabelCameraBearing = null
         hasAttentionMarkers = false
     }
 }
@@ -728,9 +755,10 @@ private fun ordinaryStopFeatures(renderState: MapRenderState): FeatureCollection
                 feature.addStringProperty(FEATURE_KIND_PROPERTY, FEATURE_KIND_STOP)
                 feature.addStringProperty(SOURCE_REVISION_PROPERTY, renderState.stopSourceRevision.toString())
                 feature.addStringProperty(ACCESSIBILITY_LABEL_PROPERTY, marker.accessibilityLabel)
-                feature.addStringProperty(MARKER_COLOR_PROPERTY, marker.routeHighlight.backgroundArgb.asMapColor())
+                feature.addStringProperty(STOP_PIN_PROPERTY, marker.routeHighlight.pinArtwork.imageId)
+                feature.addStringProperty(MARKER_COLOR_PROPERTY, TRANSPARENT_STOP_COLOR)
                 feature.addNumberProperty(MARKER_RADIUS_PROPERTY, marker.routeHighlight.markerRadius)
-                feature.addStringProperty(MARKER_STROKE_COLOR_PROPERTY, marker.routeHighlight.textArgb.asMapColor())
+                feature.addStringProperty(MARKER_STROKE_COLOR_PROPERTY, TRANSPARENT_STOP_COLOR)
                 feature.addNumberProperty(MARKER_STROKE_WIDTH_PROPERTY, marker.routeHighlight.markerStrokeWidth)
             }
         }
@@ -765,6 +793,9 @@ private fun selectedStopFeatures(renderState: MapRenderState): FeatureCollection
                 feature.addStringProperty(FEATURE_KIND_PROPERTY, FEATURE_KIND_STOP)
                 feature.addStringProperty(SOURCE_REVISION_PROPERTY, renderState.stopSourceRevision.toString())
                 feature.addStringProperty(ACCESSIBILITY_LABEL_PROPERTY, marker.accessibilityLabel)
+                feature.addStringProperty(STOP_PIN_PROPERTY, marker.routeHighlight.pinArtwork.imageId)
+                feature.addStringProperty(MARKER_COLOR_PROPERTY, TRANSPARENT_STOP_COLOR)
+                feature.addStringProperty(MARKER_STROKE_COLOR_PROPERTY, TRANSPARENT_STOP_COLOR)
             }
         }
         .toList(),
@@ -808,13 +839,6 @@ private fun userAccuracyFeatures(location: UserLocationFix?): FeatureCollection 
 
 private fun GeoPoint.asMapPoint(): Point = Point.fromLngLat(longitude, latitude)
 
-private data class VehicleBadgeStyle(
-    val label: String,
-    val backgroundArgb: Long,
-    val textArgb: Long,
-    val stale: Boolean,
-)
-
 /** Exact badge inputs are independent from geometry so animation frames never rebuild bitmaps. */
 private data class VehicleBadgeRenderInput(
     val styles: Set<VehicleBadgeStyle>,
@@ -848,91 +872,6 @@ private fun String.asNativeBadgeLabel(): String = asSequence()
     .take(MAX_BADGE_LABEL_LENGTH)
     .ifBlank { "?" }
 
-private fun VehicleBadgeStyle.toBitmap(): Bitmap {
-    val textPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = textArgb.toInt()
-        textSize = BUS_LABEL_TEXT_SIZE_PX
-        typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
-        textAlign = Paint.Align.CENTER
-    }
-    if (textPaint.measureText(label) > BUS_LABEL_TEXT_MAX_WIDTH_PX) {
-        textPaint.textSize *= BUS_LABEL_TEXT_MAX_WIDTH_PX / textPaint.measureText(label)
-    }
-    val bitmap = Bitmap.createBitmap(BUS_MARKER_SIZE_PX, BUS_MARKER_SIZE_PX, Bitmap.Config.ARGB_8888)
-    val canvas = Canvas(bitmap)
-    val body = RectF(BUS_BODY_LEFT_PX, BUS_BODY_TOP_PX, BUS_BODY_RIGHT_PX, BUS_BODY_BOTTOM_PX)
-    val shadow = RectF(body).apply { offset(BUS_SHADOW_OFFSET_PX, BUS_SHADOW_OFFSET_PX) }
-    canvas.drawRoundRect(
-        shadow,
-        BUS_BODY_CORNER_RADIUS_PX,
-        BUS_BODY_CORNER_RADIUS_PX,
-        Paint(Paint.ANTI_ALIAS_FLAG).apply { color = BUS_SHADOW_COLOR },
-    )
-    canvas.drawRoundRect(
-        body,
-        BUS_BODY_CORNER_RADIUS_PX,
-        BUS_BODY_CORNER_RADIUS_PX,
-        Paint(Paint.ANTI_ALIAS_FLAG).apply { color = backgroundArgb.toInt() },
-    )
-    val outline = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = Color.WHITE
-        style = Paint.Style.STROKE
-        strokeWidth = BUS_OUTLINE_WIDTH_PX
-    }
-    canvas.drawRoundRect(body, BUS_BODY_CORNER_RADIUS_PX, BUS_BODY_CORNER_RADIUS_PX, outline)
-
-    val glass = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = BUS_GLASS_COLOR }
-    canvas.drawRoundRect(
-        RectF(BUS_WINDOW_LEFT_PX, BUS_FRONT_WINDOW_TOP_PX, BUS_WINDOW_RIGHT_PX, BUS_FRONT_WINDOW_BOTTOM_PX),
-        BUS_WINDOW_CORNER_RADIUS_PX,
-        BUS_WINDOW_CORNER_RADIUS_PX,
-        glass,
-    )
-    canvas.drawRoundRect(
-        RectF(BUS_WINDOW_LEFT_PX, BUS_REAR_WINDOW_TOP_PX, BUS_WINDOW_RIGHT_PX, BUS_REAR_WINDOW_BOTTOM_PX),
-        BUS_WINDOW_CORNER_RADIUS_PX,
-        BUS_WINDOW_CORNER_RADIUS_PX,
-        glass,
-    )
-    val light = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = BUS_HEADLIGHT_COLOR }
-    canvas.drawCircle(BUS_LEFT_LIGHT_CENTER_X_PX, BUS_LIGHT_CENTER_Y_PX, BUS_LIGHT_RADIUS_PX, light)
-    canvas.drawCircle(BUS_RIGHT_LIGHT_CENTER_X_PX, BUS_LIGHT_CENTER_Y_PX, BUS_LIGHT_RADIUS_PX, light)
-
-    val center = BUS_MARKER_SIZE_PX / 2f
-    val baseline = BUS_LABEL_CENTER_Y_PX - (textPaint.ascent() + textPaint.descent()) / 2f
-    canvas.drawText(label, center, baseline, textPaint)
-    if (stale) {
-        // Hatching is deliberately shape-based, so stale is not communicated by opacity/color alone.
-        val cue = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = textArgb.toInt()
-            alpha = STALE_CUE_ALPHA
-            strokeWidth = STALE_CUE_STROKE_PX
-        }
-        canvas.save()
-        canvas.clipPath(
-            Path().apply {
-                addRoundRect(body, BUS_BODY_CORNER_RADIUS_PX, BUS_BODY_CORNER_RADIUS_PX, Path.Direction.CW)
-            },
-        )
-        canvas.drawLine(
-            BUS_BODY_LEFT_PX,
-            BUS_BODY_BOTTOM_PX - BUS_STALE_INSET_PX,
-            BUS_BODY_RIGHT_PX,
-            BUS_BODY_TOP_PX + BUS_STALE_INSET_PX,
-            cue,
-        )
-        canvas.drawLine(
-            BUS_BODY_LEFT_PX + BUS_STALE_STRIPE_SPACING_PX,
-            BUS_BODY_BOTTOM_PX,
-            BUS_BODY_RIGHT_PX,
-            BUS_BODY_TOP_PX + BUS_STALE_INSET_PX + BUS_STALE_STRIPE_SPACING_PX,
-            cue,
-        )
-        canvas.restore()
-    }
-    return bitmap
-}
-
 private fun GeoPoint.distanceMetersTo(other: GeoPoint): Double {
     val latitudeDelta = Math.toRadians(other.latitude - latitude)
     val longitudeDelta = Math.toRadians(other.longitude - longitude)
@@ -952,6 +891,22 @@ private fun Double.safePolylineWidth(): Double = takeIf(Double::isFinite)?.coerc
 
 /** Route colors are contrast-validated on land only when every emitted line is fully opaque. */
 private fun Double.safePolylineOpacity(): Double = DEFAULT_POLYLINE_OPACITY
+
+private fun vehicleBadgeImage(cameraBearing: Double): Expression {
+    val image = Expression.get(VEHICLE_BADGE_IMAGE_PROPERTY)
+    val screenRotation = Expression.mod(
+        Expression.sum(
+            Expression.toNumber(Expression.get(BEARING_PROPERTY)),
+            Expression.literal(360.0 - cameraBearing.normalizedBearing()),
+        ),
+        Expression.literal(360.0),
+    )
+    return Expression.switchCase(
+        Expression.all(Expression.gt(screenRotation, 90), Expression.lt(screenRotation, 270)),
+        Expression.concat(image, Expression.literal(FLIPPED_VEHICLE_LABEL_SUFFIX)),
+        image,
+    )
+}
 
 private fun Double.normalizedBearing(): Double = ((this % 360.0) + 360.0) % 360.0
 
@@ -984,7 +939,7 @@ private const val CLUSTER_COUNT_PROPERTY = "clusterCount"
 private const val FEATURE_KIND_STOP = "stop"
 private const val FEATURE_KIND_CLUSTER = "cluster"
 private const val FEATURE_KIND_VEHICLE = "vehicle"
-private const val SELECTED_STOP_COLOR = "#FF6B5F"
+private const val TRANSPARENT_STOP_COLOR = "rgba(0,0,0,0)"
 private const val CLUSTER_COLOR = "#264653"
 private const val SELECTED_STOP_RADIUS = 9
 private const val CLUSTER_RADIUS = 12
@@ -1014,40 +969,14 @@ private const val MAX_ZOOM = 22.0
 private const val MAX_BOTTOM_OCCLUSION_FRACTION = 0.75
 private const val MIN_STOP_TARGET_DP = 48f
 private const val EARTH_RADIUS_METERS = 6_371_008.8
+private const val FLIPPED_VEHICLE_LABEL_SUFFIX = "-flipped-label"
 private const val OVERFLOW_BADGE_IMAGE_ID = "gt-vehicle-badge-overflow"
 private const val MAX_BADGE_LABEL_LENGTH = 8
 private const val BADGE_DIAMETER_PX = 80
-private const val BUS_MARKER_SIZE_PX = 112
-private const val BUS_BODY_LEFT_PX = 27f
-private const val BUS_BODY_TOP_PX = 12f
-private const val BUS_BODY_RIGHT_PX = 85f
-private const val BUS_BODY_BOTTOM_PX = 98f
-private const val BUS_BODY_CORNER_RADIUS_PX = 15f
-private const val BUS_SHADOW_OFFSET_PX = 3f
-private const val BUS_SHADOW_COLOR = 0x40000000
-private const val BUS_OUTLINE_WIDTH_PX = 3f
-private const val BUS_WINDOW_LEFT_PX = 34f
-private const val BUS_WINDOW_RIGHT_PX = 78f
-private const val BUS_FRONT_WINDOW_TOP_PX = 20f
-private const val BUS_FRONT_WINDOW_BOTTOM_PX = 36f
-private const val BUS_REAR_WINDOW_TOP_PX = 82f
-private const val BUS_REAR_WINDOW_BOTTOM_PX = 91f
-private const val BUS_WINDOW_CORNER_RADIUS_PX = 4f
-private val BUS_GLASS_COLOR = 0xB3263440.toInt()
-private val BUS_HEADLIGHT_COLOR = 0xFFFFE082.toInt()
-private const val BUS_LEFT_LIGHT_CENTER_X_PX = 36f
-private const val BUS_RIGHT_LIGHT_CENTER_X_PX = 76f
-private const val BUS_LIGHT_CENTER_Y_PX = 16f
-private const val BUS_LIGHT_RADIUS_PX = 2.5f
-private const val BUS_LABEL_CENTER_Y_PX = 58f
-private const val BUS_LABEL_TEXT_SIZE_PX = 28f
-private const val BUS_LABEL_TEXT_MAX_WIDTH_PX = 48f
-private const val BUS_STALE_INSET_PX = 8f
-private const val BUS_STALE_STRIPE_SPACING_PX = 22f
-private const val STALE_CUE_STROKE_PX = 4f
-private const val STALE_CUE_ALPHA = 180
 private const val STALE_VEHICLE_OPACITY = 0.62
-private const val DEFAULT_VEHICLE_BEARING = 0.0
+private const val VEHICLE_ICON_SCALE = 1f / 1.5f
+private const val EASTWARD_ARTWORK_BEARING = 90.0
+private const val DEFAULT_VEHICLE_ROTATION = 0.0
 private const val ATTENTION_MAX_FRAMES_PER_SECOND = 15L
 private const val ATTENTION_TICK_MILLIS =
     (1_000L + ATTENTION_MAX_FRAMES_PER_SECOND - 1L) / ATTENTION_MAX_FRAMES_PER_SECOND
