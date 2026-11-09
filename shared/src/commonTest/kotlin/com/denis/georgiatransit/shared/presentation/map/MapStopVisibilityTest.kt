@@ -55,7 +55,7 @@ class MapStopVisibilityTest {
         val distant = marker("c", 41.65, 41.6407, highlighted = true)
         val input = listOf(opposite, distant, first)
 
-        assertEquals(listOf(first, distant), visibleStopMarkers(input, userLocation = null, zoom = 14.99))
+        assertEquals(listOf(first.copy(representsGroup = true), distant), visibleStopMarkers(input, userLocation = null, zoom = 14.99))
         assertEquals(listOf(first, opposite, distant), visibleStopMarkers(input, userLocation = null, zoom = 15.0))
     }
 

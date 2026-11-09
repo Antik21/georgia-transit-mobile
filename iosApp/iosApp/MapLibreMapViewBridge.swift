@@ -270,7 +270,7 @@ private final class LocalMapLibreView: UIView, MLNMapViewDelegate {
         selectedStopLayer.circleStrokeColor = NSExpression(forKeyPath: Self.markerStrokeColorProperty)
         selectedStopLayer.circleStrokeWidth = NSExpression(forConstantValue: 2)
         style.addLayer(selectedStopLayer)
-        style.addLayer(stopPinLayer(source: selectedStopSource, scale: 1.1))
+        style.addLayer(stopPinLayer(source: selectedStopSource))
 
         let userLocationLayer = MLNCircleStyleLayer(identifier: Self.userLocationLayerID, source: userLocationSource)
         userLocationLayer.circleColor = NSExpression(forConstantValue: UIColor(red: 0.08, green: 0.40, blue: 0.75, alpha: 1))
@@ -360,13 +360,13 @@ private final class LocalMapLibreView: UIView, MLNMapViewDelegate {
             zoom: command.zoom,
             bottomOcclusionFraction: normalizedBottomOcclusionFraction(command.viewportInsets)
         )
-        let preservedScreenPoint = lastAppliedCamera
+        let preservedScreenPoint = (command.animated ? nil : lastAppliedCamera)
             .flatMap { previous in shouldPreserveScreenAnchor(previous, nextCamera) ? mapView.convert(target, toPointTo: mapView) : nil }
         applyViewportInsets(command.viewportInsets)
         mapView.setCenter(
             target,
             zoomLevel: min(max(command.zoom, Self.minimumZoom), Self.maximumZoom),
-            animated: false
+            animated: command.animated
         )
         if let originalPoint = preservedScreenPoint {
             let centeredPoint = mapView.convert(target, toPointTo: mapView)
@@ -387,7 +387,7 @@ private final class LocalMapLibreView: UIView, MLNMapViewDelegate {
         }
         lastAppliedCameraRevision = command.revision
         lastAppliedCamera = nextCamera
-        DispatchQueue.main.async { [weak self] in self?.reportSettledViewport() }
+        if !command.animated { DispatchQueue.main.async { [weak self] in self?.reportSettledViewport() } }
     }
 
     private func applyViewportInsets(_ insets: MapViewportInsets) {
@@ -433,6 +433,7 @@ private final class LocalMapLibreView: UIView, MLNMapViewDelegate {
                         Self.sourceRevisionProperty: String(sourceRevision),
                         Self.accessibilityLabelProperty: marker.accessibilityLabel,
                         Self.stopPinProperty: pin,
+                        Self.stopPinScaleProperty: marker.pinScale,
                         Self.markerColorProperty: Self.transparentStopColor,
                         Self.markerRadiusProperty: marker.routeHighlight.markerRadius,
                         Self.markerStrokeColorProperty: Self.transparentStopColor,
@@ -458,6 +459,7 @@ private final class LocalMapLibreView: UIView, MLNMapViewDelegate {
                         Self.sourceRevisionProperty: String(sourceRevision),
                         Self.accessibilityLabelProperty: marker.accessibilityLabel,
                         Self.stopPinProperty: pin,
+                        Self.stopPinScaleProperty: marker.pinScale,
                         Self.markerColorProperty: Self.transparentStopColor,
                         Self.markerStrokeColorProperty: Self.transparentStopColor,
                     ]
@@ -502,21 +504,13 @@ private final class LocalMapLibreView: UIView, MLNMapViewDelegate {
             _ = onMapEvent(MapPlatformEventStopTapped(stopId: stop.id, sourceRevision: stop.sourceRevision))
             return
         }
-        let halfTarget = Self.minimumStopTargetPoints / 2
+        let halfTarget = Self.minimumVehicleTargetPoints / 2
         let hitRect = CGRect(
             x: point.x - halfTarget,
             y: point.y - halfTarget,
-            width: Self.minimumStopTargetPoints,
-            height: Self.minimumStopTargetPoints
+            width: Self.minimumVehicleTargetPoints,
+            height: Self.minimumVehicleTargetPoints
         )
-        if let stop = entityFeature(in: hitRect, layerID: Self.selectedStopLayerID, kind: Self.stopFeatureKind) {
-            _ = onMapEvent(MapPlatformEventStopTapped(stopId: stop.id, sourceRevision: stop.sourceRevision))
-            return
-        }
-        if let stop = entityFeature(in: hitRect, layerID: Self.stopsLayerID, kind: Self.stopFeatureKind) {
-            _ = onMapEvent(MapPlatformEventStopTapped(stopId: stop.id, sourceRevision: stop.sourceRevision))
-            return
-        }
         if let vehicle = entityFeature(in: hitRect, layerID: Self.vehiclesLayerID, kind: Self.vehicleFeatureKind) {
             _ = onMapEvent(MapPlatformEventVehicleTapped(vehicleId: vehicle.id, sourceRevision: vehicle.sourceRevision))
         }
@@ -577,11 +571,12 @@ private final class LocalMapLibreView: UIView, MLNMapViewDelegate {
         "\(sourceID)-pins"
     }
 
-    private func stopPinLayer(source: MLNShapeSource, scale: Double = 1) -> MLNSymbolStyleLayer {
+    private func stopPinLayer(source: MLNShapeSource) -> MLNSymbolStyleLayer {
         let layer = MLNSymbolStyleLayer(identifier: Self.stopPinLayerID(sourceID: source.identifier), source: source)
         layer.iconImageName = NSExpression(forKeyPath: Self.stopPinProperty)
-        layer.iconScale = NSExpression(forConstantValue: scale * Double(StopPinArtworkKt.StopPinScale))
+        layer.iconScale = NSExpression(forKeyPath: Self.stopPinScaleProperty)
         layer.iconAnchor = NSExpression(forConstantValue: "bottom")
+        layer.iconPadding = NSExpression(forConstantValue: 0)
         layer.iconAllowsOverlap = NSExpression(forConstantValue: true)
         layer.iconIgnoresPlacement = NSExpression(forConstantValue: true)
         return layer
@@ -960,6 +955,7 @@ private final class LocalMapLibreView: UIView, MLNMapViewDelegate {
                     accessibilityLabel: $0.accessibilityLabel,
                     isSelected: $0.isSelected,
                     pinImageId: $0.routeHighlight.pinArtwork.imageId,
+                    pinScale: $0.pinScale,
                     radius: $0.routeHighlight.markerRadius,
                     strokeWidth: $0.routeHighlight.markerStrokeWidth,
                     count: nil
@@ -977,6 +973,7 @@ private final class LocalMapLibreView: UIView, MLNMapViewDelegate {
                     accessibilityLabel: $0.accessibilityLabel,
                     isSelected: false,
                     pinImageId: "",
+                    pinScale: 0,
                     radius: 0,
                     strokeWidth: 0,
                     count: $0.stopCount
@@ -1044,6 +1041,7 @@ private final class LocalMapLibreView: UIView, MLNMapViewDelegate {
     private static let accessibilityLabelProperty = "accessibilityLabel"
     private static let transparentStopColor = "rgba(0,0,0,0)"
     private static let stopPinProperty = "stopPin"
+    private static let stopPinScaleProperty = "stopPinScale"
     private static let markerColorProperty = "markerColor"
     private static let markerRadiusProperty = "markerRadius"
     private static let markerStrokeColorProperty = "markerStrokeColor"
@@ -1070,7 +1068,7 @@ private final class LocalMapLibreView: UIView, MLNMapViewDelegate {
     private static let maximumBottomOcclusionFraction = 0.75
     private static let accuracySegments = 64
     private static let earthRadiusMeters = 6_371_008.8
-    private static let minimumStopTargetPoints: CGFloat = 44
+    private static let minimumVehicleTargetPoints: CGFloat = 44
     private static let overflowBadgeImageName = "gt-vehicle-badge-overflow"
     private static let staleVehicleOpacity: Double = 0.62
     private static let attentionFramesPerSecond = 15
@@ -1101,6 +1099,7 @@ private struct StopRenderInput: Equatable {
     let accessibilityLabel: String
     let isSelected: Bool
     let pinImageId: String
+    let pinScale: Float
     let radius: Double
     let strokeWidth: Double
     let count: Int32?

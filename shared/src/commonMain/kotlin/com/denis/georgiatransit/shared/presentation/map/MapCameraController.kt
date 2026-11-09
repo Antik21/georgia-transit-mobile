@@ -36,11 +36,17 @@ internal class MapCameraController {
         return checkNotNull(command)
     }
 
-    fun next(center: GeoPoint, zoom: Double, viewportInsets: MapViewportInsets = insets): MapCameraCommand =
+    fun next(
+        center: GeoPoint,
+        zoom: Double,
+        viewportInsets: MapViewportInsets = insets,
+        animated: Boolean = false,
+    ): MapCameraCommand =
         MapCameraCommand(
             center = center,
             zoom = zoom,
             revision = ++nextRevision,
             viewportInsets = viewportInsets,
+            animated = animated,
         ).also { command = it }
 }

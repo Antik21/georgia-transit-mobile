@@ -414,7 +414,7 @@ private class LocalMapController(
                 circleStrokeWidth(2f),
             ),
         )
-        loadedStyle.addLayer(stopPinLayer(SELECTED_STOP_SOURCE_ID, scale = 1.1f))
+        loadedStyle.addLayer(stopPinLayer(SELECTED_STOP_SOURCE_ID))
         loadedStyle.addLayer(
             CircleLayer(USER_LOCATION_LAYER_ID, USER_LOCATION_SOURCE_ID).withProperties(
                 circleColor("#1565C0"),
@@ -482,17 +482,16 @@ private class LocalMapController(
         val target = LatLng(command.center.latitude, command.center.longitude)
         val previousCommand = lastAppliedCameraCommand
         val preservedScreenPoint = previousCommand
-            ?.takeIf { previous -> shouldPreserveScreenAnchor(previous, command) }
+            ?.takeIf { previous -> !command.animated && shouldPreserveScreenAnchor(previous, command) }
             ?.let { currentMap.projection.toScreenLocation(target) }
-        currentMap.moveCamera(
-            CameraUpdateFactory.newCameraPosition(
-                CameraPosition.Builder()
-                    .target(target)
-                    .zoom(command.zoom.coerceIn(MIN_ZOOM, MAX_ZOOM))
-                    .padding(0.0, 0.0, 0.0, viewportBottomPadding(command))
-                    .build(),
-            ),
+        val update = CameraUpdateFactory.newCameraPosition(
+            CameraPosition.Builder()
+                .target(target)
+                .zoom(command.zoom.coerceIn(MIN_ZOOM, MAX_ZOOM))
+                .padding(0.0, 0.0, 0.0, viewportBottomPadding(command))
+                .build(),
         )
+        if (command.animated) currentMap.animateCamera(update) else currentMap.moveCamera(update)
         preservedScreenPoint?.let { originalPoint ->
             val centeredPoint = currentMap.projection.toScreenLocation(target)
             val compensatedCenter = currentMap.projection.fromScreenLocation(
@@ -513,7 +512,7 @@ private class LocalMapController(
         }
         lastAppliedCameraRevision = command.revision
         lastAppliedCameraCommand = command
-        mapView.post { notifyViewportSettled() }
+        if (!command.animated) mapView.post { notifyViewportSettled() }
     }
 
     private fun shouldPreserveScreenAnchor(previous: MapCameraCommand, current: MapCameraCommand): Boolean =
@@ -561,21 +560,13 @@ private class LocalMapController(
             onEvent(MapPlatformEvent.StopTapped(StopId(visibleStop.first), visibleStop.second))
             return true
         }
-        val halfTarget = MIN_STOP_TARGET_DP / 2f * mapView.resources.displayMetrics.density
+        val halfTarget = MIN_VEHICLE_TARGET_DP / 2f * mapView.resources.displayMetrics.density
         val hitRect = RectF(
             screenPoint.x - halfTarget,
             screenPoint.y - halfTarget,
             screenPoint.x + halfTarget,
             screenPoint.y + halfTarget,
         )
-        findEntityFeature(currentMap, hitRect, SELECTED_STOP_LAYER_ID, FEATURE_KIND_STOP)?.let { feature ->
-            onEvent(MapPlatformEvent.StopTapped(StopId(feature.first), feature.second))
-            return true
-        }
-        findEntityFeature(currentMap, hitRect, STOPS_LAYER_ID, FEATURE_KIND_STOP)?.let { feature ->
-            onEvent(MapPlatformEvent.StopTapped(StopId(feature.first), feature.second))
-            return true
-        }
         findEntityFeature(currentMap, hitRect, VEHICLES_LAYER_ID, FEATURE_KIND_VEHICLE)?.let { feature ->
             onEvent(MapPlatformEvent.VehicleTapped(VehicleId(feature.first), feature.second))
             return true
@@ -763,6 +754,7 @@ private fun ordinaryStopFeatures(renderState: MapRenderState): FeatureCollection
                 feature.addStringProperty(SOURCE_REVISION_PROPERTY, renderState.stopSourceRevision.toString())
                 feature.addStringProperty(ACCESSIBILITY_LABEL_PROPERTY, marker.accessibilityLabel)
                 feature.addStringProperty(STOP_PIN_PROPERTY, marker.routeHighlight.pinArtwork.imageId)
+                feature.addNumberProperty(STOP_PIN_SCALE_PROPERTY, marker.pinScale)
                 feature.addStringProperty(MARKER_COLOR_PROPERTY, TRANSPARENT_STOP_COLOR)
                 feature.addNumberProperty(MARKER_RADIUS_PROPERTY, marker.routeHighlight.markerRadius)
                 feature.addStringProperty(MARKER_STROKE_COLOR_PROPERTY, TRANSPARENT_STOP_COLOR)
@@ -801,6 +793,7 @@ private fun selectedStopFeatures(renderState: MapRenderState): FeatureCollection
                 feature.addStringProperty(SOURCE_REVISION_PROPERTY, renderState.stopSourceRevision.toString())
                 feature.addStringProperty(ACCESSIBILITY_LABEL_PROPERTY, marker.accessibilityLabel)
                 feature.addStringProperty(STOP_PIN_PROPERTY, marker.routeHighlight.pinArtwork.imageId)
+                feature.addNumberProperty(STOP_PIN_SCALE_PROPERTY, marker.pinScale)
                 feature.addStringProperty(MARKER_COLOR_PROPERTY, TRANSPARENT_STOP_COLOR)
                 feature.addStringProperty(MARKER_STROKE_COLOR_PROPERTY, TRANSPARENT_STOP_COLOR)
             }
@@ -974,7 +967,7 @@ private const val MIN_POLYGON_POINTS = 4
 private const val MIN_ZOOM = 0.0
 private const val MAX_ZOOM = 22.0
 private const val MAX_BOTTOM_OCCLUSION_FRACTION = 0.75
-private const val MIN_STOP_TARGET_DP = 48f
+private const val MIN_VEHICLE_TARGET_DP = 48f
 private const val EARTH_RADIUS_METERS = 6_371_008.8
 private const val FLIPPED_VEHICLE_LABEL_SUFFIX = "-flipped-label"
 private const val OVERFLOW_BADGE_IMAGE_ID = "gt-vehicle-badge-overflow"

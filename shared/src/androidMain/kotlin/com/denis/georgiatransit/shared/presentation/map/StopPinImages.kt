@@ -13,19 +13,22 @@ import org.maplibre.android.style.layers.PropertyFactory.iconAllowOverlap
 import org.maplibre.android.style.layers.PropertyFactory.iconAnchor
 import org.maplibre.android.style.layers.PropertyFactory.iconIgnorePlacement
 import org.maplibre.android.style.layers.PropertyFactory.iconImage
+import org.maplibre.android.style.layers.PropertyFactory.iconPadding
 import org.maplibre.android.style.layers.PropertyFactory.iconSize
 import org.maplibre.android.style.layers.SymbolLayer
 
 internal const val STOP_PIN_PROPERTY = "stopPin"
+internal const val STOP_PIN_SCALE_PROPERTY = "stopPinScale"
 private const val ImagePixelRatio = 3
 
 internal fun stopPinLayerId(sourceId: String): String = "$sourceId-pins"
 
-internal fun stopPinLayer(sourceId: String, scale: Float = 1f): SymbolLayer =
+internal fun stopPinLayer(sourceId: String): SymbolLayer =
     SymbolLayer(stopPinLayerId(sourceId), sourceId).withProperties(
         iconImage(Expression.get(STOP_PIN_PROPERTY)),
         iconAnchor("bottom"),
-        iconSize(scale * StopPinScale),
+        iconPadding(0f),
+        iconSize(Expression.get(STOP_PIN_SCALE_PROPERTY)),
         iconAllowOverlap(true),
         iconIgnorePlacement(true),
     )

@@ -211,6 +211,52 @@ class MapNearbyViewModelTest {
     }
 
     @Test
+    fun tappingGroupedStopAnimatesCameraWithoutOpeningAnArrivalsSheet() = runTest {
+        val city = city("tbilisi")
+        val route = route(city.id, "route-a", "A", 0xFF0057B8)
+        val first = stop("a", routeIds = listOf(route.id), position = GeoPoint(41.7, 44.8))
+        val opposite = stop("b", routeIds = listOf(route.id), position = GeoPoint(41.7001, 44.8))
+        val repository = RecordingRepository().apply {
+            routesSnapshot = listOf(route)
+            results += { data(first, opposite) }
+            results += { data(first, opposite) }
+        }
+        val session = RuntimeTransitSession().also {
+            it.selectCity(city)
+            assertTrue(it.selectRoutes(city.id, setOf(route.id)))
+        }
+        val viewModel = MapViewModel(repository, session, RuntimeLocationSession(this))
+
+        viewModel.test(this) {
+            runOnCreate()
+            this@runTest.advanceNearby()
+            val initial = requireNotNull(viewModel.state.renderState)
+            assertTrue(initial.stops.single().representsGroup)
+
+            viewModel.dispatchAction(
+                Action.MapEventReceived(MapPlatformEvent.StopTapped(first.id, initial.stopSourceRevision)),
+            )
+            this@runTest.runCurrent()
+
+            val command = requireNotNull(viewModel.state.renderState).camera
+            assertEquals(first.position, command.center)
+            assertEquals(ROUTE_STOP_GROUP_TAP_ZOOM, command.zoom)
+            assertTrue(command.animated)
+            assertNull(viewModel.state.selectedStop)
+            assertNull(viewModel.state.stopArrivalsSheet)
+
+            viewModel.dispatchAction(
+                Action.MapEventReceived(MapPlatformEvent.ViewportSettled(MapViewport(command.center, 1_000, command.zoom))),
+            )
+            this@runTest.advanceNearby()
+            val separate = requireNotNull(viewModel.state.renderState)
+            assertEquals(listOf(first.id, opposite.id), separate.stops.map(MapStopMarker::id))
+            assertTrue(separate.stops.none { it.representsGroup })
+            cancelAndIgnoreRemainingItems()
+        }
+    }
+
+    @Test
     fun committedRouteReplacementReprojectsMapMarkersWithoutClusteringOrReloadingStops() = runTest {
         val city = city("tbilisi")
         val routeA = route(city.id, "route-a", "A", 0xFF0057B8)
@@ -251,6 +297,7 @@ class MapNearbyViewModelTest {
             assertEquals(StopRouteHighlightStyle.MultipleRoutes, highlights.getValue("a-and-b").routeHighlight.style)
             assertEquals(listOf(routeA.id, routeB.id), highlights.getValue("a-and-b").routeHighlight.matchingRouteIds)
             val initialRender = requireNotNull(initial.renderState)
+            assertTrue(initialRender.stops.all { it.pinScale == StopPinScale })
             val renderedHighlights = initialRender.stops.associate { it.id.value to it.routeHighlight }
             val routeAColor = renderedHighlights.getValue("only-a").backgroundArgb
             val routeBColor = renderedHighlights.getValue("only-b").backgroundArgb
@@ -292,6 +339,7 @@ class MapNearbyViewModelTest {
             )
             assertEquals(listOf(StopId("only-b")), replacementRender.stops.map { it.id })
             assertTrue(replacementRender.stops.single().routeHighlight.pinArtwork.badges.isEmpty())
+            assertEquals(StopPinScale * 0.75f * 1.1f, replacementRender.stops.single().pinScale)
             assertTrue(replacementRender.stopClusters.isEmpty())
             cancelAndIgnoreRemainingItems()
         }

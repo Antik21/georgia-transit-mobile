@@ -407,6 +407,14 @@ class MapViewModel(
         requireVisibleMarker: Boolean,
     ) = intent {
         val city = currentCity ?: return@intent
+        val renderState = state.renderState
+        val group = renderState?.stops?.firstOrNull { it.id == stopId && it.representsGroup }
+        if (requireVisibleMarker && group != null) {
+            if (sourceRevision != stopSelection.sourceRevision || sourceRevision != renderState.stopSourceRevision) return@intent
+            val command = cameraController.next(group.position, ROUTE_STOP_GROUP_TAP_ZOOM, animated = true)
+            reduce { state.copy(renderState = renderState.copy(camera = command)) }
+            return@intent
+        }
         val stop = stopSnapshot(stopId)
         if (!stopSelection.select(stop, sourceRevision, requireVisibleMarker,
                 state.renderState?.stops, city, lastViewport?.zoom)) return@intent
