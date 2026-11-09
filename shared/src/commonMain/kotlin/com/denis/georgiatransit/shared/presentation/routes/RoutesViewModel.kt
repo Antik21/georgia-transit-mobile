@@ -8,6 +8,7 @@ import com.denis.georgiatransit.shared.domain.model.RouteSelectionPolicy
 import com.denis.georgiatransit.shared.domain.model.TransitCity
 import com.denis.georgiatransit.shared.domain.model.TransitLocale
 import com.denis.georgiatransit.shared.domain.model.TransitRoute
+import com.denis.georgiatransit.shared.domain.repository.RecentRouteHistory
 import com.denis.georgiatransit.shared.domain.repository.RouteListRequest
 import com.denis.georgiatransit.shared.domain.repository.TransitFailure
 import com.denis.georgiatransit.shared.domain.repository.TransitLoadResult
@@ -25,6 +26,7 @@ import org.orbitmvi.orbit.container
 class RoutesViewModel(
     private val repository: TransitRepository,
     private val session: TransitSession,
+    private val recentHistory: RecentRouteHistory = RecentRouteHistory.None,
 ) : ViewModel(), ContainerHost<ViewState, SideEffect> {
     private var activeCity: TransitCity? = null
     private var catalogRoutes: List<TransitRoute> = emptyList()
@@ -128,7 +130,8 @@ class RoutesViewModel(
             } catch (_: Throwable) {
                 TransitLoadResult.Failure(TransitFailure.Transport("Route catalogue request failed"))
             }
-            acceptCatalogResult(city, generation, result)
+            val recentRouteIds = if (result is TransitLoadResult.Data) recentHistory.read(city.id) else emptyList()
+            acceptCatalogResult(city, generation, result, recentRouteIds)
         }
     }
 
@@ -136,6 +139,7 @@ class RoutesViewModel(
         city: TransitCity,
         generation: Long,
         result: TransitLoadResult<List<TransitRoute>>,
+        recentRouteIds: List<RouteId>,
     ) = intent {
         if (
             generation != catalogGeneration ||
@@ -180,6 +184,7 @@ class RoutesViewModel(
                         visibleRoutes = routes.filterFor(state.searchQuery),
                         selectedIds = reconciledDraft,
                         catalog = CatalogState.Available(result.freshness),
+                        recentRouteIds = recentRouteIds,
                     )
                 }
             }
@@ -284,11 +289,12 @@ class RoutesViewModel(
             reduce { state.copy(isConfirming = false) }
             return@intent
         }
+        recentHistory.record(city.id, draftSelectedIds)
         postSideEffect(NavigationEffect.Confirmed)
     }
 
     private fun onCancelClicked() = intent {
-        postSideEffect(NavigationEffect.Dismissed)
+        if (!state.isConfirming) postSideEffect(NavigationEffect.Dismissed)
     }
 
     private fun TransitFailure.toCatalogState(): CatalogState {
@@ -380,6 +386,8 @@ private fun Int.skipLeadingZeroes(value: String, endExclusive: Int): Int {
     return index
 }
 
+private val TechnicalDirections = setOf("technical direction", "техническое направление", "ტექნიკური მიმართულება")
+
 private fun List<TransitRoute>.toRouteItems(
     locale: TransitLocale,
     selectedIds: Set<RouteId>,
@@ -387,19 +395,19 @@ private fun List<TransitRoute>.toRouteItems(
     val selectionStyles = RouteSelectionProjector.resolve(this, selectedIds).byId
     return sortedWith(RouteCatalogComparator).map { route ->
         val style = selectionStyles[route.id]
+        val directions = route.directions.asSequence()
+            .flatMap { direction ->
+                sequenceOf(direction.headsign, direction.name).map { it.localizedDisplayName(locale, fallback = "") }
+            }
+            .filter { it.isNotBlank() && it.lowercase() !in TechnicalDirections }
+            .distinct()
+            .toList()
         RouteItemUiModel(
             id = route.id,
             shortName = route.shortName.trim().ifBlank { "?" },
             name = route.longName.localizedDisplayName(locale, route.name.trim().ifBlank { "?" }),
-            direction = route.directions.asSequence()
-                .map { direction ->
-                    direction.headsign.localizedDisplayName(
-                        locale = locale,
-                        fallback = direction.name.localizedDisplayName(locale, fallback = ""),
-                    )
-                }
-                .firstOrNull(String::isNotBlank)
-                .orEmpty(),
+            direction = directions.firstOrNull().orEmpty(),
+            searchableDirections = directions,
             colorArgb = style?.backgroundArgb ?: route.colorArgb,
             textColorArgb = style?.textArgb ?: route.textColorArgb,
             mode = route.mode,
@@ -424,7 +432,8 @@ private fun List<RouteItemUiModel>.filterFor(query: String): List<RouteItemUiMod
     if (normalizedQuery.isBlank()) return this
     return filter { route ->
         route.shortName.contains(normalizedQuery, ignoreCase = true) ||
-            route.name.contains(normalizedQuery, ignoreCase = true)
+            route.name.contains(normalizedQuery, ignoreCase = true) ||
+            route.searchableDirections.any { it.contains(normalizedQuery, ignoreCase = true) }
     }
 }
 

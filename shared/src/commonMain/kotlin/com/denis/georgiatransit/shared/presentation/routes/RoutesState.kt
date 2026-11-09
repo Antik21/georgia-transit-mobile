@@ -18,7 +18,15 @@ data class ViewState(
     val visibleRoutes: List<RouteItemUiModel> = routes,
     val searchQuery: String = "",
     val isConfirming: Boolean = false,
+    val recentRouteIds: List<RouteId> = emptyList(),
 ) {
+    val recentRoutes: List<RouteItemUiModel>
+        get() {
+            if (recentRouteIds.isEmpty()) return emptyList()
+            val routesById = routes.associateBy(RouteItemUiModel::id)
+            return recentRouteIds.mapNotNull(routesById::get)
+        }
+
     val isSelectionLimitReached: Boolean
         get() = selectedIds.size >= RouteSelectionPolicy.MaximumSelectedRoutes
 
@@ -49,6 +57,7 @@ data class RouteItemUiModel(
     val direction: String = "",
     val textColorArgb: Long = 0xFFFFFFFF,
     val mode: TransitMode = TransitMode.Bus,
+    val searchableDirections: List<String> = emptyList(),
 )
 
 sealed interface Action {

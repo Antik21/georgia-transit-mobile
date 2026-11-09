@@ -1,5 +1,10 @@
 package com.denis.georgiatransit.shared.app
 
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.togetherWith
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -8,6 +13,7 @@ import androidx.compose.runtime.remember
 import androidx.lifecycle.viewmodel.navigation3.rememberViewModelStoreNavEntryDecorator
 import androidx.navigation3.runtime.NavKey
 import androidx.navigation3.runtime.entryProvider
+import androidx.navigation3.runtime.metadata
 import androidx.navigation3.runtime.rememberNavBackStack
 import androidx.navigation3.scene.SinglePaneSceneStrategy
 import androidx.navigation3.ui.NavDisplay
@@ -86,7 +92,19 @@ internal fun Navigation3AppHost(initialDestination: Destination) {
                 }
             }
         }
-        entry<Destination.Routes> {
+        entry<Destination.Routes>(
+            metadata = metadata {
+                put(NavDisplay.TransitionKey) {
+                    slideInVertically(initialOffsetY = { it }) togetherWith ExitTransition.KeepUntilTransitionsFinished
+                }
+                put(NavDisplay.PopTransitionKey) {
+                    EnterTransition.None togetherWith slideOutVertically(targetOffsetY = { it })
+                }
+                put(NavDisplay.PredictivePopTransitionKey) {
+                    EnterTransition.None togetherWith slideOutVertically(targetOffsetY = { it })
+                }
+            },
+        ) {
             val viewModel: RoutesViewModel = navigationEntryViewModel("routes")
             RoutesScreen(viewModel) { effect ->
                 when (effect) {

@@ -60,6 +60,7 @@ object AutomationId {
     fun mapAttributionLink(id: String): String = "map.attribution.link.$id"
     const val RoutesScreen = "routes.screen"
     const val RoutesOption = "routes.option"
+    const val RoutesRecentOption = "routes.recent-option"
     const val RoutesSearch = "routes.search"
     const val RoutesList = "routes.list"
     const val RoutesLoading = "routes.loading"

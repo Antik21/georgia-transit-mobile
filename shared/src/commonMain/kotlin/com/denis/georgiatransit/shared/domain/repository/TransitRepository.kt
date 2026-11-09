@@ -15,7 +15,9 @@ import com.denis.georgiatransit.shared.domain.model.TransitRoute
 import com.denis.georgiatransit.shared.domain.model.TransitShape
 import com.denis.georgiatransit.shared.domain.model.TransitStop
 import com.denis.georgiatransit.shared.domain.model.VehiclePage
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.serialization.Serializable
 import kotlin.time.Instant
 
@@ -82,6 +84,8 @@ data class RouteListRequest(
 interface TransitRepository {
     /** Latest in-memory snapshot for current UI. This does not initiate I/O. */
     fun cities(): List<TransitCity>
+
+    fun observeCities(): Flow<List<TransitCity>> = flowOf(cities())
 
     suspend fun loadCityCapabilitySnapshot(): List<TransitCity> = cities()
 

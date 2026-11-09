@@ -29,6 +29,8 @@ import com.denis.georgiatransit.shared.domain.repository.TransitRepositoryExcept
 import com.denis.georgiatransit.shared.domain.repository.canUseLastKnownGood
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
@@ -96,6 +98,8 @@ class BffTransitRepository(
     private val snapshots = MutableStateFlow(TransitSnapshot())
 
     override fun cities(): List<TransitCity> = snapshots.value.cities
+
+    override fun observeCities() = snapshots.map { it.cities }.distinctUntilChanged()
 
     override suspend fun loadCityCapabilitySnapshot(): List<TransitCity> = when (val result = refreshCityCapabilities()) {
         is TransitLoadResult.Data -> result.value

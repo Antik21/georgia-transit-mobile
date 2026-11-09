@@ -44,14 +44,21 @@ class RuntimeLocationSession(
         if (compatibleFix == null) cancelExpiry()
     }
 
-    override fun beginLocationRequest(requestId: LocationCommandId): Boolean {
+    override fun beginLocationRequest(requestId: LocationCommandId, isRefresh: Boolean): Boolean {
         val current = mutableState.value
-        if (current.permission !is LocationPermissionState.Granted || current.activeRequestId != null) return false
-        cancelExpiry()
+        if (current.permission !is LocationPermissionState.Granted) return false
+        if (current.activeRequestId != null) {
+            // A manual tap can use the fix from the refresh already in flight.
+            if (!isRefresh && !current.isLocating) {
+                mutableState.value = current.copy(isLocating = true, failure = null)
+            }
+            return false
+        }
+        if (!isRefresh) cancelExpiry()
         mutableState.value = current.copy(
-            fix = null,
-            isLocating = true,
-            failure = null,
+            fix = current.fix.takeIf { isRefresh },
+            isLocating = !isRefresh,
+            failure = current.failure.takeIf { isRefresh },
             activeRequestId = requestId,
         )
         return true
@@ -83,6 +90,7 @@ class RuntimeLocationSession(
             precision = permission.precision,
             capturedAtEpochMillis = candidate.capturedAtEpochMillis,
             expiresAtEpochMillis = expiresAt,
+            recenterMap = current.isLocating,
         )
         mutableState.value = current.copy(
             fix = fix,
@@ -96,7 +104,11 @@ class RuntimeLocationSession(
     override fun fail(requestId: LocationCommandId, failure: LocationFailure) {
         val current = mutableState.value
         if (current.activeRequestId != requestId) return
-        mutableState.value = current.copy(isLocating = false, failure = failure, activeRequestId = null)
+        mutableState.value = current.copy(
+            isLocating = false,
+            failure = if (current.isLocating) failure else current.failure,
+            activeRequestId = null,
+        )
     }
 
     override fun cancelRequest(requestId: LocationCommandId) {

@@ -138,21 +138,27 @@ class CitySelectionViewModelTest {
     }
 
     @Test
-    fun enabledKutaisiIsSelectableOnlyWhenTheRemoteSnapshotEnablesStops() = runTest {
-        val enabledKutaisi = kutaisi(stopsEnabled = true)
+    fun automaticallyPersistsTheOnlyEnabledCatalogEntryAndOpensMap() = runTest {
+        val persisted = mutableListOf<TransitCity>()
+        val session = RuntimeTransitSession(object : SelectedCityStore {
+            override fun read() = null
+            override fun save(city: TransitCity) {
+                persisted += city
+            }
+            override fun clear() = Unit
+        })
         val repository = CatalogRepository(
-            results = mutableListOf(TransitLoadResult.Data(listOf(enabledKutaisi), TransitFreshness.Network)),
+            results = mutableListOf(TransitLoadResult.Data(listOf(batumi), TransitFreshness.Network)),
         )
-        val viewModel = CitySelectionViewModel(repository, RuntimeTransitSession(), testLocationSession())
+        val viewModel = CitySelectionViewModel(repository, session, testLocationSession())
 
         viewModel.test(this) {
             runOnCreate()
             this@runTest.runCurrent()
-            viewModel.dispatchAction(Action.CityClicked(enabledKutaisi.id))
-            this@runTest.runCurrent()
-
-            assertEquals(enabledKutaisi.id, viewModel.container.stateFlow.value.selectedCityId)
-            assertTrue(viewModel.container.stateFlow.value.canContinue)
+            assertEquals(NavigationEffect.OpenMap, awaitSideEffectIgnoringStates())
+            assertEquals(batumi, session.selectedCity.value)
+            assertEquals(listOf(batumi), persisted)
+            expectNoItems()
             cancelAndIgnoreRemainingItems()
         }
     }
@@ -162,10 +168,10 @@ class CitySelectionViewModelTest {
         val staleFailure = TransitFailure.Transport("offline")
         val repository = CatalogRepository(
             results = mutableListOf(
-                TransitLoadResult.Data(listOf(tbilisi), TransitFreshness.Network),
-                TransitLoadResult.Data(listOf(tbilisi), TransitFreshness.CacheValid),
+                TransitLoadResult.Data(listOf(tbilisi, batumi), TransitFreshness.Network),
+                TransitLoadResult.Data(listOf(tbilisi, batumi), TransitFreshness.CacheValid),
                 TransitLoadResult.Data(
-                listOf(tbilisi),
+                listOf(tbilisi, batumi),
                 TransitFreshness.StaleOffline,
                 revalidationFailure = staleFailure,
                 ),
@@ -188,7 +194,7 @@ class CitySelectionViewModelTest {
                 CityCatalogState.Populated(TransitFreshness.StaleOffline, staleFailure),
                 viewModel.container.stateFlow.value.catalog,
             )
-            assertEquals(listOf(tbilisi.id), viewModel.container.stateFlow.value.cities.map { it.id })
+            assertEquals(listOf(tbilisi.id, batumi.id), viewModel.container.stateFlow.value.cities.map { it.id })
             cancelAndIgnoreRemainingItems()
         }
     }
@@ -213,7 +219,7 @@ class CitySelectionViewModelTest {
         val repository = CatalogRepository(
             results = mutableListOf(
                 TransitLoadResult.Failure(TransitFailure.Transport("offline")),
-                TransitLoadResult.Data(listOf(tbilisi), TransitFreshness.Network),
+                TransitLoadResult.Data(listOf(tbilisi, batumi), TransitFreshness.Network),
             ),
         )
         val viewModel = CitySelectionViewModel(repository, RuntimeTransitSession(), testLocationSession())
@@ -250,7 +256,7 @@ class CitySelectionViewModelTest {
     fun retryRequestsAreSingleFlightWhileARefreshIsInProgress() = runTest {
         lateinit var viewModel: CitySelectionViewModel
         val repository = CatalogRepository(
-            results = mutableListOf(TransitLoadResult.Data(listOf(tbilisi), TransitFreshness.Network)),
+            results = mutableListOf(TransitLoadResult.Data(listOf(tbilisi, batumi), TransitFreshness.Network)),
             onRefresh = {
                 viewModel.dispatchAction(Action.RetryClicked)
                 viewModel.dispatchAction(Action.RetryClicked)
@@ -271,7 +277,7 @@ class CitySelectionViewModelTest {
     @Test
     fun cancelledCatalogRefreshReleasesRetryForTheNextSuccessfulRequest() = runTest {
         val repository = CatalogRepository(
-            results = mutableListOf(TransitLoadResult.Data(listOf(tbilisi), TransitFreshness.Network)),
+            results = mutableListOf(TransitLoadResult.Data(listOf(tbilisi, batumi), TransitFreshness.Network)),
             cancelFirstRefresh = true,
         )
         val viewModel = CitySelectionViewModel(repository, RuntimeTransitSession(), testLocationSession())
@@ -323,7 +329,7 @@ class CitySelectionViewModelTest {
     fun refreshClearsTheVisibleSelectionWhenTheReplacementSnapshotRemovesOrDisablesIt() = runTest {
         val disabledTbilisi = tbilisi.copy(capabilities = tbilisi.capabilities.copy(stops = false))
         val scenarios = listOf(
-            "removed" to listOf(batumi),
+            "removed" to listOf(batumi, kutaisi(stopsEnabled = false)),
             "disabled" to listOf(disabledTbilisi, batumi),
         )
 
@@ -365,7 +371,7 @@ class CitySelectionViewModelTest {
             },
         )
         val repository = CatalogRepository(
-            results = mutableListOf(TransitLoadResult.Data(listOf(tbilisi), TransitFreshness.Network)),
+            results = mutableListOf(TransitLoadResult.Data(listOf(tbilisi, batumi), TransitFreshness.Network)),
         )
         val viewModel = CitySelectionViewModel(repository, session, testLocationSession())
 
@@ -404,7 +410,7 @@ class CitySelectionViewModelTest {
             override fun clear() = Unit
         }
         val repository = CatalogRepository(
-            results = mutableListOf(TransitLoadResult.Data(listOf(tbilisi), TransitFreshness.Network)),
+            results = mutableListOf(TransitLoadResult.Data(listOf(tbilisi, batumi), TransitFreshness.Network)),
         )
         val viewModel = CitySelectionViewModel(
             repository = repository,

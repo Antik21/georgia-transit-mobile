@@ -55,7 +55,9 @@ snapshot. Android stores the full city record (including its capabilities) in
 `SharedPreferences`; iOS stores the same record in `NSUserDefaults`. A first
 launch, removed/disabled city, malformed cache, or incompatible schema opens
 City Selection directly. City Selection owns the initial `/v1/cities` refresh
-and exposes loading, empty, retryable-error, and stale-offline states without
+and automatically confirms a single catalog entry when it supports stops. The
+map hides Change City while that single-city catalog is active. City Selection
+exposes loading, empty, retryable-error, and stale-offline states without
 turning a first-choice catalogue failure into a Splash error. A matching cached
 city is revalidated against the current snapshot before Map opens; if that
 refresh fails or times out, only a structurally valid, enabled cached city can
@@ -65,8 +67,9 @@ restoration: they cannot block the current City Selection or Map transition.
 Verify startup explicitly on both platforms:
 
 1. Cold start after clearing app data (Android) or deleting/reinstalling the
-   app (iOS): City Selection is shown.
-2. Select an enabled city (Batumi in Prod), continue to Map, terminate the app,
+   app (iOS): a single supported city opens Map directly. With multiple cities,
+   City Selection is shown.
+2. With a selected city (automatically or after confirmation), terminate the app,
    then cold start again: Map restores the selected city.
 3. Put the app in the background and return while on City Selection, Map, and
    Routes: the existing common navigation state remains valid for the restored

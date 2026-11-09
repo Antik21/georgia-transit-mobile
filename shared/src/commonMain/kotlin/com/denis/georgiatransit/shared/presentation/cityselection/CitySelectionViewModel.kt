@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.denis.georgiatransit.shared.domain.model.CityId
 import com.denis.georgiatransit.shared.domain.model.TransitCity
+import com.denis.georgiatransit.shared.domain.model.singleSelectableCity
 import com.denis.georgiatransit.shared.domain.repository.TransitLoadResult
 import com.denis.georgiatransit.shared.domain.repository.TransitRepository
 import com.denis.georgiatransit.shared.domain.repository.TransitSession
@@ -60,6 +61,7 @@ class CitySelectionViewModel(
         if (!catalogRefreshGate.tryClaim()) return
         intent {
             try {
+                if (state.isConfirming) return@intent
                 val previousSelection = state.selectedCityId
                 currentCatalog = emptyList()
                 reduce {
@@ -82,13 +84,15 @@ class CitySelectionViewModel(
                                 )
                             }
                         } else {
+                            val onlyCity = snapshot.singleSelectableCity()
                             reduce {
                                 state.copy(
                                     cities = snapshot.map { it.toCityItemUiModel() },
-                                    selectedCityId = selectedIdIn(snapshot, previousSelection),
+                                    selectedCityId = onlyCity?.id ?: selectedIdIn(snapshot, previousSelection),
                                     catalog = CityCatalogState.Populated(result.freshness, result.revalidationFailure),
                                 )
                             }
+                            if (onlyCity != null) onContinueClicked()
                         }
                     }
 

@@ -6,8 +6,10 @@ import com.denis.georgiatransit.shared.data.config.BffEndpointConfiguration
 import com.denis.georgiatransit.shared.data.network.TransitBffClient
 import com.denis.georgiatransit.shared.data.network.createTransitHttpClient
 import com.denis.georgiatransit.shared.data.repository.BffTransitRepository
+import com.denis.georgiatransit.shared.data.repository.StoredRecentRouteHistory
 import com.denis.georgiatransit.shared.domain.config.RuntimeBootstrapConfigurationSource
 import com.denis.georgiatransit.shared.domain.interactor.BootstrapTransitSession
+import com.denis.georgiatransit.shared.domain.repository.RecentRouteHistory
 import com.denis.georgiatransit.shared.domain.repository.SelectedCityStore
 import com.denis.georgiatransit.shared.data.repository.RuntimeTransitSession
 import com.denis.georgiatransit.shared.domain.repository.TransitRepository
@@ -36,6 +38,7 @@ private fun appModule(
     single<RuntimeBootstrapConfigurationSource> { runtimeConfigurationSource }
     single<TransitCacheStore> { transitCacheStore }
     single { TransitCache(get()) }
+    single<RecentRouteHistory> { StoredRecentRouteHistory(get()) }
     single { createTransitHttpClient() }
     single { TransitBffClient(httpClient = get(), endpoint = bffEndpointConfiguration) }
     single<TransitRepository> { BffTransitRepository(client = get(), cache = get()) }
@@ -65,7 +68,7 @@ private fun appModule(
             bffStyleUrl = bffEndpointConfiguration?.mapStyleUrlOrNull(),
         )
     }
-    factory { RoutesViewModel(repository = get(), session = get()) }
+    factory { RoutesViewModel(repository = get(), session = get(), recentHistory = get()) }
 }
 
 fun initGeorgiaTransitKoin(

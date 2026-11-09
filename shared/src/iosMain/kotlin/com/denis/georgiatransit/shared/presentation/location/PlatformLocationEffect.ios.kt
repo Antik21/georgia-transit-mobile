@@ -68,6 +68,13 @@ actual fun PlatformLocationEffect(
 
     LaunchedEffect(command?.id) {
         val current = command ?: return@LaunchedEffect
+        if (current is LocationPlatformCommand.RequestLocation && current.isRefresh &&
+            !lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)
+        ) {
+            currentOnEvent.value(LocationPlatformEvent.Cancelled(current.id))
+            onCommandConsumed()
+            return@LaunchedEffect
+        }
         when (current) {
             is LocationPlatformCommand.QueryPermission -> currentOnEvent.value(
                 LocationPlatformEvent.PermissionChanged(adapter.permissionState()),

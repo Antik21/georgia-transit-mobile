@@ -11,12 +11,14 @@ import com.denis.georgiatransit.shared.domain.model.TransitLocale
 import com.denis.georgiatransit.shared.domain.model.TransitRoute
 import com.denis.georgiatransit.shared.domain.model.TransitStop
 import com.denis.georgiatransit.shared.domain.model.VehicleId
+import com.denis.georgiatransit.shared.domain.model.singleSelectableCity
 import com.denis.georgiatransit.shared.domain.repository.TransitRepository
 import com.denis.georgiatransit.shared.domain.repository.TransitSession
 import com.denis.georgiatransit.shared.presentation.location.LocationSession
 import com.denis.georgiatransit.shared.presentation.location.UserLocationFix
 import com.denis.georgiatransit.shared.presentation.ui.RouteSelectionProjection
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.launch
 import kotlinx.collections.immutable.PersistentList
 import org.orbitmvi.orbit.Container
 import org.orbitmvi.orbit.ContainerHost
@@ -63,8 +65,15 @@ class MapViewModel(
     override val container: Container<ViewState, SideEffect> = viewModelScope.container(
         initialState = ViewState(
             baseLayerState = if (bffStyleUrl == null) MapBaseLayerState.LocalPreview else MapBaseLayerState.BffStyle,
+            canChangeCity = repository.cities().singleSelectableCity() == null,
         ),
         onCreate = {
+            viewModelScope.launch {
+                repository.observeCities().collect { cities ->
+                    val canChangeCity = cities.singleSelectableCity() == null
+                    intent { reduce { state.copy(canChangeCity = canChangeCity) } }.join()
+                }
+            }
             combine(session.selectedCity, session.selectedRouteIds, locationSession.state) { city, selectedIds, location ->
                 Triple(city, selectedIds, location)
             }.collect { (city, selectedIds, location) ->
@@ -120,9 +129,15 @@ class MapViewModel(
                     postSideEffect(NavigationEffect.OpenRoutes)
                 }
             }
-            Action.ChangeCityClicked -> intent { postSideEffect(NavigationEffect.OpenCitySelection) }
-            Action.MyLocationClicked -> intent {
-                locationActions.onClick(state.location.permission)?.let { postSideEffect(SideEffect.HandleLocation(it)) }
+            Action.ChangeCityClicked -> intent {
+                if (state.canChangeCity) postSideEffect(NavigationEffect.OpenCitySelection)
+            }
+            Action.MyLocationClicked, Action.RefreshLocation -> intent {
+                val command = when (action) {
+                    Action.MyLocationClicked -> locationActions.onClick(state.location.permission)
+                    else -> if (realtimeVisibleAndStarted) locationActions.refresh() else null
+                }
+                command?.let { postSideEffect(SideEffect.HandleLocation(it)) }
             }
             Action.RetryNearby -> retryNearby()
             is Action.RouteGeometryFocused -> routeGeometryCoordinator.focus(action.routeId)

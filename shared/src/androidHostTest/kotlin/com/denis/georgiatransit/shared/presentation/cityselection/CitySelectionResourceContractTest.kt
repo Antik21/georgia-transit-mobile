@@ -26,7 +26,7 @@ class CitySelectionResourceContractTest {
     }
 
     @Test
-    fun cityAutomationIdsAreFixedAndMatchTheMaestroFixtureSelection() {
+    fun cityAutomationIdsAreFixedAndMatchTheMultiCityMaestroFlow() {
         val cityIds = listOf(
             AutomationId.CityScreen,
             AutomationId.CityLoading,
@@ -58,13 +58,9 @@ class CitySelectionResourceContractTest {
             AutomationId.CityTbilisiAttributionOpenStreetMap,
         )
 
-        val projectRoot = projectRoot()
-        MaestroFlows.forEach { flow ->
-            assertTrue(
-                projectRoot.resolve(flow).readText().contains("id: ${AutomationId.CityDemo}"),
-                "$flow must select the development fixture through its fixed automation ID",
-            )
-        }
+        val multiCityFlow = projectRoot().resolve(RouteSelectionSmokeFlow).readText()
+        assertTrue(multiCityFlow.contains("id: ${AutomationId.CityDemo}"))
+        assertTrue(multiCityFlow.contains("id: ${AutomationId.CityTbilisi}"))
     }
 
     @Test
@@ -234,12 +230,7 @@ class CitySelectionResourceContractTest {
             "city_catalog_offline",
             "city_attribution_title",
         )
-        val MaestroFlows = listOf(
-            "ui-tests/maestro/flows/shell-smoke.yaml",
-            "ui-tests/maestro/flows/location-granted-smoke.yaml",
-            "ui-tests/maestro/flows/location-settings-fallback-smoke.yaml",
-            "ui-tests/maestro/flows/startup-persistence-smoke.yaml",
-        )
+        const val RouteSelectionSmokeFlow = "ui-tests/maestro/flows/route-selection-smoke.yaml"
         const val TbilisiAttributionSmokeFlow = "ui-tests/maestro/flows/tbilisi-attribution-disabled-smoke.yaml"
         const val AndroidTbilisiAttributionHarness = "ui-tests/maestro/run-android-tbilisi-attribution-disabled.sh"
         const val IosTbilisiAttributionHarness = "ui-tests/maestro/run-ios-tbilisi-attribution-disabled.sh"

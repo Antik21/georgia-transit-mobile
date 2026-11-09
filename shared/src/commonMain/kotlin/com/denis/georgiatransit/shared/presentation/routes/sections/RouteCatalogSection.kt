@@ -6,13 +6,22 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.input.ImeAction
 import com.denis.georgiatransit.shared.domain.model.CityId
 import com.denis.georgiatransit.shared.domain.model.RouteId
 import com.denis.georgiatransit.shared.domain.repository.TransitFreshness
@@ -22,8 +31,12 @@ import com.denis.georgiatransit.shared.presentation.ui.automation.AutomationId
 import com.denis.georgiatransit.shared.presentation.ui.component.EmptyState
 import com.denis.georgiatransit.shared.presentation.ui.component.ErrorState
 import com.denis.georgiatransit.shared.presentation.ui.component.LoadingState
+import com.denis.georgiatransit.shared.presentation.ui.theme.TransitShapes
 import com.denis.georgiatransit.shared.presentation.ui.theme.TransitSpacing
 import georgiatransit.shared.generated.resources.Res
+import georgiatransit.shared.generated.resources.route_clear
+import georgiatransit.shared.generated.resources.route_search
+import georgiatransit.shared.generated.resources.routes_clear_search
 import georgiatransit.shared.generated.resources.routes_empty
 import georgiatransit.shared.generated.resources.routes_empty_search
 import georgiatransit.shared.generated.resources.routes_error
@@ -34,6 +47,7 @@ import georgiatransit.shared.generated.resources.routes_retry
 import georgiatransit.shared.generated.resources.routes_search_label
 import georgiatransit.shared.generated.resources.routes_search_placeholder
 import georgiatransit.shared.generated.resources.routes_unavailable
+import org.jetbrains.compose.resources.painterResource
 import org.jetbrains.compose.resources.stringResource
 
 @Composable
@@ -124,14 +138,7 @@ private fun RouteList(
                 style = MaterialTheme.typography.bodyMedium,
             )
         }
-        OutlinedTextField(
-            value = searchQuery,
-            onValueChange = onSearchChanged,
-            modifier = Modifier.fillMaxWidth().testTag(AutomationId.RoutesSearch),
-            label = { Text(stringResource(Res.string.routes_search_label)) },
-            placeholder = { Text(stringResource(Res.string.routes_search_placeholder)) },
-            singleLine = true,
-        )
+        RouteSearchField(searchQuery, onSearchChanged)
         when {
             routes.isEmpty() -> EmptyState(
                 title = stringResource(Res.string.routes_empty),
@@ -159,4 +166,33 @@ private fun RouteList(
             }
         }
     }
+}
+
+@Composable
+private fun RouteSearchField(query: String, onQueryChanged: (String) -> Unit) {
+    val focusManager = LocalFocusManager.current
+    val label = stringResource(Res.string.routes_search_label)
+    OutlinedTextField(
+        value = query,
+        onValueChange = onQueryChanged,
+        modifier = Modifier.fillMaxWidth().testTag(AutomationId.RoutesSearch)
+            .semantics { contentDescription = label },
+        placeholder = { Text(stringResource(Res.string.routes_search_placeholder)) },
+        leadingIcon = { Icon(painterResource(Res.drawable.route_search), contentDescription = null) },
+        shape = TransitShapes.Large,
+        colors = OutlinedTextFieldDefaults.colors(
+            focusedContainerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+            unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+        ),
+        trailingIcon = {
+            if (query.isNotEmpty()) {
+                IconButton(onClick = { onQueryChanged("") }) {
+                    Icon(painterResource(Res.drawable.route_clear), stringResource(Res.string.routes_clear_search))
+                }
+            }
+        },
+        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+        keyboardActions = KeyboardActions(onDone = { focusManager.clearFocus() }),
+        singleLine = true,
+    )
 }
