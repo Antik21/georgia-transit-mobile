@@ -96,6 +96,17 @@ class VehicleRoutePathInterpolatorTest {
     }
 
     @Test
+    fun `two substantial reverse steps turn the marker after thirty meters`() {
+        val path = prepared(GeoPoint(0.0, 0.0), GeoPoint(0.0, 0.002))
+        val forward = motion(path, 0.0004, 0.001)
+        val first = motion(path, 0.001, 0.00082, forward)
+        val second = motion(path, 0.00082, 0.00064, first)
+
+        assertBearingNear(90.0, assertNotNull(first.bearingAt(0.5)))
+        assertBearingNear(270.0, assertNotNull(second.bearingAt(0.5)))
+    }
+
+    @Test
     fun `small recoveries cancel repeated GPS setbacks`() {
         val path = prepared(GeoPoint(0.0, 0.0), GeoPoint(0.0, 0.002))
         var longitude = 0.001

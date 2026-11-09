@@ -91,6 +91,26 @@ class VehicleRealtimeCoordinatorTest {
     }
 
     @Test
+    fun directTravelBearingUsesMovementAndSurvivesAShortGpsSetback() {
+        val initial = applied(page(items = listOf(vehicle("bus"))))
+        val firstObservation = now + seconds(5)
+        val secondObservation = now + seconds(10)
+        val moved = applied(
+            page(listOf(vehicle("bus", point = GeoPoint(0.0, -0.0002), observedAt = firstObservation)), firstObservation),
+            state = initial,
+        )
+        val setback = applied(
+            page(listOf(vehicle("bus", point = GeoPoint(0.0, -0.00019), observedAt = secondObservation)), secondObservation),
+            state = moved,
+            monotonicNowMillis = 5_000,
+        )
+
+        assertEquals(90.0, moved.tracks.single().bearingDegrees)
+        assertEquals(270.0, moved.tracks.single().directTravelBearing)
+        assertEquals(270.0, setback.tracks.single().directTravelBearing)
+    }
+
+    @Test
     fun reidentifiedVehiclesUseDeterministicNearestOneToOneStitchingIndependentOfInputOrder() {
         val previous = VehicleRealtimeState(
             tracks = listOf(

@@ -386,7 +386,6 @@ class MapResourceContractTest {
             "lastVehicleSourceRevision != renderState.vehicleSourceRevision",
             "lastVehicleBadgeRevision != renderState.vehicleBadgeRevision",
             "MAX_VEHICLE_BADGE_IMAGES = 256",
-            "BUS_MARKER_SIZE_PX = 112",
             "STALE_VEHICLE_OPACITY",
         )
         assertTrue(android.contains("clearRenderedLayerState()"))
@@ -461,19 +460,20 @@ class MapResourceContractTest {
             "!it.isSelected",
             "!it.routeHighlight.isHighlighted",
             "SOURCE_REVISION_PROPERTY, renderState.stopSourceRevision.toString()",
-            "marker.routeHighlight.backgroundArgb.asMapColor()",
+            "marker.routeHighlight.pinArtwork.imageId",
             "marker.routeHighlight.markerRadius",
-            "marker.routeHighlight.textArgb.asMapColor()",
+            "MARKER_STROKE_COLOR_PROPERTY, TRANSPARENT_STOP_COLOR",
             "marker.routeHighlight.markerStrokeWidth",
         )
         assertCodePath(
             iosStops,
             "!$0.isSelected",
             "first.routeHighlight.isHighlighted",
+            "marker.routeHighlight.pinArtwork.imageId",
             "Self.sourceRevisionProperty: String(sourceRevision)",
-            "mapColor(marker.routeHighlight.backgroundArgb)",
+            "Self.stopPinProperty: pin",
             "marker.routeHighlight.markerRadius",
-            "mapColor(marker.routeHighlight.textArgb)",
+            "Self.markerStrokeColorProperty: Self.transparentStopColor",
             "marker.routeHighlight.markerStrokeWidth",
         )
         assertCodePath(
@@ -490,14 +490,14 @@ class MapResourceContractTest {
         )
         assertCodePath(
             androidTap,
-            "SELECTED_STOP_LAYER_ID, FEATURE_KIND_STOP",
-            "STOPS_LAYER_ID, FEATURE_KIND_STOP",
+            "stopPinLayerId(SELECTED_STOP_SOURCE_ID), FEATURE_KIND_STOP",
+            "stopPinLayerId(STOPS_SOURCE_ID), FEATURE_KIND_STOP",
             "VEHICLES_LAYER_ID, FEATURE_KIND_VEHICLE",
         )
         assertCodePath(
             iosTap,
-            "Self.selectedStopLayerID, kind: Self.stopFeatureKind",
-            "Self.stopsLayerID, kind: Self.stopFeatureKind",
+            "Self.stopPinLayerID(sourceID: Self.selectedStopSourceID), kind: Self.stopFeatureKind",
+            "Self.stopPinLayerID(sourceID: Self.stopsSourceID), kind: Self.stopFeatureKind",
             "Self.vehiclesLayerID, kind: Self.vehicleFeatureKind",
         )
     }
@@ -759,17 +759,18 @@ class MapResourceContractTest {
         assertTrue(android.contains("MapPlatformEvent.ViewportSettled"))
         assertCodePath(
             androidHitTest,
-            "MIN_STOP_TARGET_DP / 2f",
+            "stopPinLayerId(SELECTED_STOP_SOURCE_ID), FEATURE_KIND_STOP)",
+            "stopPinLayerId(STOPS_SOURCE_ID), FEATURE_KIND_STOP)",
+            "MapPlatformEvent.StopTapped",
+            "MIN_VEHICLE_TARGET_DP / 2f",
             "RectF(",
             "screenPoint.x - halfTarget",
             "screenPoint.x + halfTarget",
-            "findEntityFeature(currentMap, hitRect, SELECTED_STOP_LAYER_ID, FEATURE_KIND_STOP)",
-            "MapPlatformEvent.StopTapped",
-            "findEntityFeature(currentMap, hitRect, STOPS_LAYER_ID, FEATURE_KIND_STOP)",
-            "MapPlatformEvent.StopTapped",
             "findEntityFeature(currentMap, hitRect, VEHICLES_LAYER_ID, FEATURE_KIND_VEHICLE)",
             "MapPlatformEvent.VehicleTapped",
         )
+        assertFalse(androidHitTest.contains("hitRect, STOPS_LAYER_ID, FEATURE_KIND_STOP"))
+        assertFalse(androidHitTest.contains("hitRect, SELECTED_STOP_LAYER_ID, FEATURE_KIND_STOP"))
         assertFalse(androidHitTest.contains("FEATURE_KIND_CLUSTER"), "Clusters must never emit StopTapped")
         assertCodePath(
             androidOrdinaryStopFeature,
@@ -804,8 +805,8 @@ class MapResourceContractTest {
             "CircleLayer(SELECTED_STOP_LAYER_ID, SELECTED_STOP_SOURCE_ID)",
         )
         assertTrue(
-            android.numericDeclaration("MIN_STOP_TARGET_DP") >= 48.0,
-            "Android stop activation target must remain at least 48dp.",
+            android.numericDeclaration("MIN_VEHICLE_TARGET_DP") >= 48.0,
+            "Android vehicle activation target must remain at least 48dp.",
         )
         assertTrue(android.contains("MapLibre.setConnected(false)"))
         assertCodePath(
@@ -846,17 +847,18 @@ class MapResourceContractTest {
         assertTrue(iosBridge.contains("fun releaseMapView(view: UIView)"))
         assertCodePath(
             iosHitTest,
-            "Self.minimumStopTargetPoints / 2",
+            "in: pinHitRect, layerID: Self.stopPinLayerID(sourceID: Self.selectedStopSourceID)",
+            "in: pinHitRect, layerID: Self.stopPinLayerID(sourceID: Self.stopsSourceID)",
+            "MapPlatformEventStopTapped(stopId: stop.id, sourceRevision: stop.sourceRevision)",
+            "Self.minimumVehicleTargetPoints / 2",
             "CGRect(",
-            "width: Self.minimumStopTargetPoints",
-            "height: Self.minimumStopTargetPoints",
-            "entityFeature(in: hitRect, layerID: Self.selectedStopLayerID, kind: Self.stopFeatureKind)",
-            "MapPlatformEventStopTapped(stopId: stop.id, sourceRevision: stop.sourceRevision)",
-            "entityFeature(in: hitRect, layerID: Self.stopsLayerID, kind: Self.stopFeatureKind)",
-            "MapPlatformEventStopTapped(stopId: stop.id, sourceRevision: stop.sourceRevision)",
+            "width: Self.minimumVehicleTargetPoints",
+            "height: Self.minimumVehicleTargetPoints",
             "entityFeature(in: hitRect, layerID: Self.vehiclesLayerID, kind: Self.vehicleFeatureKind)",
             "MapPlatformEventVehicleTapped(vehicleId: vehicle.id, sourceRevision: vehicle.sourceRevision)",
         )
+        assertFalse(iosHitTest.contains("in: hitRect, layerID: Self.stopsLayerID"))
+        assertFalse(iosHitTest.contains("in: hitRect, layerID: Self.selectedStopLayerID"))
         assertFalse(iosHitTest.contains("clusterFeatureKind"), "Clusters must never emit StopTapped")
         assertCodePath(
             iosOrdinaryStopFeatures,
@@ -890,11 +892,12 @@ class MapResourceContractTest {
             "MLNCircleStyleLayer(identifier: Self.stopsLayerID, source: stopsSource)",
             "MLNSymbolStyleLayer(identifier: Self.vehiclesLayerID, source: vehiclesSource)",
             "MLNCircleStyleLayer(identifier: Self.selectedStopLayerID, source: selectedStopSource)",
-            "UIColor(red: 1, green: 107.0 / 255.0, blue: 95.0 / 255.0, alpha: 1)",
+            "selectedStopLayer.circleColor = NSExpression(forKeyPath: Self.markerColorProperty)",
+            "stopPinLayer(source: selectedStopSource)",
         )
         assertTrue(
-            swift.numericDeclaration("minimumStopTargetPoints") >= 44.0,
-            "iOS stop activation target must remain at least 44pt.",
+            swift.numericDeclaration("minimumVehicleTargetPoints") >= 44.0,
+            "iOS vehicle activation target must remain at least 44pt.",
         )
         assertTrue(swift.contains("func update(view: UIView, renderState: MapRenderState)"))
         assertCodePath(

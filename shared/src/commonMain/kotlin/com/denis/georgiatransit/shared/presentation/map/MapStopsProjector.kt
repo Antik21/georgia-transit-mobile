@@ -24,6 +24,7 @@ internal class MapStopsProjector(
         val baseStops = (rawStops + userLocationStops + selectedRouteStops).distinctBy(TransitStop::id)
         val selectedFallback = selectedSnapshot
             ?.takeIf { selected -> selected.id == selectedStopId && baseStops.none { it.id == selected.id } }
+        val selectedRouteIds = selection.byId.keys
         val markers = (baseStops + listOfNotNull(selectedFallback)).map { stop ->
             MapStopMarker(
                 id = stop.id,
@@ -31,6 +32,7 @@ internal class MapStopsProjector(
                 accessibilityLabel = stop.accessibilityLabel(locale),
                 isSelected = stop.id == selectedStopId,
                 routeHighlight = routeHighlightFor(stop),
+                isOutsideSelectedRoutes = selectedRouteIds.isNotEmpty() && stop.routeIds.none { it in selectedRouteIds },
             )
         }
         return visibleStopMarkers(
@@ -72,6 +74,9 @@ internal class MapStopsProjector(
                 matchingRouteLabels = matching.map { route -> route.displayLabel },
                 style = StopRouteHighlightStyle.MultipleRoutes,
                 backgroundArgb = MultiRouteStopBackgroundArgb,
+                pinBadges = matching.map { route ->
+                    StopPinBadge(route.displayLabel, route.backgroundArgb, route.textArgb)
+                },
                 textArgb = contrastSafeRouteTextColor(MultiRouteStopBackgroundArgb, 0xFFFFFFFFL),
             )
         }

@@ -31,6 +31,7 @@ data class MapCameraCommand(
     val revision: Long,
     /** Semantic map occlusion; native adapters convert it to their own pixel/point padding. */
     val viewportInsets: MapViewportInsets = MapViewportInsets.None,
+    val animated: Boolean = false,
 )
 
 /**
@@ -73,7 +74,12 @@ data class MapStopMarker(
     val isSelected: Boolean = false,
     /** Computed entirely in common presentation from nearby stop route IDs and committed selection. */
     val routeHighlight: StopRouteHighlightUi = StopRouteHighlightUi(),
+    val isOutsideSelectedRoutes: Boolean = false,
+    val representsGroup: Boolean = false,
 ) {
+    val pinScale: Float
+        get() = StopPinScale * (if (isOutsideSelectedRoutes) 0.75f else 1f) * (if (isSelected) 1.1f else 1f)
+
     /** iOS-safe bridge key; [id] remains the authoritative typed identifier in common code. */
     val stableId: String get() = id.value
 }
@@ -221,8 +227,37 @@ internal fun visibleStopMarkers(
                 validLocation?.let { marker.position.distanceMetersTo(it) <= USER_STOP_RADIUS_METERS } == true
         }
         .sortedBy(MapStopMarker::stableId)
-        .toPersistentList()
+        .groupEquivalentStopMarkers(zoom)
 }
+
+private fun Sequence<MapStopMarker>.groupEquivalentStopMarkers(zoom: Double): PersistentList<MapStopMarker> {
+    if (!zoom.isFinite() || zoom >= SEPARATE_ROUTE_STOPS_MIN_ZOOM) return toPersistentList()
+    val representatives = mutableMapOf<Pair<Set<RouteId>, String>, MutableList<Int>>()
+    val visible = persistentListOf<MapStopMarker>().builder()
+    for (marker in this) {
+        val highlight = marker.routeHighlight
+        if (marker.isSelected || !highlight.isHighlighted) {
+            visible.add(marker)
+            continue
+        }
+        val key = highlight.matchingRouteIds.toSet() to highlight.pinArtwork.imageId
+        val candidates = representatives.getOrPut(key) { mutableListOf() }
+        val index = candidates.firstOrNull {
+            visible[it].position.distanceMetersTo(marker.position) <= ROUTE_STOP_GROUP_RADIUS_METERS
+        }
+        if (index == null) {
+            candidates.add(visible.size)
+            visible.add(marker)
+        } else if (!visible[index].representsGroup) {
+            visible[index] = visible[index].copy(representsGroup = true)
+        }
+    }
+    return visible.build()
+}
+
+private const val SEPARATE_ROUTE_STOPS_MIN_ZOOM = 15.0
+internal const val ROUTE_STOP_GROUP_TAP_ZOOM = 16.0
+private const val ROUTE_STOP_GROUP_RADIUS_METERS = 35.0
 
 private fun GeoPoint.distanceMetersTo(other: GeoPoint): Double {
     val latitudeDelta = (other.latitude - latitude) * PI / 180.0

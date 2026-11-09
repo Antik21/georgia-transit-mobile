@@ -277,6 +277,9 @@ private fun distanceMeters(from: GeoPoint, to: GeoPoint): Double {
     return EARTH_RADIUS_METERS * 2.0 * atan2(sqrt(a), sqrt(1.0 - a))
 }
 
+internal fun directVehicleTravelBearing(from: GeoPoint, to: GeoPoint): Double? =
+    if (distanceMeters(from, to) >= MIN_DIRECT_BEARING_DISTANCE_METERS) bearingDegrees(from, to) else null
+
 private fun bearingDegrees(from: GeoPoint, to: GeoPoint): Double {
     val firstLatitude = from.latitude * PI / 180.0
     val secondLatitude = to.latitude * PI / 180.0
@@ -310,4 +313,5 @@ private const val CONTINUITY_SCORE_WEIGHT = 2.0
 private const val MIN_MEANINGFUL_MOVEMENT_METERS = 0.1
 private const val MIN_RETAINED_OPPOSITE_EVIDENCE_METERS = 3.0
 private const val MIN_OPPOSITE_TRAVEL_METERS = 30.0
-private const val MIN_OPPOSITE_OBSERVATIONS = 3
+private const val MIN_OPPOSITE_OBSERVATIONS = 2
+private const val MIN_DIRECT_BEARING_DISTANCE_METERS = 10.0
