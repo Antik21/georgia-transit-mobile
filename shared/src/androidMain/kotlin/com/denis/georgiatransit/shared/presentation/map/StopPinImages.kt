@@ -19,11 +19,13 @@ import org.maplibre.android.style.layers.SymbolLayer
 internal const val STOP_PIN_PROPERTY = "stopPin"
 private const val ImagePixelRatio = 3
 
+internal fun stopPinLayerId(sourceId: String): String = "$sourceId-pins"
+
 internal fun stopPinLayer(sourceId: String, scale: Float = 1f): SymbolLayer =
-    SymbolLayer("$sourceId-pins", sourceId).withProperties(
+    SymbolLayer(stopPinLayerId(sourceId), sourceId).withProperties(
         iconImage(Expression.get(STOP_PIN_PROPERTY)),
         iconAnchor("bottom"),
-        iconSize(scale),
+        iconSize(scale * StopPinScale),
         iconAllowOverlap(true),
         iconIgnorePlacement(true),
     )
@@ -50,25 +52,35 @@ private fun StopPinArtwork.toBitmap(): Bitmap {
     val canvas = Canvas(bitmap)
     canvas.scale(ImagePixelRatio.toFloat(), ImagePixelRatio.toFloat())
     val paint = Paint(Paint.ANTI_ALIAS_FLAG)
-    if (badges.isNotEmpty()) drawRouteCard(canvas, paint)
-    canvas.translate(width / 2f, bodyTop.toFloat())
+    if (badges.isNotEmpty()) {
+        canvas.save()
+        canvas.translate(0f, cardTop)
+        drawRouteCard(canvas, paint)
+        canvas.restore()
+    }
+    canvas.translate(width / 2f, bodyTop)
+    canvas.scale(bodyScale, bodyScale)
     drawPinBody(canvas, paint)
     return bitmap
 }
 
 private fun StopPinArtwork.drawRouteCard(canvas: Canvas, paint: Paint) {
-    val center = width / 2f
+    paint.color = 0xFFD6D8DC.toInt()
+    val cornerRadius = StopRouteCardCornerRadius
+    canvas.drawRoundRect(0f, 0f, cardWidth.toFloat(), cardHeight.toFloat(), cornerRadius, cornerRadius, paint)
     paint.color = Color.WHITE
-    canvas.drawRect(center - 2, cardHeight - 1f, center + 2, bodyTop + 1f, paint)
-    canvas.drawRoundRect(0f, 0f, cardWidth.toFloat(), cardHeight.toFloat(), 7f, 7f, paint)
+    val inset = 0.75f
+    val innerRadius = cornerRadius - inset
+    canvas.drawRoundRect(inset, inset, cardWidth - inset, cardHeight - inset, innerRadius, innerRadius, paint)
 
     paint.typeface = Typeface.DEFAULT_BOLD
     paint.textAlign = Paint.Align.CENTER
     badges.forEachIndexed { index, badge ->
-        val x = badgeX(index).toFloat()
+        val x = badgeX.toFloat()
         val y = badgeY(index).toFloat()
         paint.color = badge.backgroundArgb.toInt()
-        canvas.drawRoundRect(x, y, x + badgeWidth, y + 15, 5f, 5f, paint)
+        val badgeRadius = StopRouteBadgeCornerRadius
+        canvas.drawRoundRect(x, y, x + badgeWidth, y + 15, badgeRadius, badgeRadius, paint)
 
         paint.color = badge.textArgb.toInt()
         paint.textSize = 9f

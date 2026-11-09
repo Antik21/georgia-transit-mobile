@@ -221,8 +221,26 @@ internal fun visibleStopMarkers(
                 validLocation?.let { marker.position.distanceMetersTo(it) <= USER_STOP_RADIUS_METERS } == true
         }
         .sortedBy(MapStopMarker::stableId)
+        .groupEquivalentStopMarkers(zoom)
         .toPersistentList()
 }
+
+private fun Sequence<MapStopMarker>.groupEquivalentStopMarkers(zoom: Double): Sequence<MapStopMarker> {
+    if (!zoom.isFinite() || zoom >= SEPARATE_ROUTE_STOPS_MIN_ZOOM) return this
+    val representatives = mutableMapOf<Pair<Set<RouteId>, String>, MutableList<GeoPoint>>()
+    return filter { marker ->
+        val highlight = marker.routeHighlight
+        if (marker.isSelected || !highlight.isHighlighted) return@filter true
+        val key = highlight.matchingRouteIds.toSet() to highlight.pinArtwork.imageId
+        val positions = representatives.getOrPut(key) { mutableListOf() }
+        if (positions.any { it.distanceMetersTo(marker.position) <= ROUTE_STOP_GROUP_RADIUS_METERS }) return@filter false
+        positions.add(marker.position)
+        true
+    }
+}
+
+private const val SEPARATE_ROUTE_STOPS_MIN_ZOOM = 15.0
+private const val ROUTE_STOP_GROUP_RADIUS_METERS = 35.0
 
 private fun GeoPoint.distanceMetersTo(other: GeoPoint): Double {
     val latitudeDelta = (other.latitude - latitude) * PI / 180.0

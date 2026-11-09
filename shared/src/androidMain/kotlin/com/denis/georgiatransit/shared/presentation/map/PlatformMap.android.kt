@@ -554,6 +554,13 @@ private class LocalMapController(
     private fun onMapClick(point: LatLng): Boolean {
         val currentMap = map ?: return false
         val screenPoint = currentMap.projection.toScreenLocation(point)
+        val pinHitRect = RectF(screenPoint.x - 0.5f, screenPoint.y - 0.5f, screenPoint.x + 0.5f, screenPoint.y + 0.5f)
+        val visibleStop = findEntityFeature(currentMap, pinHitRect, stopPinLayerId(SELECTED_STOP_SOURCE_ID), FEATURE_KIND_STOP)
+            ?: findEntityFeature(currentMap, pinHitRect, stopPinLayerId(STOPS_SOURCE_ID), FEATURE_KIND_STOP)
+        if (visibleStop != null) {
+            onEvent(MapPlatformEvent.StopTapped(StopId(visibleStop.first), visibleStop.second))
+            return true
+        }
         val halfTarget = MIN_STOP_TARGET_DP / 2f * mapView.resources.displayMetrics.density
         val hitRect = RectF(
             screenPoint.x - halfTarget,

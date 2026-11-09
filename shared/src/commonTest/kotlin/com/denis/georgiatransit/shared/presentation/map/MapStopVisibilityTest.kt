@@ -48,6 +48,29 @@ class MapStopVisibilityTest {
         assertEquals(emptyList(), result)
     }
 
+    @Test
+    fun equivalentNearbyRouteStopsShareOnePinBelowZoomFifteen() {
+        val first = marker("a", 41.65, 41.6400, highlighted = true)
+        val opposite = marker("b", 41.65, 41.6402, highlighted = true)
+        val distant = marker("c", 41.65, 41.6407, highlighted = true)
+        val input = listOf(opposite, distant, first)
+
+        assertEquals(listOf(first, distant), visibleStopMarkers(input, userLocation = null, zoom = 14.99))
+        assertEquals(listOf(first, opposite, distant), visibleStopMarkers(input, userLocation = null, zoom = 15.0))
+    }
+
+    @Test
+    fun openStopsAndDifferentRouteSetsStaySeparateAtLowZoom() {
+        val first = marker("a", 41.65, 41.6400, highlighted = true)
+        val otherRoute = marker("b", 41.65, 41.6401, highlighted = true).let { marker ->
+            marker.copy(routeHighlight = marker.routeHighlight.copy(matchingRouteIds = listOf(RouteId("other"))))
+        }
+        val open = marker("c", 41.65, 41.6402, highlighted = true, selected = true)
+        val input = listOf(first, otherRoute, open)
+
+        assertEquals(input, visibleStopMarkers(input, userLocation = null, zoom = 14.0))
+    }
+
     private fun marker(
         id: String,
         latitude: Double,

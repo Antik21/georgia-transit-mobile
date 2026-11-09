@@ -492,6 +492,16 @@ private final class LocalMapLibreView: UIView, MLNMapViewDelegate {
     @objc private func handleMapTap(_ recognizer: UITapGestureRecognizer) {
         guard recognizer.state == .ended else { return }
         let point = recognizer.location(in: mapView)
+        let pinHitRect = CGRect(x: point.x - 0.5, y: point.y - 0.5, width: 1, height: 1)
+        let visibleStop = entityFeature(
+            in: pinHitRect, layerID: Self.stopPinLayerID(sourceID: Self.selectedStopSourceID), kind: Self.stopFeatureKind
+        ) ?? entityFeature(
+            in: pinHitRect, layerID: Self.stopPinLayerID(sourceID: Self.stopsSourceID), kind: Self.stopFeatureKind
+        )
+        if let stop = visibleStop {
+            _ = onMapEvent(MapPlatformEventStopTapped(stopId: stop.id, sourceRevision: stop.sourceRevision))
+            return
+        }
         let halfTarget = Self.minimumStopTargetPoints / 2
         let hitRect = CGRect(
             x: point.x - halfTarget,
@@ -563,10 +573,14 @@ private final class LocalMapLibreView: UIView, MLNMapViewDelegate {
         return Self.earthRadiusMeters * 2 * atan2(sqrt(a), sqrt(1 - a))
     }
 
+    private static func stopPinLayerID(sourceID: String) -> String {
+        "\(sourceID)-pins"
+    }
+
     private func stopPinLayer(source: MLNShapeSource, scale: Double = 1) -> MLNSymbolStyleLayer {
-        let layer = MLNSymbolStyleLayer(identifier: "\(source.identifier)-pins", source: source)
+        let layer = MLNSymbolStyleLayer(identifier: Self.stopPinLayerID(sourceID: source.identifier), source: source)
         layer.iconImageName = NSExpression(forKeyPath: Self.stopPinProperty)
-        layer.iconScale = NSExpression(forConstantValue: scale)
+        layer.iconScale = NSExpression(forConstantValue: scale * Double(StopPinArtworkKt.StopPinScale))
         layer.iconAnchor = NSExpression(forConstantValue: "bottom")
         layer.iconAllowsOverlap = NSExpression(forConstantValue: true)
         layer.iconIgnoresPlacement = NSExpression(forConstantValue: true)
@@ -590,26 +604,34 @@ private final class LocalMapLibreView: UIView, MLNMapViewDelegate {
     private func stopPinImage(_ pin: StopPinArtwork) -> UIImage {
         let size = CGSize(width: CGFloat(pin.width), height: CGFloat(pin.height))
         return UIGraphicsImageRenderer(size: size).image { context in
-            if !pin.badges.isEmpty { drawStopRouteCard(pin) }
+            if !pin.badges.isEmpty {
+                context.cgContext.saveGState()
+                context.cgContext.translateBy(x: 0, y: CGFloat(pin.cardTop))
+                drawStopRouteCard(pin)
+                context.cgContext.restoreGState()
+            }
             context.cgContext.translateBy(x: size.width / 2, y: CGFloat(pin.bodyTop))
+            context.cgContext.scaleBy(x: CGFloat(pin.bodyScale), y: CGFloat(pin.bodyScale))
             drawStopPinBody(pin)
         }
     }
 
     private func drawStopRouteCard(_ pin: StopPinArtwork) {
-        let center = CGFloat(pin.width) / 2
-        let cardHeight = CGFloat(pin.cardHeight)
+        let card = CGRect(x: 0, y: 0, width: CGFloat(pin.cardWidth), height: CGFloat(pin.cardHeight))
+        UIColor(argb: 0xFFD6D8DC).setFill()
+        let cornerRadius = CGFloat(StopPinArtworkKt.StopRouteCardCornerRadius)
+        UIBezierPath(roundedRect: card, cornerRadius: cornerRadius).fill()
         UIColor.white.setFill()
-        UIBezierPath(rect: CGRect(x: center - 2, y: cardHeight - 1, width: 4, height: CGFloat(pin.bodyTop) - cardHeight + 2)).fill()
-        let card = CGRect(x: 0, y: 0, width: CGFloat(pin.cardWidth), height: cardHeight)
-        UIBezierPath(roundedRect: card, cornerRadius: 7).fill()
+        let inset: CGFloat = 0.75
+        UIBezierPath(roundedRect: card.insetBy(dx: inset, dy: inset), cornerRadius: cornerRadius - inset).fill()
 
         for (index, badge) in pin.badges.enumerated() {
-            let x = CGFloat(pin.badgeX(index: Int32(index)))
+            let x = CGFloat(pin.badgeX)
             let y = CGFloat(pin.badgeY(index: Int32(index)))
             let width = CGFloat(pin.badgeWidth)
             UIColor(argb: badge.backgroundArgb).setFill()
-            UIBezierPath(roundedRect: CGRect(x: x, y: y, width: width, height: 15), cornerRadius: 5).fill()
+            let badgeRadius = CGFloat(StopPinArtworkKt.StopRouteBadgeCornerRadius)
+            UIBezierPath(roundedRect: CGRect(x: x, y: y, width: width, height: 15), cornerRadius: badgeRadius).fill()
 
             let label = badge.label as NSString
             let font = UIFont.boldSystemFont(ofSize: 9)

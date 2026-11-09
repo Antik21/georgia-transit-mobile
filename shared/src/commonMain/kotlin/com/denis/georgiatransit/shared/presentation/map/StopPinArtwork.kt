@@ -1,9 +1,12 @@
 package com.denis.georgiatransit.shared.presentation.map
 
-private const val BadgesPerRow = 2
-private const val MaxVisibleRouteBadges = 3
+import kotlin.math.ceil
+
+const val StopPinScale = 1.3f
+const val StopRouteCardCornerRadius = 4.5f
+const val StopRouteBadgeCornerRadius = 3.5f
+
 private const val CardPadding = 2
-private const val ConnectorHeight = 5
 private const val BadgeRowHeight = 16
 
 data class StopPinBadge(val label: String, val backgroundArgb: Long, val textArgb: Long)
@@ -13,21 +16,24 @@ class StopPinArtwork internal constructor(
     val glyphArgb: Long,
     routeBadges: List<StopPinBadge>,
 ) {
-    val badges: List<StopPinBadge> = if (routeBadges.size > MaxVisibleRouteBadges) {
-        routeBadges.take(MaxVisibleRouteBadges) + StopPinBadge(
-            label = "+${routeBadges.size - MaxVisibleRouteBadges}",
-            backgroundArgb = 0xFF747983L,
-            textArgb = DefaultStopTextArgb,
+    val badges: List<StopPinBadge> = when (routeBadges.size) {
+        0, 1 -> emptyList()
+        2 -> routeBadges
+        else -> listOf(
+            StopPinBadge("+${routeBadges.size - 1}", MultiRouteStopBackgroundArgb, DefaultStopTextArgb),
+            routeBadges.first(),
         )
-    } else {
-        routeBadges
     }
-    val badgeWidth: Int = 32
-    val cardWidth: Int = if (badges.isEmpty()) 0 else minOf(badges.size, BadgesPerRow) * (badgeWidth + 2) + 2 * CardPadding - 2
-    val cardHeight: Int = if (badges.isEmpty()) 0 else (badges.size + BadgesPerRow - 1) / BadgesPerRow * BadgeRowHeight + 3
-    val width: Int = maxOf(24, cardWidth)
-    val bodyTop: Int = if (badges.isEmpty()) 0 else cardHeight + ConnectorHeight
-    val height: Int = bodyTop + 28
+    val badgeWidth: Int = 22
+    val badgeX: Int = CardPadding
+    val width: Int = badgeWidth + 2 * CardPadding
+    val cardWidth: Int = if (badges.isEmpty()) 0 else width
+    val cardHeight: Int = if (badges.isEmpty()) 0 else badges.size * BadgeRowHeight + 2 * CardPadding - 1
+    val bodyScale: Float = width / 24f
+    private val scaledBodyHeight = 28f * bodyScale
+    val height: Int = ceil(scaledBodyHeight).toInt() + cardHeight
+    val bodyTop: Float = height - scaledBodyHeight
+    val cardTop: Float = if (badges.isEmpty()) 0f else bodyTop - cardHeight
 
     val imageId: String = buildString {
         append("gt-stop-pin-$backgroundArgb-$glyphArgb")
@@ -36,7 +42,5 @@ class StopPinArtwork internal constructor(
         }
     }
 
-    fun badgeX(index: Int): Int = CardPadding + index % BadgesPerRow * (badgeWidth + 2)
-
-    fun badgeY(index: Int): Int = CardPadding + index / BadgesPerRow * BadgeRowHeight
+    fun badgeY(index: Int): Int = CardPadding + index * BadgeRowHeight
 }

@@ -759,6 +759,8 @@ class MapResourceContractTest {
         assertTrue(android.contains("MapPlatformEvent.ViewportSettled"))
         assertCodePath(
             androidHitTest,
+            "stopPinLayerId(SELECTED_STOP_SOURCE_ID), FEATURE_KIND_STOP)",
+            "stopPinLayerId(STOPS_SOURCE_ID), FEATURE_KIND_STOP)",
             "MIN_STOP_TARGET_DP / 2f",
             "RectF(",
             "screenPoint.x - halfTarget",
@@ -846,6 +848,8 @@ class MapResourceContractTest {
         assertTrue(iosBridge.contains("fun releaseMapView(view: UIView)"))
         assertCodePath(
             iosHitTest,
+            "in: pinHitRect, layerID: Self.stopPinLayerID(sourceID: Self.selectedStopSourceID)",
+            "in: pinHitRect, layerID: Self.stopPinLayerID(sourceID: Self.stopsSourceID)",
             "Self.minimumStopTargetPoints / 2",
             "CGRect(",
             "width: Self.minimumStopTargetPoints",
