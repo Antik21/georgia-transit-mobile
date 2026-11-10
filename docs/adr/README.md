@@ -33,3 +33,5 @@ The BFF-owned deterministic route color and accessible text-color contract is re
 [ADR 0017](0017-bff-owned-stable-route-colors.md).
 The Map presentation MVI ownership decision is recorded in
 [ADR 0018](0018-map-presentation-mvi.md).
+The source-set and typed interoperability boundaries for the browser preparation stage are recorded in
+[ADR 0019](0019-browser-ready-shared-client.md).
