@@ -13,6 +13,13 @@ plugins {
     alias(libs.plugins.compose.compiler)
 }
 
+rootProject.plugins.withType<org.jetbrains.kotlin.gradle.targets.js.nodejs.NodeJsRootPlugin> {
+    rootProject.the<org.jetbrains.kotlin.gradle.targets.js.nodejs.NodeJsEnvSpec>().download.set(false)
+}
+rootProject.plugins.withType<org.jetbrains.kotlin.gradle.targets.js.yarn.YarnPlugin> {
+    rootProject.the<org.jetbrains.kotlin.gradle.targets.js.yarn.YarnRootEnvSpec>().download.set(false)
+}
+
 // Android Studio resolves previews from this KMP module's Android runtime classpath.
 // This is not packaged into the consuming application's runtime variants.
 dependencies {
@@ -36,7 +43,7 @@ kotlin {
         androidResources { enable = true }
     }
 
-    js(IR) {
+    js {
         browser {
             testTask {
                 useKarma { useChromeHeadless() }

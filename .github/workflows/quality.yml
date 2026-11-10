@@ -144,6 +144,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          node --version
+          yarn --version
           export CHROME_BIN="$(command -v google-chrome)"
           test -x "$CHROME_BIN"
           ./gradlew --no-daemon --no-build-cache --stacktrace :shared:compileKotlinJs :shared:jsBrowserTest

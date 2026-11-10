@@ -15,7 +15,7 @@
 
 ## Проверка
 
-- [ ] JS. Запустить `./gradlew :shared:compileKotlinJs :shared:jsBrowserTest` с Chrome Headless. После успешной сборки библиотеки проверить сгенерированные декларации на минимальном TypeScript-клиенте.
+- [ ] JS. Установить Node.js и Yarn Classic, затем запустить `./gradlew :shared:compileKotlinJs :shared:jsBrowserTest` с Chrome Headless. После успешной сборки библиотеки проверить сгенерированные декларации на минимальном TypeScript-клиенте.
 - [ ] Android. Запустить `./gradlew :shared:testAndroidHostTest :androidApp:assembleSandbox :androidApp:assembleProd`. На эмуляторе выполнить `ui-tests/maestro/flows/shell-smoke.yaml` и существующие сценарии выбора маршрута, карты и геолокации.
 - [ ] iOS. Запустить `./gradlew :shared:iosSimulatorArm64Test`. Собрать `Sandbox` и `Prod`, подставляя имя схемы в оба аргумента команды `xcodebuild -project iosApp/iosApp.xcodeproj -scheme <scheme> -configuration <scheme> -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO build`. На симуляторе выполнить те же проверки оболочки, маршрута, карты и геолокации.
 
