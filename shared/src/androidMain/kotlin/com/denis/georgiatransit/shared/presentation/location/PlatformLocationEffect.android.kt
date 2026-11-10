@@ -181,6 +181,7 @@ private class AndroidLocationAdapter(
             return
         }
         val provider = when {
+            LocationManager.FUSED_PROVIDER in enabledProviders -> LocationManager.FUSED_PROVIDER
             permission.precision == LocationPrecision.Precise &&
                 LocationManager.GPS_PROVIDER in enabledProviders -> LocationManager.GPS_PROVIDER
             LocationManager.NETWORK_PROVIDER in enabledProviders -> LocationManager.NETWORK_PROVIDER
