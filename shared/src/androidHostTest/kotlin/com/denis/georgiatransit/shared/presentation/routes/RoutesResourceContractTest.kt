@@ -15,7 +15,7 @@ import org.w3c.dom.Element
 class RoutesResourceContractTest {
     @Test
     fun routeCatalogStringsAndAccessibilityContractsHaveEnglishGeorgianRussianParity() {
-        val resources = projectRoot().resolve("shared/src/commonMain/composeResources")
+        val resources = projectRoot().resolve("shared/src/mobileMain/composeResources")
         val english = stringValues(resources.resolve("values/strings.xml"))
         val georgian = stringValues(resources.resolve("values-ka/strings.xml"))
         val russian = stringValues(resources.resolve("values-ru/strings.xml"))
@@ -101,7 +101,7 @@ class RoutesResourceContractTest {
         val root = projectRoot()
         val routeRow = routeSource("sections/RouteRow.kt")
         val mapScreen = root.resolve(
-            "shared/src/commonMain/kotlin/com/denis/georgiatransit/shared/presentation/map/MapScreen.kt",
+            "shared/src/mobileMain/kotlin/com/denis/georgiatransit/shared/presentation/map/MapScreen.kt",
         ).readText()
         val mapViewModel = root.resolve(
             "shared/src/commonMain/kotlin/com/denis/georgiatransit/shared/presentation/map/MapViewModel.kt",
@@ -283,13 +283,13 @@ class RoutesResourceContractTest {
     }
 
     private fun routeSource(relativePath: String): String = projectRoot()
-        .resolve("shared/src/commonMain/kotlin/com/denis/georgiatransit/shared/presentation/routes")
+        .resolve("shared/src/mobileMain/kotlin/com/denis/georgiatransit/shared/presentation/routes")
         .resolve(relativePath)
         .readText()
 
     private fun projectRoot(): Path =
         generateSequence(Path.of("").toAbsolutePath()) { it.parent }
-            .firstOrNull { Files.isDirectory(it.resolve("shared/src/commonMain/composeResources")) }
+            .firstOrNull { Files.isDirectory(it.resolve("shared/src/mobileMain/composeResources")) }
             ?: error("Could not locate the project root from ${Path.of("").toAbsolutePath()}")
 
     private companion object {

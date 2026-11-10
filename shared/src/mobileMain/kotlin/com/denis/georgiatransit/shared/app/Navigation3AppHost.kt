@@ -25,7 +25,6 @@ import com.denis.georgiatransit.shared.presentation.map.MapScreen
 import com.denis.georgiatransit.shared.presentation.map.MapViewModel
 import com.denis.georgiatransit.shared.presentation.routes.RoutesScreen
 import com.denis.georgiatransit.shared.presentation.routes.RoutesViewModel
-import kotlinx.serialization.Serializable
 import kotlinx.serialization.modules.SerializersModule
 import kotlinx.serialization.modules.polymorphic
 import kotlinx.serialization.modules.subclass
@@ -136,18 +135,6 @@ internal fun Navigation3AppHost(initialDestination: Destination) {
             entryProvider = entries,
         )
     }
-}
-
-@Serializable
-sealed interface Destination : NavKey {
-    @Serializable
-    data object CitySelection : Destination
-
-    @Serializable
-    data object Map : Destination
-
-    @Serializable
-    data object Routes : Destination
 }
 
 private val navigationSavedStateConfiguration = SavedStateConfiguration {

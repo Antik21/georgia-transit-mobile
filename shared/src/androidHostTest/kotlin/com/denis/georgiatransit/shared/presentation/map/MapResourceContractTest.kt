@@ -20,7 +20,7 @@ class MapResourceContractTest {
     @Test
     fun mapPreviewRendersTheActualStatelessContent() {
         val screen = projectRoot().resolve(
-            "shared/src/commonMain/kotlin/com/denis/georgiatransit/shared/presentation/map/MapScreen.kt",
+            "shared/src/mobileMain/kotlin/com/denis/georgiatransit/shared/presentation/map/MapScreen.kt",
         ).readText()
 
         assertCodePath(
@@ -33,7 +33,7 @@ class MapResourceContractTest {
 
     @Test
     fun englishGeorgianAndRussianMapResourcesStayInParity() {
-        val resourceRoot = projectRoot().resolve("shared/src/commonMain/composeResources")
+        val resourceRoot = projectRoot().resolve("shared/src/mobileMain/composeResources")
         val english = stringValues(resourceRoot.resolve("values/strings.xml"))
         val georgian = stringValues(resourceRoot.resolve("values-ka/strings.xml"))
         val russian = stringValues(resourceRoot.resolve("values-ru/strings.xml"))
@@ -212,7 +212,7 @@ class MapResourceContractTest {
     @Test
     fun informationalOverlaysAreLocalizedAndDoNotReplaceMapActions() {
         val screen = projectRoot().resolve(
-            "shared/src/commonMain/kotlin/com/denis/georgiatransit/shared/presentation/map/MapScreen.kt",
+            "shared/src/mobileMain/kotlin/com/denis/georgiatransit/shared/presentation/map/MapScreen.kt",
         ).readText()
         val canvasSource = projectRoot().mapSectionSource("MapCanvasSection.kt")
         val stopArrivalsSource = projectRoot().mapSectionSource("StopArrivalsSheet.kt")
@@ -1054,12 +1054,12 @@ class MapResourceContractTest {
     }
 
     private fun Path.mapSectionSource(fileName: String): String = resolve(
-        "shared/src/commonMain/kotlin/com/denis/georgiatransit/shared/presentation/map/sections/$fileName",
+        "shared/src/mobileMain/kotlin/com/denis/georgiatransit/shared/presentation/map/sections/$fileName",
     ).readText()
 
     private fun projectRoot(): Path =
         generateSequence(Path.of("").toAbsolutePath()) { it.parent }
-            .firstOrNull { Files.isDirectory(it.resolve("shared/src/commonMain/composeResources")) }
+            .firstOrNull { Files.isDirectory(it.resolve("shared/src/mobileMain/composeResources")) }
             ?: error("Could not locate the project root from ${Path.of("").toAbsolutePath()}")
 
     private companion object {

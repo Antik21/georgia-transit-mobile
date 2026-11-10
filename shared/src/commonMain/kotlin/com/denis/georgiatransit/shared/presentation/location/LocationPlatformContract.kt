@@ -1,7 +1,5 @@
 package com.denis.georgiatransit.shared.presentation.location
 
-import androidx.compose.runtime.Composable
-
 data class LocationCommandId(val value: Long)
 
 sealed interface LocationPlatformCommand {
@@ -31,11 +29,3 @@ sealed interface LocationPlatformEvent {
 
     data class Cancelled(val requestId: LocationCommandId) : LocationPlatformEvent
 }
-
-/** Executes foreground-only OS work and re-queries authorization whenever the screen resumes. */
-@Composable
-expect fun PlatformLocationEffect(
-    command: LocationPlatformCommand?,
-    onCommandConsumed: () -> Unit,
-    onEvent: (LocationPlatformEvent) -> Unit,
-)
