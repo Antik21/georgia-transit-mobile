@@ -53,6 +53,8 @@ kotlin {
             }
         }
         binaries.library()
+        // Compose's browser test setup needs webpack to load the transitive Skiko runtime.
+        binaries.executable()
         generateTypeScriptDefinitions()
     }
 
