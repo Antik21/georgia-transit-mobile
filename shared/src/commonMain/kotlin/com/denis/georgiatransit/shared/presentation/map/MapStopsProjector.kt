@@ -89,6 +89,7 @@ internal class MapStopsProjector(
             isSelected = stop.id == selectedStopId,
             sourceRevision = sourceRevision,
             routeHighlight = routeHighlightFor(stop),
+            position = stop.position,
         )
     }
 

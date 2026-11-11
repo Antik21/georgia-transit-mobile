@@ -148,7 +148,11 @@ jobs:
           yarn --version
           export CHROME_BIN="$(command -v google-chrome)"
           test -x "$CHROME_BIN"
-          ./gradlew --no-daemon --no-build-cache --stacktrace :shared:compileKotlinJs :shared:jsBrowserTest
+          ./gradlew --no-daemon --no-build-cache --stacktrace \
+            :shared:jsBrowserTest :shared:jsProductionLibraryCompileSync :kotlinNpmInstall
+          npm --prefix webApp ci
+          npm --prefix webApp run build
+          npm --prefix webApp run smoke
 
   ios:
     name: iOS

@@ -47,6 +47,8 @@ kotlin {
     }
 
     js {
+        outputModuleName = "georgia-transit-shared"
+        useEsModules()
         browser {
             testTask {
                 useKarma { useChromeHeadless() }

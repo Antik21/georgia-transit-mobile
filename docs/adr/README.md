@@ -35,3 +35,5 @@ The Map presentation MVI ownership decision is recorded in
 [ADR 0018](0018-map-presentation-mvi.md).
 The source-set and typed interoperability boundaries for the browser preparation stage are recorded in
 [ADR 0019](0019-browser-ready-shared-client.md).
+The Telegram Mini App shell, map renderer and same-origin BFF contract are recorded in
+[ADR 0020](0020-telegram-mini-app-web-client.md).
