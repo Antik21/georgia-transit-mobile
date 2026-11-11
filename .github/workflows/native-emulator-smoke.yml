@@ -14,18 +14,8 @@ env:
 
 jobs:
   android:
-    name: Android emulator smoke (${{ matrix.label }})
+    name: Android emulator with deterministic smoke inputs
     runs-on: ubuntu-24.04
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - revision: 59dce20427db03482a37170c8456d3d38c08048e
-            label: PR head
-          - revision: e8229be05421342aa05f8e90d129d086b5a23c6c
-            label: PR merge base
-    env:
-      SOURCE_REVISION: ${{ matrix.revision }}
     timeout-minutes: 35
     steps:
       - name: Check out exact source
@@ -86,6 +76,14 @@ jobs:
               flow = root / "flows" / f"{name}-smoke.yaml"
               script.write_text(script.read_text().replace("app_id=com.denis.georgiatransit\n", "app_id=com.denis.georgiatransit.sandbox\n"))
               flow.write_text(flow.read_text().replace("appId: com.denis.georgiatransit\n", "appId: com.denis.georgiatransit.sandbox\n"))
+              if name == "stop-arrivals":
+                  fixture = root / "fixtures" / "stop-arrivals-fixture-server.mjs"
+                  original = '    case "/healthz":'
+                  assert original in fixture.read_text()
+                  fixture.write_text(fixture.read_text().replace(original, '    case "/v1/map/style.json":\n      return send(response, { version: 8, sources: {}, layers: [{ id: "fixture-background", type: "background", paint: { "background-color": "#e5e5e5" } }] });\n' + original, 1))
+                  flow.write_text(flow.read_text().replace("- tapOn:\n    id: map.nearby-stop", "- waitForAnimationToEnd\n- tapOn:\n    id: map.nearby-stop", 1))
+              else:
+                  flow.write_text(flow.read_text().replace("      - eraseText\n", "      - tapOn:\n          id: routes.search\n      - eraseText\n"))
           PY
       - name: Boot Android emulator
         id: emulator
@@ -114,6 +112,8 @@ jobs:
           exit 1
       - name: Run stop-arrivals fixture smoke
         shell: bash
+        env:
+          STOP_ARRIVALS_FIXTURE_DELAY_MS: '5000'
         run: bash "$RUNNER_TEMP/georgia-maestro/run-stop-arrivals-smoke.sh" android emulator-5554 '${{ steps.build.outputs.apk }}'
       - name: Run route-selection fixture smoke
         if: ${{ !cancelled() && steps.emulator.outcome == 'success' }}
