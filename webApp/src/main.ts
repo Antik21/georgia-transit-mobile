@@ -95,6 +95,18 @@ function renderMap(entry: ActiveMap) {
   else if (!entry.rendererRequested) void loadMapRenderer(entry);
 }
 
+function retryMap() {
+  const entry = activeMap;
+  if (!entry || activeRoutes || document.visibilityState !== "visible") return;
+  if (entry.renderer) {
+    entry.renderer.retry();
+  } else if (entry.rendererUnavailable) {
+    // A failed chunk import is not retried per state emission; only a network or visibility return retries it.
+    entry.rendererRequested = false;
+    renderMap(entry);
+  }
+}
+
 function showMap(session: TransitRuntime) {
   // The runtime pops the route draft and retains the map entry when returning from Routes.
   activeRoutes = undefined;
@@ -156,7 +168,11 @@ async function start() {
   }
 }
 
-document.addEventListener("visibilitychange", updateVisibility);
+document.addEventListener("visibilitychange", () => {
+  updateVisibility();
+  retryMap();
+});
+window.addEventListener("online", retryMap);
 window.addEventListener("pageshow", updateVisibility);
 window.addEventListener("pagehide", (event) => {
   if (event.persisted) {

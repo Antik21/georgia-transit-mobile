@@ -9,6 +9,10 @@ export const fixtureRouteId = 'demo:fixture:route:blue';
 export const otherRouteId = 'demo:fixture:route:violet';
 export const fixtureRouteColor = [0, 87, 184];
 export const fixtureTileColor = [28, 180, 131];
+export const fallbackMapColor = [220, 232, 228];
+export const fixtureAttribution = 'Fixture tiles';
+// Toggled by the smoke to exercise the local-style fallback and its recovery.
+export const fixtureControl = { failStyle: false };
 
 const position = { latitude: 41.715137, longitude: 44.827096 };
 const localized = (en) => ({ en, ru: en, ka: en });
@@ -80,10 +84,18 @@ const stop = {
 // A 32 × 32 solid green PNG. Its color lets the smoke assert raster pixels reached the canvas.
 const tile = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAAL0lEQVR4nO3OIQEAAAgDMILQlkr0gxg3E/Or3rmkEhAQEBAQEBAQEBAQEBAQSAceAoxIiGVzOuYAAAAASUVORK5CYII=', 'base64');
 
-function mapStyle(origin) {
+// The production BFF advertises tiles on its public hostname; the client must rebase them to its own origin.
+function mapStyle() {
   return {
     version: 8,
-    sources: { fixture: { type: 'raster', tiles: [`${origin}/v1/map/tiles/{z}/{x}/{y}.png`], tileSize: 256 } },
+    sources: {
+      fixture: {
+        type: 'raster',
+        tiles: ['https://bff.example.invalid/v1/map/tiles/{z}/{x}/{y}.png'],
+        tileSize: 256,
+        attribution: fixtureAttribution,
+      },
+    },
     layers: [{ id: 'fixture-raster', type: 'raster', source: 'fixture', paint: { 'raster-fade-duration': 0 } }],
   };
 }
@@ -184,7 +196,8 @@ export function browserFixture(dist, bffRequests, origin) {
     if (path.startsWith('/v1/')) bffRequests.push(path);
     switch (path) {
       case '/v1/cities': return json([demoCity, batumiCity]);
-      case '/v1/map/style.json': return json(mapStyle(origin));
+      case '/v1/map/style.json':
+        return fixtureControl.failStyle ? json({ error: 'Style unavailable' }, 503) : json(mapStyle());
       case `/v1/cities/${fixtureCityId}/routes`: return json([route, otherRoute]);
       case `/v1/cities/${fixtureCityId}/routes/${fixtureRouteId}`: return json(route);
       case `/v1/cities/${fixtureCityId}/routes/${otherRouteId}`: return json(otherRoute);

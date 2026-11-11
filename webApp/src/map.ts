@@ -22,6 +22,7 @@ interface MapActions {
 
 export interface TransitMap {
   update(state: MapState): void;
+  retry(): void;
   resize(): void;
   dispose(): void;
 }
@@ -67,6 +68,7 @@ export function createTransitMap(container: HTMLElement, initial: MapState, acti
   });
   let cameraRevision = camera.revision;
   let remoteStyleLoading = Boolean(styleUrl);
+  let usingFallbackStyle = false;
   let styleReady = false;
   let latestState = initial;
   let renderedRouteRevision: string | undefined;
@@ -104,12 +106,25 @@ export function createTransitMap(container: HTMLElement, initial: MapState, acti
     renderedRouteRevision = undefined;
     renderRouteLines();
   });
-  map.on("error", () => {
-    if (!remoteStyleLoading) return;
+  map.on("error", (event) => {
+    // Any error listener replaces MapLibre's default logging, so tile failures must be logged here.
+    if (!remoteStyleLoading) {
+      console.error(event.error);
+      return;
+    }
     remoteStyleLoading = false;
+    usingFallbackStyle = true;
     styleReady = false;
     map.setStyle(localStyle, { diff: false });
   });
+
+  function retry() {
+    if (!usingFallbackStyle || !styleUrl) return;
+    usingFallbackStyle = false;
+    remoteStyleLoading = true;
+    styleReady = false;
+    map.setStyle("/v1/map/style.json", { diff: false });
+  }
   map.on("webglcontextlost", () => {
     styleReady = false;
     actions.setUnavailable(true);
@@ -166,5 +181,5 @@ export function createTransitMap(container: HTMLElement, initial: MapState, acti
   }
 
   update(initial);
-  return { update, resize: () => map.resize(), dispose: () => map.remove() };
+  return { update, retry, resize: () => map.resize(), dispose: () => map.remove() };
 }

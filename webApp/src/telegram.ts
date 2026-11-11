@@ -11,6 +11,7 @@ interface TelegramWebApp {
   isVersionAtLeast?(version: string): boolean;
   ready(): void;
   expand(): void;
+  disableVerticalSwipes?(): void;
   onEvent(event: "themeChanged", handler: () => void): void;
   offEvent(event: "themeChanged", handler: () => void): void;
 }
@@ -36,6 +37,8 @@ export function connectTelegram(onBack: () => void) {
   backButton?.onClick(onBack);
   webApp?.ready();
   webApp?.expand();
+  // Otherwise a downward map pan collapses the Mini App instead of moving the map.
+  if (webApp?.isVersionAtLeast?.("7.7")) webApp.disableVerticalSwipes?.();
 
   return {
     setBackVisible(visible: boolean) {

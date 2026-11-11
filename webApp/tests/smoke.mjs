@@ -7,8 +7,9 @@ import { join, resolve } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
 import { fileURLToPath } from 'node:url';
 import {
-  browserFixture, fixtureCityId, fixtureHeadsign, fixtureRouteColor, fixtureRouteId, fixtureShapePath,
-  fixtureStopId, fixtureTileColor, otherCityId, otherRouteId, otherShapePath,
+  browserFixture, fallbackMapColor, fixtureAttribution, fixtureCityId, fixtureControl, fixtureHeadsign,
+  fixtureRouteColor, fixtureRouteId, fixtureShapePath, fixtureStopId, fixtureTileColor, otherCityId,
+  otherRouteId, otherShapePath,
 } from './browser-fixtures.mjs';
 
 const dist = resolve(process.argv[2] ?? fileURLToPath(new URL('../dist', import.meta.url)));
@@ -140,6 +141,7 @@ try {
   await waitFor('Selected city opens map with nearby stop', `${mapScreen} && ${visible(stopOption)}`);
   await waitFor('MapLibre worker loads from the production build', () => workerResponses.includes(200));
   await waitFor('MapLibre renders pixels from the fixture raster tiles', () => mapContainsColor(fixtureTileColor, 2_000));
+  await waitFor('Tile source attribution is visible', `${visible('.maplibregl-ctrl-attrib')} && document.querySelector('.maplibregl-ctrl-attrib').textContent.includes(${JSON.stringify(fixtureAttribution)})`);
   await tap(stopOption);
   await waitFor('ETA panel shows BFF arrival', etaVisible);
   await waitFor('Telegram BackButton handles the ETA panel', `${backVisible} && typeof window.__telegramSmoke.backHandler === 'function'`);
@@ -181,10 +183,28 @@ try {
   await waitFor('Reload restores the selected route geometry', () => mapContainsColor(fixtureRouteColor, 75));
   await tap(testId('open-routes'));
   await waitFor('Only the confirmed route persists after reload', `${routePressed(fixtureRouteId, true)} && ${routePressed(otherRouteId, false)}`);
+  await tap(routeOption(otherRouteId));
+  await waitFor('A route can be added to the draft before Telegram back', routePressed(otherRouteId, true));
+  await waitFor('Telegram BackButton handles the route picker', `${backVisible} && typeof window.__telegramSmoke.backHandler === 'function'`);
+  await evaluate('window.__telegramSmoke.backHandler(); true');
+  await waitFor('Telegram back closes the route picker', `${mapScreen} && !${routesScreen} && window.__telegramSmoke?.backVisible === false`);
+  await tap(testId('open-routes'));
+  await waitFor('Telegram back discards the route draft', `${routePressed(fixtureRouteId, true)} && ${routePressed(otherRouteId, false)}`);
   await tap(testId('cancel-routes'));
   await waitFor('Closing the route picker restores the map', `${mapScreen} && !${routesScreen}`);
   await tap(testId('change-city'));
   await waitFor('Change-city action reopens city choices', `${visible(testId('city-screen'))} && ${visible(cityOption(otherCityId))}`);
+
+  fixtureControl.failStyle = true;
+  await tap(cityOption(otherCityId));
+  await waitFor('Second city enables confirmation', `document.querySelector('${testId('confirm-city')}')?.disabled === false`);
+  await tap(testId('confirm-city'));
+  await waitFor('Second city opens a fresh map', `${mapScreen} && ${visible('.maplibregl-canvas')} && !${visible(stopOption)}`);
+  await waitFor('An unavailable BFF style falls back to the local map style', () => mapContainsColor(fallbackMapColor, 2_000));
+  fixtureControl.failStyle = false;
+  await evaluate(`window.dispatchEvent(new Event('online')); true`);
+  await waitFor('The BFF style is retried when the network returns', () => mapContainsColor(fixtureTileColor, 2_000));
+  await waitFor('Second city requests its own nearby stops', () => bffRequests.includes(`/v1/cities/${otherCityId}/stops/nearby`));
 
   for (const path of ['/v1/cities', '/v1/map/style.json', `/v1/cities/${fixtureCityId}/stops/nearby`, `/v1/cities/${fixtureCityId}/stops/${fixtureStopId}/arrivals`, fixtureShapePath]) {
     assert.ok(bffRequests.includes(path), `Expected a BFF request for ${path}`);

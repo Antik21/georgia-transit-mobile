@@ -231,12 +231,20 @@ function createRoutePicker(copy: Copy, actions: ViewActions) {
   });
   field.addEventListener("compositionend", () => actions.searchRoutes(field.value));
   field.addEventListener("keydown", (event) => {
-    if (event.key !== "Enter" || event.isComposing) return;
-    event.preventDefault();
-    field.blur();
+    if (event.isComposing) return;
+    if (event.key === "Escape" && field.value) {
+      // Escape clears the query first; the app-level handler would discard the whole draft.
+      event.preventDefault();
+      event.stopPropagation();
+      clear.click();
+    } else if (event.key === "Enter") {
+      event.preventDefault();
+      field.blur();
+    }
   });
   const clear = button("route-icon-button", "×", () => {
     field.value = "";
+    clear.hidden = true;
     field.focus();
     actions.searchRoutes("");
   }, "clear-route-search");
