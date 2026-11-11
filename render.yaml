@@ -62,3 +62,30 @@ services:
         value: /app/storage/control/capabilities.json
       - key: BFF_CAPABILITY_CONTROL_STATE_DIR
         value: /app/storage/state
+
+  - type: web
+    name: antik21-georgia-transit-web
+    runtime: static
+    # CI force-pushes the tested Vite bundle here only after every check on main passes.
+    branch: web-dist
+    buildCommand: test -f index.html
+    staticPublishPath: .
+    autoDeployTrigger: commit
+    routes:
+      # Same-origin proxy required by ADR 0020; style and tile paths must stay unchanged.
+      - type: rewrite
+        source: /v1/*
+        destination: https://antik21-georgia-transit-bff.onrender.com/v1/*
+    headers:
+      - path: /assets/*
+        name: Cache-Control
+        value: public, max-age=31536000, immutable
+      - path: /index.html
+        name: Cache-Control
+        value: no-cache
+      - path: /*
+        name: X-Content-Type-Options
+        value: nosniff
+      - path: /*
+        name: Referrer-Policy
+        value: strict-origin-when-cross-origin
