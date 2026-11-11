@@ -12,6 +12,7 @@ import com.denis.georgiatransit.shared.domain.model.VehicleId
 import com.denis.georgiatransit.shared.presentation.cityselection.citySelectionDisplayName
 import com.denis.georgiatransit.shared.presentation.location.LocationPlatformCommand
 import com.denis.georgiatransit.shared.presentation.location.LocationPlatformEvent
+import com.denis.georgiatransit.shared.presentation.location.LocationSession
 import com.denis.georgiatransit.shared.presentation.location.LocationState
 import com.denis.georgiatransit.shared.presentation.location.UserLocationFix
 import com.denis.georgiatransit.shared.presentation.map.Action
@@ -126,6 +127,7 @@ class MapBridge internal constructor(
     private val city: TransitCity? = null,
     private val languageTag: String = "en",
     onNavigation: ((NavigationEffect) -> Unit)? = null,
+    private val locationSession: LocationSession? = null,
     private val onDisposed: () -> Unit,
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
@@ -300,6 +302,8 @@ class MapBridge internal constructor(
         disposed = true
         locationHandler = null
         pendingLocationCommands.clear()
+        // The session outlives this entry; an orphaned request would block every later one.
+        locationSession?.let { session -> session.state.value.activeRequestId?.let(session::cancelRequest) }
         scope.cancel()
         store.clear()
         onDisposed()

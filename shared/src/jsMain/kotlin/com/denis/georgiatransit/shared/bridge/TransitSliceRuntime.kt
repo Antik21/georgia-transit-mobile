@@ -195,7 +195,7 @@ class TransitSliceRuntime(bffBaseUrl: String, languageTag: String? = null) {
                     MapNavigationEffect.OpenRoutes -> navigate(NavigationEvent.OpenRoutes)
                 }
             }
-        }) { map = null }.also { map = it }
+        }, locationSession = koin.get()) { map = null }.also { map = it }
     }
 
     fun openRoutes(): RoutesBridge {

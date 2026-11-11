@@ -42,13 +42,14 @@ class MapBridgeLocationTest {
         try {
             val repository = EmptyRepository()
             val session = RuntimeTransitSession().also { it.selectCity(repository.city) }
+            val locationSession = RuntimeLocationSession(scope = backgroundScope, nowMillis = { now })
             val factory = viewModelFactory {
-                initializer { MapViewModel(repository, session, RuntimeLocationSession(scope = backgroundScope, nowMillis = { now })) }
+                initializer { MapViewModel(repository, session, locationSession) }
             }
             val vm = ViewModelProvider.create(store, factory)["map", MapViewModel::class]
             // Orbit's test mode captures side effects, so this test runs the real container and its dispatcher.
             run {
-                val entry = MapBridge(vm, store, repository.city) {}
+                val entry = MapBridge(vm, store, repository.city, locationSession = locationSession) {}
                 try {
                     var state: StopMapState? = null
                     entry.subscribe { state = it }
@@ -100,7 +101,9 @@ class MapBridgeLocationTest {
                     assertNull(state?.userLocation, "A precise fix must not survive a switch to approximate access")
                     assertEquals(false, state?.location?.precise)
 
+                    assertTrue(locationSession.state.value.activeRequestId != null, "Approximate access starts a new request")
                     entry.dispose()
+                    assertNull(locationSession.state.value.activeRequestId, "Disposal must not leave an orphaned shared request")
                     val delivered = commands.size
                     entry.myLocation()
                     settle()
