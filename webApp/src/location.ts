@@ -24,9 +24,9 @@ interface Provider {
 
 export interface LocationAdapter {
   handle(command: LocationCommand): void;
-  /** Reports the current permission, as native adapters do when the screen resumes. */
-  resume(): void;
-  /** Cancels an in-flight request when the map is hidden or covered. */
+  /** Re-reads the permission after a pause; `force` also re-reads it while already active. */
+  resume(force?: boolean): void;
+  /** Drops pending permission and fix requests while the map is hidden or covered. */
   pause(): void;
   setRefreshing(active: boolean): void;
   dispose(): void;
@@ -120,6 +120,7 @@ export function createLocationAdapter(entry: MapEntry, manager: TelegramLocation
   let generation = 0;
   let refreshTimer: number | undefined;
   let disposed = false;
+  let paused = false;
 
   function reportPermission(permission: Permission) {
     if (disposed) return;
@@ -189,7 +190,8 @@ export function createLocationAdapter(entry: MapEntry, manager: TelegramLocation
           void requestLocation(command.id, true);
           break;
         case "requestLocation":
-          if (command.isRefresh && document.visibilityState !== "visible") entry.locationCancelled(command.id);
+          // A grant can arrive while hidden; locating then would recenter a map nobody sees.
+          if (paused || document.visibilityState !== "visible") entry.locationCancelled(command.id);
           else void requestLocation(command.id, false);
           break;
         case "openAppSettings":
@@ -198,15 +200,19 @@ export function createLocationAdapter(entry: MapEntry, manager: TelegramLocation
           break;
       }
     },
-    resume() {
-      if (!disposed) void queryPermission();
+    resume(force = false) {
+      if (disposed || (!paused && !force)) return;
+      paused = false;
+      void queryPermission();
     },
     pause() {
-      const id = activeRequest;
-      if (!id) return;
+      if (paused) return;
+      paused = true;
+      // Also invalidates a pending permission prompt, which never sets activeRequest.
       generation++;
+      const id = activeRequest;
       activeRequest = undefined;
-      entry.locationCancelled(id);
+      if (id) entry.locationCancelled(id);
     },
     setRefreshing(active) {
       if (active && refreshTimer === undefined && !disposed) {
