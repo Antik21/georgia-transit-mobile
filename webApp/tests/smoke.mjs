@@ -9,7 +9,7 @@ import { fileURLToPath } from 'node:url';
 import {
   browserFixture, fallbackMapColor, fixtureAttribution, fixtureCityId, fixtureControl, fixtureHeadsign,
   fixtureRouteColor, fixtureRouteId, fixtureShapePath, fixtureStopId, fixtureTileColor, otherCityId,
-  otherRouteId, otherShapePath,
+  otherRouteId, otherShapePath, fixtureVehiclesPath, vehicleHeadlightColor,
 } from './browser-fixtures.mjs';
 
 const dist = resolve(process.argv[2] ?? fileURLToPath(new URL('../dist', import.meta.url)));
@@ -166,8 +166,15 @@ try {
   await tap(testId('confirm-routes'));
   await waitFor('Confirm returns to the map', `${mapScreen} && !${routesScreen}`);
   await waitFor('The selected route geometry draws on the MapLibre canvas', () => mapContainsColor(fixtureRouteColor, 75));
+  await waitFor('The live vehicle badge draws on the MapLibre canvas', () => mapContainsColor(vehicleHeadlightColor, 6));
+  await waitFor('Live vehicles show no degraded status', `!${visible(testId('vehicle-status'))}`);
 
   await tap(testId('open-routes'));
+  const vehicleRequests = () => bffRequests.filter((path) => path === fixtureVehiclesPath).length;
+  const pollsBeforePicker = vehicleRequests();
+  await delay(9_000);
+  assert.equal(vehicleRequests(), pollsBeforePicker, 'Vehicle polling must pause while the route picker covers the map');
+  console.log('PASS Vehicle polling pauses behind the route picker');
   await waitFor('Route picker restores the committed selection', `${routePressed(fixtureRouteId, true)} && ${routePressed(otherRouteId, false)}`);
   await tap(routeOption(fixtureRouteId));
   await waitFor('Tapping a selected route removes it from the draft', routePressed(fixtureRouteId, false));
@@ -212,6 +219,7 @@ try {
   assert.ok(workerResponses.every((status) => status === 200), 'MapLibre worker requests must serve the built asset');
   assert.ok(bffRequests.some((path) => path.startsWith('/v1/map/tiles/')), 'Expected a BFF request for a raster tile');
   assert.ok(!bffRequests.includes(otherShapePath), 'Cancel must not request geometry for an uncommitted route');
+  assert.ok(bffRequests.includes(fixtureVehiclesPath), 'Expected a BFF request for live vehicles');
   assert.deepEqual(errors, [], 'Browser reported uncaught errors');
   console.log('Telegram Mini App Chromium smoke passed');
 } catch (error) {

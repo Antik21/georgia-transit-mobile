@@ -1,4 +1,4 @@
-import type { MapEntry, MapState, RoutesEntry, TransitRuntime } from "./contracts";
+import type { MapEntry, MapState, RoutesEntry, TransitRuntime, VehicleLayer } from "./contracts";
 import type { TransitMap } from "./map";
 import { connectTelegram } from "./telegram";
 import { createTransitView } from "./ui";
@@ -7,6 +7,7 @@ import "./styles.css";
 interface ActiveMap {
   bridge: MapEntry;
   state?: MapState;
+  vehicles?: VehicleLayer;
   renderer?: TransitMap;
   rendererRequested?: boolean;
   rendererUnavailable?: boolean;
@@ -78,8 +79,10 @@ async function loadMapRenderer(entry: ActiveMap) {
     entry.renderer = createTransitMap(view.mapElement, entry.state, {
       selectStop: (stop) => entry.bridge.selectStop(stop.id, stop.sourceRevision),
       updateViewport: (lat, lng, radius, zoom) => entry.bridge.updateViewport(lat, lng, radius, zoom),
+      selectVehicle: (id, revision) => entry.bridge.selectVehicle(id, revision),
       setUnavailable,
     });
+    if (entry.vehicles) entry.renderer.updateVehicles(entry.vehicles);
     setUnavailable(false);
   } catch {
     setUnavailable(true);
@@ -121,6 +124,11 @@ function showMap(session: TransitRuntime) {
       if (activeMap !== entry) return;
       entry.state = state;
       if (!activeRoutes) renderMap(entry);
+    });
+    entry.bridge.subscribeVehicles((layer) => {
+      if (activeMap !== entry) return;
+      entry.vehicles = layer;
+      entry.renderer?.updateVehicles(layer);
     });
   }
   updateVisibility();
