@@ -28,7 +28,7 @@ import com.denis.georgiatransit.shared.presentation.splash.SplashViewModel
 import org.koin.core.context.startKoin
 import org.koin.dsl.module
 
-private fun appModule(
+internal fun appModule(
     selectedCityStore: SelectedCityStore,
     runtimeConfigurationSource: RuntimeBootstrapConfigurationSource,
     transitCacheStore: TransitCacheStore,

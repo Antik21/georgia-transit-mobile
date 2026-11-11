@@ -109,6 +109,47 @@ jobs:
           :androidApp:assembleSandbox
           :androidApp:assembleProd
 
+  browser:
+    name: Browser
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out source
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - name: Set up JDK 17
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5.7.0
+        with:
+          distribution: temurin
+          java-version: "17"
+      - name: Install Android SDK 37
+        shell: bash
+        run: |
+          set -euo pipefail
+          : "${ANDROID_HOME:?The hosted runner must provide ANDROID_HOME}"
+          sdkmanager="${ANDROID_HOME}/cmdline-tools/latest/bin/sdkmanager"
+          test -x "$sdkmanager"
+          # Ignore yes(1)'s expected SIGPIPE after sdkmanager accepts all licenses.
+          set +o pipefail
+          yes | "$sdkmanager" --sdk_root="$ANDROID_HOME" --licenses >/dev/null
+          set -o pipefail
+          "$sdkmanager" --sdk_root="$ANDROID_HOME" "platforms;android-37.0" "build-tools;37.0.0"
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@da187c8e6ffbd3802e00f2477aa5a822b25f2dda # v4.4.4
+        with:
+          cache-read-only: ${{ github.event_name == 'pull_request' || github.ref != 'refs/heads/main' }}
+          cache-cleanup: on-success
+          gradle-home-cache-excludes: caches/build-cache-1
+      - name: Run browser quality gates
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --version
+          yarn --version
+          export CHROME_BIN="$(command -v google-chrome)"
+          test -x "$CHROME_BIN"
+          ./gradlew --no-daemon --no-build-cache --stacktrace :shared:compileKotlinJs :shared:jsBrowserTest
+
   ios:
     name: iOS
     runs-on: macos-15

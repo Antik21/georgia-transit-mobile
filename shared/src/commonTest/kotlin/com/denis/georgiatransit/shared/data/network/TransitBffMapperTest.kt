@@ -10,8 +10,12 @@ import kotlinx.serialization.SerializationException
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.double
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertFails
 import kotlin.test.assertFailsWith
 
@@ -26,7 +30,16 @@ class TransitBffMapperTest {
         val dto = json.decodeFromString<CityDto>(encoded)
         val city = dto.toDomain()
 
-        assertEquals(encoded, json.encodeToString(dto))
+        val expectedJson = json.parseToJsonElement(encoded).jsonObject
+        val actualJson = json.parseToJsonElement(json.encodeToString(dto)).jsonObject
+        assertEquals(expectedJson - "defaultZoom", actualJson - "defaultZoom", "City wire fields")
+        val defaultZoom = actualJson.getValue("defaultZoom").jsonPrimitive
+        assertFalse(defaultZoom.isString, "defaultZoom must be a JSON number")
+        assertEquals(
+            expectedJson.getValue("defaultZoom").jsonPrimitive.double,
+            defaultZoom.double,
+            "defaultZoom",
+        )
         assertEquals("demo", city.id.value)
         assertEquals("Demo", city.name)
         assertEquals("დემო", city.localizedName.ka)

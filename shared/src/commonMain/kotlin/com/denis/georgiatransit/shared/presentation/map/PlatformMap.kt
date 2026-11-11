@@ -1,8 +1,6 @@
 package com.denis.georgiatransit.shared.presentation.map
 
-import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
-import androidx.compose.ui.Modifier
 import com.denis.georgiatransit.shared.domain.model.DirectionId
 import com.denis.georgiatransit.shared.domain.model.GeoPoint
 import com.denis.georgiatransit.shared.domain.model.RouteId
@@ -271,17 +269,6 @@ private fun GeoPoint.distanceMetersTo(other: GeoPoint): Double {
 
 internal fun GeoPoint.isMapCoordinate(): Boolean = latitude.isFinite() && longitude.isFinite() &&
     latitude in -90.0..90.0 && longitude in -180.0..180.0
-
-/**
- * Native renderer boundary. A re-created native view receives the current state and applies its
- * camera command once; later layer-only updates must not reset a user-controlled camera.
- */
-@Composable
-expect fun PlatformMap(
-    renderState: MapRenderState,
-    onEvent: (MapPlatformEvent) -> Unit,
-    modifier: Modifier = Modifier,
-)
 
 internal const val ALL_STOPS_MIN_ZOOM = 15.0
 internal const val USER_STOP_RADIUS_METERS = 1_000.0

@@ -15,7 +15,7 @@ import kotlin.test.assertTrue
 class CitySelectionResourceContractTest {
     @Test
     fun englishGeorgianAndRussianStringKeysStayInParity() {
-        val resourceRoot = projectRoot().resolve("shared/src/commonMain/composeResources")
+        val resourceRoot = projectRoot().resolve("shared/src/mobileMain/composeResources")
         val english = stringKeys(resourceRoot.resolve("values/strings.xml"))
         val georgian = stringKeys(resourceRoot.resolve("values-ka/strings.xml"))
         val russian = stringKeys(resourceRoot.resolve("values-ru/strings.xml"))
@@ -131,7 +131,7 @@ class CitySelectionResourceContractTest {
     @Test
     fun cityAttributionResourcesAndComposableKeepLinksOutsideTheDisabledSelectableRow() {
         val projectRoot = projectRoot()
-        val resources = projectRoot.resolve("shared/src/commonMain/composeResources")
+        val resources = projectRoot.resolve("shared/src/mobileMain/composeResources")
         listOf(
             resources.resolve("values/strings.xml"),
             resources.resolve("values-ka/strings.xml"),
@@ -145,7 +145,7 @@ class CitySelectionResourceContractTest {
         // This keeps the enabled binding tied to .selectable and proves attribution is outside
         // that Row's content lambda.
         val catalogSection = projectRoot.resolve(
-            "shared/src/commonMain/kotlin/com/denis/georgiatransit/shared/presentation/cityselection/sections/CityCatalogSection.kt",
+            "shared/src/mobileMain/kotlin/com/denis/georgiatransit/shared/presentation/cityselection/sections/CityCatalogSection.kt",
         ).readText()
         assertTrue(catalogSection.contains("withLink(LinkAnnotation.Url(item.url))"))
         val cityRow = catalogSection.functionBody("private fun CityRow")
@@ -217,7 +217,7 @@ class CitySelectionResourceContractTest {
 
     private fun projectRoot(): Path =
         generateSequence(Path.of("").toAbsolutePath()) { it.parent }
-            .firstOrNull { Files.isDirectory(it.resolve("shared/src/commonMain/composeResources")) }
+            .firstOrNull { Files.isDirectory(it.resolve("shared/src/mobileMain/composeResources")) }
             ?: error("Could not locate the project root from ${Path.of("").toAbsolutePath()}")
 
     private companion object {

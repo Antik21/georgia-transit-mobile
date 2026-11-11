@@ -13,9 +13,9 @@ class RouteGeometryLegendContractTest {
     @Test
     fun compactRouteChipsKeepIndependentAccessibleTypedActions() {
         val root = generateSequence(Path.of("").toAbsolutePath()) { it.parent }
-            .first { Files.isDirectory(it.resolve("shared/src/commonMain/composeResources")) }
+            .first { Files.isDirectory(it.resolve("shared/src/mobileMain/composeResources")) }
         val source = root.resolve(
-            "shared/src/commonMain/kotlin/com/denis/georgiatransit/shared/presentation/map/sections/RouteGeometryLegend.kt",
+            "shared/src/mobileMain/kotlin/com/denis/georgiatransit/shared/presentation/map/sections/RouteGeometryLegend.kt",
         ).readText()
         val automation = root.resolve(
             "shared/src/commonMain/kotlin/com/denis/georgiatransit/shared/presentation/ui/automation/AutomationId.kt",
