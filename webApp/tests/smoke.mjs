@@ -9,7 +9,7 @@ import { fileURLToPath } from 'node:url';
 import {
   browserFixture, fallbackMapColor, fixtureAttribution, fixtureCityId, fixtureControl, fixtureHeadsign,
   fixtureRouteColor, fixtureRouteId, fixtureShapePath, fixtureStopId, fixtureTileColor, otherCityId,
-  otherRouteId, otherShapePath, fixtureVehiclesPath, vehicleHeadlightColor,
+  otherRouteId, otherShapePath, fixtureVehiclesPath, vehicleHeadlightColor, userLocationDotColor,
 } from './browser-fixtures.mjs';
 
 const dist = resolve(process.argv[2] ?? fileURLToPath(new URL('../dist', import.meta.url)));
@@ -215,6 +215,23 @@ try {
   await evaluate(`window.dispatchEvent(new Event('online')); true`);
   await waitFor('The BFF style is retried when the network returns', () => mapContainsColor(fixtureTileColor, 2_000));
   await waitFor('Second city requests its own nearby stops', () => bffRequests.includes(`/v1/cities/${otherCityId}/stops/nearby`));
+
+  const locationButton = testId('my-location');
+  const permissionIs = (value) => `document.querySelector('${locationButton}')?.dataset.permission === '${value}'`;
+  await waitFor('My location starts by asking for access', `${visible(locationButton)} && ${permissionIs('notDetermined')}`);
+  await tap(locationButton);
+  await waitFor('A Telegram denial asks the user to open settings', `${permissionIs('settingsRequired')} && ${visible(testId('location-status'))}`);
+  await tap(locationButton);
+  await waitFor('The settings action opens Telegram location settings', 'window.__telegramSmoke.settingsOpened === 1');
+  await evaluate(`(() => {
+    const location = window.__telegramSmoke.location;
+    location.granted = true;
+    location.fix = { latitude: 41.6505, longitude: 41.6395, horizontal_accuracy: 25 };
+    document.dispatchEvent(new Event('visibilitychange'));
+    return true;
+  })()`);
+  await waitFor('Returning from settings grants access and locates the user', `${permissionIs('granted')} && !${visible(testId('location-status'))}`);
+  await waitFor('The user location dot draws on the MapLibre canvas', () => mapContainsColor(userLocationDotColor, 20));
 
   for (const path of ['/v1/cities', '/v1/map/style.json', `/v1/cities/${fixtureCityId}/stops/nearby`, `/v1/cities/${fixtureCityId}/stops/${fixtureStopId}/arrivals`, fixtureShapePath]) {
     assert.ok(bffRequests.includes(path), `Expected a BFF request for ${path}`);

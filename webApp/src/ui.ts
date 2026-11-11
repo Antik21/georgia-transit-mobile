@@ -20,6 +20,7 @@ export interface ViewActions {
   focusRoute(id: string): void;
   retryRoute(id: string): void;
   removeRoute(id: string): void;
+  myLocation(): void;
 }
 
 type Copy = ReturnType<typeof getCopy>;
@@ -71,7 +72,19 @@ export function createTransitView(root: HTMLElement, actions: ViewActions, langu
   vehicleStatus.dataset.testid = "vehicle-status";
   mapControls.append(openRoutes, routeLegends, vehicleStatus);
   const mapCredits = element("div", "map-credits");
-  mapRegion.append(mapElement, mapOverlay, mapControls, mapCredits);
+  const locationControls = element("div", "map-location");
+  const locationStatus = element("p", "map-location-status");
+  locationStatus.setAttribute("role", "status");
+  locationStatus.dataset.testid = "location-status";
+  // A permission state the user never asked about stays in the button label, as on mobile.
+  let locationRequested = false;
+  const locationButton = button("map-location-button", "", () => {
+    locationRequested = true;
+    actions.myLocation();
+  }, "my-location");
+  locationButton.append(locationIcon());
+  locationControls.append(locationStatus, locationButton);
+  mapRegion.append(mapElement, mapOverlay, mapControls, locationControls, mapCredits);
   const mapPanel = element("section", "map-panel");
   mapPanel.setAttribute("aria-labelledby", "map-panel-heading");
   map.append(mapRegion, mapPanel);
@@ -166,6 +179,7 @@ export function createTransitView(root: HTMLElement, actions: ViewActions, langu
     const legends = state?.routeLegends ?? [];
     routeLegends.hidden = legends.length === 0;
     replacePreservingFocus(routeLegends, legends.map((route) => renderRouteLegend(route, copy, actions)));
+    renderLocation(state?.location);
     const vehicleText = vehicleStatusText(copy, state?.vehicleStatus);
     vehicleStatus.hidden = !vehicleText;
     if (vehicleStatus.textContent !== (vehicleText ?? "")) vehicleStatus.textContent = vehicleText ?? "";
@@ -186,6 +200,21 @@ export function createTransitView(root: HTMLElement, actions: ViewActions, langu
     }
     arrivalStop = nextArrivalStop;
     setScreen("map", returningFromRoutes && !openRoutes.hidden ? openRoutes : panelHeading ?? undefined);
+  }
+
+  function renderLocation(location: MapState["location"]) {
+    locationControls.hidden = !location;
+    if (!location) return;
+    const label = locationActionLabel(copy, location);
+    locationButton.setAttribute("aria-label", label);
+    locationButton.title = label;
+    locationButton.disabled = !location.actionable;
+    locationButton.setAttribute("aria-busy", String(location.locating));
+    locationButton.dataset.permission = location.permission;
+    const message = location.locating ? copy.locationLocating
+      : location.failure || locationRequested ? locationStatusText(copy, location) : null;
+    locationStatus.hidden = !message;
+    if (locationStatus.textContent !== (message ?? "")) locationStatus.textContent = message ?? "";
   }
 
   function showRoutes(state?: RoutesState) {
@@ -361,6 +390,55 @@ function renderRouteLegend(route: MapState["routeLegends"][number], copy: Copy, 
   remove.setAttribute("aria-label", copy.removeRoute.replace("%1$s", route.label));
   row.append(remove);
   return row;
+}
+
+function locationActionLabel(copy: Copy, location: NonNullable<MapState["location"]>) {
+  switch (location.permission) {
+    case "notDetermined": return copy.locationEnable;
+    case "denied":
+    case "unavailable":
+    case "error": return copy.locationRetry;
+    case "settingsRequired": return copy.locationSettings;
+    case "servicesDisabled": return copy.locationServicesSettings;
+    default: return copy.myLocation;
+  }
+}
+
+/** Visible counterpart of the mobile content description, shown only when something needs attention. */
+function locationStatusText(copy: Copy, location: NonNullable<MapState["location"]>) {
+  switch (location.failure) {
+    case "timedOut": return copy.locationTimedOut;
+    case "invalidFix": return copy.locationInvalid;
+    case "unavailable": return copy.locationFailed;
+  }
+  switch (location.permission) {
+    case "denied": return copy.locationDenied;
+    case "settingsRequired": return copy.locationSettingsRequired;
+    case "restricted": return copy.locationRestricted;
+    case "servicesDisabled": return copy.locationServicesDisabled;
+    case "unavailable": return copy.locationUnavailable;
+    case "error": return copy.locationError;
+    default: return null;
+  }
+}
+
+const svgNamespace = "http://www.w3.org/2000/svg";
+
+function locationIcon() {
+  const svg = document.createElementNS(svgNamespace, "svg");
+  svg.setAttribute("viewBox", "0 0 24 24");
+  svg.setAttribute("aria-hidden", "true");
+  svg.classList.add("map-location-icon");
+  for (const [tag, attributes] of [
+    ["circle", { cx: "12", cy: "12", r: "7" }],
+    ["circle", { cx: "12", cy: "12", r: "2.5", fill: "currentColor" }],
+    ["path", { d: "M12 1v4M12 19v4M1 12h4M19 12h4" }],
+  ] as const) {
+    const shape = document.createElementNS(svgNamespace, tag);
+    for (const [name, value] of Object.entries(attributes)) shape.setAttribute(name, value);
+    svg.append(shape);
+  }
+  return svg;
 }
 
 function vehicleStatusText(copy: Copy, status?: string) {

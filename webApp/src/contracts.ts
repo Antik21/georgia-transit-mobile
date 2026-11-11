@@ -83,6 +83,28 @@ export interface VehicleItem {
   readonly stale: boolean;
 }
 
+export interface LocationStatus {
+  readonly permission: string;
+  readonly precise: boolean;
+  readonly locating: boolean;
+  readonly failure: string | null | undefined;
+  readonly actionable: boolean;
+}
+
+export interface UserLocation {
+  readonly latitude: number;
+  readonly longitude: number;
+  readonly accuracyMeters: number;
+  readonly showDot: boolean;
+  readonly accuracyRing: readonly { readonly latitude: number; readonly longitude: number }[];
+}
+
+export interface LocationCommand {
+  readonly id: string;
+  readonly kind: string;
+  readonly isRefresh: boolean;
+}
+
 export interface VehicleLayer {
   readonly revision: string;
   readonly badgeRevision: string;
@@ -129,12 +151,21 @@ export interface MapState {
   readonly styleUrl: string | null | undefined;
   readonly attribution: readonly Attribution[];
   readonly vehicleStatus: string;
+  readonly location: LocationStatus | null | undefined;
+  readonly userLocation: UserLocation | null | undefined;
 }
 
 export interface MapEntry {
   subscribe(onState: (state: MapState) => void): void;
   subscribeVehicles(onVehicles: (layer: VehicleLayer) => void): void;
   selectVehicle(vehicleId: string, revision: string): void;
+  subscribeLocationCommands(onCommand: (command: LocationCommand) => void): void;
+  myLocation(): void;
+  refreshLocation(): void;
+  locationPermission(state: string, precise: boolean, canRetry: boolean): void;
+  locationFix(requestId: string, latitude: number, longitude: number, accuracyMeters: number, capturedAt: number): void;
+  locationFailed(requestId: string, failure: string): void;
+  locationCancelled(requestId: string): void;
   setVisible(visible: boolean): void;
   selectStop(stopId: string, sourceRevision: string): void;
   updateViewport(latitude: number, longitude: number, radiusMeters: number, zoom: number): void;

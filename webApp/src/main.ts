@@ -1,11 +1,13 @@
 import type { MapEntry, MapState, RoutesEntry, TransitRuntime, VehicleLayer } from "./contracts";
 import type { TransitMap } from "./map";
+import { createLocationAdapter, type LocationAdapter } from "./location";
 import { connectTelegram } from "./telegram";
 import { createTransitView } from "./ui";
 import "./styles.css";
 
 interface ActiveMap {
   bridge: MapEntry;
+  location: LocationAdapter;
   state?: MapState;
   vehicles?: VehicleLayer;
   renderer?: TransitMap;
@@ -41,6 +43,7 @@ const view = createTransitView(root, {
   focusRoute: (id) => activeMap?.bridge.focusRoute(id),
   retryRoute: (id) => activeMap?.bridge.retryRoute(id),
   removeRoute: (id) => activeMap?.bridge.removeRoute(id),
+  myLocation: () => activeMap?.bridge.myLocation(),
 }, language);
 
 const telegram = connectTelegram(() => {
@@ -55,12 +58,17 @@ function closeEntries() {
   activeMap = undefined;
   routes?.dispose();
   map?.renderer?.dispose();
+  map?.location.dispose();
   map?.bridge.dispose();
   telegram.setBackVisible(false);
 }
 
 function updateVisibility() {
-  activeMap?.bridge.setVisible(!activeRoutes && document.visibilityState === "visible");
+  const visible = !activeRoutes && document.visibilityState === "visible";
+  activeMap?.bridge.setVisible(visible);
+  if (!activeMap) return;
+  if (!visible) activeMap.location.pause();
+  activeMap.location.setRefreshing(visible && activeMap.state?.location?.permission === "granted");
 }
 
 async function loadMapRenderer(entry: ActiveMap) {
@@ -117,14 +125,21 @@ function showMap(session: TransitRuntime) {
     renderMap(activeMap);
     activeMap.renderer?.resize();
   } else {
-    const entry: ActiveMap = { bridge: session.openMap() };
+    const bridge = session.openMap();
+    const entry: ActiveMap = { bridge, location: createLocationAdapter(bridge, telegram.locationManager) };
     activeMap = entry;
     renderMap(entry);
     entry.bridge.subscribe((state) => {
       if (activeMap !== entry) return;
+      const permissionChanged = state.location?.permission !== entry.state?.location?.permission;
       entry.state = state;
+      if (permissionChanged) updateVisibility();
       if (!activeRoutes) renderMap(entry);
     });
+    entry.bridge.subscribeLocationCommands((command) => {
+      if (activeMap === entry) entry.location.handle(command);
+    });
+    entry.location.resume();
     entry.bridge.subscribeVehicles((layer) => {
       if (activeMap !== entry) return;
       entry.vehicles = layer;
@@ -179,6 +194,8 @@ async function start() {
 document.addEventListener("visibilitychange", () => {
   updateVisibility();
   retryMap();
+  // Native adapters re-read the permission on resume; a user may have changed it in settings.
+  if (document.visibilityState === "visible") activeMap?.location.resume();
 });
 window.addEventListener("online", retryMap);
 window.addEventListener("pageshow", updateVisibility);
