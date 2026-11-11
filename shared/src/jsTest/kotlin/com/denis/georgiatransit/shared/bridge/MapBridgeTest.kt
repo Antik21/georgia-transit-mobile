@@ -51,11 +51,14 @@ class MapBridgeTest {
                 capabilities = CityCapabilities(true, false, true, false, false))
             val route = TransitRoute(RouteId("test:route"), city.id, "10", "Route 10", 0xFF0057B8)
             val stop = TransitStop(StopId("test:stop"), ProviderId("stop"), "001", LocalizedText.fromLegacy("Central"), city.center, listOf(route.id), TransitMode.Bus)
+            var requestedCenter: GeoPoint? = null
             val repository = object : TransitRepository {
                 override fun cities() = listOf(city)
                 override fun routes(cityId: CityId) = listOf(route)
-                override suspend fun nearbyStops(cityId: CityId, center: GeoPoint, radiusMeters: Int, limit: Int, locale: TransitLocale) =
-                    TransitLoadResult.Data(listOf(stop), TransitFreshness.Network)
+                override suspend fun nearbyStops(cityId: CityId, center: GeoPoint, radiusMeters: Int, limit: Int, locale: TransitLocale): TransitLoadResult<List<TransitStop>> {
+                    requestedCenter = center
+                    return TransitLoadResult.Data(listOf(stop), TransitFreshness.Network)
+                }
                 override suspend fun arrivals(cityId: CityId, stopId: StopId, limit: Int, locale: TransitLocale) =
                     TransitLoadResult.Data(ArrivalPage(listOf(TransitArrival(stop.id, route.id, tripId = null,
                         headsign = LocalizedText.fromLegacy("Airport"), scheduledAt = null, expectedAt = null,
@@ -67,7 +70,7 @@ class MapBridgeTest {
             val vm = ViewModelProvider.create(store, factory)["map", MapViewModel::class]
             vm.test(this) {
                 var closed = false
-                val entry = MapBridge(vm, store) { closed = true }
+                val entry = MapBridge(vm, store, city) { closed = true }
                 try {
                     var latest: StopMapState? = null
                     var emissions = 0
@@ -82,7 +85,21 @@ class MapBridgeTest {
                     this@runTest.runCurrent()
                     this@runTest.advanceTimeBy(351)
                     this@runTest.runCurrent()
-                    val target = assertNotNull(latest, "Map bridge did not emit state").stops.single()
+                    val initial = assertNotNull(latest, "Map bridge did not emit state")
+                    assertEquals(city.id.value, initial.cityId)
+                    val camera = assertNotNull(initial.camera)
+                    assertEquals(city.center.latitude, camera.latitude)
+                    assertEquals(city.center.longitude, camera.longitude)
+                    assertEquals(city.defaultZoom, camera.zoom)
+                    val pannedCenter = GeoPoint(41.723, 44.841)
+                    entry.updateViewport(pannedCenter.latitude, pannedCenter.longitude, 2_500, 16.0)
+                    this@runTest.runCurrent()
+                    this@runTest.advanceTimeBy(351)
+                    this@runTest.runCurrent()
+                    assertEquals(pannedCenter, requestedCenter)
+                    val target = assertNotNull(latest).stops.single()
+                    assertEquals(stop.position.latitude, target.latitude)
+                    assertEquals(stop.position.longitude, target.longitude)
                     entry.selectStop(target.id, target.sourceRevision)
                     this@runTest.runCurrent()
                     val sheet = assertNotNull(latest?.arrivals, "The selected stop did not publish arrivals")

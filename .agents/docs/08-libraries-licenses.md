@@ -9,3 +9,20 @@ tiles for normal interactive Sandbox and Prod use through the BFF, with visible 
 identifiable User-Agent, seven-day caching, no prefetch/offline downloads, and an accepted lack of
 SLA. Any replacement provider still requires a separate review of cost, quota, attribution, privacy,
 and production rights.
+
+## Web client (`webApp`)
+
+`webApp/package.json` and its lockfile are the only npm declaration point, scoped to the browser
+client from [ADR 0020](../../docs/adr/0020-telegram-mini-app-web-client.md). Shared behaviour still
+comes from `:shared` through Kotlin/JS; npm packages may not add a second state, networking, or
+navigation stack. Versions are pinned exactly and upgraded under the same review as above.
+
+| package | role | license |
+| --- | --- | --- |
+| `maplibre-gl` | browser map renderer (counterpart of MapLibre Native) | BSD-3-Clause |
+| `vite` | dev server and bundler (dev only) | MIT |
+| `typescript` | type checking (dev only) | Apache-2.0 |
+
+Telegram's WebApp script is loaded from `telegram.org` as the platform requires; it is not
+bundled or redistributed, and its use is governed by the Telegram Bot Platform terms. The client
+reads no Telegram identity data.

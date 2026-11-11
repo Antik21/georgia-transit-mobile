@@ -1,6 +1,7 @@
 package com.denis.georgiatransit.shared.presentation.map
 
 import androidx.compose.runtime.Immutable
+import com.denis.georgiatransit.shared.domain.model.GeoPoint
 import com.denis.georgiatransit.shared.domain.model.RouteId
 import com.denis.georgiatransit.shared.domain.model.TransitAttribution
 import com.denis.georgiatransit.shared.domain.model.StopId
@@ -98,6 +99,7 @@ data class NearbyStopUi(
     val isSelected: Boolean,
     val sourceRevision: Long = 0L,
     val routeHighlight: StopRouteHighlightUi = StopRouteHighlightUi(),
+    val position: GeoPoint? = null,
 )
 
 /** Common marker metadata; adapters receive values only and never infer route membership. */

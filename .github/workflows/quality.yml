@@ -148,7 +148,19 @@ jobs:
           yarn --version
           export CHROME_BIN="$(command -v google-chrome)"
           test -x "$CHROME_BIN"
-          ./gradlew --no-daemon --no-build-cache --stacktrace :shared:compileKotlinJs :shared:jsBrowserTest
+          ./gradlew --no-daemon --no-build-cache --stacktrace \
+            :shared:jsBrowserTest :shared:jsProductionLibraryCompileSync :kotlinNpmInstall
+          npm --prefix webApp ci
+          npm --prefix webApp run build
+          npm --prefix webApp run smoke
+      - name: Upload web preview build
+        if: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: georgia-transit-web
+          path: webApp/dist/
+          if-no-files-found: error
+          retention-days: 1
 
   ios:
     name: iOS

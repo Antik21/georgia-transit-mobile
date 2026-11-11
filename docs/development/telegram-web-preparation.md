@@ -1,6 +1,6 @@
 # Подготовка общей логики для Telegram Mini App
 
-На этом этапе `:shared` получает браузерную цель Kotlin/JS и интерфейс для запуска сессии, выбора города и получения ETA по остановке. Браузерная навигация по маршрутам, Telegram Mini App, бот, Telegram SDK, веб-интерфейс и рендерер карты, публикация и настройка CORS относятся к следующему этапу.
+На этом этапе `:shared` получает браузерную цель Kotlin/JS и интерфейс для запуска сессии, выбора города и получения ETA по остановке. Браузерная навигация по маршрутам, Telegram Mini App, бот, Telegram SDK, веб-интерфейс и рендерер карты, публикация и настройка CORS относятся к следующему этапу: см. [Telegram Mini App](telegram-mini-app.md).
 
 ## Реализация
 
@@ -15,11 +15,13 @@
 
 ## Проверка
 
-- [ ] JS. Установить Node.js и Yarn Classic, затем запустить `./gradlew :shared:compileKotlinJs :shared:jsBrowserTest` с Chrome Headless. После успешной сборки библиотеки проверить сгенерированные декларации на минимальном TypeScript-клиенте.
+- [x] JS. Установить Node.js и Yarn Classic, затем запустить `./gradlew :shared:compileKotlinJs :shared:jsBrowserTest` с Chrome Headless. После успешной сборки библиотеки проверить сгенерированные декларации на минимальном TypeScript-клиенте.
 - [ ] Android. Запустить `./gradlew :shared:testAndroidHostTest :androidApp:assembleSandbox :androidApp:assembleProd`. На эмуляторе выполнить `ui-tests/maestro/flows/shell-smoke.yaml` и существующие сценарии выбора маршрута, карты и геолокации.
 - [ ] iOS. Запустить `./gradlew :shared:iosSimulatorArm64Test`. Собрать `Sandbox` и `Prod`, подставляя имя схемы в оба аргумента команды `xcodebuild -project iosApp/iosApp.xcodeproj -scheme <scheme> -configuration <scheme> -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO build`. На симуляторе выполнить те же проверки оболочки, маршрута, карты и геолокации.
 
 ### GitHub Actions
+
+Итог: в PR #41 все проверки CI прошли (Quality, Transit BFF, Android, Browser, iOS), включая браузерные тесты и сборку обеих схем. Сценарии Maestro на эмуляторе и симуляторе в этом этапе не запускались, поэтому пункты Android и iOS остаются открытыми.
 
 В [прогоне №123](https://github.com/Antik21/georgia-transit-mobile/actions/runs/42898084388) прошли Android host-тесты, lint и сборка Sandbox/Prod, а также тесты на iOS-симуляторе и сборка обеих схем. Проверки Maestro остаются в чек-листе. Kotlin/JS скомпилировался, Chrome Headless выполнил 242 теста, два из которых завершились ошибкой.
 

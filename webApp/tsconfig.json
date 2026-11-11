@@ -1,0 +1,19 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "strict": true,
+    "paths": {
+      "@georgia-transit/shared": [
+        "../build/js/packages/georgia-transit-shared/kotlin/georgia-transit-shared.d.mts",
+        "../build/js/packages/georgia-transit-shared/kotlin/georgia-transit-shared.d.ts"
+      ]
+    },
+    "noEmit": true,
+    "skipLibCheck": true,
+    "types": ["vite/client"]
+  },
+  "include": ["src"]
+}
