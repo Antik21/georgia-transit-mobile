@@ -16,7 +16,7 @@ export const userLocationDotColor = [21, 101, 192];
 export const fixtureVehiclesPath = `/v1/cities/${fixtureCityId}/vehicles`;
 export const fixtureAttribution = 'Fixture tiles';
 // Toggled by the smoke to exercise the local-style fallback and its recovery.
-export const fixtureControl = { failStyle: false };
+export const fixtureControl = { failStyle: false, staleVehicles: false, telegram: true };
 
 const position = { latitude: 41.715137, longitude: 44.827096 };
 const localized = (en) => ({ en, ru: en, ka: en });
@@ -138,7 +138,7 @@ function vehicles(routeId) {
     }],
     observedAt,
     maxAgeSeconds: 30,
-    stale: false,
+    stale: fixtureControl.staleVehicles,
   };
 }
 
@@ -227,7 +227,7 @@ export function browserFixture(dist, bffRequests, origin) {
   return async ({ url, method }) => {
     const target = new URL(url);
     if (target.origin === 'https://telegram.org' && target.pathname === '/js/telegram-web-app.js') {
-      return respond(200, telegramFixture, contentTypes.get('js'));
+      return respond(200, fixtureControl.telegram ? telegramFixture : '', contentTypes.get('js'));
     }
     if (target.origin !== origin) return respond(404, 'Fixture has no external network access');
     if (method !== 'GET') return respond(405, 'Fixture only implements GET');

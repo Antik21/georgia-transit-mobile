@@ -31,6 +31,7 @@ import com.denis.georgiatransit.shared.presentation.map.StopArrivalsSheetState
 import com.denis.georgiatransit.shared.presentation.map.SideEffect
 import com.denis.georgiatransit.shared.presentation.map.StopArrivalsSheetUi
 import com.denis.georgiatransit.shared.presentation.map.VehicleLayerState
+import com.denis.georgiatransit.shared.presentation.map.VehicleRouteAccessibilityUi
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
@@ -91,6 +92,7 @@ class StopMapState(
     val routePolylineRevision: String = "0",
     val routeLegends: Array<RouteLegend> = emptyArray(),
     val vehicleStatus: String = "hidden",
+    val vehicleRoutes: Array<VehicleRouteSummary> = emptyArray(),
     val location: LocationStatus? = null,
     val userLocation: UserLocation? = null,
 )
@@ -115,6 +117,7 @@ private data class StopSlice(
     val routePolylineRevision: Long,
     val routeLegends: List<RouteGeometryLegendUi>,
     val vehicleLayerState: VehicleLayerState,
+    val vehicleRoutes: List<VehicleRouteAccessibilityUi>,
     val location: LocationState,
     val userLocation: UserLocationFix?,
 )
@@ -203,6 +206,7 @@ class MapBridge internal constructor(
                         render?.polylineSourceRevision ?: 0L,
                         state.routeGeometryLegends,
                         state.vehicleLayerState,
+                        state.vehicleRoutes,
                         state.location,
                         render?.userLocation,
                     )
@@ -338,6 +342,7 @@ private fun StopSlice.toJs(
     routePolylineRevision = routePolylineRevision.toString(),
     routeLegends = routeLegends.map { it.toJs() }.toTypedArray(),
     vehicleStatus = vehicleLayerState.toJs(),
+    vehicleRoutes = vehicleRoutes.map { it.toJs() }.toTypedArray(),
     location = location.toJs(),
     userLocation = userLocation?.toJs(),
 )

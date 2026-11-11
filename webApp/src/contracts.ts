@@ -83,6 +83,13 @@ export interface VehicleItem {
   readonly stale: boolean;
 }
 
+export interface VehicleRouteSummary {
+  readonly routeId: string;
+  readonly label: string;
+  readonly vehicleCount: number;
+  readonly status: string;
+}
+
 export interface LocationStatus {
   readonly permission: string;
   readonly precise: boolean;
@@ -151,6 +158,7 @@ export interface MapState {
   readonly styleUrl: string | null | undefined;
   readonly attribution: readonly Attribution[];
   readonly vehicleStatus: string;
+  readonly vehicleRoutes: readonly VehicleRouteSummary[];
   readonly location: LocationStatus | null | undefined;
   readonly userLocation: UserLocation | null | undefined;
 }

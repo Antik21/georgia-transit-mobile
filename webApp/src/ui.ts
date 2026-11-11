@@ -68,9 +68,12 @@ export function createTransitView(root: HTMLElement, actions: ViewActions, langu
   const routeLegends = element("ul", "map-route-legends");
   routeLegends.setAttribute("aria-label", copy.selectedRoutes);
   const vehicleStatus = element("p", "map-vehicle-status");
-  vehicleStatus.setAttribute("role", "status");
   vehicleStatus.dataset.testid = "vehicle-status";
-  mapControls.append(openRoutes, routeLegends, vehicleStatus);
+  // Mirrors the mobile accessibility summary: announced politely, never drawn.
+  const vehicleSummary = element("p", "visually-hidden");
+  vehicleSummary.setAttribute("aria-live", "polite");
+  vehicleSummary.dataset.testid = "vehicle-summary";
+  mapControls.append(openRoutes, routeLegends, vehicleStatus, vehicleSummary);
   const mapCredits = element("div", "map-credits");
   const locationControls = element("div", "map-location");
   const locationStatus = element("p", "map-location-status");
@@ -183,6 +186,8 @@ export function createTransitView(root: HTMLElement, actions: ViewActions, langu
     const vehicleText = vehicleStatusText(copy, state?.vehicleStatus);
     vehicleStatus.hidden = !vehicleText;
     if (vehicleStatus.textContent !== (vehicleText ?? "")) vehicleStatus.textContent = vehicleText ?? "";
+    const summaryText = vehicleSummaryText(copy, state?.vehicleStatus, state?.vehicleRoutes ?? []);
+    if (vehicleSummary.textContent !== summaryText) vehicleSummary.textContent = summaryText;
 
     const nextArrivalStop = state?.arrivals?.stopId ?? null;
     const previousArrivalStop = arrivalStop;
@@ -439,6 +444,26 @@ function locationIcon() {
     svg.append(shape);
   }
   return svg;
+}
+
+function vehicleStateLabel(copy: Copy, status?: string) {
+  return {
+    loading: copy.vehiclesLoading,
+    live: copy.vehiclesLive,
+    stale: copy.vehiclesStale,
+    retryable: copy.vehiclesRetryable,
+    unavailable: copy.vehiclesUnavailable,
+    mixed: copy.vehiclesMixed,
+  }[status ?? ""];
+}
+
+function vehicleSummaryText(copy: Copy, status: string | undefined, routes: MapState["vehicleRoutes"]) {
+  const label = vehicleStateLabel(copy, status);
+  if (!label || routes.length === 0) return "";
+  const counts = routes
+    .map((route) => `${route.label}: ${route.vehicleCount}, ${vehicleStateLabel(copy, route.status) ?? ""}`)
+    .join(" · ");
+  return copy.vehiclesSummary.replace("%1$s", label).replace("%2$s", counts);
 }
 
 function vehicleStatusText(copy: Copy, status?: string) {
