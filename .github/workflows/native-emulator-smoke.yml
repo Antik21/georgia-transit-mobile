@@ -1,0 +1,201 @@
+name: Georgia Transit emulator smoke
+
+on:
+  pull_request:
+    branches: [feature/telegram-web-preparation]
+    paths: [.github/workflows/native-emulator-smoke.yml]
+
+permissions:
+  contents: read
+
+env:
+  SOURCE_REVISION: 59dce20427db03482a37170c8456d3d38c08048e
+  MAESTRO_CLI_NO_ANALYTICS: 'true'
+
+jobs:
+  android:
+    name: Android emulator smoke
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - name: Check out exact source
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ env.SOURCE_REVISION }}
+          persist-credentials: false
+      - name: Set up JDK 17
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@da187c8e6ffbd3802e00f2477aa5a822b25f2dda
+        with:
+          cache-read-only: true
+      - name: Install Android SDK and emulator image
+        shell: bash
+        run: |
+          set -euo pipefail
+          sdkmanager="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          set +o pipefail
+          yes | "$sdkmanager" --sdk_root="$ANDROID_HOME" --licenses >/dev/null
+          set -o pipefail
+          "$sdkmanager" --sdk_root="$ANDROID_HOME" 'platforms;android-37.0' 'build-tools;37.0.0' 'system-images;android-35;google_apis;x86_64' emulator
+          sudo chmod a+rw /dev/kvm
+      - name: Build Sandbox APK
+        id: build
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$SOURCE_REVISION"
+          ./gradlew --no-daemon --no-build-cache --stacktrace :androidApp:assembleSandboxDebug -PSANDBOX_BFF_BASE_URL=http://10.0.2.2:8080
+          apk="$(find "$PWD/androidApp/build/outputs/apk/sandbox/debug" -name '*.apk' -print -quit)"
+          test -f "$apk"
+          echo "apk=$apk" >> "$GITHUB_OUTPUT"
+      - name: Install pinned Maestro CLI
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fsSL --retry 3 -o "$RUNNER_TEMP/maestro.zip" https://github.com/mobile-dev-inc/maestro/releases/download/cli-2.12.0/maestro.zip
+          unzip -q "$RUNNER_TEMP/maestro.zip" -d "$RUNNER_TEMP/maestro-dist"
+          echo "$RUNNER_TEMP/maestro-dist/maestro/bin" >> "$GITHUB_PATH"
+      - name: Prepare Sandbox copies of existing smoke scenarios
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp -R ui-tests/maestro "$RUNNER_TEMP/georgia-maestro"
+          python3 - "$RUNNER_TEMP/georgia-maestro" <<'PY'
+          import sys
+          from pathlib import Path
+
+          root = Path(sys.argv[1])
+          for name in ("stop-arrivals", "route-selection"):
+              script = root / f"run-{name}-smoke.sh"
+              flow = root / "flows" / f"{name}-smoke.yaml"
+              script.write_text(script.read_text().replace("app_id=com.denis.georgiatransit\n", "app_id=com.denis.georgiatransit.sandbox\n"))
+              flow.write_text(flow.read_text().replace("appId: com.denis.georgiatransit\n", "appId: com.denis.georgiatransit.sandbox\n"))
+          PY
+      - name: Boot Android emulator
+        id: emulator
+        shell: bash
+        run: |
+          set -euo pipefail
+          printf 'no\n' | "$ANDROID_HOME/cmdline-tools/latest/bin/avdmanager" create avd --name georgia-smoke --package 'system-images;android-35;google_apis;x86_64' --device pixel_7
+          nohup "$ANDROID_HOME/emulator/emulator" -avd georgia-smoke -port 5554 -no-window -noaudio -no-snapshot -no-boot-anim -gpu swiftshader_indirect >"$RUNNER_TEMP/georgia-emulator.log" 2>&1 </dev/null &
+          timeout 360 adb -s emulator-5554 wait-for-device
+          for attempt in $(seq 1 120); do
+            if [[ $(adb -s emulator-5554 shell getprop sys.boot_completed | tr -d '\r') == 1 ]]; then
+              adb -s emulator-5554 shell input keyevent 82
+              adb -s emulator-5554 shell settings put global window_animation_scale 0
+              adb -s emulator-5554 shell settings put global transition_animation_scale 0
+              adb -s emulator-5554 shell settings put global animator_duration_scale 0
+              adb -s emulator-5554 shell getprop ro.build.version.sdk
+              exit 0
+            fi
+            sleep 2
+          done
+          exit 1
+      - name: Run stop-arrivals fixture smoke
+        shell: bash
+        run: bash "$RUNNER_TEMP/georgia-maestro/run-stop-arrivals-smoke.sh" android emulator-5554 '${{ steps.build.outputs.apk }}'
+      - name: Run route-selection fixture smoke
+        if: ${{ !cancelled() && steps.emulator.outcome == 'success' }}
+        shell: bash
+        run: bash "$RUNNER_TEMP/georgia-maestro/run-route-selection-smoke.sh" android emulator-5554 '${{ steps.build.outputs.apk }}'
+      - name: Print emulator diagnostics on failure
+        if: ${{ failure() }}
+        shell: bash
+        run: |
+          tail -100 "$RUNNER_TEMP/georgia-emulator.log" 2>/dev/null || true
+          timeout 10 adb -s emulator-5554 logcat -b crash -d -t 100 || true
+
+  ios:
+    name: iOS simulator smoke
+    runs-on: macos-15
+    timeout-minutes: 60
+    steps:
+      - name: Check out exact PR head
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          ref: ${{ env.SOURCE_REVISION }}
+          persist-credentials: false
+      - name: Verify source and runner
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$SOURCE_REVISION"
+          test "$(uname -m)" = arm64
+          xcodebuild -version
+          node --version
+      - name: Set up JDK 17
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5.7.0
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@da187c8e6ffbd3802e00f2477aa5a822b25f2dda
+        with:
+          cache-read-only: true
+      - name: Install pinned Maestro CLI
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fsSL --retry 3 -o "$RUNNER_TEMP/maestro.zip" https://github.com/mobile-dev-inc/maestro/releases/download/cli-2.12.0/maestro.zip
+          unzip -q "$RUNNER_TEMP/maestro.zip" -d "$RUNNER_TEMP/maestro-dist"
+          echo "$RUNNER_TEMP/maestro-dist/maestro/bin" >> "$GITHUB_PATH"
+      - name: Prepare Sandbox copies of existing smoke scenarios
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp -R ui-tests/maestro "$RUNNER_TEMP/georgia-maestro"
+          python3 - "$RUNNER_TEMP/georgia-maestro" <<'PY'
+          import sys
+          from pathlib import Path
+
+          root = Path(sys.argv[1])
+          for name in ("stop-arrivals", "route-selection"):
+              script = root / f"run-{name}-smoke.sh"
+              flow = root / "flows" / f"{name}-smoke.yaml"
+              script.write_text(script.read_text().replace("app_id=com.denis.georgiatransit\n", "app_id=com.denis.georgiatransit.sandbox\n"))
+              flow.write_text(flow.read_text().replace("appId: com.denis.georgiatransit\n", "appId: com.denis.georgiatransit.sandbox\n"))
+          PY
+      - name: Create and boot iOS simulator
+        id: simulator
+        shell: bash
+        run: |
+          set -euo pipefail
+          runtime="$(xcrun simctl list runtimes -j | jq -r '.runtimes | map(select(.isAvailable and (.identifier | startswith("com.apple.CoreSimulator.SimRuntime.iOS-")))) | sort_by(.version | split(".") | map(tonumber)) | last.identifier')"
+          device_type="$(xcrun simctl list devicetypes -j | jq -r '.devicetypes | map(select(.name | startswith("iPhone"))) | first.identifier')"
+          test -n "$runtime" && test "$runtime" != null
+          test -n "$device_type" && test "$device_type" != null
+          udid="$(xcrun simctl create 'Georgia Transit Smoke' "$device_type" "$runtime")"
+          echo "udid=$udid" >> "$GITHUB_OUTPUT"
+          xcrun simctl boot "$udid"
+          xcrun simctl bootstatus "$udid" -b
+          xcrun simctl list devices booted
+      - name: Build Sandbox for simulator
+        id: build
+        shell: bash
+        run: |
+          set -euo pipefail
+          xcodebuild -project iosApp/iosApp.xcodeproj -scheme Sandbox -sdk iphonesimulator -configuration Sandbox \
+            -destination 'platform=iOS Simulator,id=${{ steps.simulator.outputs.udid }}' \
+            -derivedDataPath "$RUNNER_TEMP/georgia-ios" CODE_SIGNING_ALLOWED=NO build
+          app="$RUNNER_TEMP/georgia-ios/Build/Products/Sandbox-iphonesimulator/iosApp.app"
+          test -d "$app"
+          echo "app=$app" >> "$GITHUB_OUTPUT"
+      - name: Run stop-arrivals fixture smoke
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash "$RUNNER_TEMP/georgia-maestro/run-stop-arrivals-smoke.sh" ios '${{ steps.simulator.outputs.udid }}' '${{ steps.build.outputs.app }}'
+      - name: Run route-selection fixture smoke
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash "$RUNNER_TEMP/georgia-maestro/run-route-selection-smoke.sh" ios '${{ steps.simulator.outputs.udid }}' '${{ steps.build.outputs.app }}'
+      - name: Delete simulator
+        if: ${{ always() && steps.simulator.outputs.udid != '' }}
+        shell: bash
+        run: xcrun simctl delete '${{ steps.simulator.outputs.udid }}'
