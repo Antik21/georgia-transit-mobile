@@ -67,7 +67,8 @@ function updateVisibility() {
   const visible = !activeRoutes && document.visibilityState === "visible";
   activeMap?.bridge.setVisible(visible);
   if (!activeMap) return;
-  if (!visible) activeMap.location.pause();
+  if (visible) activeMap.location.resume();
+  else activeMap.location.pause();
   activeMap.location.setRefreshing(visible && activeMap.state?.location?.permission === "granted");
 }
 
@@ -139,7 +140,7 @@ function showMap(session: TransitRuntime) {
     entry.bridge.subscribeLocationCommands((command) => {
       if (activeMap === entry) entry.location.handle(command);
     });
-    entry.location.resume();
+    entry.location.resume(true);
     entry.bridge.subscribeVehicles((layer) => {
       if (activeMap !== entry) return;
       entry.vehicles = layer;
@@ -195,7 +196,7 @@ document.addEventListener("visibilitychange", () => {
   updateVisibility();
   retryMap();
   // Native adapters re-read the permission on resume; a user may have changed it in settings.
-  if (document.visibilityState === "visible") activeMap?.location.resume();
+  if (document.visibilityState === "visible" && !activeRoutes) activeMap?.location.resume(true);
 });
 window.addEventListener("online", retryMap);
 window.addEventListener("pageshow", updateVisibility);
