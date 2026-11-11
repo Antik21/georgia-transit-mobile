@@ -50,7 +50,7 @@ jobs:
         run: |
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "$SOURCE_REVISION"
-          ./gradlew --no-daemon --no-build-cache --stacktrace :androidApp:assembleSandboxDebug -PSANDBOX_BFF_BASE_URL=http://10.0.2.2:8080
+          ./gradlew --no-daemon --no-build-cache --stacktrace :androidApp:assembleSandboxDebug -PSANDBOX_BFF_BASE_URL=http://127.0.0.1:8080
           apk="$(find "$PWD/androidApp/build/outputs/apk/sandbox/debug" -name '*.apk' -print -quit)"
           test -f "$apk"
           echo "apk=$apk" >> "$GITHUB_OUTPUT"
@@ -95,6 +95,8 @@ jobs:
               adb -s emulator-5554 shell settings put global transition_animation_scale 0
               adb -s emulator-5554 shell settings put global animator_duration_scale 0
               adb -s emulator-5554 shell getprop ro.build.version.sdk
+              adb -s emulator-5554 reverse tcp:8080 tcp:8080
+              adb -s emulator-5554 reverse --list
               exit 0
             fi
             sleep 2
@@ -111,8 +113,16 @@ jobs:
         if: ${{ failure() }}
         shell: bash
         run: |
-          tail -100 "$RUNNER_TEMP/georgia-emulator.log" 2>/dev/null || true
-          timeout 10 adb -s emulator-5554 logcat -b crash -d -t 100 || true
+          if adb -s emulator-5554 shell pidof com.denis.georgiatransit.sandbox >/dev/null 2>&1; then
+            echo 'Sandbox process is running'
+          else
+            echo 'Sandbox process is not running'
+          fi
+          if adb -s emulator-5554 shell dumpsys activity activities | grep -E 'topResumedActivity|mResumedActivity' | grep -F 'com.denis.georgiatransit.sandbox/' >/dev/null; then
+            echo 'Sandbox owns the foreground activity'
+          else
+            echo 'Sandbox does not own the foreground activity'
+          fi
 
   ios:
     name: iOS simulator smoke
