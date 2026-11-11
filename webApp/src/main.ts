@@ -196,7 +196,7 @@ document.addEventListener("visibilitychange", () => {
   updateVisibility();
   retryMap();
   // Native adapters re-read the permission on resume; a user may have changed it in settings.
-  if (document.visibilityState === "visible") activeMap?.location.resume(true);
+  if (document.visibilityState === "visible" && !activeRoutes) activeMap?.location.resume(true);
 });
 window.addEventListener("online", retryMap);
 window.addEventListener("pageshow", updateVisibility);
