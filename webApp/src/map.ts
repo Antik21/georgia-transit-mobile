@@ -1,6 +1,12 @@
-import { Map as MapLibreMap, Marker, type StyleSpecification } from "maplibre-gl";
+import { Map as MapLibreMap, Marker, setWorkerUrl, type GeoJSONSource, type StyleSpecification } from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
+import mapWorkerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?url&no-inline";
 import type { MapState, StopItem } from "./contracts";
+
+// MapLibre's sibling-file lookup cannot discover an asset renamed by Vite.
+setWorkerUrl(new URL(mapWorkerUrl, import.meta.url).href);
+
+const routeSourceId = "transit-route-lines";
 
 const localStyle: StyleSpecification = {
   version: 8,
@@ -16,6 +22,7 @@ interface MapActions {
 
 export interface TransitMap {
   update(state: MapState): void;
+  resize(): void;
   dispose(): void;
 }
 
@@ -26,6 +33,20 @@ function mapAssetRequest(rawUrl: string) {
     return { url: new URL(url.pathname, window.location.origin).href };
   }
   throw new Error("Unsupported map asset");
+}
+
+function routeLineData(lines: MapState["routePolylines"]) {
+  return {
+    type: "FeatureCollection" as const,
+    features: lines.map(({ points, color, strokeWidth, opacity, isEmphasized }) => ({
+      type: "Feature" as const,
+      properties: { color, strokeWidth, opacity, isEmphasized },
+      geometry: {
+        type: "LineString" as const,
+        coordinates: points.map(({ longitude, latitude }) => [longitude, latitude]),
+      },
+    })),
+  };
 }
 
 export function createTransitMap(container: HTMLElement, initial: MapState, actions: MapActions): TransitMap {
@@ -46,15 +67,53 @@ export function createTransitMap(container: HTMLElement, initial: MapState, acti
   });
   let cameraRevision = camera.revision;
   let remoteStyleLoading = Boolean(styleUrl);
+  let styleReady = false;
+  let latestState = initial;
+  let renderedRouteRevision: string | undefined;
   const markers = new Map<string, { marker: Marker; stop: StopItem }>();
 
-  map.on("style.load", () => { remoteStyleLoading = false; });
+  function renderRouteLines() {
+    if (!styleReady || renderedRouteRevision === latestState.routePolylineRevision) return;
+    const data = routeLineData(latestState.routePolylines);
+    const source = map.getSource<GeoJSONSource>(routeSourceId);
+    if (source) {
+      source.setData(data);
+    } else {
+      map.addSource(routeSourceId, { type: "geojson", data });
+      for (const emphasized of [false, true]) {
+        map.addLayer({
+          id: emphasized ? "transit-route-lines-emphasized" : "transit-route-lines-base",
+          type: "line",
+          source: routeSourceId,
+          filter: ["==", ["get", "isEmphasized"], emphasized],
+          layout: { "line-cap": "round", "line-join": "round" },
+          paint: {
+            "line-color": ["to-color", ["get", "color"]],
+            "line-width": ["number", ["get", "strokeWidth"]],
+            "line-opacity": ["number", ["get", "opacity"]],
+          },
+        });
+      }
+    }
+    renderedRouteRevision = latestState.routePolylineRevision;
+  }
+
+  map.on("style.load", () => {
+    remoteStyleLoading = false;
+    styleReady = true;
+    renderedRouteRevision = undefined;
+    renderRouteLines();
+  });
   map.on("error", () => {
     if (!remoteStyleLoading) return;
     remoteStyleLoading = false;
-    map.setStyle(localStyle);
+    styleReady = false;
+    map.setStyle(localStyle, { diff: false });
   });
-  map.on("webglcontextlost", () => actions.setUnavailable(true));
+  map.on("webglcontextlost", () => {
+    styleReady = false;
+    actions.setUnavailable(true);
+  });
   map.on("webglcontextrestored", () => actions.setUnavailable(false));
   map.on("moveend", (event) => {
     // The ViewModel already owns the viewport for its programmatic camera commands.
@@ -69,6 +128,8 @@ export function createTransitMap(container: HTMLElement, initial: MapState, acti
   });
 
   function update(state: MapState) {
+    latestState = state;
+    renderRouteLines();
     if (state.camera && state.camera.revision !== cameraRevision) {
       cameraRevision = state.camera.revision;
       map.jumpTo({ center: [state.camera.longitude, state.camera.latitude], zoom: state.camera.zoom });
@@ -105,5 +166,5 @@ export function createTransitMap(container: HTMLElement, initial: MapState, acti
   }
 
   update(initial);
-  return { update, dispose: () => map.remove() };
+  return { update, resize: () => map.resize(), dispose: () => map.remove() };
 }

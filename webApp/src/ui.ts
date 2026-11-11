@@ -1,5 +1,5 @@
 import { getCopy, getLanguage } from "./copy";
-import type { ArrivalsState, Attribution, CityState, MapState, StopItem } from "./contracts";
+import type { ArrivalsState, Attribution, CityState, MapState, RouteChoice, RoutesState, StopItem } from "./contracts";
 
 export interface ViewActions {
   selectCity(id: string): void;
@@ -11,10 +11,19 @@ export interface ViewActions {
   retryNearby(): void;
   dismissArrivals(): void;
   retryArrivals(): void;
+  openRoutes(): void;
+  searchRoutes(query: string): void;
+  toggleRoute(id: string): void;
+  retryRoutes(): void;
+  confirmRoutes(): void;
+  cancelRoutes(): void;
+  focusRoute(id: string): void;
+  retryRoute(id: string): void;
+  removeRoute(id: string): void;
 }
 
 type Copy = ReturnType<typeof getCopy>;
-type Screen = "startup" | "city" | "map";
+type Screen = "startup" | "city" | "map" | "routes";
 
 export function createTransitView(root: HTMLElement, actions: ViewActions, languageTag = navigator.language) {
   const language = getLanguage(languageTag);
@@ -53,22 +62,33 @@ export function createTransitView(root: HTMLElement, actions: ViewActions, langu
   mapRegion.setAttribute("aria-label", copy.map);
   const mapElement = element("div", "map-canvas");
   const mapOverlay = element("div", "map-overlay");
+  const mapControls = element("div", "map-controls");
+  const openRoutes = button("secondary-button map-routes-button", copy.openRoutes, actions.openRoutes, "open-routes");
+  const routeLegends = element("ul", "map-route-legends");
+  routeLegends.setAttribute("aria-label", copy.selectedRoutes);
+  mapControls.append(openRoutes, routeLegends);
   const mapCredits = element("div", "map-credits");
-  mapRegion.append(mapElement, mapOverlay, mapCredits);
+  mapRegion.append(mapElement, mapOverlay, mapControls, mapCredits);
   const mapPanel = element("section", "map-panel");
   mapPanel.setAttribute("aria-labelledby", "map-panel-heading");
   map.append(mapRegion, mapPanel);
 
-  app.append(header, startup, city, map);
+  const routePicker = createRoutePicker(copy, actions);
+  app.append(header, startup, city, map, routePicker.element);
   root.replaceChildren(app);
 
   let screen: Screen = "startup";
   let arrivalStop: string | null = null;
 
   app.addEventListener("keydown", (event) => {
-    if (event.key !== "Escape" || event.defaultPrevented || screen !== "map" || !arrivalStop) return;
-    event.preventDefault();
-    actions.dismissArrivals();
+    if (event.key !== "Escape" || event.defaultPrevented || event.isComposing) return;
+    if (screen === "routes") {
+      event.preventDefault();
+      actions.cancelRoutes();
+    } else if (screen === "map" && arrivalStop) {
+      event.preventDefault();
+      actions.dismissArrivals();
+    }
   });
 
   function setScreen(next: Screen, focusTarget?: HTMLElement) {
@@ -77,6 +97,7 @@ export function createTransitView(root: HTMLElement, actions: ViewActions, langu
     startup.hidden = next !== "startup";
     city.hidden = next !== "city";
     map.hidden = next !== "map";
+    routePicker.element.hidden = next !== "routes";
     if (next !== "map") {
       cityName.hidden = true;
       changeCity.hidden = true;
@@ -129,7 +150,8 @@ export function createTransitView(root: HTMLElement, actions: ViewActions, langu
   }
 
   function showMap(state?: MapState) {
-    if (screen !== "map") setMapLoading();
+    const returningFromRoutes = screen === "routes";
+    if (screen !== "map" && (!returningFromRoutes || !state)) setMapLoading();
     const name = state?.cityName ?? "";
     changeCity.hidden = !state?.canChangeCity;
     changeCityName.textContent = name || copy.changeCity;
@@ -137,6 +159,10 @@ export function createTransitView(root: HTMLElement, actions: ViewActions, langu
     cityName.hidden = !name || !changeCity.hidden;
     cityName.textContent = name;
     updateCredits(mapCredits, state?.attribution ?? []);
+    openRoutes.hidden = !state?.canOpenRoutes;
+    const legends = state?.routeLegends ?? [];
+    routeLegends.hidden = legends.length === 0;
+    replacePreservingFocus(routeLegends, legends.map((route) => renderRouteLegend(route, copy, actions)));
 
     const nextArrivalStop = state?.arrivals?.stopId ?? null;
     const previousArrivalStop = arrivalStop;
@@ -153,7 +179,12 @@ export function createTransitView(root: HTMLElement, actions: ViewActions, langu
       replacePreservingFocus(mapPanel, [content]);
     }
     arrivalStop = nextArrivalStop;
-    setScreen("map", panelHeading ?? undefined);
+    setScreen("map", returningFromRoutes && !openRoutes.hidden ? openRoutes : panelHeading ?? undefined);
+  }
+
+  function showRoutes(state?: RoutesState) {
+    routePicker.render(state, screen !== "routes");
+    setScreen("routes", routePicker.title);
   }
 
   function setMapLoading() {
@@ -167,7 +198,188 @@ export function createTransitView(root: HTMLElement, actions: ViewActions, langu
   }
 
   showLoading();
-  return { mapElement, showLoading, showStartupError, showCitySelection, showMap, setMapLoading, setMapUnavailable };
+  return { mapElement, showLoading, showStartupError, showCitySelection, showMap, showRoutes, setMapLoading, setMapUnavailable };
+}
+
+function createRoutePicker(copy: Copy, actions: ViewActions) {
+  const screen = element("main", "routes-screen");
+  screen.dataset.testid = "routes-screen";
+  const card = element("section", "routes-card");
+  const title = heading(copy.routes);
+  title.id = "routes-screen-heading";
+  card.setAttribute("aria-labelledby", title.id);
+
+  const meta = element("div", "routes-meta");
+  const city = element("span", "routes-city");
+  const count = element("span", "routes-count");
+  count.dataset.testid = "route-selection-count";
+  count.setAttribute("role", "status");
+  meta.append(city, count);
+  const header = element("div", "routes-header");
+  header.append(title, meta);
+
+  const search = element("div", "routes-search");
+  const field = element("input", "routes-search-field");
+  field.type = "search";
+  field.enterKeyHint = "search";
+  field.placeholder = copy.routesSearchHint;
+  field.setAttribute("aria-label", copy.routesSearch);
+  field.dataset.testid = "route-search";
+  field.addEventListener("input", (event) => {
+    clear.hidden = !field.value;
+    if (!(event instanceof InputEvent) || !event.isComposing) actions.searchRoutes(field.value);
+  });
+  field.addEventListener("compositionend", () => actions.searchRoutes(field.value));
+  field.addEventListener("keydown", (event) => {
+    if (event.key !== "Enter" || event.isComposing) return;
+    event.preventDefault();
+    field.blur();
+  });
+  const clear = button("route-icon-button", "×", () => {
+    field.value = "";
+    field.focus();
+    actions.searchRoutes("");
+  }, "clear-route-search");
+  clear.setAttribute("aria-label", copy.routesClearSearch);
+  search.append(field, clear);
+
+  const content = element("div", "routes-content");
+  const footer = element("div", "routes-footer");
+  const cancel = button("secondary-button", copy.routesClose, actions.cancelRoutes, "cancel-routes");
+  const confirm = button("primary-button", "", actions.confirmRoutes, "confirm-routes");
+  footer.append(cancel, confirm);
+  card.append(header, search, content, footer);
+  screen.append(card);
+
+  let lastQuery = "";
+  return {
+    element: screen,
+    title,
+    render(state: RoutesState | undefined, entering: boolean) {
+      const selected = state?.selectedCount ?? 0;
+      const selectionLimit = state?.selectionLimit ?? 0;
+      const limitReached = selectionLimit > 0 && selected >= selectionLimit;
+      const available = state?.status === "available";
+      const isConfirming = state?.isConfirming === true;
+      const query = state?.searchQuery ?? "";
+      city.textContent = state?.cityName ?? "";
+      const selectionLabel = formatNumber(copy.routesSelected, selected);
+      if (count.textContent !== selectionLabel) count.textContent = selectionLabel;
+      cancel.disabled = isConfirming;
+      confirm.disabled = !state?.canConfirm;
+      confirm.textContent = formatNumber(copy.routesConfirm, selected);
+      search.hidden = !available;
+      card.classList.toggle("has-route-search", available);
+      field.disabled = isConfirming;
+      if (entering || document.activeElement !== field) field.value = query;
+      clear.hidden = !field.value;
+      clear.disabled = isConfirming;
+
+      const children: HTMLElement[] = [];
+      if (available && limitReached) {
+        const warning = status(formatNumber(copy.routesLimit, selectionLimit));
+        warning.dataset.testid = "route-selection-limit";
+        children.push(warning);
+      }
+      if (state?.freshness === "staleOffline") children.push(status(copy.routesStale));
+      const message = routesStatus(copy, state?.status);
+      if (message) children.push(status(message, !state || state.status === "loading"));
+      if (state?.canRetry) children.push(button("secondary-button", copy.retry, actions.retryRoutes, "retry-routes"));
+      if (available) {
+        if (!query.trim() && state.recentRoutes.length) {
+          const recent = element("section", "routes-recent");
+          recent.append(element("h2", "routes-subheading", copy.routesRecent), routeOptions(state.recentRoutes, limitReached, isConfirming, actions, true));
+          children.push(recent);
+        }
+        if (state.routes.length) children.push(routeOptions(state.routes, limitReached, isConfirming, actions));
+        else children.push(status(query.trim() ? copy.routesNoMatches : copy.routesEmpty));
+      }
+      replacePreservingFocus(content, children);
+      if (entering || query !== lastQuery) content.scrollTop = 0;
+      lastQuery = query;
+    },
+  };
+}
+
+function routeOptions(routes: readonly RouteChoice[], limitReached: boolean, confirming: boolean, actions: ViewActions, recent = false) {
+  const list = element("ul", "route-options");
+  for (const route of routes) {
+    const row = element("li", "");
+    const option = button("list-button route-option", "", () => actions.toggleRoute(route.id), recent ? "recent-route-option" : "route-option");
+    option.dataset.routeId = route.id;
+    option.dataset.focusKey = `${recent ? "recent" : "route"}-${route.id}`;
+    option.disabled = confirming || (limitReached && !route.selected);
+    option.setAttribute("aria-pressed", String(route.selected));
+    const badge = element("span", "route-number route-option-number", route.shortName);
+    applyRouteColors(badge, route.color, route.textColor);
+    const name = route.name === route.shortName ? "" : route.name;
+    const direction = route.direction === route.shortName || route.direction === name ? "" : route.direction;
+    const detail = element("span", "list-name", name || direction);
+    if (name && direction) detail.append(element("small", "list-detail", direction));
+    option.append(badge, detail, icon("selection-indicator"));
+    row.append(option);
+    list.append(row);
+  }
+  return list;
+}
+
+function renderRouteLegend(route: MapState["routeLegends"][number], copy: Copy, actions: ViewActions) {
+  const row = element("li", "map-route-legend");
+  row.dataset.testid = "route-legend";
+  row.dataset.routeId = route.routeId;
+  const focus = button("map-route-focus", "", () => actions.focusRoute(route.routeId), "focus-route");
+  focus.dataset.focusKey = `focus-${route.routeId}`;
+  focus.setAttribute("aria-pressed", String(route.focused));
+  const badge = element("span", "route-number", route.label);
+  applyRouteColors(badge, route.color, route.textColor);
+  focus.append(badge);
+  const state = routeLineStatus(copy, route.status);
+  if (state) focus.append(element("span", "map-route-status", state));
+  row.append(focus);
+  if (route.canRetry) {
+    const retry = button("route-icon-button", "↻", () => actions.retryRoute(route.routeId), "retry-route");
+    retry.dataset.focusKey = `retry-${route.routeId}`;
+    retry.setAttribute("aria-label", copy.retryRoute.replace("%1$s", route.label));
+    row.append(retry);
+  }
+  const remove = button("route-icon-button", "×", () => actions.removeRoute(route.routeId), "remove-route");
+  remove.dataset.focusKey = `remove-${route.routeId}`;
+  remove.setAttribute("aria-label", copy.removeRoute.replace("%1$s", route.label));
+  row.append(remove);
+  return row;
+}
+
+function applyRouteColors(badge: HTMLElement, background: string, foreground: string) {
+  if (/^#[0-9a-f]{6}$/i.test(background) && /^#[0-9a-f]{6}$/i.test(foreground)) {
+    badge.style.backgroundColor = background;
+    badge.style.color = foreground;
+  }
+}
+
+function formatNumber(template: string, count: number) {
+  return template.replace("%1$d", String(count));
+}
+
+function routesStatus(copy: Copy, state?: string) {
+  switch (state) {
+    case "available": return null;
+    case "empty": return copy.routesEmpty;
+    case "offlineNoCache": return copy.routesOffline;
+    case "unavailable": return copy.routesUnavailable;
+    case "error": return copy.routesError;
+    default: return copy.routesLoading;
+  }
+}
+
+function routeLineStatus(copy: Copy, state: string) {
+  switch (state) {
+    case "loading": return copy.routeLineLoading;
+    case "partial": return copy.routeLinePartial;
+    case "retryable": return copy.routeLineError;
+    case "unavailable": return copy.routeLineUnavailable;
+    case "selectionOverflow": return copy.routeLineOverflow;
+    default: return null;
+  }
 }
 
 function renderStops(state: MapState | undefined, copy: Copy, actions: ViewActions) {

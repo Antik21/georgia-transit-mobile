@@ -6,6 +6,9 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.ViewModelStore
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
+import com.denis.georgiatransit.shared.app.Destination
+import com.denis.georgiatransit.shared.app.NavigationEvent
+import com.denis.georgiatransit.shared.app.SessionNavigationEventApplier
 import com.denis.georgiatransit.shared.data.cache.BrowserTransitCacheStore
 import com.denis.georgiatransit.shared.data.config.BffEndpointConfiguration
 import com.denis.georgiatransit.shared.data.config.BrowserRuntimeBootstrapConfigurationSource
@@ -24,6 +27,10 @@ import com.denis.georgiatransit.shared.presentation.cityselection.cityAttributio
 import com.denis.georgiatransit.shared.presentation.cityselection.citySelectionDisplayName
 import com.denis.georgiatransit.shared.presentation.map.Action as MapAction
 import com.denis.georgiatransit.shared.presentation.map.MapViewModel
+import com.denis.georgiatransit.shared.presentation.map.NavigationEffect as MapNavigationEffect
+import com.denis.georgiatransit.shared.presentation.routes.Action as RoutesAction
+import com.denis.georgiatransit.shared.presentation.routes.NavigationEffect as RoutesNavigationEffect
+import com.denis.georgiatransit.shared.presentation.routes.RoutesViewModel
 import io.ktor.client.HttpClient
 import kotlinx.browser.window
 import kotlinx.coroutines.CoroutineScope
@@ -48,7 +55,7 @@ class CityItem(
 @JsExport
 class CityState(val status: String, val cities: Array<CityItem>, val selectedId: String?, val canContinue: Boolean)
 
-/** Owns browser bootstrap and city/map entry lifetimes. */
+/** Owns browser bootstrap and navigation entry lifetimes. */
 @JsExport
 class TransitSliceRuntime(bffBaseUrl: String, languageTag: String? = null) {
     private val language = languageTag?.substringBefore('-')?.lowercase().orEmpty()
@@ -56,12 +63,15 @@ class TransitSliceRuntime(bffBaseUrl: String, languageTag: String? = null) {
     private val cityStore = ViewModelStore()
     private var city: CitySelectionViewModel? = null
     private var map: MapBridge? = null
+    private var routes: RoutesBridge? = null
+    private var stack = emptyList<Destination>()
     private var closed = false
     private var host: RuntimeHost? = null
     private var cityObserver: Job? = null
     private val application: org.koin.core.KoinApplication
     private val koin: org.koin.core.Koin
     private val httpClient: HttpClient
+    private val navigation: SessionNavigationEventApplier
 
     init {
         val endpoint = browserBffEndpoint(bffBaseUrl, window.location.origin, window.location.hostname)
@@ -78,6 +88,7 @@ class TransitSliceRuntime(bffBaseUrl: String, languageTag: String? = null) {
         }
         koin = application.koin
         httpClient = koin.get()
+        navigation = SessionNavigationEventApplier(koin.get())
     }
 
     fun start(onDestination: (String) -> Unit, onCityState: (CityState) -> Unit) {
@@ -85,9 +96,9 @@ class TransitSliceRuntime(bffBaseUrl: String, languageTag: String? = null) {
         host = RuntimeHost(onDestination, onCityState)
         scope.launch {
             when (koin.get<BootstrapTransitSession>().bootstrap()) {
-                BootstrapTransitSession.Result.OpenCitySelection -> showCitySelection()
+                BootstrapTransitSession.Result.OpenCitySelection -> navigate(NavigationEvent.ChangeCity)
                 is BootstrapTransitSession.Result.Error -> publishDestination("bootstrapError")
-                BootstrapTransitSession.Result.OpenMap -> publishDestination("map")
+                BootstrapTransitSession.Result.OpenMap -> navigate(NavigationEvent.CityConfirmed)
             }
         }
     }
@@ -105,7 +116,7 @@ class TransitSliceRuntime(bffBaseUrl: String, languageTag: String? = null) {
             cityObserver = null
             city = null
             cityStore.clear()
-            publishDestination("map")
+            navigate(NavigationEvent.CityConfirmed)
         }
         if (closed || city !== vm) return
         cityObserver = scope.launch {
@@ -130,6 +141,25 @@ class TransitSliceRuntime(bffBaseUrl: String, languageTag: String? = null) {
         }
     }
 
+    private fun navigate(event: NavigationEvent) {
+        if (closed) return
+        val nextStack = navigation.apply(stack, event)
+        if (nextStack == stack) return
+        stack = nextStack
+        when (stack.last()) {
+            Destination.CitySelection -> {
+                routes?.dispose()
+                map?.dispose()
+                showCitySelection()
+            }
+            Destination.Map -> {
+                routes?.dispose()
+                publishDestination("map")
+            }
+            Destination.Routes -> publishDestination("routes")
+        }
+    }
+
     private fun publishDestination(destination: String) {
         notifyHost { host?.onDestination?.invoke(destination) }
     }
@@ -137,10 +167,16 @@ class TransitSliceRuntime(bffBaseUrl: String, languageTag: String? = null) {
     fun selectCity(id: String) { city?.dispatchAction(CityAction.CityClicked(CityId(id))) }
     fun confirmCity() { city?.dispatchAction(CityAction.ContinueClicked) }
     fun retryCities() { city?.dispatchAction(CityAction.RetryClicked) }
-    fun openCitySelection() { map?.requestCitySelection() }
+    fun openCitySelection() {
+        if (stack.lastOrNull() == Destination.Map) map?.requestCitySelection()
+    }
+
+    fun openRouteSelection() {
+        if (stack.lastOrNull() == Destination.Map) map?.requestRouteSelection()
+    }
 
     fun openMap(): MapBridge {
-        check(!closed && city == null)
+        check(!closed && stack.lastOrNull() == Destination.Map)
         val selectedCity = checkNotNull(koin.get<TransitSession>().selectedCity.value)
         check(map == null) { "Map entry already open" }
         val mapStore = ViewModelStore()
@@ -152,10 +188,30 @@ class TransitSliceRuntime(bffBaseUrl: String, languageTag: String? = null) {
             else -> TransitLocale.English
         }
         if (locale != TransitLocale.English) vm.dispatchAction(MapAction.LocaleChanged(locale))
-        return MapBridge(vm, mapStore, selectedCity, language, onCitySelection = {
-            map?.dispose()
-            showCitySelection()
+        return MapBridge(vm, mapStore, selectedCity, language, onNavigation = { effect ->
+            if (stack.lastOrNull() == Destination.Map) {
+                when (effect) {
+                    MapNavigationEffect.OpenCitySelection -> navigate(NavigationEvent.ChangeCity)
+                    MapNavigationEffect.OpenRoutes -> navigate(NavigationEvent.OpenRoutes)
+                }
+            }
         }) { map = null }.also { map = it }
+    }
+
+    fun openRoutes(): RoutesBridge {
+        check(!closed && stack.lastOrNull() == Destination.Routes)
+        check(map != null && koin.get<TransitSession>().selectedCity.value != null)
+        check(routes == null) { "Routes entry already open" }
+        val routesStore = ViewModelStore()
+        val factory = viewModelFactory { initializer { koin.get<RoutesViewModel>() } }
+        val vm = ViewModelProvider.create(routesStore, factory)["routes", RoutesViewModel::class]
+        vm.dispatchAction(RoutesAction.LocaleChanged(language))
+        return RoutesBridge(vm, routesStore, onNavigation = { effect ->
+            when (effect) {
+                RoutesNavigationEffect.Confirmed -> navigate(NavigationEvent.RoutesConfirmed)
+                RoutesNavigationEffect.Dismissed -> navigate(NavigationEvent.RoutesDismissed)
+            }
+        }) { routes = null }.also { routes = it }
     }
 
     fun dispose() {
@@ -163,6 +219,7 @@ class TransitSliceRuntime(bffBaseUrl: String, languageTag: String? = null) {
         closed = true
         host = null
         scope.cancel()
+        routes?.dispose()
         map?.dispose()
         city = null
         cityStore.clear()

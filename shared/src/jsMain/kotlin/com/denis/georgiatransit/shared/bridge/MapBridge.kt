@@ -4,6 +4,7 @@ package com.denis.georgiatransit.shared.bridge
 
 import androidx.lifecycle.ViewModelStore
 import com.denis.georgiatransit.shared.domain.model.GeoPoint
+import com.denis.georgiatransit.shared.domain.model.RouteId
 import com.denis.georgiatransit.shared.domain.model.StopId
 import com.denis.georgiatransit.shared.domain.model.TransitAttribution
 import com.denis.georgiatransit.shared.domain.model.TransitCity
@@ -12,10 +13,12 @@ import com.denis.georgiatransit.shared.presentation.map.Action
 import com.denis.georgiatransit.shared.presentation.map.MapCameraCommand
 import com.denis.georgiatransit.shared.presentation.map.MapContentState
 import com.denis.georgiatransit.shared.presentation.map.MapPlatformEvent
+import com.denis.georgiatransit.shared.presentation.map.MapPolyline
 import com.denis.georgiatransit.shared.presentation.map.MapViewModel
 import com.denis.georgiatransit.shared.presentation.map.MapViewport
 import com.denis.georgiatransit.shared.presentation.map.NearbyStopUi
 import com.denis.georgiatransit.shared.presentation.map.NavigationEffect
+import com.denis.georgiatransit.shared.presentation.map.RouteGeometryLegendUi
 import com.denis.georgiatransit.shared.presentation.map.StopArrivalTimeUi
 import com.denis.georgiatransit.shared.presentation.map.StopArrivalsSheetState
 import com.denis.georgiatransit.shared.presentation.map.StopArrivalsSheetUi
@@ -26,7 +29,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.distinctUntilChanged
-import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.filterIsInstance
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 
@@ -75,6 +78,10 @@ class StopMapState(
     val camera: MapCamera? = null,
     val styleUrl: String? = null,
     val attribution: Array<TransitCredit> = emptyArray(),
+    val canOpenRoutes: Boolean = false,
+    val routePolylines: Array<RoutePolyline> = emptyArray(),
+    val routePolylineRevision: String = "0",
+    val routeLegends: Array<RouteLegend> = emptyArray(),
 )
 
 private data class StopSlice(
@@ -86,6 +93,10 @@ private data class StopSlice(
     val camera: MapCameraCommand?,
     val styleUrl: String?,
     val attribution: List<TransitAttribution>,
+    val canOpenRoutes: Boolean,
+    val routePolylines: List<MapPolyline>,
+    val routePolylineRevision: Long,
+    val routeLegends: List<RouteGeometryLegendUi>,
 )
 
 /** Owns the Map entry and its subscriptions; dispose when the host leaves the entry. */
@@ -95,7 +106,7 @@ class MapBridge internal constructor(
     private val store: ViewModelStore,
     private val city: TransitCity? = null,
     private val languageTag: String = "en",
-    onCitySelection: (() -> Unit)? = null,
+    onNavigation: ((NavigationEffect) -> Unit)? = null,
     private val onDisposed: () -> Unit,
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
@@ -103,10 +114,9 @@ class MapBridge internal constructor(
     private var disposed = false
 
     init {
-        if (onCitySelection != null) {
+        if (onNavigation != null) {
             scope.launch(start = CoroutineStart.UNDISPATCHED) {
-                viewModel.container.sideEffectFlow.first { it is NavigationEffect.OpenCitySelection }
-                onCitySelection()
+                viewModel.container.sideEffectFlow.filterIsInstance<NavigationEffect>().collect { onNavigation(it) }
             }
         }
     }
@@ -115,21 +125,34 @@ class MapBridge internal constructor(
         check(!disposed)
         subscription?.cancel()
         val newSubscription = scope.launch(start = CoroutineStart.LAZY) {
+            var projectedRevision: Long? = null
+            var projectedPolylines = emptyArray<RoutePolyline>()
             viewModel.container.stateFlow
                 .map { state ->
+                    val render = state.renderState
                     StopSlice(
                         state.cityName,
                         state.contentState,
                         state.nearbyStops,
                         state.stopArrivalsSheet,
                         state.canChangeCity,
-                        state.renderState?.camera,
-                        state.renderState?.bffStyleUrl,
+                        render?.camera,
+                        render?.bffStyleUrl,
                         state.attribution,
+                        state.routesAvailable,
+                        render?.polylines.orEmpty(),
+                        render?.polylineSourceRevision ?: 0L,
+                        state.routeGeometryLegends,
                     )
                 }
                 .distinctUntilChanged()
-                .collect { slice -> notifyHost { onState(slice.toJs(city, languageTag)) } }
+                .collect { slice ->
+                    if (projectedRevision != slice.routePolylineRevision) {
+                        projectedRevision = slice.routePolylineRevision
+                        projectedPolylines = slice.routePolylines.map { it.toJs() }.toTypedArray()
+                    }
+                    notifyHost { onState(slice.toJs(city, languageTag, projectedPolylines)) }
+                }
         }
         subscription = newSubscription
         newSubscription.start()
@@ -156,6 +179,22 @@ class MapBridge internal constructor(
     fun retryNearby() { if (!disposed) viewModel.dispatchAction(Action.RetryNearby) }
     fun unsubscribe() { subscription?.cancel(); subscription = null }
 
+    fun focusRoute(id: String) {
+        if (!disposed) viewModel.dispatchAction(Action.RouteGeometryFocused(RouteId(id)))
+    }
+
+    fun retryRoute(id: String) {
+        if (!disposed) viewModel.dispatchAction(Action.RetryRouteGeometry(RouteId(id)))
+    }
+
+    fun removeRoute(id: String) {
+        if (!disposed) viewModel.dispatchAction(Action.RemoveRouteGeometry(RouteId(id)))
+    }
+
+    internal fun requestRouteSelection() {
+        if (!disposed) viewModel.dispatchAction(Action.RoutesClicked)
+    }
+
     internal fun requestCitySelection() {
         if (!disposed) viewModel.dispatchAction(Action.ChangeCityClicked)
     }
@@ -169,7 +208,11 @@ class MapBridge internal constructor(
     }
 }
 
-private fun StopSlice.toJs(city: TransitCity?, languageTag: String): StopMapState = StopMapState(
+private fun StopSlice.toJs(
+    city: TransitCity?,
+    languageTag: String,
+    polylines: Array<RoutePolyline>,
+): StopMapState = StopMapState(
     cityName = city?.localizedName?.citySelectionDisplayName(languageTag, cityName) ?: cityName,
     content = when (content) {
         MapContentState.Loading -> "loading"
@@ -188,6 +231,10 @@ private fun StopSlice.toJs(city: TransitCity?, languageTag: String): StopMapStat
     camera = camera?.let { MapCamera(it.center.latitude, it.center.longitude, it.zoom, it.revision.toString()) },
     styleUrl = styleUrl,
     attribution = attribution.toCredits(languageTag),
+    canOpenRoutes = canOpenRoutes,
+    routePolylines = polylines,
+    routePolylineRevision = routePolylineRevision.toString(),
+    routeLegends = routeLegends.map { it.toJs() }.toTypedArray(),
 )
 
 private fun StopArrivalsSheetUi.toJs(): ArrivalsState = ArrivalsState(

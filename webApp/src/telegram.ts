@@ -8,6 +8,7 @@ interface TelegramBackButton {
 interface TelegramWebApp {
   readonly colorScheme?: "light" | "dark";
   readonly BackButton?: TelegramBackButton;
+  isVersionAtLeast?(version: string): boolean;
   ready(): void;
   expand(): void;
   onEvent(event: "themeChanged", handler: () => void): void;
@@ -22,6 +23,7 @@ declare global {
 
 export function connectTelegram(onBack: () => void) {
   const webApp = window.Telegram?.WebApp;
+  const backButton = webApp?.isVersionAtLeast?.("6.1") === false ? undefined : webApp?.BackButton;
   const updateTheme = () => {
     // Telegram's script is also present in regular browsers; their OS preference still applies.
     if (webApp?.colorScheme && document.documentElement.style.getPropertyValue("--tg-theme-bg-color")) {
@@ -31,18 +33,18 @@ export function connectTelegram(onBack: () => void) {
 
   updateTheme();
   webApp?.onEvent("themeChanged", updateTheme);
-  webApp?.BackButton?.onClick(onBack);
+  backButton?.onClick(onBack);
   webApp?.ready();
   webApp?.expand();
 
   return {
     setBackVisible(visible: boolean) {
-      if (visible) webApp?.BackButton?.show();
-      else webApp?.BackButton?.hide();
+      if (visible) backButton?.show();
+      else backButton?.hide();
     },
     dispose() {
-      webApp?.BackButton?.hide();
-      webApp?.BackButton?.offClick(onBack);
+      backButton?.hide();
+      backButton?.offClick(onBack);
       webApp?.offEvent("themeChanged", updateTheme);
     },
   };

@@ -1,15 +1,26 @@
 import { readFile } from 'node:fs/promises';
 import { resolve, sep } from 'node:path';
 
-export const origin = 'https://transit.example.test';
 export const fixtureCityId = 'demo';
 export const otherCityId = 'batumi';
 export const fixtureStopId = 'demo:fixture:stop:center';
 export const fixtureHeadsign = 'Demo Park';
+export const fixtureRouteId = 'demo:fixture:route:blue';
+export const otherRouteId = 'demo:fixture:route:violet';
+export const fixtureRouteColor = [0, 87, 184];
+export const fixtureTileColor = [28, 180, 131];
 
 const position = { latitude: 41.715137, longitude: 44.827096 };
-const routeId = 'demo:fixture:route:blue';
 const localized = (en) => ({ en, ru: en, ka: en });
+const direction = (name) => ({
+  id: `demo:fixture:direction:${name}`,
+  name: localized(name),
+  headsign: localized(fixtureHeadsign),
+});
+const blueDirection = direction('blue');
+const violetDirection = direction('violet');
+export const fixtureShapePath = `/v1/cities/${fixtureCityId}/routes/${fixtureRouteId}/directions/${blueDirection.id}/shape`;
+export const otherShapePath = `/v1/cities/${fixtureCityId}/routes/${otherRouteId}/directions/${violetDirection.id}/shape`;
 
 const demoCity = {
   id: fixtureCityId,
@@ -19,7 +30,7 @@ const demoCity = {
   capabilities: {
     routes: true,
     stops: true,
-    routeGeometry: false,
+    routeGeometry: true,
     vehiclePositions: false,
     officialArrivals: true,
     tripPlanning: false,
@@ -37,14 +48,23 @@ const batumiCity = {
 };
 
 const route = {
-  id: routeId,
+  id: fixtureRouteId,
   providerId: 'browser-test-fixture',
   shortName: 'D1',
   longName: localized('Demo Blue'),
   color: '#0057B8',
   textColor: '#FFFFFF',
   mode: 'bus',
-  directions: [],
+  directions: [blueDirection],
+};
+
+const otherRoute = {
+  ...route,
+  id: otherRouteId,
+  shortName: 'D2',
+  longName: localized('Demo Violet'),
+  color: '#7C3AED',
+  directions: [violetDirection],
 };
 
 const stop = {
@@ -53,21 +73,45 @@ const stop = {
   code: 'D001',
   name: localized('Demo Center'),
   position,
-  routeIds: [routeId],
+  routeIds: [fixtureRouteId],
   mode: 'bus',
 };
 
-const mapStyle = {
-  version: 8,
-  sources: {},
-  layers: [{ id: 'fixture-background', type: 'background', paint: { 'background-color': '#e8efe4' } }],
-};
+// A 32 × 32 solid green PNG. Its color lets the smoke assert raster pixels reached the canvas.
+const tile = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAAL0lEQVR4nO3OIQEAAAgDMILQlkr0gxg3E/Or3rmkEhAQEBAQEBAQEBAQEBAQSAceAoxIiGVzOuYAAAAASUVORK5CYII=', 'base64');
+
+function mapStyle(origin) {
+  return {
+    version: 8,
+    sources: { fixture: { type: 'raster', tiles: [`${origin}/v1/map/tiles/{z}/{x}/{y}.png`], tileSize: 256 } },
+    layers: [{ id: 'fixture-raster', type: 'raster', source: 'fixture', paint: { 'raster-fade-duration': 0 } }],
+  };
+}
+
+function routeShape(offset) {
+  let previous = [0, 0];
+  let value = '';
+  for (const [latitude, longitude] of [[0.0012, -0.0027], [0.0010, 0], [0.0018, 0.0029]]) {
+    const point = [Math.round((position.latitude + latitude + offset) * 100_000), Math.round((position.longitude + longitude) * 100_000)];
+    for (let index = 0; index < point.length; index++) {
+      const delta = point[index] - previous[index];
+      let encoded = delta < 0 ? ~(delta << 1) : delta << 1;
+      while (encoded >= 0x20) {
+        value += String.fromCharCode((0x20 | (encoded & 0x1f)) + 63);
+        encoded >>>= 5;
+      }
+      value += String.fromCharCode(encoded + 63);
+    }
+    previous = point;
+  }
+  return { format: 'encoded_polyline', precision: 5, value, updatedAt: '2030-01-01T00:00:00Z' };
+}
 
 function arrivals() {
   return {
     items: [{
       stopId: fixtureStopId,
-      routeId,
+      routeId: fixtureRouteId,
       headsign: localized(fixtureHeadsign),
       expectedInMinutes: 4,
       realtime: true,
@@ -126,7 +170,7 @@ const contentTypes = new Map([
 const respond = (status, body = '', type = 'text/plain; charset=utf-8') => ({ status, body, type });
 const json = (body, status = 200) => respond(status, JSON.stringify(body), contentTypes.get('json'));
 
-export function browserFixture(dist, bffRequests) {
+export function browserFixture(dist, bffRequests, origin) {
   const root = resolve(dist);
   return async ({ url, method }) => {
     const target = new URL(url);
@@ -140,14 +184,18 @@ export function browserFixture(dist, bffRequests) {
     if (path.startsWith('/v1/')) bffRequests.push(path);
     switch (path) {
       case '/v1/cities': return json([demoCity, batumiCity]);
-      case '/v1/map/style.json': return json(mapStyle);
-      case `/v1/cities/${fixtureCityId}/routes`: return json([route]);
-      case `/v1/cities/${fixtureCityId}/routes/${routeId}`: return json(route);
+      case '/v1/map/style.json': return json(mapStyle(origin));
+      case `/v1/cities/${fixtureCityId}/routes`: return json([route, otherRoute]);
+      case `/v1/cities/${fixtureCityId}/routes/${fixtureRouteId}`: return json(route);
+      case `/v1/cities/${fixtureCityId}/routes/${otherRouteId}`: return json(otherRoute);
+      case fixtureShapePath: return json(routeShape(0));
+      case otherShapePath: return json(routeShape(-0.003));
       case `/v1/cities/${fixtureCityId}/stops/nearby`: return json([stop]);
       case `/v1/cities/${fixtureCityId}/stops/${fixtureStopId}/arrivals`: return json(arrivals());
       case `/v1/cities/${otherCityId}/routes`:
       case `/v1/cities/${otherCityId}/stops/nearby`: return json([]);
     }
+    if (/^\/v1\/map\/tiles\/\d+\/\d+\/\d+\.png$/.test(path)) return respond(200, tile, 'image/png');
     if (path.startsWith('/v1/')) return json({ error: 'Fixture path is not implemented' }, 404);
     if (path === '/favicon.ico') return respond(204);
 
