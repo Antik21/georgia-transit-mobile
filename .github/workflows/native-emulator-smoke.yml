@@ -14,8 +14,18 @@ env:
 
 jobs:
   android:
-    name: Android emulator smoke
+    name: Android emulator smoke (${{ matrix.label }})
     runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - revision: 59dce20427db03482a37170c8456d3d38c08048e
+            label: PR head
+          - revision: e8229be05421342aa05f8e90d129d086b5a23c6c
+            label: PR merge base
+    env:
+      SOURCE_REVISION: ${{ matrix.revision }}
     timeout-minutes: 35
     steps:
       - name: Check out exact source
