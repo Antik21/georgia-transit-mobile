@@ -102,6 +102,9 @@ export function createTransitMap(container: HTMLElement, initial: MapState, acti
     renderWorldCopies: false,
     transformRequest: mapAssetRequest,
   });
+  // Rotation would also need the camera bearing in the flipped-label rule and a compass to reset it.
+  map.touchZoomRotate.disableRotation();
+  map.keyboard.disableRotation();
   let cameraRevision = camera.revision;
   let remoteStyleLoading = Boolean(styleUrl);
   let usingFallbackStyle = false;
@@ -190,7 +193,7 @@ export function createTransitMap(container: HTMLElement, initial: MapState, acti
         type: "symbol",
         source: vehicleSourceId,
         layout: {
-          // The map never rotates, so a badge rotated past vertical would show its label upside down.
+          // Rotation is disabled, so a badge rotated past vertical would otherwise show its label upside down.
           "icon-image": ["case",
             ["all", [">", ["get", "rotation"], 90], ["<", ["get", "rotation"], 270]],
             ["concat", ["get", "image"], flippedSuffix],

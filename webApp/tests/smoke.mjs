@@ -171,6 +171,8 @@ try {
 
   await tap(testId('open-routes'));
   const vehicleRequests = () => bffRequests.filter((path) => path === fixtureVehiclesPath).length;
+  // Lets a poll already in flight when the picker opened land before the snapshot.
+  await delay(1_000);
   const pollsBeforePicker = vehicleRequests();
   await delay(9_000);
   assert.equal(vehicleRequests(), pollsBeforePicker, 'Vehicle polling must pause while the route picker covers the map');
@@ -183,6 +185,7 @@ try {
   await tap(testId('cancel-routes'));
   await waitFor('Cancel returns to the map with the committed route', async () =>
     await evaluate(`${mapScreen} && !${routesScreen}`) && await mapContainsColor(fixtureRouteColor, 75));
+  await waitFor('Vehicle polling resumes after the route picker closes', () => vehicleRequests() > pollsBeforePicker);
 
   const timeOrigin = await evaluate('performance.timeOrigin');
   await send('Page.reload');

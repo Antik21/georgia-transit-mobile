@@ -108,6 +108,7 @@ class MapBridgeVehiclesTest {
 
                     entry.setVisible(true)
                     this@runTest.runCurrent()
+                    assertTrue(repository.requests > hiddenRequests, "Showing the map again must resume vehicle polling")
                     entry.dispose()
                     val disposedEmissions = vehicleEmissions
                     val disposedRequests = repository.requests

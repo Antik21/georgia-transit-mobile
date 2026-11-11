@@ -122,10 +122,10 @@ function routeShape(offset) {
   return { format: 'encoded_polyline', precision: 5, value, updatedAt: '2030-01-01T00:00:00Z' };
 }
 
-function vehicles() {
+function vehicles(routeId) {
   const observedAt = new Date().toISOString();
   return {
-    items: [{
+    items: routeId !== fixtureRouteId ? [] : [{
       id: 'demo:fixture:vehicle:blue-01',
       routeId: fixtureRouteId,
       directionId: blueDirection.id,
@@ -226,7 +226,7 @@ export function browserFixture(dist, bffRequests, origin) {
       case fixtureShapePath: return json(routeShape(0));
       case otherShapePath: return json(routeShape(-0.003));
       case `/v1/cities/${fixtureCityId}/stops/nearby`: return json([stop]);
-      case fixtureVehiclesPath: return json(vehicles());
+      case fixtureVehiclesPath: return json(vehicles(target.searchParams.get('routeId')));
       case `/v1/cities/${fixtureCityId}/stops/${fixtureStopId}/arrivals`: return json(arrivals());
       case `/v1/cities/${otherCityId}/routes`:
       case `/v1/cities/${otherCityId}/stops/nearby`: return json([]);

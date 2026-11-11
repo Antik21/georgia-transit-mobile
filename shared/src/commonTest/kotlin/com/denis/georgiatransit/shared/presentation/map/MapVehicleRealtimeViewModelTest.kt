@@ -86,6 +86,45 @@ class MapVehicleRealtimeViewModelTest {
     }
 
     @Test
+    fun repollOfRouteWithoutVehiclesKeepsLiveStatusInsteadOfLoading() = runTest {
+        val secondResponse = CompletableDeferred<Unit>()
+        val repository = ScriptedVehicleRepository(routes = listOf(route(routeA))).apply {
+            vehicleHandler = { _, routeId ->
+                requests += routeId
+                if (requests.size == 2) secondResponse.await()
+                TransitLoadResult.Data(page(emptyList()), TransitFreshness.Network)
+            }
+        }
+        val session = selectedSession(repository, routes = setOf(routeA))
+        val viewModel = MapViewModel(repository, session, RuntimeLocationSession(scope = this), testClock(), ticker())
+
+        try {
+            viewModel.test(this) {
+                runOnCreate()
+                this@runTest.runCurrent()
+                viewModel.dispatchAction(Action.RealtimeVisibilityChanged(true))
+                this@runTest.runCurrent()
+                assertEquals(VehicleLayerState.Live, viewModel.container.stateFlow.value.vehicleLayerState)
+
+                this@runTest.advanceTimeBy(8_000)
+                this@runTest.runCurrent()
+                assertEquals(2, repository.requests.size, "The second poll must be in flight")
+                assertEquals(
+                    VehicleLayerState.Live,
+                    viewModel.container.stateFlow.value.vehicleLayerState,
+                    "A re-poll of a route without vehicles must not flash the loading status.",
+                )
+                secondResponse.complete(Unit)
+                this@runTest.runCurrent()
+                assertEquals(VehicleLayerState.Live, viewModel.container.stateFlow.value.vehicleLayerState)
+                cancelAndIgnoreRemainingItems()
+            }
+        } finally {
+            cancelViewModel(viewModel)
+        }
+    }
+
+    @Test
     fun hiddenNoSelectionAndUnavailableCapabilityNeverRequestVehiclesAndPanningOnlyLoadsStops() = runTest {
         val hiddenRepository = ScriptedVehicleRepository(routes = listOf(route(routeA)))
         val hiddenSession = selectedSession(hiddenRepository, routes = setOf(routeA))

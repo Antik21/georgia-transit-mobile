@@ -13,6 +13,7 @@ const headlightColor = "#ffdc7a";
 const glassBrightness = 0.45;
 const maxLabelLength = 8;
 const cssColor = /^#[0-9a-f]{6}$/i;
+const styleCache = new Map<string, VehicleBadgeStyle>();
 
 export interface VehicleBadgeStyle {
   readonly key: string;
@@ -24,7 +25,19 @@ export interface VehicleBadgeStyle {
 
 type BadgeInput = Pick<VehicleItem, "label" | "color" | "textColor" | "stale">;
 
-export function vehicleBadgeStyle({ label, color, textColor, stale }: BadgeInput): VehicleBadgeStyle {
+// Called for every vehicle on every animation frame, so the sanitised style is memoised by raw input.
+export function vehicleBadgeStyle(input: BadgeInput): VehicleBadgeStyle {
+  const raw = `${input.label}\u0000${input.color}\u0000${input.textColor}\u0000${input.stale}`;
+  let style = styleCache.get(raw);
+  if (!style) {
+    if (styleCache.size > 1_024) styleCache.clear();
+    style = sanitizedStyle(input);
+    styleCache.set(raw, style);
+  }
+  return style;
+}
+
+function sanitizedStyle({ label, color, textColor, stale }: BadgeInput): VehicleBadgeStyle {
   const safeLabel = Array.from(label).filter((char) => /[\p{L}\p{N} -]/u.test(char)).join("").trim()
     .slice(0, maxLabelLength) || "?";
   const safeColor = cssColor.test(color) ? color.toLowerCase() : "#455a64";
@@ -40,7 +53,13 @@ function dimmed(color: string) {
 
 function roundRect(context: CanvasRenderingContext2D, x: number, y: number, width: number, height: number, radius: number) {
   context.beginPath();
-  context.roundRect(x, y, width, height, radius);
+  // CanvasRenderingContext2D.roundRect is missing before Safari 16, which older Telegram iOS WebViews use.
+  context.moveTo(x + radius, y);
+  context.arcTo(x + width, y, x + width, y + height, radius);
+  context.arcTo(x + width, y + height, x, y + height, radius);
+  context.arcTo(x, y + height, x, y, radius);
+  context.arcTo(x, y, x + width, y, radius);
+  context.closePath();
 }
 
 export function drawVehicleBadge(style: VehicleBadgeStyle, pixelRatio: number, flipLabel: boolean): ImageData {
