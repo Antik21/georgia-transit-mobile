@@ -50,6 +50,10 @@ kotlin {
         browser {
             testTask {
                 useKarma { useChromeHeadless() }
+                testLogging {
+                    exceptionFormat = TestExceptionFormat.FULL
+                    events(TestLogEvent.FAILED)
+                }
             }
         }
         binaries.library()

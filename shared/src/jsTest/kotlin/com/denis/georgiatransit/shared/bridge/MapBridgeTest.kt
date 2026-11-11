@@ -35,6 +35,7 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 import kotlin.time.Instant
 
@@ -43,6 +44,7 @@ class MapBridgeTest {
     @Test
     fun stopToEtaAndDispose() = runTest {
         Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+        var bridge: MapBridge? = null
         try {
             val city = TransitCity(CityId("test"), "Test", center = GeoPoint(41.7151, 44.8271), defaultZoom = 13.0,
                 capabilities = CityCapabilities(true, false, true, false, false))
@@ -62,31 +64,39 @@ class MapBridgeTest {
             val session = RuntimeTransitSession().also { it.selectCity(city) }
             val store = ViewModelStore()
             val factory = viewModelFactory { initializer { MapViewModel(repository, session, RuntimeLocationSession(scope = backgroundScope)) } }
-            val vm = ViewModelProvider.create(store, factory)[MapViewModel::class]
+            val vm = ViewModelProvider.create(store, factory)["map", MapViewModel::class]
             var closed = false
-            val bridge = MapBridge(vm, store) { closed = true }
+            val entry = MapBridge(vm, store) { closed = true }
+            bridge = entry
             var latest: StopMapState? = null
             var emissions = 0
-            bridge.subscribe {
+            entry.subscribe {
                 emissions++
                 if (emissions == 1) error("Host callback failure")
                 latest = it
             }
-            bridge.setVisible(true)
-            advanceTimeBy(350); runCurrent()
-            val target = requireNotNull(latest).stops.single()
-            bridge.selectStop(target.id, target.sourceRevision)
+            entry.setVisible(true)
             runCurrent()
-            val sheet = requireNotNull(requireNotNull(latest).arrivals)
+            advanceTimeBy(351)
+            runCurrent()
+            val target = assertNotNull(latest, "Map bridge did not emit state").stops.single()
+            entry.selectStop(target.id, target.sourceRevision)
+            runCurrent()
+            val sheet = assertNotNull(latest?.arrivals, "The selected stop did not publish arrivals")
             assertEquals("ready", sheet.status)
             assertEquals("minutes", sheet.rows.single().timeKind)
             assertEquals(4, sheet.rows.single().minutes)
-            bridge.dispose()
+            entry.dispose()
             val count = emissions
-            bridge.selectStop(target.id, target.sourceRevision)
-            advanceTimeBy(30_000); runCurrent()
+            entry.selectStop(target.id, target.sourceRevision)
+            advanceTimeBy(30_000)
+            runCurrent()
+            assertTrue(emissions > 1)
             assertTrue(closed)
             assertEquals(count, emissions)
-        } finally { Dispatchers.resetMain() }
+        } finally {
+            bridge?.dispose()
+            Dispatchers.resetMain()
+        }
     }
 }

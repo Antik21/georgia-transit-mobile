@@ -182,7 +182,7 @@ class TransitSliceRuntime(bffBaseUrl: String) {
             when (koin.get<BootstrapTransitSession>().bootstrap()) {
                 BootstrapTransitSession.Result.OpenCitySelection -> {
                     val factory = viewModelFactory { initializer { koin.get<CitySelectionViewModel>() } }
-                    val vm = ViewModelProvider.create(cityStore, factory)[CitySelectionViewModel::class]
+                    val vm = ViewModelProvider.create(cityStore, factory)["citySelection", CitySelectionViewModel::class]
                     city = vm
                     notifyHost { onDestination("citySelection") }
                     cityObserver = launch {
@@ -217,7 +217,7 @@ class TransitSliceRuntime(bffBaseUrl: String) {
         check(map == null) { "Map entry already open" }
         val mapStore = ViewModelStore()
         val factory = viewModelFactory { initializer { koin.get<MapViewModel>() } }
-        val vm = ViewModelProvider.create(mapStore, factory)[MapViewModel::class]
+        val vm = ViewModelProvider.create(mapStore, factory)["map", MapViewModel::class]
         return MapBridge(vm, mapStore) { map = null }.also { map = it }
     }
 

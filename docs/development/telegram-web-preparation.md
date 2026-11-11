@@ -19,7 +19,11 @@
 - [ ] Android. Запустить `./gradlew :shared:testAndroidHostTest :androidApp:assembleSandbox :androidApp:assembleProd`. На эмуляторе выполнить `ui-tests/maestro/flows/shell-smoke.yaml` и существующие сценарии выбора маршрута, карты и геолокации.
 - [ ] iOS. Запустить `./gradlew :shared:iosSimulatorArm64Test`. Собрать `Sandbox` и `Prod`, подставляя имя схемы в оба аргумента команды `xcodebuild -project iosApp/iosApp.xcodeproj -scheme <scheme> -configuration <scheme> -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO build`. На симуляторе выполнить те же проверки оболочки, маршрута, карты и геолокации.
 
-### Результаты текущего запуска
+### GitHub Actions
+
+В [прогоне №123](https://github.com/Antik21/georgia-transit-mobile/actions/runs/42898084388) прошли Android host-тесты, lint и сборка Sandbox/Prod, а также тесты на iOS-симуляторе и сборка обеих схем. Проверки Maestro остаются в чек-листе. Kotlin/JS скомпилировался, Chrome Headless выполнил 242 теста, два из которых завершились ошибкой.
+
+### Локальные проверки
 
 | Проверка | Результат |
 | --- | --- |
