@@ -12,6 +12,7 @@ export const fixtureTileColor = [28, 180, 131];
 export const fallbackMapColor = [220, 232, 228];
 // Only the vehicle badge's headlights use this colour, so it separates the bus from its route line.
 export const vehicleHeadlightColor = [255, 220, 122];
+export const userLocationDotColor = [21, 101, 192];
 export const fixtureVehiclesPath = `/v1/cities/${fixtureCityId}/vehicles`;
 export const fixtureAttribution = 'Fixture tiles';
 // Toggled by the smoke to exercise the local-style fallback and its recovery.
@@ -160,8 +161,24 @@ function arrivals() {
 
 const telegramFixture = `
   (() => {
-    const state = { ready: 0, expand: 0, backVisible: false, backHandler: null };
+    const state = { ready: 0, expand: 0, backVisible: false, backHandler: null, settingsOpened: 0 };
     window.__telegramSmoke = state;
+    // Mirrors Bot API 8.0: the first getLocation prompts, and the answer sticks until settings change it.
+    const location = { inited: false, requested: false, granted: false, allow: false, fix: null };
+    state.location = location;
+    const locationManager = {
+      get isInited() { return location.inited; },
+      get isLocationAvailable() { return true; },
+      get isAccessRequested() { return location.requested; },
+      get isAccessGranted() { return location.granted; },
+      init(callback) { location.inited = true; callback?.(); return this; },
+      getLocation(callback) {
+        if (!location.requested) { location.requested = true; location.granted = location.allow; }
+        setTimeout(() => callback(location.granted ? location.fix : null), 50);
+        return this;
+      },
+      openSettings() { state.settingsOpened += 1; return this; },
+    };
     const backButton = {
       get isVisible() { return state.backVisible; },
       show() { state.backVisible = true; return this; },
@@ -186,6 +203,7 @@ const telegramFixture = `
       setBackgroundColor() {},
       setHeaderColor() {},
       BackButton: backButton,
+      LocationManager: locationManager,
     } };
   })();
 `;

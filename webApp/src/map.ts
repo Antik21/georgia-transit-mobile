@@ -8,6 +8,8 @@ import { drawVehicleBadge, vehicleBadgeStyle, type VehicleBadgeStyle } from "./v
 setWorkerUrl(new URL(mapWorkerUrl, import.meta.url).href);
 
 const routeSourceId = "transit-route-lines";
+const userAccuracySourceId = "transit-user-accuracy";
+const userLocationSourceId = "transit-user-location";
 const vehicleSourceId = "transit-vehicles";
 const vehicleLayerId = "transit-vehicles";
 const flippedSuffix = "-flipped";
@@ -72,6 +74,33 @@ function vehicleData(layer: VehicleLayer, imageIds: Map<string, string>) {
   };
 }
 
+function userAccuracyData(location: MapState["userLocation"]) {
+  const ring = location?.accuracyRing ?? [];
+  return {
+    type: "FeatureCollection" as const,
+    features: ring.length < 4 ? [] : [{
+      type: "Feature" as const,
+      properties: {},
+      geometry: { type: "Polygon" as const, coordinates: [ring.map(({ longitude, latitude }) => [longitude, latitude])] },
+    }],
+  };
+}
+
+function userLocationData(location: MapState["userLocation"]) {
+  return {
+    type: "FeatureCollection" as const,
+    features: !location?.showDot ? [] : [{
+      type: "Feature" as const,
+      properties: {},
+      geometry: { type: "Point" as const, coordinates: [location.longitude, location.latitude] },
+    }],
+  };
+}
+
+function userLocationKey(location: MapState["userLocation"]) {
+  return location ? `${location.latitude},${location.longitude},${location.accuracyMeters},${location.showDot}` : "none";
+}
+
 function routeLineData(lines: MapState["routePolylines"]) {
   return {
     type: "FeatureCollection" as const,
@@ -111,6 +140,7 @@ export function createTransitMap(container: HTMLElement, initial: MapState, acti
   let styleReady = false;
   let latestState = initial;
   let renderedRouteRevision: string | undefined;
+  let renderedUserLocation: string | undefined;
   let vehicles: VehicleLayer | undefined;
   let renderedVehicleRevision: string | undefined;
   let renderedBadgeRevision: string | undefined;
@@ -142,6 +172,29 @@ export function createTransitMap(container: HTMLElement, initial: MapState, acti
       }
     }
     renderedRouteRevision = latestState.routePolylineRevision;
+  }
+
+  function renderUserLocation() {
+    const key = userLocationKey(latestState.userLocation);
+    if (!styleReady || renderedUserLocation === key) return;
+    const accuracy = userAccuracyData(latestState.userLocation);
+    const dot = userLocationData(latestState.userLocation);
+    const accuracySource = map.getSource<GeoJSONSource>(userAccuracySourceId);
+    if (accuracySource) {
+      accuracySource.setData(accuracy);
+      map.getSource<GeoJSONSource>(userLocationSourceId)?.setData(dot);
+    } else {
+      // Same palette as the native adapters' accuracy area and location dot.
+      map.addSource(userAccuracySourceId, { type: "geojson", data: accuracy });
+      map.addSource(userLocationSourceId, { type: "geojson", data: dot });
+      map.addLayer({ id: "transit-user-accuracy-fill", type: "fill", source: userAccuracySourceId,
+        paint: { "fill-color": "#1976d2", "fill-opacity": 0.18 } });
+      map.addLayer({ id: "transit-user-accuracy-line", type: "line", source: userAccuracySourceId,
+        paint: { "line-color": "#0d47a1", "line-opacity": 0.75, "line-width": 2 } });
+      map.addLayer({ id: "transit-user-location", type: "circle", source: userLocationSourceId,
+        paint: { "circle-color": "#1565c0", "circle-radius": 7, "circle-stroke-color": "#ffffff", "circle-stroke-width": 3 } });
+    }
+    renderedUserLocation = key;
   }
 
   function addBadgeImages(id: string, style: VehicleBadgeStyle) {
@@ -213,11 +266,13 @@ export function createTransitMap(container: HTMLElement, initial: MapState, acti
     remoteStyleLoading = false;
     styleReady = true;
     renderedRouteRevision = undefined;
+    renderedUserLocation = undefined;
     renderedVehicleRevision = undefined;
     renderedBadgeRevision = undefined;
     // A replaced style drops every image registered on the previous one.
     badgeImageIds.clear();
     renderRouteLines();
+    renderUserLocation();
     renderVehicles();
   });
   map.on("click", vehicleLayerId, (event) => {
@@ -265,6 +320,7 @@ export function createTransitMap(container: HTMLElement, initial: MapState, acti
   function update(state: MapState) {
     latestState = state;
     renderRouteLines();
+    renderUserLocation();
     if (state.camera && state.camera.revision !== cameraRevision) {
       cameraRevision = state.camera.revision;
       map.jumpTo({ center: [state.camera.longitude, state.camera.latitude], zoom: state.camera.zoom });

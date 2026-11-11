@@ -369,6 +369,42 @@ body { background: var(--background); color: var(--ink); }
 .route-option-number { min-inline-size: 38px; }
 .routes-footer { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 8px; }
 
+.map-location {
+  position: absolute;
+  inset-inline-end: 10px;
+  inset-block-end: 34px;
+  z-index: 2;
+  display: grid;
+  justify-items: end;
+  gap: 6px;
+  max-inline-size: calc(100% - 20px);
+  pointer-events: none;
+}
+.map-location-status {
+  max-inline-size: 16rem;
+  margin: 0;
+  padding: 6px 9px;
+  border-radius: 8px;
+  background: var(--raised);
+  color: var(--muted);
+  font-size: 0.75rem;
+  box-shadow: 0 1px 4px #18191b24;
+}
+.transit-app .map-location-button {
+  display: grid;
+  place-items: center;
+  inline-size: 48px;
+  block-size: 48px;
+  border: 1px solid var(--edge);
+  border-radius: 12px;
+  color: var(--primary);
+  background: var(--raised);
+  box-shadow: 0 2px 8px #18191b28;
+  pointer-events: auto;
+}
+.transit-app .map-location-button:disabled { color: var(--muted); opacity: 0.6; }
+.transit-app .map-location-button[aria-busy="true"] .map-location-icon { animation: transit-spin 1.2s linear infinite; }
+.map-location-icon { inline-size: 24px; block-size: 24px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; }
 .map-credits { position: absolute; inset-inline-start: 8px; inset-block-end: 7px; max-inline-size: 62%; }
 .map-credits .attribution-links { padding: 4px 7px; border: 1px solid var(--edge); border-radius: 6px; background: var(--surface); }
 .attribution-links { display: flex; flex-wrap: wrap; gap: 3px 8px; }
@@ -491,4 +527,5 @@ body { background: var(--background); color: var(--ink); }
 
 @media (prefers-reduced-motion: reduce) {
   .spinner { animation: none; }
+  .transit-app .map-location-button[aria-busy="true"] .map-location-icon { animation: none; }
 }

@@ -5,9 +5,26 @@ interface TelegramBackButton {
   offClick(handler: () => void): void;
 }
 
+export interface TelegramLocationData {
+  readonly latitude: number;
+  readonly longitude: number;
+  readonly horizontal_accuracy?: number | null;
+}
+
+export interface TelegramLocationManager {
+  readonly isInited: boolean;
+  readonly isLocationAvailable: boolean;
+  readonly isAccessRequested: boolean;
+  readonly isAccessGranted: boolean;
+  init(callback?: () => void): void;
+  getLocation(callback: (data: TelegramLocationData | null) => void): void;
+  openSettings(): void;
+}
+
 interface TelegramWebApp {
   readonly colorScheme?: "light" | "dark";
   readonly BackButton?: TelegramBackButton;
+  readonly LocationManager?: TelegramLocationManager;
   isVersionAtLeast?(version: string): boolean;
   ready(): void;
   expand(): void;
@@ -41,6 +58,8 @@ export function connectTelegram(onBack: () => void) {
   if (webApp?.isVersionAtLeast?.("7.7")) webApp.disableVerticalSwipes?.();
 
   return {
+    // Bot API 8.0 location access lives in Telegram's own permission, not the WebView's geolocation.
+    locationManager: webApp?.isVersionAtLeast?.("8.0") ? webApp.LocationManager : undefined,
     setBackVisible(visible: boolean) {
       if (visible) backButton?.show();
       else backButton?.hide();

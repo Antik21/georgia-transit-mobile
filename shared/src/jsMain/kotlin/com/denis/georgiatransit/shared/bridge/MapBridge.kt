@@ -10,6 +10,11 @@ import com.denis.georgiatransit.shared.domain.model.TransitAttribution
 import com.denis.georgiatransit.shared.domain.model.TransitCity
 import com.denis.georgiatransit.shared.domain.model.VehicleId
 import com.denis.georgiatransit.shared.presentation.cityselection.citySelectionDisplayName
+import com.denis.georgiatransit.shared.presentation.location.LocationPlatformCommand
+import com.denis.georgiatransit.shared.presentation.location.LocationPlatformEvent
+import com.denis.georgiatransit.shared.presentation.location.LocationSession
+import com.denis.georgiatransit.shared.presentation.location.LocationState
+import com.denis.georgiatransit.shared.presentation.location.UserLocationFix
 import com.denis.georgiatransit.shared.presentation.map.Action
 import com.denis.georgiatransit.shared.presentation.map.MapCameraCommand
 import com.denis.georgiatransit.shared.presentation.map.MapContentState
@@ -23,6 +28,7 @@ import com.denis.georgiatransit.shared.presentation.map.NavigationEffect
 import com.denis.georgiatransit.shared.presentation.map.RouteGeometryLegendUi
 import com.denis.georgiatransit.shared.presentation.map.StopArrivalTimeUi
 import com.denis.georgiatransit.shared.presentation.map.StopArrivalsSheetState
+import com.denis.georgiatransit.shared.presentation.map.SideEffect
 import com.denis.georgiatransit.shared.presentation.map.StopArrivalsSheetUi
 import com.denis.georgiatransit.shared.presentation.map.VehicleLayerState
 import kotlinx.coroutines.CoroutineScope
@@ -32,7 +38,6 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.distinctUntilChanged
-import kotlinx.coroutines.flow.filterIsInstance
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 
@@ -86,6 +91,8 @@ class StopMapState(
     val routePolylineRevision: String = "0",
     val routeLegends: Array<RouteLegend> = emptyArray(),
     val vehicleStatus: String = "hidden",
+    val location: LocationStatus? = null,
+    val userLocation: UserLocation? = null,
 )
 
 private data class VehicleSlice(
@@ -108,6 +115,8 @@ private data class StopSlice(
     val routePolylineRevision: Long,
     val routeLegends: List<RouteGeometryLegendUi>,
     val vehicleLayerState: VehicleLayerState,
+    val location: LocationState,
+    val userLocation: UserLocationFix?,
 )
 
 /** Owns the Map entry and its subscriptions; dispose when the host leaves the entry. */
@@ -118,19 +127,57 @@ class MapBridge internal constructor(
     private val city: TransitCity? = null,
     private val languageTag: String = "en",
     onNavigation: ((NavigationEffect) -> Unit)? = null,
+    private val locationSession: LocationSession? = null,
     private val onDisposed: () -> Unit,
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private var subscription: Job? = null
     private var vehicleSubscription: Job? = null
     private var disposed = false
+    private var locationHandler: ((LocationCommand) -> Unit)? = null
+    private val pendingLocationCommands = ArrayDeque<LocationPlatformCommand>()
 
     init {
-        if (onNavigation != null) {
-            scope.launch(start = CoroutineStart.UNDISPATCHED) {
-                viewModel.container.sideEffectFlow.filterIsInstance<NavigationEffect>().collect { onNavigation(it) }
+        // Orbit delivers each side effect to one collector only, so every effect kind shares this one.
+        scope.launch(start = CoroutineStart.UNDISPATCHED) {
+            viewModel.container.sideEffectFlow.collect { effect ->
+                when (effect) {
+                    is NavigationEffect -> onNavigation?.invoke(effect)
+                    is SideEffect.HandleLocation -> deliverLocationCommand(effect.command)
+                }
             }
         }
+    }
+
+    private fun deliverLocationCommand(command: LocationPlatformCommand) {
+        val handler = locationHandler
+        if (handler == null) pendingLocationCommands.addLast(command) else notifyHost { handler(command.toJs()) }
+    }
+
+    /** The host executes each command once and reports back through the `location*` methods. */
+    fun subscribeLocationCommands(onCommand: (LocationCommand) -> Unit) {
+        check(!disposed)
+        locationHandler = onCommand
+        while (pendingLocationCommands.isNotEmpty()) {
+            val command = pendingLocationCommands.removeFirst()
+            notifyHost { onCommand(command.toJs()) }
+        }
+    }
+
+    fun myLocation() { if (!disposed) viewModel.dispatchAction(Action.MyLocationClicked) }
+    fun refreshLocation() { if (!disposed) viewModel.dispatchAction(Action.RefreshLocation) }
+
+    fun locationPermission(state: String, precise: Boolean, canRetry: Boolean) =
+        dispatchLocation(permissionEvent(state, precise, canRetry))
+
+    fun locationFix(requestId: String, latitude: Double, longitude: Double, accuracyMeters: Double, capturedAt: Double) =
+        dispatchLocation(fixEvent(requestId, latitude, longitude, accuracyMeters, capturedAt))
+
+    fun locationFailed(requestId: String, failure: String) = dispatchLocation(failureEvent(requestId, failure))
+    fun locationCancelled(requestId: String) = dispatchLocation(cancelledEvent(requestId))
+
+    private fun dispatchLocation(event: LocationPlatformEvent?) {
+        if (event != null && !disposed) viewModel.dispatchAction(Action.LocationEventReceived(event))
     }
 
     fun subscribe(onState: (StopMapState) -> Unit) {
@@ -156,6 +203,8 @@ class MapBridge internal constructor(
                         render?.polylineSourceRevision ?: 0L,
                         state.routeGeometryLegends,
                         state.vehicleLayerState,
+                        state.location,
+                        render?.userLocation,
                     )
                 }
                 .distinctUntilChanged()
@@ -251,6 +300,10 @@ class MapBridge internal constructor(
     fun dispose() {
         if (disposed) return
         disposed = true
+        locationHandler = null
+        pendingLocationCommands.clear()
+        // The session outlives this entry; an orphaned request would block every later one.
+        locationSession?.let { session -> session.state.value.activeRequestId?.let(session::cancelRequest) }
         scope.cancel()
         store.clear()
         onDisposed()
@@ -285,6 +338,8 @@ private fun StopSlice.toJs(
     routePolylineRevision = routePolylineRevision.toString(),
     routeLegends = routeLegends.map { it.toJs() }.toTypedArray(),
     vehicleStatus = vehicleLayerState.toJs(),
+    location = location.toJs(),
+    userLocation = userLocation?.toJs(),
 )
 
 private fun StopArrivalsSheetUi.toJs(): ArrivalsState = ArrivalsState(
