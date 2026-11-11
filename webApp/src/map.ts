@@ -1,12 +1,22 @@
 import { Map as MapLibreMap, Marker, setWorkerUrl, type GeoJSONSource, type StyleSpecification } from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import mapWorkerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?url&no-inline";
-import type { MapState, StopItem } from "./contracts";
+import type { MapState, StopItem, VehicleLayer } from "./contracts";
+import { drawVehicleBadge, vehicleBadgeStyle, type VehicleBadgeStyle } from "./vehicle-badge";
 
 // MapLibre's sibling-file lookup cannot discover an asset renamed by Vite.
 setWorkerUrl(new URL(mapWorkerUrl, import.meta.url).href);
 
 const routeSourceId = "transit-route-lines";
+const vehicleSourceId = "transit-vehicles";
+const vehicleLayerId = "transit-vehicles";
+const flippedSuffix = "-flipped";
+const overflowBadgeId = "transit-vehicle-badge-overflow";
+const maxVehicleMarkers = 2_000;
+const maxBadgeImages = 256;
+const staleVehicleOpacity = 0.62;
+// Badge artwork points east; MapLibre's icon-rotate is clockwise from north.
+const eastwardArtworkBearing = 90;
 
 const localStyle: StyleSpecification = {
   version: 8,
@@ -17,11 +27,13 @@ const localStyle: StyleSpecification = {
 interface MapActions {
   selectStop(stop: StopItem): void;
   updateViewport(latitude: number, longitude: number, radiusMeters: number, zoom: number): void;
+  selectVehicle(vehicleId: string, revision: string): void;
   setUnavailable(unavailable: boolean): void;
 }
 
 export interface TransitMap {
   update(state: MapState): void;
+  updateVehicles(layer: VehicleLayer): void;
   retry(): void;
   resize(): void;
   dispose(): void;
@@ -34,6 +46,30 @@ function mapAssetRequest(rawUrl: string) {
     return { url: new URL(url.pathname, window.location.origin).href };
   }
   throw new Error("Unsupported map asset");
+}
+
+function normalizedBearing(degrees: number) {
+  return ((degrees % 360) + 360) % 360;
+}
+
+function vehicleData(layer: VehicleLayer, imageIds: Map<string, string>) {
+  return {
+    type: "FeatureCollection" as const,
+    features: layer.vehicles
+      .filter((vehicle) => Number.isFinite(vehicle.latitude) && Number.isFinite(vehicle.longitude))
+      .slice(0, maxVehicleMarkers)
+      .map((vehicle) => ({
+        type: "Feature" as const,
+        properties: {
+          id: vehicle.id,
+          revision: layer.revision,
+          image: imageIds.get(vehicleBadgeStyle(vehicle).key) ?? overflowBadgeId,
+          rotation: vehicle.bearing == null ? 0 : normalizedBearing(vehicle.bearing - eastwardArtworkBearing),
+          opacity: vehicle.stale ? staleVehicleOpacity : 1,
+        },
+        geometry: { type: "Point" as const, coordinates: [vehicle.longitude, vehicle.latitude] },
+      })),
+  };
 }
 
 function routeLineData(lines: MapState["routePolylines"]) {
@@ -66,12 +102,20 @@ export function createTransitMap(container: HTMLElement, initial: MapState, acti
     renderWorldCopies: false,
     transformRequest: mapAssetRequest,
   });
+  // Rotation would also need the camera bearing in the flipped-label rule and a compass to reset it.
+  map.touchZoomRotate.disableRotation();
+  map.keyboard.disableRotation();
   let cameraRevision = camera.revision;
   let remoteStyleLoading = Boolean(styleUrl);
   let usingFallbackStyle = false;
   let styleReady = false;
   let latestState = initial;
   let renderedRouteRevision: string | undefined;
+  let vehicles: VehicleLayer | undefined;
+  let renderedVehicleRevision: string | undefined;
+  let renderedBadgeRevision: string | undefined;
+  const badgeImageIds = new Map<string, string>();
+  let nextBadgeImage = 0;
   const markers = new Map<string, { marker: Marker; stop: StopItem }>();
 
   function renderRouteLines() {
@@ -94,17 +138,93 @@ export function createTransitMap(container: HTMLElement, initial: MapState, acti
             "line-width": ["number", ["get", "strokeWidth"]],
             "line-opacity": ["number", ["get", "opacity"]],
           },
-        });
+        }, map.getLayer(vehicleLayerId) ? vehicleLayerId : undefined);
       }
     }
     renderedRouteRevision = latestState.routePolylineRevision;
+  }
+
+  function addBadgeImages(id: string, style: VehicleBadgeStyle) {
+    const pixelRatio = window.devicePixelRatio || 1;
+    for (const flipped of [false, true]) {
+      const image = drawVehicleBadge(style, pixelRatio, flipped);
+      // Badges are drawn at the native adapters' size and shown at the same 1/1.5 scale.
+      map.addImage(flipped ? id + flippedSuffix : id, image, { pixelRatio: pixelRatio * 1.5 });
+    }
+  }
+
+  function syncBadgeImages(layer: VehicleLayer) {
+    const styles = new Map<string, VehicleBadgeStyle>();
+    for (const vehicle of layer.vehicles) {
+      const style = vehicleBadgeStyle(vehicle);
+      if (!styles.has(style.key) && styles.size < maxBadgeImages) styles.set(style.key, style);
+    }
+    for (const [key, id] of badgeImageIds) {
+      if (styles.has(key)) continue;
+      map.removeImage(id);
+      map.removeImage(id + flippedSuffix);
+      badgeImageIds.delete(key);
+    }
+    for (const [key, style] of styles) {
+      if (badgeImageIds.has(key)) continue;
+      const id = `transit-vehicle-badge-${++nextBadgeImage}`;
+      addBadgeImages(id, style);
+      badgeImageIds.set(key, id);
+    }
+    if (!map.hasImage(overflowBadgeId)) {
+      addBadgeImages(overflowBadgeId, vehicleBadgeStyle({ label: "?", color: "#455a64", textColor: "#ffffff", stale: false }));
+    }
+  }
+
+  function renderVehicles() {
+    if (!styleReady || !vehicles || renderedVehicleRevision === vehicles.revision) return;
+    if (renderedBadgeRevision !== vehicles.badgeRevision) {
+      syncBadgeImages(vehicles);
+      renderedBadgeRevision = vehicles.badgeRevision;
+    }
+    const data = vehicleData(vehicles, badgeImageIds);
+    const source = map.getSource<GeoJSONSource>(vehicleSourceId);
+    if (source) {
+      source.setData(data);
+    } else {
+      map.addSource(vehicleSourceId, { type: "geojson", data });
+      map.addLayer({
+        id: vehicleLayerId,
+        type: "symbol",
+        source: vehicleSourceId,
+        layout: {
+          // Rotation is disabled, so a badge rotated past vertical would otherwise show its label upside down.
+          "icon-image": ["case",
+            ["all", [">", ["get", "rotation"], 90], ["<", ["get", "rotation"], 270]],
+            ["concat", ["get", "image"], flippedSuffix],
+            ["get", "image"]],
+          "icon-rotate": ["get", "rotation"],
+          "icon-rotation-alignment": "map",
+          "icon-allow-overlap": true,
+          "icon-ignore-placement": true,
+        },
+        paint: { "icon-opacity": ["get", "opacity"] },
+      });
+    }
+    renderedVehicleRevision = vehicles.revision;
   }
 
   map.on("style.load", () => {
     remoteStyleLoading = false;
     styleReady = true;
     renderedRouteRevision = undefined;
+    renderedVehicleRevision = undefined;
+    renderedBadgeRevision = undefined;
+    // A replaced style drops every image registered on the previous one.
+    badgeImageIds.clear();
     renderRouteLines();
+    renderVehicles();
+  });
+  map.on("click", vehicleLayerId, (event) => {
+    const properties = event.features?.[0]?.properties;
+    if (typeof properties?.id === "string" && properties.revision != null) {
+      actions.selectVehicle(properties.id, String(properties.revision));
+    }
   });
   map.on("error", (event) => {
     // Any error listener replaces MapLibre's default logging, so tile failures must be logged here.
@@ -181,5 +301,10 @@ export function createTransitMap(container: HTMLElement, initial: MapState, acti
   }
 
   update(initial);
-  return { update, retry, resize: () => map.resize(), dispose: () => map.remove() };
+  function updateVehicles(layer: VehicleLayer) {
+    vehicles = layer;
+    renderVehicles();
+  }
+
+  return { update, updateVehicles, retry, resize: () => map.resize(), dispose: () => map.remove() };
 }

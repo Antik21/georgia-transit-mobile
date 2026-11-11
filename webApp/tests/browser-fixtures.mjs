@@ -10,6 +10,9 @@ export const otherRouteId = 'demo:fixture:route:violet';
 export const fixtureRouteColor = [0, 87, 184];
 export const fixtureTileColor = [28, 180, 131];
 export const fallbackMapColor = [220, 232, 228];
+// Only the vehicle badge's headlights use this colour, so it separates the bus from its route line.
+export const vehicleHeadlightColor = [255, 220, 122];
+export const fixtureVehiclesPath = `/v1/cities/${fixtureCityId}/vehicles`;
 export const fixtureAttribution = 'Fixture tiles';
 // Toggled by the smoke to exercise the local-style fallback and its recovery.
 export const fixtureControl = { failStyle: false };
@@ -35,7 +38,7 @@ const demoCity = {
     routes: true,
     stops: true,
     routeGeometry: true,
-    vehiclePositions: false,
+    vehiclePositions: true,
     officialArrivals: true,
     tripPlanning: false,
     arrivals: true,
@@ -117,6 +120,25 @@ function routeShape(offset) {
     previous = point;
   }
   return { format: 'encoded_polyline', precision: 5, value, updatedAt: '2030-01-01T00:00:00Z' };
+}
+
+function vehicles(routeId) {
+  const observedAt = new Date().toISOString();
+  return {
+    items: routeId !== fixtureRouteId ? [] : [{
+      id: 'demo:fixture:vehicle:blue-01',
+      routeId: fixtureRouteId,
+      directionId: blueDirection.id,
+      position: { latitude: position.latitude + 0.0004, longitude: position.longitude + 0.0012 },
+      bearing: 62,
+      observedAt,
+      ageSeconds: 0,
+      positionKind: 'GPS',
+    }],
+    observedAt,
+    maxAgeSeconds: 30,
+    stale: false,
+  };
 }
 
 function arrivals() {
@@ -204,6 +226,7 @@ export function browserFixture(dist, bffRequests, origin) {
       case fixtureShapePath: return json(routeShape(0));
       case otherShapePath: return json(routeShape(-0.003));
       case `/v1/cities/${fixtureCityId}/stops/nearby`: return json([stop]);
+      case fixtureVehiclesPath: return json(vehicles(target.searchParams.get('routeId')));
       case `/v1/cities/${fixtureCityId}/stops/${fixtureStopId}/arrivals`: return json(arrivals());
       case `/v1/cities/${otherCityId}/routes`:
       case `/v1/cities/${otherCityId}/stops/nearby`: return json([]);

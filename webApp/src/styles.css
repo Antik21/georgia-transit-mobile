@@ -260,6 +260,16 @@ body { background: var(--background); color: var(--ink); }
 }
 
 .map-routes-button, .map-route-legends { pointer-events: auto; }
+.map-vehicle-status {
+  max-inline-size: 100%;
+  margin: 0;
+  padding: 4px 8px;
+  border-radius: 8px;
+  background: var(--raised);
+  color: var(--muted);
+  font-size: 0.75rem;
+  box-shadow: 0 1px 4px #18191b24;
+}
 .map-routes-button { box-shadow: 0 2px 8px #18191b28; }
 .map-route-legends {
   display: flex;

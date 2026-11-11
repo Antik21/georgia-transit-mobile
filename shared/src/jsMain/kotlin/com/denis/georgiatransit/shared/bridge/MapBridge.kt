@@ -8,12 +8,14 @@ import com.denis.georgiatransit.shared.domain.model.RouteId
 import com.denis.georgiatransit.shared.domain.model.StopId
 import com.denis.georgiatransit.shared.domain.model.TransitAttribution
 import com.denis.georgiatransit.shared.domain.model.TransitCity
+import com.denis.georgiatransit.shared.domain.model.VehicleId
 import com.denis.georgiatransit.shared.presentation.cityselection.citySelectionDisplayName
 import com.denis.georgiatransit.shared.presentation.map.Action
 import com.denis.georgiatransit.shared.presentation.map.MapCameraCommand
 import com.denis.georgiatransit.shared.presentation.map.MapContentState
 import com.denis.georgiatransit.shared.presentation.map.MapPlatformEvent
 import com.denis.georgiatransit.shared.presentation.map.MapPolyline
+import com.denis.georgiatransit.shared.presentation.map.MapVehicleMarker
 import com.denis.georgiatransit.shared.presentation.map.MapViewModel
 import com.denis.georgiatransit.shared.presentation.map.MapViewport
 import com.denis.georgiatransit.shared.presentation.map.NearbyStopUi
@@ -22,6 +24,7 @@ import com.denis.georgiatransit.shared.presentation.map.RouteGeometryLegendUi
 import com.denis.georgiatransit.shared.presentation.map.StopArrivalTimeUi
 import com.denis.georgiatransit.shared.presentation.map.StopArrivalsSheetState
 import com.denis.georgiatransit.shared.presentation.map.StopArrivalsSheetUi
+import com.denis.georgiatransit.shared.presentation.map.VehicleLayerState
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
@@ -82,6 +85,13 @@ class StopMapState(
     val routePolylines: Array<RoutePolyline> = emptyArray(),
     val routePolylineRevision: String = "0",
     val routeLegends: Array<RouteLegend> = emptyArray(),
+    val vehicleStatus: String = "hidden",
+)
+
+private data class VehicleSlice(
+    val revision: Long,
+    val badgeRevision: Long,
+    val vehicles: List<MapVehicleMarker>,
 )
 
 private data class StopSlice(
@@ -97,6 +107,7 @@ private data class StopSlice(
     val routePolylines: List<MapPolyline>,
     val routePolylineRevision: Long,
     val routeLegends: List<RouteGeometryLegendUi>,
+    val vehicleLayerState: VehicleLayerState,
 )
 
 /** Owns the Map entry and its subscriptions; dispose when the host leaves the entry. */
@@ -111,6 +122,7 @@ class MapBridge internal constructor(
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private var subscription: Job? = null
+    private var vehicleSubscription: Job? = null
     private var disposed = false
 
     init {
@@ -143,6 +155,7 @@ class MapBridge internal constructor(
                         render?.polylines.orEmpty(),
                         render?.polylineSourceRevision ?: 0L,
                         state.routeGeometryLegends,
+                        state.vehicleLayerState,
                     )
                 }
                 .distinctUntilChanged()
@@ -156,6 +169,37 @@ class MapBridge internal constructor(
         }
         subscription = newSubscription
         newSubscription.start()
+    }
+
+    /** Vehicle frames arrive at animation cadence, so they bypass [subscribe] and its DOM rebuild. */
+    fun subscribeVehicles(onVehicles: (VehicleLayer) -> Unit) {
+        check(!disposed)
+        vehicleSubscription?.cancel()
+        val newSubscription = scope.launch(start = CoroutineStart.LAZY) {
+            viewModel.container.stateFlow
+                .map { state ->
+                    val render = state.renderState
+                    VehicleSlice(render?.vehicleSourceRevision ?: 0L, render?.vehicleBadgeRevision ?: 0L, render?.vehicles.orEmpty())
+                }
+                .distinctUntilChanged()
+                .collect { slice ->
+                    val layer = VehicleLayer(
+                        revision = slice.revision.toString(),
+                        badgeRevision = slice.badgeRevision.toString(),
+                        vehicles = slice.vehicles.map { it.toJs() }.toTypedArray(),
+                    )
+                    notifyHost { onVehicles(layer) }
+                }
+        }
+        vehicleSubscription = newSubscription
+        newSubscription.start()
+    }
+
+    fun selectVehicle(id: String, revision: String) {
+        val sourceRevision = revision.toLongOrNull() ?: return
+        if (!disposed) {
+            viewModel.dispatchAction(Action.MapEventReceived(MapPlatformEvent.VehicleTapped(VehicleId(id), sourceRevision)))
+        }
     }
 
     fun setVisible(visible: Boolean) {
@@ -177,7 +221,12 @@ class MapBridge internal constructor(
     fun dismissArrivals() { if (!disposed) viewModel.dispatchAction(Action.StopArrivalsDismissed) }
     fun retryArrivals() { if (!disposed) viewModel.dispatchAction(Action.RetryStopArrivals) }
     fun retryNearby() { if (!disposed) viewModel.dispatchAction(Action.RetryNearby) }
-    fun unsubscribe() { subscription?.cancel(); subscription = null }
+    fun unsubscribe() {
+        subscription?.cancel()
+        subscription = null
+        vehicleSubscription?.cancel()
+        vehicleSubscription = null
+    }
 
     fun focusRoute(id: String) {
         if (!disposed) viewModel.dispatchAction(Action.RouteGeometryFocused(RouteId(id)))
@@ -235,6 +284,7 @@ private fun StopSlice.toJs(
     routePolylines = polylines,
     routePolylineRevision = routePolylineRevision.toString(),
     routeLegends = routeLegends.map { it.toJs() }.toTypedArray(),
+    vehicleStatus = vehicleLayerState.toJs(),
 )
 
 private fun StopArrivalsSheetUi.toJs(): ArrivalsState = ArrivalsState(

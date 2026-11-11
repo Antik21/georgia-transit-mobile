@@ -70,6 +70,25 @@ export interface RouteLegend {
   readonly canRetry: boolean;
 }
 
+export interface VehicleItem {
+  readonly id: string;
+  readonly routeId: string;
+  readonly latitude: number;
+  readonly longitude: number;
+  readonly bearing: number | null | undefined;
+  readonly positionKind: string;
+  readonly label: string;
+  readonly color: string;
+  readonly textColor: string;
+  readonly stale: boolean;
+}
+
+export interface VehicleLayer {
+  readonly revision: string;
+  readonly badgeRevision: string;
+  readonly vehicles: readonly VehicleItem[];
+}
+
 export interface RouteChoice {
   readonly id: string;
   readonly shortName: string;
@@ -109,10 +128,13 @@ export interface MapState {
   readonly camera: MapCamera | null | undefined;
   readonly styleUrl: string | null | undefined;
   readonly attribution: readonly Attribution[];
+  readonly vehicleStatus: string;
 }
 
 export interface MapEntry {
   subscribe(onState: (state: MapState) => void): void;
+  subscribeVehicles(onVehicles: (layer: VehicleLayer) => void): void;
+  selectVehicle(vehicleId: string, revision: string): void;
   setVisible(visible: boolean): void;
   selectStop(stopId: string, sourceRevision: string): void;
   updateViewport(latitude: number, longitude: number, radiusMeters: number, zoom: number): void;

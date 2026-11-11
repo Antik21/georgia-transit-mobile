@@ -232,8 +232,9 @@ internal object VehicleRealtimeReducer {
         )
     }
 
+    /** Only a route that has never answered is loading; re-polls keep the last outcome so status never flickers. */
     fun markLoading(state: VehicleRealtimeState, routeId: RouteId): VehicleRealtimeState =
-        if (state.tracks.any { it.routeId == routeId }) state else state.copy(
+        if (routeId in state.routePhases || state.tracks.any { it.routeId == routeId }) state else state.copy(
             routePhases = state.routePhases.put(routeId, VehicleRoutePhase.Loading),
         )
 

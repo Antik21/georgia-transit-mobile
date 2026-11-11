@@ -66,7 +66,10 @@ export function createTransitView(root: HTMLElement, actions: ViewActions, langu
   const openRoutes = button("secondary-button map-routes-button", copy.openRoutes, actions.openRoutes, "open-routes");
   const routeLegends = element("ul", "map-route-legends");
   routeLegends.setAttribute("aria-label", copy.selectedRoutes);
-  mapControls.append(openRoutes, routeLegends);
+  const vehicleStatus = element("p", "map-vehicle-status");
+  vehicleStatus.setAttribute("role", "status");
+  vehicleStatus.dataset.testid = "vehicle-status";
+  mapControls.append(openRoutes, routeLegends, vehicleStatus);
   const mapCredits = element("div", "map-credits");
   mapRegion.append(mapElement, mapOverlay, mapControls, mapCredits);
   const mapPanel = element("section", "map-panel");
@@ -163,6 +166,9 @@ export function createTransitView(root: HTMLElement, actions: ViewActions, langu
     const legends = state?.routeLegends ?? [];
     routeLegends.hidden = legends.length === 0;
     replacePreservingFocus(routeLegends, legends.map((route) => renderRouteLegend(route, copy, actions)));
+    const vehicleText = vehicleStatusText(copy, state?.vehicleStatus);
+    vehicleStatus.hidden = !vehicleText;
+    if (vehicleStatus.textContent !== (vehicleText ?? "")) vehicleStatus.textContent = vehicleText ?? "";
 
     const nextArrivalStop = state?.arrivals?.stopId ?? null;
     const previousArrivalStop = arrivalStop;
@@ -355,6 +361,17 @@ function renderRouteLegend(route: MapState["routeLegends"][number], copy: Copy, 
   remove.setAttribute("aria-label", copy.removeRoute.replace("%1$s", route.label));
   row.append(remove);
   return row;
+}
+
+function vehicleStatusText(copy: Copy, status?: string) {
+  const label = {
+    loading: copy.vehiclesLoading,
+    stale: copy.vehiclesStale,
+    retryable: copy.vehiclesRetryable,
+    unavailable: copy.vehiclesUnavailable,
+    mixed: copy.vehiclesMixed,
+  }[status ?? ""];
+  return label ? copy.vehiclesStatus.replace("%1$s", label) : null;
 }
 
 function applyRouteColors(badge: HTMLElement, background: string, foreground: string) {
