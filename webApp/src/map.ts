@@ -357,10 +357,35 @@ export function createTransitMap(container: HTMLElement, initial: MapState, acti
   }
 
   update(initial);
+  // Badges are rasterised for one devicePixelRatio; zooming or moving to another screen blurs them.
+  let pixelRatioQuery: MediaQueryList | undefined;
+  function watchPixelRatio() {
+    pixelRatioQuery?.removeEventListener("change", onPixelRatioChange);
+    pixelRatioQuery = window.matchMedia(`(resolution: ${window.devicePixelRatio || 1}dppx)`);
+    pixelRatioQuery.addEventListener("change", onPixelRatioChange);
+  }
+  function onPixelRatioChange() {
+    watchPixelRatio();
+    if (!styleReady) return;
+    for (const id of [...badgeImageIds.values(), overflowBadgeId]) {
+      for (const imageId of [id, id + flippedSuffix]) if (map.hasImage(imageId)) map.removeImage(imageId);
+    }
+    badgeImageIds.clear();
+    renderedBadgeRevision = undefined;
+    renderedVehicleRevision = undefined;
+    renderVehicles();
+  }
+  watchPixelRatio();
+
   function updateVehicles(layer: VehicleLayer) {
     vehicles = layer;
     renderVehicles();
   }
 
-  return { update, updateVehicles, retry, resize: () => map.resize(), dispose: () => map.remove() };
+  function dispose() {
+    pixelRatioQuery?.removeEventListener("change", onPixelRatioChange);
+    map.remove();
+  }
+
+  return { update, updateVehicles, retry, resize: () => map.resize(), dispose };
 }

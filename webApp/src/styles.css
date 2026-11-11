@@ -529,3 +529,15 @@ body { background: var(--background); color: var(--ink); }
   .spinner { animation: none; }
   .transit-app .map-location-button[aria-busy="true"] .map-location-icon { animation: none; }
 }
+
+.visually-hidden {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}

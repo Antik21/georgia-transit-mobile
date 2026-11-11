@@ -168,6 +168,12 @@ try {
   await waitFor('The selected route geometry draws on the MapLibre canvas', () => mapContainsColor(fixtureRouteColor, 75));
   await waitFor('The live vehicle badge draws on the MapLibre canvas', () => mapContainsColor(vehicleHeadlightColor, 6));
   await waitFor('Live vehicles show no degraded status', `!${visible(testId('vehicle-status'))}`);
+  const vehicleSummary = `(document.querySelector('${testId('vehicle-summary')}')?.textContent ?? '')`;
+  await waitFor('Screen readers get the live vehicle count per route', `${vehicleSummary}.includes('D1: 1, live')`);
+  fixtureControl.staleVehicles = true;
+  await waitFor('A stale BFF page shows the older-positions status', `${visible(testId('vehicle-status'))} && ${vehicleSummary}.includes('showing older positions')`);
+  fixtureControl.staleVehicles = false;
+  await waitFor('Fresh positions clear the degraded status', `!${visible(testId('vehicle-status'))} && ${vehicleSummary}.includes('D1: 1, live')`);
 
   await tap(testId('open-routes'));
   const vehicleRequests = () => bffRequests.filter((path) => path === fixtureVehiclesPath).length;
@@ -232,6 +238,16 @@ try {
   })()`);
   await waitFor('Returning from settings grants access and locates the user', `${permissionIs('granted')} && !${visible(testId('location-status'))}`);
   await waitFor('The user location dot draws on the MapLibre canvas', () => mapContainsColor(userLocationDotColor, 20));
+
+  // Outside Telegram the same flow runs on navigator.geolocation.
+  fixtureControl.telegram = false;
+  await devTools.send('Browser.grantPermissions', { origin, permissions: ['geolocation'] });
+  await send('Emulation.setGeolocationOverride', { latitude: 41.6512, longitude: 41.6402, accuracy: 30 });
+  const browserTimeOrigin = await evaluate('performance.timeOrigin');
+  await send('Page.reload');
+  await waitFor('A plain browser reopens the map without Telegram', `performance.timeOrigin !== ${browserTimeOrigin} && !window.Telegram && ${mapScreen}`);
+  await waitFor('Previously granted browser geolocation locates the user on open', `${permissionIs('granted')} && !${visible(testId('location-status'))}`);
+  await waitFor('The browser location dot draws on the MapLibre canvas', () => mapContainsColor(userLocationDotColor, 20));
 
   for (const path of ['/v1/cities', '/v1/map/style.json', `/v1/cities/${fixtureCityId}/stops/nearby`, `/v1/cities/${fixtureCityId}/stops/${fixtureStopId}/arrivals`, fixtureShapePath]) {
     assert.ok(bffRequests.includes(path), `Expected a BFF request for ${path}`);

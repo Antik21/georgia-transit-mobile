@@ -87,6 +87,11 @@ class MapBridgeVehiclesTest {
                     assertEquals("gps", vehicle.positionKind)
                     assertEquals(false, vehicle.stale)
                     assertEquals("live", assertNotNull(state).vehicleStatus)
+                    val summary = assertNotNull(state).vehicleRoutes.single()
+                    assertEquals(routeId.value, summary.routeId)
+                    assertEquals("10", summary.label)
+                    assertEquals(1, summary.vehicleCount)
+                    assertEquals("live", summary.status)
 
                     val statesBeforeFrames = stateEmissions
                     val vehiclesBeforeFrames = vehicleEmissions

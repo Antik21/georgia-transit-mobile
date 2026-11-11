@@ -5,6 +5,7 @@ package com.denis.georgiatransit.shared.bridge
 import com.denis.georgiatransit.shared.domain.model.VehiclePositionKind
 import com.denis.georgiatransit.shared.presentation.map.MapVehicleMarker
 import com.denis.georgiatransit.shared.presentation.map.VehicleLayerState
+import com.denis.georgiatransit.shared.presentation.map.VehicleRouteAccessibilityUi
 
 @JsExport
 class VehicleItem(
@@ -26,6 +27,16 @@ class VehicleLayer(
     val revision: String,
     val badgeRevision: String,
     val vehicles: Array<VehicleItem>,
+)
+
+@JsExport
+class VehicleRouteSummary(val routeId: String, val label: String, val vehicleCount: Int, val status: String)
+
+internal fun VehicleRouteAccessibilityUi.toJs() = VehicleRouteSummary(
+    routeId = routeId.value,
+    label = routeLabel,
+    vehicleCount = vehicleCount,
+    status = layerState.toJs(),
 )
 
 internal fun MapVehicleMarker.toJs() = VehicleItem(
