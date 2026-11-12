@@ -107,16 +107,16 @@ class BatumiJourneyPlanningTest {
 
     @Test
     fun `boarding upstream on the same route wins when the nearest stop is beyond the live horizon`() {
-        val longLine = eastLine("L", latitude = 41.640, count = 30)
+        val longLine = eastLine("L", latitude = 41.640, count = 45)
         val fixture = PlanningFixture(listOf(FixtureRoute("7", longLine)))
         fixture.vehicle("7", "l1", longLine[0])
 
-        val page = fixture.plan(near(longLine[26]), near(longLine[29]))
+        // The destination is far enough that walking all the way cannot beat the bus.
+        val page = fixture.plan(near(longLine[26]), near(longLine[44]))
 
         val transit = page.items.single { it.transitSegments.isNotEmpty() }.transitSegments.single()
         assertEquals(fixture.stopId("L25"), transit.fromStopId)
         assertEquals(JourneyWaitBasis.LIVE_VEHICLE, transit.waitBasis)
-        assertTrue(page.items.any { it.transitSegments.isEmpty() }, "a walk under 2 km is also offered")
-        assertTrue(page.realtime, "walk-only adds no wait, so the page stays realtime")
+        assertTrue(page.realtime)
     }
 }

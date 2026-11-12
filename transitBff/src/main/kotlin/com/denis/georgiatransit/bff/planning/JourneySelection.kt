@@ -8,11 +8,14 @@ internal object JourneySelection {
         mode: JourneyPlanMode,
     ): List<PlannedItinerary> {
         val order = comparator(mode)
-        val candidates = withinSlack(worthTheirTransfers(distinctByRouteSequence(transit, order)))
+        val undominated = transit.filterNot { walkOnly.arrival <= it.arrival && walkOnly.walkMeters <= it.walkMeters }
+        val offerableWalk = walkOnly.takeIf { it.walkMeters <= PlannerParameters.WalkOnlyMaximumMeters }
+        val candidates = withinSlack(worthTheirTransfers(distinctByRouteSequence(undominated, order)), offerableWalk)
         val picks = rolePicks(candidates).toMutableList()
         val earliestTransit = picks.minOfOrNull(PlannedItinerary::arrival)
         // With no transit at all, a walk longer than 2 km is not offered as a "plan".
         val includeWalk = walkOnly.walkMeters <= PlannerParameters.WalkOnlyMaximumMeters ||
+            undominated.size < transit.size ||
             (earliestTransit != null && walkOnly.arrival < earliestTransit)
         if (includeWalk && picks.size == PlannerParameters.MaximumOptions) picks.removeAt(picks.lastIndex)
         val selected = if (includeWalk) picks + walkOnly else picks
@@ -34,8 +37,8 @@ internal object JourneySelection {
                 option.arrival + PlannerParameters.TransferMinimumSavingSeconds <= fewer.minOf(PlannedItinerary::arrival)
         }
 
-    private fun withinSlack(options: List<PlannedItinerary>): List<PlannedItinerary> {
-        val earliest = options.minByOrNull(PlannedItinerary::arrival) ?: return emptyList()
+    private fun withinSlack(options: List<PlannedItinerary>, walk: PlannedItinerary?): List<PlannedItinerary> {
+        val earliest = (options + listOfNotNull(walk)).minByOrNull(PlannedItinerary::arrival) ?: return emptyList()
         val slack = maxOf(
             PlannerParameters.SlackMinimumSeconds,
             (earliest.durationSeconds * PlannerParameters.SlackFraction).toLong(),

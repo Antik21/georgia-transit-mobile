@@ -31,6 +31,25 @@ class JourneySelectionTest {
     private val farWalk = walk(5_000.0)
 
     @Test
+    fun `transit that neither arrives earlier nor walks less than walking directly is dropped`() {
+        val shortWalk = walk(434.0)
+        val dominated = option(shortWalk.arrival + 600, 1_100.0, "r1")
+        val lessWalking = option(shortWalk.arrival + 300, 200.0, "r2")
+
+        val selected = JourneySelection.select(listOf(dominated, lessWalking), shortWalk, JourneyPlanMode.FASTEST)
+
+        assertEquals(listOf(shortWalk, lessWalking), selected)
+    }
+
+    @Test
+    fun `the slack window also counts from an offerable direct walk`() {
+        val shortWalk = walk(434.0)
+        val tooLate = option(shortWalk.arrival + 901, 400.0, "r1")
+
+        assertEquals(listOf(shortWalk), JourneySelection.select(listOf(tooLate), shortWalk, JourneyPlanMode.FASTEST))
+    }
+
+    @Test
     fun `options with the same route sequence are duplicates`() {
         val early = option(1_000, 300.0, "r1")
         val late = option(1_100, 100.0, "r1")
