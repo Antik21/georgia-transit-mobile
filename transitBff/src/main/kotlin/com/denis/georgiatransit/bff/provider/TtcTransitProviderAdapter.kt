@@ -1181,6 +1181,7 @@ private fun TelemetryOperation.ttcNotFoundFailure(): ProviderFailure = when (thi
     -> ProviderStopNotFound("The requested stop was not found")
     TelemetryOperation.JOURNEYS,
     TelemetryOperation.WALKING_ESTIMATE,
+    TelemetryOperation.JOURNEY_PLAN,
     TelemetryOperation.PROBE_JOURNEYS,
     -> ProviderUnavailable("The transit provider is unavailable")
 }

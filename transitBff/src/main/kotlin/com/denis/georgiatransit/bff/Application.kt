@@ -9,7 +9,9 @@ import com.denis.georgiatransit.bff.api.InvalidArgument
 import com.denis.georgiatransit.bff.api.KnownCityIds
 import com.denis.georgiatransit.bff.api.PublicEntityType
 import com.denis.georgiatransit.bff.api.ServiceFailure
+import com.denis.georgiatransit.bff.api.JourneyPlanRequest
 import com.denis.georgiatransit.bff.api.WalkingEstimateRequest
+import com.denis.georgiatransit.bff.api.toQuery
 import com.denis.georgiatransit.bff.api.locale
 import com.denis.georgiatransit.bff.api.mode
 import com.denis.georgiatransit.bff.api.pathCityId
@@ -40,6 +42,7 @@ import com.denis.georgiatransit.bff.provider.TtcTransitProviderAdapter
 import com.denis.georgiatransit.bff.provider.BatumiThetaTransitProviderAdapter
 import com.denis.georgiatransit.bff.provider.BatumiThetaClient
 import com.denis.georgiatransit.bff.provider.BatumiBatBusAllBusesClient
+import com.denis.georgiatransit.bff.service.JourneyPlanService
 import com.denis.georgiatransit.bff.service.TransitService
 import com.denis.georgiatransit.bff.map.MapProxy
 import com.denis.georgiatransit.bff.map.MapProxyFailure
@@ -74,6 +77,7 @@ import io.ktor.server.routing.post
 import io.ktor.server.routing.route
 import io.ktor.server.routing.routing
 import io.ktor.util.AttributeKey
+import java.time.Instant
 import java.util.UUID
 import kotlinx.coroutines.CancellationException
 import io.ktor.serialization.ContentConvertException
@@ -214,6 +218,7 @@ fun Application.transitBffModule(config: BffConfig = BffConfig.fromEnvironment()
         observability = observability,
         schemaDriftObserver = capabilityControl::observeSchemaDrift,
     )
+    val journeyPlanService = JourneyPlanService(capabilityControl, observability)
     val mapProxy = config.map.takeIf { it.isActivated }?.let(::MapProxy)
     val probeRunner = ProbeRunner(
         config = config,
@@ -405,20 +410,9 @@ fun Application.transitBffModule(config: BffConfig = BffConfig.fromEnvironment()
                 }
                 post("/walking-estimate") {
                     call.markHttpOperation(HttpOperation.WALKING_ESTIMATE)
-                    // Set before decoding so documented privacy cache directives also cover
-                    // normalized failures. Ktor's CallLogging logs path/status only.
-                    call.response.header(HttpHeaders.CacheControl, "no-store, no-cache, max-age=0")
-                    call.response.header(HttpHeaders.Pragma, "no-cache")
+                    call.disallowCaching()
                     val cityId = call.pathCityId()
-                    val request = try {
-                        call.receive<WalkingEstimateRequest>()
-                    } catch (_: BadRequestException) {
-                        throw InvalidArgument("walking estimate request must be valid JSON")
-                    } catch (_: ContentTransformationException) {
-                        throw InvalidArgument("walking estimate request must use application/json")
-                    } catch (_: ContentConvertException) {
-                        throw InvalidArgument("walking estimate request must be valid JSON")
-                    }
+                    val request = call.receivePrivateBody<WalkingEstimateRequest>("walking estimate request")
                     val estimate = service.walkingEstimate(
                         cityId = cityId,
                         query = WalkingQuery(
@@ -429,10 +423,37 @@ fun Application.transitBffModule(config: BffConfig = BffConfig.fromEnvironment()
                     )
                     call.respond(estimate)
                 }
+                post("/journeys/plan") {
+                    call.markHttpOperation(HttpOperation.JOURNEY_PLAN)
+                    call.disallowCaching()
+                    val cityId = call.pathCityId()
+                    val query = call.receivePrivateBody<JourneyPlanRequest>("journey plan request").toQuery(Instant.now())
+                    call.respond(journeyPlanService.plan(cityId, query))
+                }
             }
         }
     }
 }
+
+/**
+ * Set before decoding so the privacy cache directives also cover normalized failures (ADR 0008).
+ * Ktor's CallLogging logs path and status only, never the body.
+ */
+private fun ApplicationCall.disallowCaching() {
+    response.header(HttpHeaders.CacheControl, "no-store, no-cache, max-age=0")
+    response.header(HttpHeaders.Pragma, "no-cache")
+}
+
+private suspend inline fun <reified T : Any> ApplicationCall.receivePrivateBody(name: String): T =
+    try {
+        receive<T>()
+    } catch (_: BadRequestException) {
+        throw InvalidArgument("$name must be valid JSON")
+    } catch (_: ContentTransformationException) {
+        throw InvalidArgument("$name must use application/json")
+    } catch (_: ContentConvertException) {
+        throw InvalidArgument("$name must be valid JSON")
+    }
 
 private fun ApplicationCall.markHttpOperation(operation: HttpOperation) {
     if (!attributes.contains(HttpOperationAttribute)) attributes.put(HttpOperationAttribute, operation)

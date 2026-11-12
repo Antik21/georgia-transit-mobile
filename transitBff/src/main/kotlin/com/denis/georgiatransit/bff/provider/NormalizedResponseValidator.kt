@@ -138,8 +138,13 @@ object NormalizedResponseValidator {
 
     fun journeyPage(cityId: String, page: JourneyPage) {
         timestamp(page.observedAt)
-        if (page.source !in setOf(ArrivalSource.AGGREGATOR_REALTIME, ArrivalSource.SCHEDULE)) invalid()
-        if ((page.source == ArrivalSource.AGGREGATOR_REALTIME) != page.realtime) invalid()
+        when (page.source) {
+            ArrivalSource.AGGREGATOR_REALTIME, ArrivalSource.SCHEDULE ->
+                if ((page.source == ArrivalSource.AGGREGATOR_REALTIME) != page.realtime) invalid()
+            // BFF-derived plans (ADR 0022); JourneyPlanResponseValidator checks their realtime flag.
+            ArrivalSource.CLIENT_ESTIMATE -> Unit
+            ArrivalSource.OFFICIAL_REALTIME -> invalid()
+        }
         page.items.forEach { journey(cityId, it) }
     }
 
