@@ -329,6 +329,40 @@ paths:
         '503': {$ref: '#/components/responses/UpstreamUnavailable'}
         '504': {$ref: '#/components/responses/UpstreamTimeout'}
         '500': {$ref: '#/components/responses/InternalError'}
+  /v1/cities/{cityId}/journeys/plan:
+    post:
+      operationId: planJourneyOptions
+      summary: Plan up to three public-transport options between two points (ADR 0022, ADR 0023).
+      description: >-
+        Privacy-sensitive operation. `from` and `to` are request-scoped, are never echoed in errors,
+        logs, caches, telemetry labels, LKG, or durable storage, and the request never states whether a
+        point is the device location. Every response, including documented errors, sends
+        `Cache-Control: no-store, no-cache, max-age=0`. Gated by the city's `tripPlanning`
+        capability. Times are approximate and non-official; walking geometry may be a straight line
+        (`geometryApproximate`).
+      parameters:
+        - {$ref: '#/components/parameters/CityId'}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/JourneyPlanRequest'}
+      responses:
+        '200':
+          description: Zero to three ranked journey options. An empty `items` means no option was found.
+          headers:
+            X-Request-ID: {$ref: '#/components/headers/RequestId'}
+            Cache-Control: {$ref: '#/components/headers/NoStoreCacheControl'}
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/JourneyPage'}
+              example: {items: [{id: demo:fixture:journey:blue-direct, departureAt: '2030-01-01T00:00:00Z', arrivalAt: '2030-01-01T00:21:00Z', transfers: 0, durationSeconds: 1260, walkingDistanceMeters: 520, timingQuality: LIVE, legs: [{routeId: demo:fixture:route:blue, directionId: demo:fixture:direction:blue-outbound, fromStopId: demo:fixture:stop:center, toStopId: demo:fixture:stop:park, departureAt: '2030-01-01T00:06:00Z', arrivalAt: '2030-01-01T00:17:00Z'}], segments: [{departureAt: '2030-01-01T00:00:00Z', arrivalAt: '2030-01-01T00:04:00Z', mode: WALK, toStopId: demo:fixture:stop:center, fromPosition: {latitude: 41.7151, longitude: 44.8271}, toPosition: {latitude: 41.7162, longitude: 44.8292}, distanceMeters: 300, geometry: 'o~a~Fg`toG}EiL', geometryApproximate: true}, {departureAt: '2030-01-01T00:06:00Z', arrivalAt: '2030-01-01T00:17:00Z', mode: TRANSIT, routeId: demo:fixture:route:blue, directionId: demo:fixture:direction:blue-outbound, fromStopId: demo:fixture:stop:center, toStopId: demo:fixture:stop:park, fromPosition: {latitude: 41.7162, longitude: 44.8292}, toPosition: {latitude: 41.7281, longitude: 44.8402}, distanceMeters: 2100, geometry: 'mebs~Fu|uoGwiAke@', geometryApproximate: false, intermediateStopCount: 5, waitSeconds: 120, waitBasis: LIVE_VEHICLE, vehicleId: demo:fixture:vehicle:blue-01}, {departureAt: '2030-01-01T00:17:00Z', arrivalAt: '2030-01-01T00:21:00Z', mode: WALK, fromStopId: demo:fixture:stop:park, fromPosition: {latitude: 41.7281, longitude: 44.8402}, toPosition: {latitude: 41.7295, longitude: 44.8421}, distanceMeters: 220, geometry: 'eocs~Fsavo`AsGyJ', geometryApproximate: true}]}], observedAt: '2030-01-01T00:00:00Z', source: CLIENT_ESTIMATE, realtime: true, stale: false}
+        '400': {$ref: '#/components/responses/InvalidArgument'}
+        '404': {$ref: '#/components/responses/CityNotFound'}
+        '429': {$ref: '#/components/responses/RateLimited'}
+        '501': {$ref: '#/components/responses/CapabilityNotAvailable'}
+        '503': {$ref: '#/components/responses/UpstreamUnavailable'}
+        '500': {$ref: '#/components/responses/InternalError'}
 components:
   headers:
     RequestId:
@@ -395,6 +429,7 @@ components:
     RouteId: {allOf: [{$ref: '#/components/schemas/PublicId'}], example: demo:fixture:route:blue}
     DirectionId: {allOf: [{$ref: '#/components/schemas/PublicId'}], example: demo:fixture:direction:blue-outbound}
     StopId: {allOf: [{$ref: '#/components/schemas/PublicId'}], example: demo:fixture:stop:center}
+    VehicleId: {allOf: [{$ref: '#/components/schemas/PublicId'}], example: demo:fixture:vehicle:blue-01}
     LocalizedText:
       type: object
       required: [ru, en, ka]
@@ -558,6 +593,34 @@ components:
           oneOf: [{$ref: '#/components/schemas/StopId'}, {type: 'null'}]
         fromPosition: {$ref: '#/components/schemas/GeoPoint', description: Endpoint coordinate when the provider can represent the leg without inventing a stop.}
         toPosition: {$ref: '#/components/schemas/GeoPoint', description: Endpoint coordinate when the provider can represent the leg without inventing a stop.}
+        distanceMeters: {type: number, minimum: 0, description: Additive. Walking or riding distance of this segment.}
+        geometry: {type: string, description: 'Additive. Encoded polyline (precision 5) of the segment: a route-shape slice for TRANSIT, a walking path for WALK.'}
+        geometryApproximate: {type: boolean, description: Additive. True when the geometry is a straight-line or stop-chain approximation rather than a routed path.}
+        intermediateStopCount: {type: integer, minimum: 0, description: Additive. TRANSIT only. Stops passed between boarding and alighting.}
+        waitSeconds: {type: integer, minimum: 0, description: Additive. TRANSIT only. Expected wait at the boarding stop before departureAt.}
+        waitBasis: {$ref: '#/components/schemas/JourneyWaitBasis'}
+        vehicleId: {$ref: '#/components/schemas/VehicleId'}
+    JourneyWaitBasis:
+      type: string
+      description: Additive. LIVE_VEHICLE is a projected live vehicle; HEADWAY_ESTIMATE is derived from active vehicles on the line.
+      enum: [LIVE_VEHICLE, HEADWAY_ESTIMATE]
+    JourneyTimingQuality:
+      type: string
+      description: Additive. LIVE when every wait is LIVE_VEHICLE, ESTIMATED when none is, MIXED otherwise.
+      enum: [LIVE, MIXED, ESTIMATED]
+    JourneyPlanMode: {type: string, enum: [FASTEST, LESS_WALKING, FEWER_TRANSFERS]}
+    JourneyPlanRequest:
+      type: object
+      description: Coordinate-bearing, request-scoped input (ADR 0023). Never cacheable or retained by the BFF.
+      required: [from, to, locale]
+      properties:
+        from: {$ref: '#/components/schemas/GeoPoint'}
+        to: {$ref: '#/components/schemas/GeoPoint'}
+        departureAt: {$ref: '#/components/schemas/UtcTimestamp', description: Absent means now. Must be within five minutes in the past and two hours ahead.}
+        maxTransfers: {type: integer, minimum: 0, maximum: 2, default: 2}
+        mode: {$ref: '#/components/schemas/JourneyPlanMode', default: FASTEST}
+        transferBufferSeconds: {type: integer, minimum: 0, maximum: 600, default: 60}
+        locale: {type: string, enum: [ka, en, ru]}
     Journey:
       type: object
       required: [id, departureAt, arrivalAt, transfers, legs]
@@ -571,6 +634,9 @@ components:
           type: array
           description: Additive complete ordered itinerary. New clients should prefer this field; absent means use legacy legs.
           items: {$ref: '#/components/schemas/JourneySegment'}
+        durationSeconds: {type: integer, minimum: 0, description: Additive. arrivalAt minus departureAt.}
+        walkingDistanceMeters: {type: number, minimum: 0, description: Additive. Sum of WALK segment distances.}
+        timingQuality: {$ref: '#/components/schemas/JourneyTimingQuality'}
     VehiclePage:
       type: object
       required: [items, observedAt, maxAgeSeconds, stale]
