@@ -331,6 +331,8 @@ export function createTransitMap(container: HTMLElement, initial: MapState, acti
         "icon-padding": 0,
         "icon-allow-overlap": true,
         "icon-ignore-placement": true,
+        // stopAt() walks the source order; the default viewport-Y order would put a different pin on top.
+        "symbol-z-order": "source",
       },
     };
   }
