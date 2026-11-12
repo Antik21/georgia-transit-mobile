@@ -136,6 +136,7 @@ internal object JourneyPlannerReducer {
                 if (options.isEmpty()) Status.Empty else Status.Results(
                     options = options,
                     selectedId = (previous as? Status.Results)?.keptSelection(options) ?: options.first().id,
+                    isStale = result.value.stale,
                 )
             }
             is TransitLoadResult.Empty -> Status.Empty

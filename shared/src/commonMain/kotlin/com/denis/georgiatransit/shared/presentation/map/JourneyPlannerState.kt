@@ -44,7 +44,7 @@ sealed interface JourneyPlannerStatus {
     @Immutable data class PickingPoint(val side: JourneyPlanSide) : JourneyPlannerStatus
     @Immutable data object EndpointsIncomplete : JourneyPlannerStatus
     @Immutable data object Loading : JourneyPlannerStatus
-    /** [isStale] keeps the last answer visible when a periodic re-plan could not refresh it. */
+    /** [isStale]: the BFF answered from an old live snapshot, or a re-plan failed and the last answer stays. */
     @Immutable data class Results(
         val options: List<JourneyOptionUi>,
         val selectedId: JourneyId,

@@ -27,6 +27,7 @@ import com.denis.georgiatransit.shared.presentation.location.LocationState
 import com.denis.georgiatransit.shared.presentation.location.UserLocationFix
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertIs
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
@@ -195,6 +196,21 @@ class JourneyPlannerReducerTest {
 
         assertEquals(first.cameraFitRevision, closed.cameraFitRevision)
         assertTrue(next.cameraFitRevision > first.cameraFitRevision, "a renderer that framed the first plan must frame the next one")
+    }
+
+    @Test
+    fun aStalePageIsShownAsStaleAndAFreshRefreshClearsIt() {
+        val loading = JourneyPlannerUi(isOpen = true, origin = JourneyEndpoint.MapPoint(A),
+            destination = JourneyEndpoint.MapPoint(B), status = Status.Loading)
+        val stalePage = TransitLoadResult.Data(
+            JourneyPage(listOf(journey("one")), NOW, ArrivalSource.ClientEstimate, stale = true), TransitFreshness.Network,
+        )
+
+        val stale = JourneyPlannerReducer.outcome(loading, stalePage, context()).state
+        val fresh = JourneyPlannerReducer.outcome(JourneyPlannerReducer.refresh(stale, context()).state, page("one"), context()).state
+
+        assertTrue(assertIs<Status.Results>(stale.status).isStale)
+        assertFalse(assertIs<Status.Results>(fresh.status).isStale)
     }
 
     @Test
