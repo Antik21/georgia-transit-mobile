@@ -168,6 +168,36 @@ class JourneyPlannerReducerTest {
     }
 
     @Test
+    fun aRefreshWithNewIdsKeepsTheChosenRouteSequence() {
+        val loading = JourneyPlannerUi(isOpen = true, origin = JourneyEndpoint.MapPoint(A),
+            destination = JourneyEndpoint.MapPoint(B), status = Status.Loading)
+        fun page(direct: String, transfer: String) = TransitLoadResult.Data(
+            JourneyPage(listOf(journey(direct), journey(transfer, transfer = true)), NOW, ArrivalSource.ClientEstimate),
+            TransitFreshness.Network,
+        )
+
+        val first = JourneyPlannerReducer.outcome(loading, page("one", "two"), context()).state
+        val chosen = JourneyPlannerReducer.action(first, JourneyPlannerAction.SelectOption(JourneyId("demo:fixture:journey:two")), context()).state
+        val refreshed = JourneyPlannerReducer.outcome(JourneyPlannerReducer.refresh(chosen, context()).state, page("x", "y"), context()).state
+
+        assertEquals(JourneyId("demo:fixture:journey:y"), assertIs<Status.Results>(refreshed.status).selectedId)
+    }
+
+    @Test
+    fun closingThePlannerKeepsTheCameraRevisionSoTheNextPlanIsFramed() {
+        val loading = JourneyPlannerUi(isOpen = true, origin = JourneyEndpoint.MapPoint(A),
+            destination = JourneyEndpoint.MapPoint(B), status = Status.Loading)
+        val first = JourneyPlannerReducer.outcome(loading, page("one"), context()).state
+
+        val closed = JourneyPlannerReducer.action(first, JourneyPlannerAction.ClosePlanner, context()).state
+        val next = JourneyPlannerReducer.outcome(closed.copy(isOpen = true, origin = JourneyEndpoint.MapPoint(A),
+            destination = JourneyEndpoint.MapPoint(B), status = Status.Loading), page("two"), context()).state
+
+        assertEquals(first.cameraFitRevision, closed.cameraFitRevision)
+        assertTrue(next.cameraFitRevision > first.cameraFitRevision, "a renderer that framed the first plan must frame the next one")
+    }
+
+    @Test
     fun outcomesMapEmptyErrorsAndCapabilityLoss() {
         val loading = JourneyPlannerUi(isOpen = true, origin = JourneyEndpoint.MapPoint(A),
             destination = JourneyEndpoint.MapPoint(B), status = Status.Loading)

@@ -1,5 +1,7 @@
 package com.denis.georgiatransit.shared.presentation.map
 
+import com.denis.georgiatransit.shared.domain.model.RouteId
+import com.denis.georgiatransit.shared.domain.model.JourneyId
 import com.denis.georgiatransit.shared.domain.model.GeoPoint
 import com.denis.georgiatransit.shared.domain.model.JourneyEndpoint
 import com.denis.georgiatransit.shared.domain.model.JourneyEndpointPolicy
@@ -74,7 +76,7 @@ internal object JourneyPlannerReducer {
             }
             is JourneyPlannerAction.SelectOption -> select(state, action, context)
             JourneyPlannerAction.Retry -> retry(state, context)
-            JourneyPlannerAction.ClosePlanner -> finish(JourneyPlannerUi(), context)
+            JourneyPlannerAction.ClosePlanner -> finish(JourneyPlannerUi(cameraFitRevision = state.cameraFitRevision), context)
         }
 
     /** City, capability, or location changes. Leaving a city drops endpoints and results entirely. */
@@ -82,7 +84,7 @@ internal object JourneyPlannerReducer {
         state: JourneyPlannerUi, context: JourneyPlannerContext, cityChanged: Boolean,
         lastCurrentPoint: GeoPoint?, wasAvailable: Boolean,
     ): JourneyPlannerStep {
-        if (cityChanged) return finish(JourneyPlannerUi(), context)
+        if (cityChanged) return finish(JourneyPlannerUi(cameraFitRevision = state.cameraFitRevision), context)
         val updated = state.copy(pin = state.pin.takeIf { context.available })
         if (!updated.isOpen) return finish(updated, context)
         if (!context.available) return finish(updated.copy(status = Status.Unavailable), context)
@@ -133,8 +135,7 @@ internal object JourneyPlannerReducer {
                 val options = JourneyPlanUiMapper.options(result.value, context.routes)
                 if (options.isEmpty()) Status.Empty else Status.Results(
                     options = options,
-                    selectedId = (previous as? Status.Results)?.selectedId?.takeIf { id -> options.any { it.id == id } }
-                        ?: options.first().id,
+                    selectedId = (previous as? Status.Results)?.keptSelection(options) ?: options.first().id,
                 )
             }
             is TransitLoadResult.Empty -> Status.Empty
@@ -148,6 +149,16 @@ internal object JourneyPlannerReducer {
         val fresh = previous == Status.Loading && next is Status.Results
         return finish(state.copy(status = next, cameraFitRevision = state.cameraFitRevision + if (fresh) 1 else 0), context)
     }
+
+    /** Re-plans mint new option IDs, so a kept choice is found again by its route sequence, unique per page. */
+    private fun Status.Results.keptSelection(next: List<JourneyOptionUi>): JourneyId? {
+        next.firstOrNull { it.id == selectedId }?.let { return it.id }
+        val chosen = options.firstOrNull { it.id == selectedId } ?: return null
+        return next.firstOrNull { it.routeSequence == chosen.routeSequence }?.id
+    }
+
+    private val JourneyOptionUi.routeSequence: List<RouteId>
+        get() = legs.filterIsInstance<JourneyLegUi.Ride>().map { it.route.routeId }
 
     private fun evaluate(
         candidate: JourneyPlannerUi, context: JourneyPlannerContext, explicit: Boolean = false,

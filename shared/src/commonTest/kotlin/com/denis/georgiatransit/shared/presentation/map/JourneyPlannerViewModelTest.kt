@@ -132,7 +132,7 @@ class JourneyPlannerViewModelTest {
             this@runTest.advanceTimeBy(3 * JOURNEY_REFRESH_INTERVAL_MILLIS)
             this@runTest.runCurrent()
             assertEquals(3, planner.queries.size)
-            assertEquals(JourneyPlannerUi(), plannerState(viewModel))
+            assertEquals(JourneyPlannerUi(cameraFitRevision = plannerState(viewModel).cameraFitRevision), plannerState(viewModel))
             cancelAndIgnoreRemainingItems()
         }
     }
