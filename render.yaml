@@ -13,7 +13,6 @@ services:
     dockerContext: .
     healthCheckPath: /healthz
     autoDeployTrigger: checksPass
-    maxShutdownDelaySeconds: 30
     disk:
       name: transit-bff-control-state
       mountPath: /app/storage
