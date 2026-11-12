@@ -123,8 +123,9 @@ internal class JourneyPlannerWorkflow(
             val known = context.routes.mapTo(mutableSetOf()) { it.id }
             val unknownRoute = (result as? TransitLoadResult.Data)?.value?.items.orEmpty()
                 .any { journey -> journey.segments.any { it.routeId != null && it.routeId !in known } }
-            // Route badges and line colours come from the catalogue, which a fresh map may not have loaded yet.
-            if (unknownRoute && city.capabilities.routes) guarded { catalog.refreshRoutes(RouteListRequest(city.id, context.locale)) }
+            // Badges and line colours come from the catalogue a fresh map may not have loaded yet; refresh the
+            // same default-request snapshot that `catalog.routes(cityId)` reads, or a non-English UI never sees it.
+            if (unknownRoute && city.capabilities.routes) guarded { catalog.refreshRoutes(RouteListRequest(city.id)) }
             if (key.generation == generation) onOutcome(JourneyPlanOutcome(key, result))
         }
     }

@@ -16,6 +16,7 @@ import com.denis.georgiatransit.shared.domain.model.TransitCity
 import com.denis.georgiatransit.shared.domain.model.TransitJourney
 import com.denis.georgiatransit.shared.domain.model.TransitJourneyLeg
 import com.denis.georgiatransit.shared.domain.model.TransitJourneySegment
+import com.denis.georgiatransit.shared.domain.model.TransitLocale
 import com.denis.georgiatransit.shared.domain.model.TransitRoute
 import com.denis.georgiatransit.shared.domain.repository.JourneyPlanRepository
 import com.denis.georgiatransit.shared.domain.repository.RouteListRequest
@@ -191,6 +192,7 @@ class JourneyPlannerViewModelTest {
 
         viewModel.test(this) {
             runOnCreate()
+            viewModel.dispatchAction(Action.LocaleChanged(TransitLocale.Russian))
             start(viewModel)
             planBetween(viewModel, A, B)
 
@@ -255,16 +257,17 @@ class JourneyPlannerViewModelTest {
         }
     }
 
+    /** Keys snapshots by request like BffTransitRepository, so a locale-specific refresh stays invisible to `routes`. */
     private class PlannerTransitRepository : TransitRepository {
         var refreshes = 0
-        private var loaded = emptyList<TransitRoute>()
+        private val loaded = mutableMapOf<RouteListRequest, List<TransitRoute>>()
         override fun cities() = listOf(CITY, OTHER_CITY)
-        override fun routes(cityId: CityId) = loaded
+        override fun routes(cityId: CityId) = loaded[RouteListRequest(cityId)].orEmpty()
 
         override suspend fun refreshRoutes(request: RouteListRequest): TransitLoadResult<List<TransitRoute>> {
             refreshes++
-            loaded = listOf(ROUTE)
-            return TransitLoadResult.Data(loaded, TransitFreshness.Network)
+            loaded[request] = listOf(ROUTE)
+            return TransitLoadResult.Data(listOf(ROUTE), TransitFreshness.Network)
         }
     }
 
