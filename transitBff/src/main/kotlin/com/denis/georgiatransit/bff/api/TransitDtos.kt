@@ -91,6 +91,21 @@ data class WalkingEstimateRequest(
     val locale: String,
 )
 
+/**
+ * Coordinate-bearing planning input (ADR 0023). Enum-like fields stay strings so validation errors
+ * never reflect a rejected request value.
+ */
+@Serializable
+data class JourneyPlanRequest(
+    val from: GeoPoint,
+    val to: GeoPoint,
+    val departureAt: String? = null,
+    val maxTransfers: Int = 2,
+    val mode: String = "FASTEST",
+    val transferBufferSeconds: Int = 60,
+    val locale: String,
+)
+
 /** Normalized direct-walking result with no geometry or endpoint coordinates. */
 @Serializable
 data class WalkingEstimate(
@@ -213,7 +228,28 @@ data class JourneySegment(
     val toStopId: String? = null,
     val fromPosition: GeoPoint? = null,
     val toPosition: GeoPoint? = null,
+    val distanceMeters: Double? = null,
+    /** Encoded polyline, precision 5. */
+    val geometry: String? = null,
+    val geometryApproximate: Boolean? = null,
+    val intermediateStopCount: Int? = null,
+    val waitSeconds: Long? = null,
+    val waitBasis: JourneyWaitBasis? = null,
+    val vehicleId: String? = null,
 )
+
+@Serializable
+enum class JourneyWaitBasis {
+    LIVE_VEHICLE,
+    HEADWAY_ESTIMATE,
+}
+
+@Serializable
+enum class JourneyTimingQuality {
+    LIVE,
+    MIXED,
+    ESTIMATED,
+}
 
 @OptIn(ExperimentalSerializationApi::class)
 @Serializable
@@ -227,6 +263,9 @@ data class Journey(
     /** Omit the empty default so legacy fixture responses retain their exact serialized shape. */
     @EncodeDefault(EncodeDefault.Mode.NEVER)
     val segments: List<JourneySegment> = emptyList(),
+    val durationSeconds: Long? = null,
+    val walkingDistanceMeters: Double? = null,
+    val timingQuality: JourneyTimingQuality? = null,
 )
 
 @Serializable
