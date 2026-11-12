@@ -164,6 +164,9 @@ jobs:
 
   ios:
     name: iOS
+    # Временно отключено, пока доделывается основной функционал. Вернуть: удалить `if`
+    # и добавить `ios` в `needs` задачи publish-web.
+    if: false
     runs-on: macos-15
     steps:
       - name: Check out source
@@ -243,7 +246,7 @@ jobs:
     name: Publish web client
     # Render's static-site build has no JDK or Android SDK, so CI publishes the tested bundle instead.
     if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
-    needs: [quality, bff, android, browser, ios]
+    needs: [quality, bff, android, browser]
     runs-on: ubuntu-24.04
     permissions:
       contents: write
