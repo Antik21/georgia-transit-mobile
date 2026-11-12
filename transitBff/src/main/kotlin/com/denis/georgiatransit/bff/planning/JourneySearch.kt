@@ -35,7 +35,7 @@ internal class JourneySearch(
         var boardable = HashMap<Int, MutableList<SearchLabel>>()
         graph.stopsWithin(origin, PlannerParameters.AccessRadiusMeters).forEach { access ->
             val meters = access.straightMeters * PlannerParameters.WalkDetourFactor
-            val label = AccessLabel(access.stop, departure + walkingSeconds(meters), meters)
+            val label = AccessLabel(access.stop, departure + accessWalkingSeconds(meters), meters)
             if (bag(access.stop).add(label)) boardable.getOrPut(access.stop, ::mutableListOf) += label
         }
         val results = mutableListOf<SearchResult>()
@@ -48,7 +48,7 @@ internal class JourneySearch(
                     results += SearchResult(
                         lastRide = ride,
                         egressMeters = egressMeters,
-                        arrival = ride.arrival + walkingSeconds(egressMeters),
+                        arrival = ride.arrival + accessWalkingSeconds(egressMeters),
                         walkMeters = ride.walkMeters + egressMeters,
                         transfers = round - 1,
                     )

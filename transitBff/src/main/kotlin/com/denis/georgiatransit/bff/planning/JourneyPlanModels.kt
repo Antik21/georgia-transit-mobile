@@ -49,6 +49,11 @@ internal fun walkingMeters(from: GeoPoint, to: GeoPoint): Double =
 
 internal fun walkingSeconds(meters: Double): Long = ceil(meters / PlannerParameters.WalkingMetersPerSecond).toLong()
 
+internal const val MinimumPassengerWalkMeters = 1.0
+
+/** An access or egress walk the itinerary omits must not take time, or the page loses continuity. */
+internal fun accessWalkingSeconds(meters: Double): Long = if (meters < MinimumPassengerWalkMeters) 0 else walkingSeconds(meters)
+
 /**
  * Planning is CPU-bound, so coroutine timeouts cannot interrupt it; the search polls this budget
  * between pattern scans instead.

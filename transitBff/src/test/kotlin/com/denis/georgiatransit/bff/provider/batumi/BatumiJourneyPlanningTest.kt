@@ -50,6 +50,16 @@ class BatumiJourneyPlanningTest {
     }
 
     @Test
+    fun `origin and destination within a metre of the stops still yield a continuous page`() {
+        val fixture = PlanningFixture(listOf(FixtureRoute("1", lineA)))
+        fixture.vehicle("1", "v1", lineA[0])
+
+        val page = fixture.plan(near(lineA[2], northMeters = 0.5), near(lineA[8], northMeters = 0.5))
+
+        assertEquals(listOf(TRANSIT), page.items.first { it.transitSegments.isNotEmpty() }.modes)
+    }
+
+    @Test
     fun `transfer at a shared stop chains two transit segments without a walk`() {
         val lineB = northLine("B", longitude = lineA[6].longitude, count = 10, startLat = 41.616)
             .map { if (it.rawId == "B6") lineA[6] else it }

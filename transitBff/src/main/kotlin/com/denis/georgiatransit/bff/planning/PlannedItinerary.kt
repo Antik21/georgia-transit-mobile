@@ -93,7 +93,8 @@ internal fun SearchResult.toItinerary(
                 label = current.boarding
             }
             is TransferLabel -> {
-                legs.addFirstWalk(
+                // Distinct stops must stay joined by a walk, however short, for ride-to-ride continuity.
+                legs.addFirst(
                     WalkLeg(
                         fromStop = current.from.stop,
                         toStop = current.stop,
@@ -122,5 +123,5 @@ internal fun SearchResult.toItinerary(
 
 /** A sub-metre walk (origin or destination at the stop) is noise for the passenger. */
 private fun ArrayDeque<PlannedLeg>.addFirstWalk(leg: WalkLeg) {
-    if (leg.meters >= 1.0) addFirst(leg)
+    if (leg.meters >= MinimumPassengerWalkMeters) addFirst(leg)
 }
