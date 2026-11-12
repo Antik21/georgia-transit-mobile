@@ -39,3 +39,8 @@ The Telegram Mini App shell, map renderer and same-origin BFF contract are recor
 [ADR 0020](0020-telegram-mini-app-web-client.md).
 Hosting the web client as a Render static site fed by CI is recorded in
 [ADR 0021](0021-telegram-web-hosting.md).
+The BFF-derived Batumi journey planner and its additive plan contract are recorded in
+[ADR 0022](0022-batumi-in-house-journey-planner.md).
+The journey endpoint model (current location or arbitrary A/B points) and the planning
+coordinate privacy boundary are recorded in
+[ADR 0023](0023-journey-endpoints-and-coordinate-boundary.md).

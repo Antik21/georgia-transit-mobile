@@ -2,6 +2,10 @@
 
 Status: Accepted (2026-09-22)
 
+Superseded in part on 2026-11-12 by
+[ADR 0023](0023-journey-endpoints-and-coordinate-boundary.md): the mobile client may send planning
+coordinates through the journey plan operation only. The stop-arrivals sheet stays location-free.
+
 Supersedes: the mobile-client and stop-sheet portions of ADR 0008
 
 ## Context
