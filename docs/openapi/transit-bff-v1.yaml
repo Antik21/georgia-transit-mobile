@@ -412,11 +412,11 @@ components:
     Error404Route: {description: Route or direction was not found; a disabled or absent city returns CITY_NOT_FOUND instead., headers: {X-Request-ID: {$ref: '#/components/headers/RequestId'}}, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorEnvelope'}, example: {error: {code: ROUTE_NOT_FOUND, message: Route was not found, requestId: req-123}}}}}
     Error404Stop: {description: Stop was not found; a disabled or absent city returns CITY_NOT_FOUND instead., headers: {X-Request-ID: {$ref: '#/components/headers/RequestId'}}, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorEnvelope'}, example: {error: {code: STOP_NOT_FOUND, message: Stop was not found, requestId: req-123}}}}}
     Error409: {description: Provider public ID changed., headers: {X-Request-ID: {$ref: '#/components/headers/RequestId'}}, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorEnvelope'}}}}
-    Error429: {description: Rate limited. Retry-After is included only when the provider supplied a valid bounded value., headers: {X-Request-ID: {$ref: '#/components/headers/RequestId'}, Retry-After: {schema: {type: integer, minimum: 1, maximum: 86400}}}, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorEnvelope'}}}}
+    Error429: {description: Rate limited. Retry-After is included only when the provider supplied a valid bounded value, or as 1 when the BFF journey planner is at capacity., headers: {X-Request-ID: {$ref: '#/components/headers/RequestId'}, Retry-After: {schema: {type: integer, minimum: 1, maximum: 86400}}}, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorEnvelope'}}}}
     Error500: {description: Unexpected internal BFF failure. The response omits internals and has no Retry-After header., headers: {X-Request-ID: {$ref: '#/components/headers/RequestId'}}, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorEnvelope'}, example: {error: {code: INTERNAL_ERROR, message: The service encountered an internal error, requestId: req-123}}}}}
     Error501: {description: City capability is unavailable., headers: {X-Request-ID: {$ref: '#/components/headers/RequestId'}}, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorEnvelope'}}}}
     Error502: {description: Provider returned an invalid response., headers: {X-Request-ID: {$ref: '#/components/headers/RequestId'}}, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorEnvelope'}}}}
-    Error503: {description: BFF or provider is unavailable. Retry-After is included only when the provider supplied a valid bounded value., headers: {X-Request-ID: {$ref: '#/components/headers/RequestId'}, Retry-After: {schema: {type: integer, minimum: 1, maximum: 86400}}}, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorEnvelope'}}}}
+    Error503: {description: BFF or provider is unavailable. Retry-After is included only when the provider supplied a valid bounded value, or as 1 when the BFF journey planner exceeds its time budget., headers: {X-Request-ID: {$ref: '#/components/headers/RequestId'}, Retry-After: {schema: {type: integer, minimum: 1, maximum: 86400}}}, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorEnvelope'}}}}
     Error504: {description: Provider request timed out., headers: {X-Request-ID: {$ref: '#/components/headers/RequestId'}}, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorEnvelope'}}}}
   schemas:
     RequestId: {type: string, maxLength: 128, pattern: '^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$'}
@@ -606,7 +606,7 @@ components:
       enum: [LIVE_VEHICLE, HEADWAY_ESTIMATE]
     JourneyTimingQuality:
       type: string
-      description: Additive. LIVE when every wait is LIVE_VEHICLE, ESTIMATED when none is, MIXED otherwise.
+      description: Additive. LIVE when every wait is LIVE_VEHICLE, ESTIMATED when none is (including a walk-only journey), MIXED otherwise.
       enum: [LIVE, MIXED, ESTIMATED]
     JourneyPlanMode: {type: string, enum: [FASTEST, LESS_WALKING, FEWER_TRANSFERS]}
     JourneyPlanRequest:

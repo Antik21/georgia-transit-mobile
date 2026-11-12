@@ -198,7 +198,7 @@
 в query: так же, как в walking-estimate, чтобы не попасть в логи и URL.
 
 ```text
-request:  { from:{lat,lon}, to:{lat,lon}, departAt?: UTC, maxTransfers: 0..2,
+request:  { from:{lat,lon}, to:{lat,lon}, departureAt?: UTC, maxTransfers: 0..2,
             mode: FASTEST|LESS_WALKING|FEWER_TRANSFERS, transferBufferSeconds, locale }
 response: JourneyPage {
   items: Journey[1..3] {

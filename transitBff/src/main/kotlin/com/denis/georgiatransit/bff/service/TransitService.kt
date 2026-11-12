@@ -12,9 +12,7 @@ import com.denis.georgiatransit.bff.api.UpstreamTimeout
 import com.denis.georgiatransit.bff.api.VehiclePage
 import com.denis.georgiatransit.bff.api.WalkingEstimate
 import com.denis.georgiatransit.bff.cache.BoundedKeyedTtlCache
-import com.denis.georgiatransit.bff.cache.CacheLookupOutcome
 import com.denis.georgiatransit.bff.cache.SingleFlight
-import com.denis.georgiatransit.bff.cache.SingleFlightLookupOutcome
 import com.denis.georgiatransit.bff.control.CapabilitySnapshotSource
 import com.denis.georgiatransit.bff.control.EffectiveCapabilitySnapshot
 import com.denis.georgiatransit.bff.control.EffectiveCity
@@ -32,7 +30,6 @@ import com.denis.georgiatransit.bff.provider.SyntheticProbeProvider
 import com.denis.georgiatransit.bff.provider.SyntheticProbeResult
 import com.denis.georgiatransit.bff.provider.SyntheticProbeTarget
 import com.denis.georgiatransit.bff.observability.BffObservability
-import com.denis.georgiatransit.bff.observability.CacheOutcome
 import com.denis.georgiatransit.bff.observability.ProviderOutcome
 import com.denis.georgiatransit.bff.observability.ProviderTelemetryLabels
 import com.denis.georgiatransit.bff.observability.TelemetryCapability
@@ -482,25 +479,4 @@ class TransitService(
         observability?.recordDataResult(labels, observedAt, stale, itemCount, realtime, probe)
     }
 
-    private fun CacheLookupOutcome.telemetryOutcome(): CacheOutcome = when (this) {
-        CacheLookupOutcome.HIT -> CacheOutcome.HIT
-        CacheLookupOutcome.MISS_OWNER -> CacheOutcome.MISS_OWNER
-        CacheLookupOutcome.COALESCED -> CacheOutcome.COALESCED
-    }
-
-    private fun SingleFlightLookupOutcome.telemetryOutcome(): CacheOutcome = when (this) {
-        SingleFlightLookupOutcome.MISS_OWNER -> CacheOutcome.MISS_OWNER
-        SingleFlightLookupOutcome.COALESCED -> CacheOutcome.COALESCED
-    }
-
-    private fun com.denis.georgiatransit.bff.api.CityCapabilities.capabilityEnabled(
-        capability: TelemetryCapability,
-    ): Boolean = when (capability) {
-        TelemetryCapability.ROUTES -> routes
-        TelemetryCapability.STOPS -> stops
-        TelemetryCapability.ROUTE_GEOMETRY -> routeGeometry
-        TelemetryCapability.VEHICLE_POSITIONS -> vehiclePositions
-        TelemetryCapability.ARRIVALS -> arrivals
-        TelemetryCapability.TRIP_PLANNING -> tripPlanning
-    }
 }

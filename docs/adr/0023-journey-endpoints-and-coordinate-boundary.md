@@ -87,7 +87,7 @@ Coordinates leave the device in exactly one operation:
 
 ```text
 POST /v1/cities/{cityId}/journeys/plan
-{ from:{lat,lon}, to:{lat,lon}, departAt?, maxTransfers, mode, transferBufferSeconds, locale }
+{ from:{lat,lon}, to:{lat,lon}, departureAt?, maxTransfers, mode, transferBufferSeconds, locale }
 ```
 
 - The client rounds both points to 4 decimal places (about 11 m) before sending.
