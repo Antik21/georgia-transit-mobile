@@ -63,7 +63,7 @@ internal object BatumiLiveTimetableBuilder {
 
     /**
      * A bus yields its current pass (stops not yet passed) and, on a non-circle pattern, its next
-     * circuit for the stops it already passed; both reuse the board's distance and dwell rules.
+     * circuit through the whole pattern; both reuse the board's distance and dwell rules.
      */
     private fun liveTrips(
         meta: BatumiPatternMeta,
@@ -76,18 +76,21 @@ internal object BatumiLiveTimetableBuilder {
         val current = LongArray(along.size) { NotServed }
         val nextCircuit = LongArray(along.size) { NotServed }
         val position = vehicle.alongMeters
+        fun at(meters: Double) = observedAt.epochSecond + stopChainSeconds(meters, metersPerSecond, cycle.stopsBefore(position, meters)).roundToLong()
         along.indices.forEach { index ->
             val chainMeters = cycle.chain[meta.chainIndices[index]].cumulativeMeters
             val ahead = chainMeters - position >= -EtaPassedStopToleranceMeters
             val distance = forwardCycleDistance(position, chainMeters, cycle.totalMeters)
-            val (target, value) = when {
-                index >= meta.secondLapStart -> current to distance + if (ahead) cycle.totalMeters else 0.0
-                ahead -> current to distance
+            when {
+                index >= meta.secondLapStart -> current[index] = at(distance + if (ahead) cycle.totalMeters else 0.0)
+                ahead -> {
+                    current[index] = at(distance)
+                    // A rider boarding a passed stop on the next circuit must still reach the stops ahead of the bus now.
+                    if (!meta.circle) nextCircuit[index] = at(distance + cycle.totalMeters)
+                }
                 meta.circle -> return@forEach
-                else -> nextCircuit to distance
+                else -> nextCircuit[index] = at(distance)
             }
-            val seconds = stopChainSeconds(value, metersPerSecond, cycle.stopsBefore(position, value))
-            target[index] = observedAt.epochSecond + seconds.roundToLong()
         }
         return listOf(current, nextCircuit)
             .filter { times -> times.any { it != NotServed } }

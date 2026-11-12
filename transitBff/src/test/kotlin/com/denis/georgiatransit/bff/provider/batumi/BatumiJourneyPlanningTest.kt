@@ -60,6 +60,18 @@ class BatumiJourneyPlanningTest {
     }
 
     @Test
+    fun `a bus between the boarding and alighting stops still carries the ride on its next circuit`() {
+        val fixture = PlanningFixture(listOf(FixtureRoute("1", lineA)))
+        fixture.vehicle("1", "v1", lineA[5])
+
+        val page = fixture.plan(near(lineA[1]), near(lineA[9]))
+
+        val ride = assertNotNull(page.items.firstOrNull { it.transitSegments.size == 1 }, "the direct ride must survive").transitSegments.single()
+        assertEquals(fixture.stopId("A1") to fixture.stopId("A9"), ride.fromStopId to ride.toStopId)
+        assertEquals(JourneyWaitBasis.LIVE_VEHICLE, ride.waitBasis)
+    }
+
+    @Test
     fun `transfer at a shared stop chains two transit segments without a walk`() {
         val lineB = northLine("B", longitude = lineA[6].longitude, count = 10, startLat = 41.616)
             .map { if (it.rawId == "B6") lineA[6] else it }
