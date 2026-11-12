@@ -3,7 +3,10 @@ import {
 } from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import mapWorkerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?url&no-inline";
-import type { MapState, MapStopLayer, MapStopPin, VehicleLayer } from "./contracts";
+import type { MapState, MapStopLayer, MapStopPin, PlannerState, VehicleLayer } from "./contracts";
+import {
+  createPlannerMap, plannerBusLayerIds, plannerLineLayerIds, plannerPointLayerId, type PlannerMapActions, type PlannerMapLabels,
+} from "./planner-map";
 import { drawStopCluster, drawStopPin } from "./stop-pin";
 import { drawVehicleBadge, systemTextScale, vehicleBadgeStyle, type VehicleBadgeStyle } from "./vehicle-badge";
 
@@ -28,6 +31,7 @@ const maxStopMarkers = 1_000;
 const maxVehicleMarkers = 2_000;
 const maxBadgeImages = 256;
 const staleVehicleOpacity = 0.62;
+const dimmedVehicleOpacity = 0.4;
 // Badge artwork points east; MapLibre's icon-rotate is clockwise from north.
 const eastwardArtworkBearing = 90;
 const minVehicleTarget = 48;
@@ -48,11 +52,13 @@ const localStyle: StyleSpecification = {
 
 // Bottom to top, as in the native adapters: the selected stop and the user dot stay above vehicles.
 const layerOrder = [
-  "transit-route-lines-base", "transit-route-lines-emphasized", "transit-user-accuracy-fill", "transit-user-accuracy-line",
-  stopLayerId, clusterLayerId, attentionLayerId, vehicleLayerId, selectedStopLayerId, "transit-user-location",
+  "transit-route-lines-base", "transit-route-lines-emphasized", ...plannerLineLayerIds,
+  "transit-user-accuracy-fill", "transit-user-accuracy-line",
+  stopLayerId, clusterLayerId, plannerPointLayerId, attentionLayerId, vehicleLayerId, ...plannerBusLayerIds, selectedStopLayerId,
+  "transit-user-location",
 ];
 
-interface MapActions {
+interface MapActions extends PlannerMapActions {
   tapStop(stopId: string, revision: string): void;
   updateViewport(latitude: number, longitude: number, radiusMeters: number, zoom: number): void;
   selectVehicle(vehicleId: string, revision: string): void;
@@ -62,6 +68,7 @@ interface MapActions {
 export interface TransitMap {
   update(state: MapState): void;
   updateVehicles(layer: VehicleLayer): void;
+  updatePlanner(state: PlannerState): void;
   retry(): void;
   resize(): void;
   setVisible(visible: boolean): void;
@@ -81,9 +88,10 @@ function normalizedBearing(degrees: number) {
   return ((degrees % 360) + 360) % 360;
 }
 
-function vehicleData(layer: VehicleLayer, imageIds: Map<string, string>) {
+// The planner draws its highlighted buses itself; the rest of the fleet steps back while they are shown.
+function vehicleData(layer: VehicleLayer, imageIds: Map<string, string>, highlighted: ReadonlySet<string>) {
   const vehicles = layer.vehicles
-    .filter((vehicle) => Number.isFinite(vehicle.latitude) && Number.isFinite(vehicle.longitude))
+    .filter((vehicle) => Number.isFinite(vehicle.latitude) && Number.isFinite(vehicle.longitude) && !highlighted.has(vehicle.id))
     .slice(0, maxVehicleMarkers);
   // A deterministic bounded subset, as on mobile, keeps the pulse cost independent of fleet size.
   const attention = new Set(vehicles.filter((vehicle) => vehicle.id && vehicle.routeId).map((vehicle) => vehicle.id)
@@ -102,7 +110,7 @@ function vehicleData(layer: VehicleLayer, imageIds: Map<string, string>) {
           color: style.color,
           attention: attention.has(vehicle.id),
           rotation: vehicle.bearing == null ? 0 : normalizedBearing(vehicle.bearing - eastwardArtworkBearing),
-          opacity: vehicle.stale ? staleVehicleOpacity : 1,
+          opacity: (vehicle.stale ? staleVehicleOpacity : 1) * (highlighted.size ? dimmedVehicleOpacity : 1),
         },
         geometry: { type: "Point" as const, coordinates: [vehicle.longitude, vehicle.latitude] },
       };
@@ -203,7 +211,9 @@ function routeLineData(lines: MapState["routePolylines"]) {
   };
 }
 
-export function createTransitMap(container: HTMLElement, initial: MapState, actions: MapActions): TransitMap {
+export function createTransitMap(
+  container: HTMLElement, initial: MapState, actions: MapActions, plannerLabels: PlannerMapLabels,
+): TransitMap {
   const { camera, styleUrl } = initial;
   if (!camera) throw new Error("Map camera is missing");
   const map = new MapLibreMap({
@@ -230,6 +240,7 @@ export function createTransitMap(container: HTMLElement, initial: MapState, acti
   let renderedRouteRevision: string | undefined;
   let renderedUserLocation: string | undefined;
   let vehicles: VehicleLayer | undefined;
+  let highlightedVehicles: ReadonlySet<string> = new Set();
   let renderedVehicleRevision: string | undefined;
   let renderedBadgeRevision: string | undefined;
   const badgeImageIds = new Map<string, string>();
@@ -395,7 +406,7 @@ export function createTransitMap(container: HTMLElement, initial: MapState, acti
       syncBadgeImages(vehicles);
       renderedBadgeRevision = vehicles.badgeRevision;
     }
-    const { attentionCount: nextAttentionCount, ...data } = vehicleData(vehicles, badgeImageIds);
+    const { attentionCount: nextAttentionCount, ...data } = vehicleData(vehicles, badgeImageIds, highlightedVehicles);
     const source = map.getSource<GeoJSONSource>(vehicleSourceId);
     if (source) {
       source.setData(data);
@@ -469,6 +480,7 @@ export function createTransitMap(container: HTMLElement, initial: MapState, acti
     attentionTimer ??= setTimeout(attentionTick, attentionTickMillis);
   }
   reducedMotion.addEventListener("change", refreshAttention);
+  const planner = createPlannerMap(map, addLayerInOrder, actions, plannerLabels, reducedMotion);
 
   map.on("style.load", () => {
     remoteStyleLoading = false;
@@ -481,6 +493,8 @@ export function createTransitMap(container: HTMLElement, initial: MapState, acti
     // A replaced style drops every image registered on the previous one.
     badgeImageIds.clear();
     stopImageIds.clear();
+    // First, so a failure in another layer cannot leave a planned route undrawn.
+    planner.styleLoaded();
     renderRouteLines();
     renderUserLocation();
     renderStops();
@@ -522,6 +536,7 @@ export function createTransitMap(container: HTMLElement, initial: MapState, acti
     return nearest;
   }
   map.on("click", (event) => {
+    if (planner.consumeClick()) return;
     const stop = stopAt(event);
     if (stop) {
       actions.tapStop(stop.id, stop.revision);
@@ -542,6 +557,7 @@ export function createTransitMap(container: HTMLElement, initial: MapState, acti
     remoteStyleLoading = false;
     usingFallbackStyle = true;
     styleReady = false;
+    planner.styleLost();
     map.setStyle(localStyle, { diff: false });
   });
 
@@ -550,10 +566,12 @@ export function createTransitMap(container: HTMLElement, initial: MapState, acti
     usingFallbackStyle = false;
     remoteStyleLoading = true;
     styleReady = false;
+    planner.styleLost();
     map.setStyle("/v1/map/style.json", { diff: false });
   }
   map.on("webglcontextlost", () => {
     styleReady = false;
+    planner.styleLost();
     actions.setUnavailable(true);
   });
   map.on("webglcontextrestored", () => actions.setUnavailable(false));
@@ -639,8 +657,18 @@ export function createTransitMap(container: HTMLElement, initial: MapState, acti
     reducedMotion.removeEventListener("change", refreshAttention);
     clearTimeout(attentionTimer);
     attentionTimer = undefined;
+    planner.dispose();
     map.remove();
   }
 
-  return { update, updateVehicles, retry, resize, setVisible, dispose };
+  function updatePlanner(state: PlannerState) {
+    planner.update(state);
+    const ids = new Set(state.buses.map((bus) => bus.id));
+    if (ids.size === highlightedVehicles.size && [...ids].every((id) => highlightedVehicles.has(id))) return;
+    highlightedVehicles = ids;
+    renderedVehicleRevision = undefined;
+    renderVehicles();
+  }
+
+  return { update, updateVehicles, updatePlanner, retry, resize, setVisible, dispose };
 }

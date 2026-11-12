@@ -22,12 +22,18 @@ import com.denis.georgiatransit.bff.api.WalkingEstimate
 import com.denis.georgiatransit.bff.api.TransitModeValues
 import com.denis.georgiatransit.bff.api.formatPublicId
 import com.denis.georgiatransit.bff.config.BatumiThetaActivationConfig
+import com.denis.georgiatransit.bff.geo.encodePolyline
 import com.denis.georgiatransit.bff.observability.TelemetryProvider
 import com.denis.georgiatransit.bff.observability.BffObservability
 import com.denis.georgiatransit.bff.observability.ProviderOutcome
 import com.denis.georgiatransit.bff.observability.ProviderTelemetryLabels
 import com.denis.georgiatransit.bff.observability.TelemetryCapability
 import com.denis.georgiatransit.bff.observability.TelemetryOperation
+import com.denis.georgiatransit.bff.planning.GeoBounds
+import com.denis.georgiatransit.bff.planning.JourneyPlanQuery
+import com.denis.georgiatransit.bff.planning.PlanningBudget
+import com.denis.georgiatransit.bff.provider.batumi.BatumiJourneyPlanning
+import com.denis.georgiatransit.bff.provider.batumi.BatumiServiceBounds
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.cio.CIO
 import io.ktor.client.network.sockets.ConnectTimeoutException
@@ -46,11 +52,7 @@ import java.time.Duration
 import java.time.Instant
 import java.util.Base64
 import java.security.MessageDigest
-import kotlin.math.PI
-import kotlin.math.cos
 import kotlin.math.ceil
-import kotlin.math.hypot
-import kotlin.math.min
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.sync.Mutex
@@ -101,12 +103,15 @@ internal class BatumiThetaTransitProviderAdapter(
         defaultZoom = 13.0,
         capabilities = CityCapabilities(
             routes = true, stops = true, routeGeometry = true, vehiclePositions = true,
-            officialArrivals = false, tripPlanning = false, arrivals = true,
+            officialArrivals = false, tripPlanning = true, arrivals = true,
         ),
         availability = CityAvailability(CityReadiness.PRODUCTION_READY, CitySource.REVIEWED_ADAPTER),
     )
 
     private var lastKnownGood: TimedCatalog? = null
+    private val journeyPlanning = BatumiJourneyPlanning(
+        BatumiCityId, BatumiProviderId, Duration.ofDays(BatumiCatalogLkgDays), BatumiLiveMaximumAge, BatumiGlobalFeedFreshAge,
+    )
     /** Prevent stale callers queued behind one failed refresh from serially retrying upstream. */
     private var lastRefreshFailureAt: Instant? = null
     private val catalogMutex = Mutex()
@@ -162,6 +167,7 @@ internal class BatumiThetaTransitProviderAdapter(
                 NormalizedResponseValidator.shape(city.id, route, route.directions.single().id, parsed.shapes.getValue(route.id))
             }
                 lastKnownGood = TimedCatalog(parsed, now)
+                journeyPlanning.publish(parsed, now)
                 lastRefreshFailureAt = null
             }
         } catch (failure: ProviderFailure) {
@@ -284,7 +290,16 @@ internal class BatumiThetaTransitProviderAdapter(
                 .sortedWith(compareBy(Arrival::stopId, Arrival::expectedAt)),
         )
     }
+    /** Query-string coordinates may be retained by edge infrastructure, so Batumi never serves GET. */
     override suspend fun journeys(query: JourneyQuery): List<Journey> = unavailable()
+    override val serviceBounds: GeoBounds = BatumiServiceBounds
+    override val tripPlanningReady: Boolean
+        get() = journeyPlanning.isReady(clock.instant(), cityFeedWorker?.currentOrNull()?.observedAt)
+
+    override suspend fun planJourney(query: JourneyPlanQuery, budget: PlanningBudget): RealtimeJourneys {
+        val live = cityFeedWorker?.currentOrNull() ?: throw ProviderUnavailable("Batumi global live data is unavailable")
+        return journeyPlanning.plan(query, budget, live.vehiclesByRoute, live.observedAt, clock.instant())
+    }
     override suspend fun walkingEstimate(query: WalkingQuery): WalkingEstimate = unavailable()
     override fun close() {
         cityFeedWorker?.close()
@@ -611,7 +626,7 @@ internal class BatumiThetaTransitProviderAdapter(
 private data class TimedCatalog(val catalog: BatumiCatalog, val savedAt: Instant)
 private data class TimedLiveSnapshot(val snapshot: LiveSnapshot)
 private data class LiveSnapshot(val vehicles: List<BatumiLiveVehicle>, val observedAt: Instant, val stale: Boolean)
-private data class BatumiAllRoutesSnapshot(
+internal data class BatumiAllRoutesSnapshot(
     val vehiclesByRoute: Map<String, List<BatumiLiveVehicle>>,
     val arrivalsByRoute: Map<String, List<Arrival>>,
     val observedAt: Instant,
@@ -630,6 +645,7 @@ private data class ArrivalCandidateState(
 internal data class BatumiCatalog(
     val routes: List<Route>, val stops: List<Stop>, val stopOrderByRoute: Map<String, List<Stop>>, val shapes: Map<String, Shape>,
     val geometries: Map<String, List<GeoPoint>>, val rawRouteIds: Map<String, String>, val cycles: Map<String, RouteCycle>,
+    val circleRouteIds: Set<String> = emptySet(),
 ) {
     fun stopsFor(routeId: String): List<Stop> = stopOrderByRoute[routeId] ?: throw ProviderRouteNotFound("The requested route was not found")
     fun requireDirection(routeId: String, directionId: String) {
@@ -736,7 +752,7 @@ internal object BatumiThetaCatalogParser {
         if (rawRoutes.isEmpty() || rawRoutes.size > BatumiMaximumRoutes || rawStops.size > BatumiMaximumStops) invalid()
         val routeEntries = rawRoutes.map { (key, element) -> element.objectValue().let { obj ->
             val raw = obj.stringOr("RouteIdGeoGps", "_id", "RouteId", fallback = key ?: "").also { if (!safeString(it)) invalid() }
-            RawRoute(raw, obj.stringOr("RouteNameEN", "RouteNameGeoGps", "RouteName", fallback = raw), obj.stringOr("RouteNameKA", "RouteNameGeoGpsKA", fallback = raw), obj.numberOrNull("RouteSortOrder") ?: Int.MAX_VALUE.toDouble())
+            RawRoute(raw, obj.stringOr("RouteNameEN", "RouteNameGeoGps", "RouteName", fallback = raw), obj.stringOr("RouteNameKA", "RouteNameGeoGpsKA", fallback = raw), obj.numberOrNull("RouteSortOrder") ?: Int.MAX_VALUE.toDouble(), obj.flag("RouteIsCircle"))
         } }
         if (routeEntries.map(RawRoute::rawId).toSet().size != routeEntries.size) invalid()
         val routesByRaw = routeEntries.associateBy(RawRoute::rawId)
@@ -801,10 +817,11 @@ internal object BatumiThetaCatalogParser {
             geometries = geometries,
             rawRouteIds = routeIds.entries.associate { (raw, normalized) -> normalized to raw },
             cycles = cycles,
+            circleRouteIds = routeEntries.filter(RawRoute::circle).mapTo(mutableSetOf()) { routeIds.getValue(it.rawId) },
         )
     }
 
-    private data class RawRoute(val rawId: String, val name: String, val ka: String, val order: Double)
+    private data class RawRoute(val rawId: String, val name: String, val ka: String, val order: Double, val circle: Boolean)
     private data class RawStop(val rawId: String, val code: String, val name: String, val ka: String, val position: GeoPoint, val memberships: List<RawRouteMembership>)
     private data class RawRouteMembership(val rawRouteId: String, val status: Int, val order: Int)
     private fun technicalDirection(rawRoute: String) = Direction(BatumiIds.direction(rawRoute), LocalizedText("Техническое направление", "Technical direction", "ტექნიკური მიმართულება"), LocalizedText("Техническое направление", "Technical direction", "ტექნიკური მიმართულება"))
@@ -824,6 +841,9 @@ internal object BatumiThetaCatalogParser {
         is JsonArray -> if (element.size == 2) GeoPoint(element[0].numberValue(), element[1].numberValue()) else invalid()
         else -> invalid()
     }.also { if (!inBatumi(it.latitude, it.longitude)) invalid() }
+    /** Absent or unrecognized means not circular, so a ride never wraps a terminal by mistake. */
+    private fun JsonObject.flag(name: String): Boolean =
+        (this[name] as? JsonPrimitive)?.content?.lowercase() in setOf("true", "1")
     private fun JsonElement.numberValue(): Double = (this as? JsonPrimitive)?.content?.toDoubleOrNull()?.takeIf(Double::isFinite) ?: invalid()
     private fun safeString(value: String): Boolean = value.isNotBlank() && value.toByteArray(StandardCharsets.UTF_8).size <= BatumiMaximumStringBytes
     private fun inBatumi(lat: Double, lon: Double): Boolean = lat.isFinite() && lon.isFinite() && lat in 41.45..41.85 && lon in 41.40..41.95
@@ -990,15 +1010,14 @@ private fun buildRouteCycle(stops: List<RouteStop>): RouteCycle {
     if (stops.size < 2) throw ProviderNormalizedSchemaFailure("Batumi route stop chain is incomplete")
     var cumulative = 0.0
     val chain = stops.mapIndexed { index, routeStop ->
-        if (index > 0) cumulative += haversineMeters(stops[index - 1].stop.position, routeStop.stop.position)
+        if (index > 0) cumulative += chainMeters(stops[index - 1].stop.position, routeStop.stop.position)
         RoutePoint(routeStop.stop, routeStop.status, routeStop.order, cumulative)
     }
-    val total = cumulative + haversineMeters(stops.last().stop.position, stops.first().stop.position)
+    val total = cumulative + chainMeters(stops.last().stop.position, stops.first().stop.position)
     if (!total.isFinite() || total <= 0.0) throw ProviderNormalizedSchemaFailure("Batumi route stop chain is invalid")
     return RouteCycle(chain, total)
 }
 
-private const val EtaMaxProjectionMeters = 150.0
 private const val BatumiMaximumGlobalVehicles = 4_096
 private const val BatumiMaximumEtaWorkItems = 100_000L
 private val GlobalFeedTelemetryLabels = ProviderTelemetryLabels(
@@ -1016,44 +1035,10 @@ private val GlobalFeedSchemaTelemetryLabels = listOf(
         operation = TelemetryOperation.ARRIVALS,
     ),
 )
-private const val EtaPassedStopToleranceMeters = 150.0
-private const val EtaDwellSeconds = 60.0
-/** Passenger-board horizon: farther candidates are deliberately omitted rather than guessed. */
-private const val EtaMaximumSeconds = 45 * 60L
 private const val MaximumConsecutiveCandidateMisses = 2
 /** Current generation plus the one-generation continuity bridge, both workload-bounded. */
 private const val MaximumArrivalCandidates = 200_000
 private val ArrivalCandidateRetention: Duration = Duration.ofMinutes(1)
-
-private data class PolylineProjection(val alongMeters: Double, val distanceMeters: Double)
-private val BatumiMovingKmhByRawRoute = mapOf(
-    "60acde9ffcc7a224160c587c" to 23.7,
-    "648994879327c728200b3f52" to 22.7,
-    "5ed2bd4f657784b5a98a8c7e" to 24.2,
-    "5ed6077c340f60873ff9e1be" to 25.1,
-    "5ed60865340f60873ff9e1bf" to 23.0,
-    "67ae3607e37f0ecf8032068f" to 21.1,
-    "5f9f0704eb714303efce5631" to 32.2,
-    "6740347dd04d3a04c35d84e4" to 23.6,
-    "67402e01d04d3a04c35d84c2" to 23.0,
-    "5ed60aa5340f60873ff9e1c4" to 26.2,
-    "5ed60b25340f60873ff9e1c5" to 26.5,
-    "64901c96e25b40c6e2150b34" to 29.6,
-    "5ed60be3340f60873ff9e1c6" to 31.8,
-    "6941c100f141b1861c3958a0" to 22.5,
-    "5ed60d70340f60873ff9e1c8" to 26.5,
-    "648996c69327c728200b3f63" to 23.8,
-    "615182e95dc186cad86e0fd2" to 21.5,
-    "5ed60e97340f60873ff9e1cb" to 24.4,
-    "5ed60f32340f60873ff9e1cc" to 28.6,
-    "675bf5b960b00f8db1965a52" to 23.8,
-    "66de91d980df11324f155751" to 33.5,
-    "69429301f141b1861c395bec" to 26.9,
-    "67d92ac719ba93b977b83df4" to 30.5,
-    "67d9522119ba93b977b83e6f" to 27.5,
-    "6724af35cabac5486baeb625" to 33.7,
-)
-private const val BatumiFallbackMovingKmh = 25.1
 
 /** Reuses only a still-future, previously accepted ETA during the one-snapshot continuity bridge. */
 private fun Arrival.retimedFor(observedAt: Instant): Arrival? {
@@ -1061,99 +1046,6 @@ private fun Arrival.retimedFor(observedAt: Instant): Arrival? {
     val seconds = Duration.between(observedAt, expected).seconds
     if (seconds < 0 || seconds > EtaMaximumSeconds) return null
     return copy(expectedInMinutes = ceil(seconds / 60.0).toInt())
-}
-
-private fun project(points: List<GeoPoint>, target: GeoPoint): PolylineProjection? {
-    if (points.size < 2) return null
-    val latScale = 111_320.0
-    val lonScale = 111_320.0 * cos(target.latitude * PI / 180.0)
-    var total = 0.0
-    var best: PolylineProjection? = null
-    points.zipWithNext().forEach { (a, b) ->
-        val ax = (a.longitude - target.longitude) * lonScale; val ay = (a.latitude - target.latitude) * latScale
-        val bx = (b.longitude - target.longitude) * lonScale; val by = (b.latitude - target.latitude) * latScale
-        val dx = bx - ax; val dy = by - ay; val segment = hypot(dx, dy)
-        if (segment > 0.01) {
-            val t = ((-ax * dx - ay * dy) / (segment * segment)).coerceIn(0.0, 1.0)
-            val distance = hypot(ax + t * dx, ay + t * dy)
-            val candidate = PolylineProjection(total + t * segment, distance)
-            if (best?.distanceMeters == null || candidate.distanceMeters < best.distanceMeters) best = candidate
-            total += segment
-        }
-    }
-    return best
-}
-
-private fun haversineMeters(a: GeoPoint, b: GeoPoint): Double {
-    val lat = (b.latitude - a.latitude) * PI / 180.0; val lon = (b.longitude - a.longitude) * PI / 180.0
-    val sinLat = kotlin.math.sin(lat / 2); val sinLon = kotlin.math.sin(lon / 2)
-    val h = sinLat * sinLat + cos(a.latitude * PI / 180.0) * cos(b.latitude * PI / 180.0) * sinLon * sinLon
-    return 12_742_000.0 * kotlin.math.asin(kotlin.math.sqrt(h.coerceIn(0.0, 1.0)))
-}
-
-private fun projectVehicle(
-    catalog: BatumiCatalog,
-    routeId: String,
-    cycle: RouteCycle,
-    live: BatumiLiveVehicle,
-): PolylineProjection? {
-    if (project(catalog.geometry(routeId), live.vehicle.position)?.distanceMeters?.let { it > EtaMaxProjectionMeters } != false) {
-        return null
-    }
-    val status = live.status ?: cycle.statuses.singleOrNull() ?: return null
-    if (status < 0) return null
-    var best: PolylineProjection? = null
-    cycle.chain.indices.forEach { index ->
-        val start = cycle.chain[index]
-        val end = cycle.chain[(index + 1) % cycle.chain.size]
-        if (start.status != status || end.status != status) return@forEach
-        val candidate = projectSegment(
-            start.stop.position,
-            end.stop.position,
-            live.vehicle.position,
-            start.cumulativeMeters,
-        )
-        if (best == null || candidate.distanceMeters < requireNotNull(best).distanceMeters) best = candidate
-    }
-    return best?.takeIf { it.distanceMeters <= EtaMaxProjectionMeters }
-}
-
-private fun projectSegment(
-    start: GeoPoint,
-    end: GeoPoint,
-    target: GeoPoint,
-    cumulativeMeters: Double,
-): PolylineProjection {
-    val latScale = 110_540.0
-    val lonScale = 111_320.0 * cos(target.latitude * PI / 180.0)
-    val ax = (start.longitude - target.longitude) * lonScale
-    val ay = (start.latitude - target.latitude) * latScale
-    val bx = (end.longitude - target.longitude) * lonScale
-    val by = (end.latitude - target.latitude) * latScale
-    val dx = bx - ax
-    val dy = by - ay
-    val segment = hypot(dx, dy)
-    if (segment <= 0.01) return PolylineProjection(cumulativeMeters, hypot(ax, ay))
-    val ratio = ((-ax * dx - ay * dy) / (segment * segment)).coerceIn(0.0, 1.0)
-    return PolylineProjection(
-        cumulativeMeters + ratio * haversineMeters(start, end),
-        hypot(ax + ratio * dx, ay + ratio * dy),
-    )
-}
-
-private fun forwardCycleDistance(from: Double, to: Double, total: Double): Double {
-    val direct = to - from
-    return when {
-        direct < -EtaPassedStopToleranceMeters -> direct + total
-        direct < 0.0 -> 0.0
-        else -> direct
-    }.coerceIn(0.0, total)
-}
-
-private fun etaMinutes(distance: Double, metersPerSecond: Double, dwellStops: Int): Int? {
-    val seconds = distance / metersPerSecond + dwellStops * EtaDwellSeconds
-    if (!seconds.isFinite() || seconds > EtaMaximumSeconds) return null
-    return kotlin.math.round(seconds / 60.0).toInt().coerceAtLeast(1)
 }
 
 internal fun validateEtaWorkload(routeSizes: Iterable<Pair<Int, Int>>) {
@@ -1167,13 +1059,3 @@ internal fun validateEtaWorkload(routeSizes: Iterable<Pair<Int, Int>>) {
     }
 }
 
-private fun encodePolyline(points: List<GeoPoint>): String {
-    var lastLat = 0; var lastLon = 0
-    return buildString {
-        points.forEach { point ->
-            val lat = kotlin.math.round(point.latitude * 1e5).toInt(); val lon = kotlin.math.round(point.longitude * 1e5).toInt()
-            appendPolylineValue(lat - lastLat); appendPolylineValue(lon - lastLon); lastLat = lat; lastLon = lon
-        }
-    }
-}
-private fun StringBuilder.appendPolylineValue(value: Int) { var encoded = value shl 1; if (value < 0) encoded = encoded.inv(); while (encoded >= 0x20) { append(((0x20 or (encoded and 0x1f)) + 63).toChar()); encoded = encoded shr 5 }; append((encoded + 63).toChar()) }

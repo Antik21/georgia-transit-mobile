@@ -14,6 +14,9 @@ import com.denis.georgiatransit.bff.api.WalkingEstimate
 import com.denis.georgiatransit.bff.observability.TelemetryCapability
 import com.denis.georgiatransit.bff.observability.TelemetryOperation
 import com.denis.georgiatransit.bff.observability.TelemetryProvider
+import com.denis.georgiatransit.bff.planning.GeoBounds
+import com.denis.georgiatransit.bff.planning.JourneyPlanQuery
+import com.denis.georgiatransit.bff.planning.PlanningBudget
 import java.time.Instant
 
 /**
@@ -52,6 +55,16 @@ interface CityTransitProviderAdapter {
     /** Separate provider boundary so transit journeys are never mistaken for walking directions. */
     suspend fun walkingEstimate(query: WalkingQuery): WalkingEstimate =
         throw ProviderCapabilityUnavailable("Direct walking is not available")
+
+    /** Coordinate-bearing A-to-B planning (ADR 0022, ADR 0023); adapters fail closed by default. */
+    suspend fun planJourney(query: JourneyPlanQuery, budget: PlanningBudget): RealtimeJourneys =
+        throw ProviderCapabilityUnavailable("Journey planning is not available")
+
+    /** Both planning endpoints must lie inside these bounds; null means the adapter cannot plan. */
+    val serviceBounds: GeoBounds? get() = null
+
+    /** Runtime narrowing of the static tripPlanning capability, for example while live data is stale. */
+    val tripPlanningReady: Boolean get() = true
 
     /** Additive realtime metadata seam; older adapters retain schedule-only journey behavior. */
     suspend fun journeyPage(query: JourneyQuery): RealtimeJourneys = RealtimeJourneys(

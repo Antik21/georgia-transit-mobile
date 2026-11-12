@@ -184,6 +184,14 @@ internal data class JourneySegmentDto(
     val toStopId: String? = null,
     val fromPosition: GeoPointDto? = null,
     val toPosition: GeoPointDto? = null,
+    val distanceMeters: Double? = null,
+    val geometry: String? = null,
+    val geometryApproximate: Boolean? = null,
+    val intermediateStopCount: Int? = null,
+    val waitSeconds: Int? = null,
+    // Additive enums stay strings so a newer BFF value degrades to "unknown" instead of failing the page.
+    val waitBasis: String? = null,
+    val vehicleId: String? = null,
 )
 
 @Serializable
@@ -194,6 +202,20 @@ internal data class JourneyDto(
     val transfers: Int,
     val legs: List<JourneyLegDto>,
     val segments: List<JourneySegmentDto> = emptyList(),
+    val durationSeconds: Int? = null,
+    val walkingDistanceMeters: Double? = null,
+    val timingQuality: String? = null,
+    val labels: List<String> = emptyList(),
+)
+
+@Serializable
+internal data class JourneyPlanRequestDto(
+    val from: GeoPointDto,
+    val to: GeoPointDto,
+    val departureAt: String? = null,
+    val maxTransfers: Int,
+    val transferBufferSeconds: Int,
+    val locale: String,
 )
 
 @Serializable

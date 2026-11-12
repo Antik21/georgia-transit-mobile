@@ -1,5 +1,13 @@
 package com.denis.georgiatransit.bff
 
+import com.denis.georgiatransit.bff.api.GeoPoint
+import com.denis.georgiatransit.bff.api.Journey
+import com.denis.georgiatransit.bff.api.JourneyLabel
+import com.denis.georgiatransit.bff.api.JourneyPlanRequest
+import com.denis.georgiatransit.bff.api.JourneySegment
+import com.denis.georgiatransit.bff.api.JourneySegmentMode
+import com.denis.georgiatransit.bff.api.JourneyTimingQuality
+import com.denis.georgiatransit.bff.api.JourneyWaitBasis
 import java.nio.file.Files
 import java.nio.file.Path
 import kotlin.io.path.readText
@@ -8,7 +16,15 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.encodeToJsonElement
+import kotlinx.serialization.json.jsonObject
 import org.yaml.snakeyaml.Yaml
+
+private val wireJson = Json {
+    encodeDefaults = true
+    explicitNulls = false
+}
 
 class OpenApiContractTest {
     @Test
@@ -33,6 +49,7 @@ class OpenApiContractTest {
             expectedSchemas.keys + setOf(
                 "/metrics",
                 "/v1/cities/{cityId}/walking-estimate",
+                "/v1/cities/{cityId}/journeys/plan",
                 "/v1/map/style.json",
                 "/v1/map/tiles/{z}/{x}/{y}.png",
             ),
@@ -70,6 +87,30 @@ class OpenApiContractTest {
             walkingSuccess.map("headers").map("Cache-Control")["\$ref"],
         )
         assertEquals("#/components/responses/InternalError", walking.map("responses").map("500")["\$ref"])
+
+        val plan = paths.map("/v1/cities/{cityId}/journeys/plan").map("post")
+        assertEquals("planJourneyOptions", plan["operationId"])
+        assertEquals(
+            "#/components/schemas/JourneyPlanRequest",
+            plan.map("requestBody").map("content").map("application/json").map("schema")["\$ref"],
+        )
+        val planSuccess = plan.map("responses").map("200")
+        assertEquals(
+            "#/components/schemas/JourneyPage",
+            planSuccess.map("content").map("application/json").map("schema")["\$ref"],
+        )
+        assertEquals("#/components/headers/RequestId", planSuccess.map("headers").map("X-Request-ID")["\$ref"])
+        assertEquals("#/components/headers/NoStoreCacheControl", planSuccess.map("headers").map("Cache-Control")["\$ref"])
+        mapOf(
+            "400" to "InvalidArgument",
+            "404" to "CityNotFound",
+            "429" to "RateLimited",
+            "501" to "CapabilityNotAvailable",
+            "503" to "UpstreamUnavailable",
+            "500" to "InternalError",
+        ).forEach { (status, response) ->
+            assertEquals("#/components/responses/$response", plan.map("responses").map(status)["\$ref"], status)
+        }
 
         val metrics = paths.map("/metrics").map("get")
         val success = metrics.map("responses").map("200")
@@ -167,6 +208,67 @@ class OpenApiContractTest {
         assertEquals(setOf("distanceMeters", "durationSeconds", "observedAt"), response.map("properties").keys)
         assertFalse(response.map("properties").containsKey("from"))
         assertFalse(response.map("properties").containsKey("to"))
+    }
+
+    @Test
+    fun `OpenAPI journey plan request and additive journey fields match the BFF wire models`() {
+        val schemas = loadOpenApi().map("components").map("schemas")
+        val request = schemas.map("JourneyPlanRequest")
+        assertEquals(listOf("from", "to", "locale"), request["required"])
+        val requestJson = wireJson.encodeToJsonElement(
+            JourneyPlanRequest(GeoPoint(41.6, 41.6), GeoPoint(41.61, 41.61), "2030-01-01T00:00:00Z", locale = "en"),
+        ).jsonObject
+        assertEquals(request.map("properties").keys, requestJson.keys)
+        assertEquals(2, request.map("properties").map("maxTransfers")["maximum"])
+        assertEquals(600, request.map("properties").map("transferBufferSeconds")["maximum"])
+        assertFalse(schemas.containsKey("JourneyPlanMode"))
+        assertEquals(JourneyLabel.entries.map { it.name }, schemas.map("JourneyLabel")["enum"])
+        assertEquals(true, schemas.map("Journey").map("properties").map("labels")["uniqueItems"])
+        assertEquals(JourneyWaitBasis.entries.map { it.name }, schemas.map("JourneyWaitBasis")["enum"])
+        assertEquals(JourneyTimingQuality.entries.map { it.name }, schemas.map("JourneyTimingQuality")["enum"])
+
+        val segment = JourneySegment(
+            departureAt = "2030-01-01T00:00:00Z",
+            arrivalAt = "2030-01-01T00:10:00Z",
+            mode = JourneySegmentMode.TRANSIT,
+            routeId = "demo:fixture:route:blue",
+            directionId = "demo:fixture:direction:blue-outbound",
+            fromStopId = "demo:fixture:stop:center",
+            toStopId = "demo:fixture:stop:park",
+            fromPosition = GeoPoint(41.7, 44.8),
+            toPosition = GeoPoint(41.71, 44.81),
+            distanceMeters = 100.0,
+            geometry = "_p~iF~ps|U",
+            geometryApproximate = false,
+            intermediateStopCount = 1,
+            waitSeconds = 60,
+            waitBasis = JourneyWaitBasis.LIVE_VEHICLE,
+            vehicleId = "demo:fixture:vehicle:blue-01",
+        )
+        val journey = Journey(
+            id = "demo:fixture:journey:j1",
+            departureAt = segment.departureAt,
+            arrivalAt = segment.arrivalAt,
+            transfers = 0,
+            legs = emptyList(),
+            segments = listOf(segment),
+            durationSeconds = 600,
+            walkingDistanceMeters = 0.0,
+            timingQuality = JourneyTimingQuality.LIVE,
+            labels = listOf(JourneyLabel.OPTIMAL),
+        )
+        assertEquals(
+            schemas.map("JourneySegment").map("properties").keys,
+            wireJson.encodeToJsonElement(segment).jsonObject.keys,
+        )
+        assertEquals(
+            schemas.map("Journey").map("properties").keys,
+            wireJson.encodeToJsonElement(journey).jsonObject.keys,
+        )
+        assertEquals(
+            "#/components/schemas/VehicleId",
+            schemas.map("JourneySegment").map("properties").map("vehicleId")["\$ref"],
+        )
     }
 
     @Test

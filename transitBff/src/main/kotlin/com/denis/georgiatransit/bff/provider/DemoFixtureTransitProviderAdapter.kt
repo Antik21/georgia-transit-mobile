@@ -23,6 +23,9 @@ import com.denis.georgiatransit.bff.api.WalkingEstimate
 import com.denis.georgiatransit.bff.api.TransitModeValues
 import com.denis.georgiatransit.bff.api.formatPublicId
 import com.denis.georgiatransit.bff.observability.TelemetryProvider
+import com.denis.georgiatransit.bff.planning.GeoBounds
+import com.denis.georgiatransit.bff.planning.JourneyPlanQuery
+import com.denis.georgiatransit.bff.planning.PlanningBudget
 import java.time.Instant
 
 private const val DemoProviderId = "fixture"
@@ -104,6 +107,17 @@ class DemoFixtureTransitProviderAdapter : CityTransitProviderAdapter {
             mode = TransitModeValues.Bus,
         ),
     )
+
+    private val journeyPlanning = DemoFixtureJourneyPlanning(
+        stops = stops,
+        route = blueRoute,
+        vehicleIds = listOf(demoPublicId(PublicEntityType.Vehicle, "blue-01"), demoPublicId(PublicEntityType.Vehicle, "blue-02")),
+    )
+
+    override val serviceBounds: GeoBounds = DemoServiceBounds
+
+    override suspend fun planJourney(query: JourneyPlanQuery, budget: PlanningBudget): RealtimeJourneys =
+        journeyPlanning.plan(query, budget, Instant.now())
 
     override suspend fun routes(locale: String, mode: String?): List<Route> =
         listOf(blueRoute).filter { mode == null || it.mode == mode }

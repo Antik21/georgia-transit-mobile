@@ -18,7 +18,44 @@ export const stopPinGlyphColor = [52, 65, 85];
 export const fixtureVehiclesPath = `/v1/cities/${fixtureCityId}/vehicles`;
 export const fixtureAttribution = 'Fixture tiles';
 // Toggled by the smoke to exercise the local-style fallback and its recovery.
-export const fixtureControl = { failStyle: false, staleVehicles: false, telegram: true, vehicleAdvanced: false };
+export const fixtureControl = { failStyle: false, staleVehicles: false, telegram: true, vehicleAdvanced: false, planStatus: 200, styleHold: null, lastPlan: null };
+export const plannerRouteColors = { orange: [228, 87, 46], yellow: [242, 193, 78] };
+// The buses the planner should highlight: the two soonest of a route at the first boarding stop.
+export const plannerArrivalMinutes = { orange: [3, 11], yellow: [5] };
+
+function plannerArrivals() {
+  const arrival = (route, vehicle, minutes) => ({
+    stopId: 'batumi:fixture:stop:s1', routeId: `batumi:fixture:route:${route}`, vehicleId: vehicle && `batumi:fixture:vehicle:${vehicle}`,
+    headsign: localized('Batumi'), expectedInMinutes: minutes, realtime: true, cancelled: false, source: 'OFFICIAL_REALTIME',
+  });
+  return {
+    items: [arrival('orange', 'v3', 19), arrival('orange', null, 1), arrival('orange', 'v2', 11), arrival('yellow', 'y1', 5),
+      arrival('orange', 'v1', 3)],
+    source: 'OFFICIAL_REALTIME',
+    observedAt: new Date().toISOString(),
+    stale: false,
+  };
+}
+
+function plannerVehicles(routeId) {
+  const plan = fixtureControl.lastPlan;
+  const observedAt = new Date().toISOString();
+  const at = (from, to, share) => ({
+    latitude: from.latitude + (to.latitude - from.latitude) * share,
+    longitude: from.longitude + (to.longitude - from.longitude) * share,
+  });
+  const vehicle = (id, position) => ({
+    id: `batumi:fixture:vehicle:${id}`, routeId, position, bearing: 90, observedAt, ageSeconds: 0, positionKind: 'GPS',
+  });
+  const items = !plan ? [] : routeId.endsWith(':orange')
+    ? [vehicle('v1', at(plan.boarding, plan.mid, 0.4)), vehicle('v2', at(plan.mid, plan.alighting, 0.7)),
+      vehicle('v3', at(plan.mid, plan.alighting, 0.9))]
+    : [vehicle('y1', at(plan.boarding, plan.mid, 0.4))];
+  return { items, observedAt, maxAgeSeconds: 30, stale: false };
+}
+
+// Every plan request body, so the smoke can assert rounding and the absence of an origin-kind field.
+export const planRequests = [];
 
 const position = { latitude: 41.715137, longitude: 44.827096 };
 const localized = (en) => ({ en, ru: en, ka: en });
@@ -55,7 +92,20 @@ const batumiCity = {
   id: otherCityId,
   name: localized('Batumi'),
   center: { latitude: 41.6500, longitude: 41.6390 },
+  capabilities: { ...demoCity.capabilities, tripPlanning: true },
 };
+
+const plannerRoute = (name, color) => ({
+  id: `batumi:fixture:route:${name}`,
+  providerId: 'browser-test-fixture',
+  shortName: name === 'orange' ? 'B7' : 'B12',
+  longName: localized(`Batumi ${name}`),
+  color,
+  textColor: '#FFFFFF',
+  mode: 'bus',
+  directions: [{ id: `batumi:fixture:direction:${name}`, name: localized(name), headsign: localized(name) }],
+});
+const plannerRoutes = [plannerRoute('orange', '#E4572E'), plannerRoute('yellow', '#F2C14E')];
 
 const route = {
   id: fixtureRouteId,
@@ -107,10 +157,16 @@ function mapStyle() {
 }
 
 function routeShape(offset) {
+  const points = [[0.0012, -0.0027], [0.0010, 0], [0.0018, 0.0029]]
+    .map(([latitude, longitude]) => [position.latitude + latitude + offset, position.longitude + longitude]);
+  return { format: 'encoded_polyline', precision: 5, value: encodePolyline(points), updatedAt: '2030-01-01T00:00:00Z' };
+}
+
+function encodePolyline(points) {
   let previous = [0, 0];
   let value = '';
-  for (const [latitude, longitude] of [[0.0012, -0.0027], [0.0010, 0], [0.0018, 0.0029]]) {
-    const point = [Math.round((position.latitude + latitude + offset) * 100_000), Math.round((position.longitude + longitude) * 100_000)];
+  for (const [latitude, longitude] of points) {
+    const point = [Math.round(latitude * 100_000), Math.round(longitude * 100_000)];
     for (let index = 0; index < point.length; index++) {
       const delta = point[index] - previous[index];
       let encoded = delta < 0 ? ~(delta << 1) : delta << 1;
@@ -122,7 +178,70 @@ function routeShape(offset) {
     }
     previous = point;
   }
-  return { format: 'encoded_polyline', precision: 5, value, updatedAt: '2030-01-01T00:00:00Z' };
+  return value;
+}
+
+// Two options shaped like the BFF planner: a direct live ride, and a transfer between two different stops.
+function journeyPlan({ from, to }) {
+  const start = Date.now();
+  const at = (minute) => new Date(start + minute * 60_000).toISOString();
+  const shift = (point, latitude, longitude = 0) => ({ latitude: point.latitude + latitude, longitude: point.longitude + longitude });
+  const coordinates = (...points) => encodePolyline(points.map(({ latitude, longitude }) => [latitude, longitude]));
+  const walk = (departure, arrival, fromPosition, toPosition, distanceMeters, stops = {}) => ({
+    departureAt: at(departure), arrivalAt: at(arrival), mode: 'WALK', ...stops, fromPosition, toPosition, distanceMeters,
+    geometry: coordinates(fromPosition, toPosition), geometryApproximate: true,
+  });
+  const ride = (name, departure, arrival, fromPosition, toPosition, stops, waitSeconds, waitBasis, intermediateStopCount) => ({
+    departureAt: at(departure), arrivalAt: at(arrival), mode: 'TRANSIT',
+    routeId: `batumi:fixture:route:${name}`, directionId: `batumi:fixture:direction:${name}`,
+    fromStopId: `batumi:fixture:stop:${stops[0]}`, toStopId: `batumi:fixture:stop:${stops[1]}`, fromPosition, toPosition,
+    distanceMeters: 2100, geometry: coordinates(fromPosition, shift(fromPosition, 0, 0.002), toPosition), geometryApproximate: false,
+    intermediateStopCount, waitSeconds, waitBasis, ...(waitBasis === 'LIVE_VEHICLE' ? { vehicleId: `batumi:fixture:vehicle:${name}` } : {}),
+  });
+  const legs = (segments) => segments.filter((segment) => segment.mode === 'TRANSIT').map(({ routeId, directionId, fromStopId, toStopId, departureAt, arrivalAt }) =>
+    ({ routeId, directionId, fromStopId, toStopId, departureAt, arrivalAt }));
+  const boarding = shift(from, 0.0006);
+  const alighting = shift(to, -0.0006);
+  const direct = [
+    walk(0, 4, from, boarding, 300, { toStopId: 'batumi:fixture:stop:s1' }),
+    ride('orange', 6, 17, boarding, alighting, ['s1', 's2'], 120, 'LIVE_VEHICLE', 5),
+    walk(17, 21, alighting, to, 220, { fromStopId: 'batumi:fixture:stop:s2' }),
+  ];
+  const transferFrom = shift(boarding, 0.0004, -0.0015);
+  const transferTo = shift(transferFrom, 0.0003, 0.0004);
+  const transfer = [
+    walk(0, 3, from, boarding, 200, { toStopId: 'batumi:fixture:stop:s1' }),
+    ride('yellow', 7, 15, boarding, transferFrom, ['s1', 's3'], 240, 'HEADWAY_ESTIMATE', 2),
+    walk(15, 18, transferFrom, transferTo, 180, { fromStopId: 'batumi:fixture:stop:s3', toStopId: 'batumi:fixture:stop:s4' }),
+    ride('orange', 20, 26, transferTo, alighting, ['s4', 's2'], 120, 'LIVE_VEHICLE', 3),
+    walk(26, 30, alighting, to, 250, { fromStopId: 'batumi:fixture:stop:s2' }),
+  ];
+  const yellowAlighting = shift(to, 0.0006);
+  const yellow = [
+    walk(0, 4, from, boarding, 300, { toStopId: 'batumi:fixture:stop:s1' }),
+    ride('yellow', 6, 21, boarding, yellowAlighting, ['s1', 's5'], 120, 'HEADWAY_ESTIMATE', 7),
+    walk(21, 25, yellowAlighting, to, 260, { fromStopId: 'batumi:fixture:stop:s5' }),
+  ];
+  const onFoot = [walk(0, 40, from, to, 1900)];
+  const mid = shift(boarding, 0, 0.002);
+  fixtureControl.lastPlan = { boarding, mid, alighting };
+  // Server order mixes labels on purpose and carries one label this client does not know.
+  return {
+    items: [
+      { id: 'batumi:fixture:journey:direct', departureAt: at(0), arrivalAt: at(21), transfers: 0, durationSeconds: 1260,
+        walkingDistanceMeters: 520, timingQuality: 'LIVE', labels: ['FASTEST', 'OPTIMAL'], legs: legs(direct), segments: direct },
+      { id: 'batumi:fixture:journey:yellow', departureAt: at(0), arrivalAt: at(25), transfers: 0, durationSeconds: 1500,
+        walkingDistanceMeters: 560, timingQuality: 'ESTIMATED', labels: ['NO_TRANSFERS', 'CHEAPEST'], legs: legs(yellow), segments: yellow },
+      { id: 'batumi:fixture:journey:transfer', departureAt: at(0), arrivalAt: at(30), transfers: 1, durationSeconds: 1800,
+        walkingDistanceMeters: 630, timingQuality: 'MIXED', labels: ['LEAST_WALKING'], legs: legs(transfer), segments: transfer },
+      { id: 'batumi:fixture:journey:walk', departureAt: at(0), arrivalAt: at(40), transfers: 0, durationSeconds: 2400,
+        walkingDistanceMeters: 1900, legs: [], segments: onFoot },
+    ],
+    observedAt: at(0),
+    source: 'CLIENT_ESTIMATE',
+    realtime: false,
+    stale: false,
+  };
 }
 
 function vehicles(routeId) {
@@ -226,19 +345,30 @@ const json = (body, status = 200) => respond(status, JSON.stringify(body), conte
 
 export function browserFixture(dist, bffRequests, origin) {
   const root = resolve(dist);
-  return async ({ url, method }) => {
+  return async ({ url, method, body }) => {
     const target = new URL(url);
     if (target.origin === 'https://telegram.org' && target.pathname === '/js/telegram-web-app.js') {
       return respond(200, fixtureControl.telegram ? telegramFixture : '', contentTypes.get('js'));
     }
     if (target.origin !== origin) return respond(404, 'Fixture has no external network access');
-    if (method !== 'GET') return respond(405, 'Fixture only implements GET');
-
     const path = decodeURIComponent(target.pathname);
+    if (method === 'POST' && path === `/v1/cities/${otherCityId}/journeys/plan`) {
+      bffRequests.push(path);
+      const request = JSON.parse(body);
+      planRequests.push(request);
+      if (fixtureControl.planStatus !== 200) {
+        return json({ error: { code: 'CAPABILITY_NOT_AVAILABLE', message: 'Trip planning is unavailable', requestId: 'req-1' } },
+          fixtureControl.planStatus);
+      }
+      return json(journeyPlan(request));
+    }
+    if (method !== 'GET') return respond(405, 'Fixture only implements GET and the plan POST');
+
     if (path.startsWith('/v1/')) bffRequests.push(path);
     switch (path) {
       case '/v1/cities': return json([demoCity, batumiCity]);
       case '/v1/map/style.json':
+        await fixtureControl.styleHold;
         return fixtureControl.failStyle ? json({ error: 'Style unavailable' }, 503) : json(mapStyle());
       case `/v1/cities/${fixtureCityId}/routes`: return json([route, otherRoute]);
       case `/v1/cities/${fixtureCityId}/routes/${fixtureRouteId}`: return json(route);
@@ -248,7 +378,9 @@ export function browserFixture(dist, bffRequests, origin) {
       case `/v1/cities/${fixtureCityId}/stops/nearby`: return json([stop]);
       case fixtureVehiclesPath: return json(vehicles(target.searchParams.get('routeId')));
       case `/v1/cities/${fixtureCityId}/stops/${fixtureStopId}/arrivals`: return json(arrivals());
-      case `/v1/cities/${otherCityId}/routes`:
+      case `/v1/cities/${otherCityId}/routes`: return json(plannerRoutes);
+      case `/v1/cities/${otherCityId}/stops/batumi:fixture:stop:s1/arrivals`: return json(plannerArrivals());
+      case `/v1/cities/${otherCityId}/vehicles`: return json(plannerVehicles(target.searchParams.get('routeId') ?? ''));
       case `/v1/cities/${otherCityId}/stops/nearby`: return json([]);
     }
     if (/^\/v1\/map\/tiles\/\d+\/\d+\/\d+\.png$/.test(path)) return respond(200, tile, 'image/png');

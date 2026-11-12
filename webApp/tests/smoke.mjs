@@ -11,6 +11,7 @@ import {
   fixtureRouteColor, fixtureRouteId, fixtureShapePath, fixtureStopId, fixtureTileColor, otherCityId,
   otherRouteId, otherShapePath, fixtureVehiclesPath, vehicleHeadlightColor, userLocationDotColor, stopPinGlyphColor,
 } from './browser-fixtures.mjs';
+import { plannerSmoke } from './planner-smoke.mjs';
 
 const dist = resolve(process.argv[2] ?? fileURLToPath(new URL('../dist', import.meta.url)));
 const width = 390;
@@ -334,6 +335,12 @@ try {
   await waitFor('The BFF style is retried when the network returns', () => mapContainsColor(fixtureTileColor, 2_000));
   await waitFor('Second city requests its own nearby stops', () => bffRequests.includes(`/v1/cities/${otherCityId}/stops/nearby`));
 
+  const planner = plannerSmoke({ send, evaluate, waitFor, tap, visible, testId, mapContainsColor, analyzeMap, bffRequests });
+  await planner.pointToPoint(() => evaluate('window.__telegramSmoke.backHandler(); true'));
+  await planner.beforeStyleLoads();
+  await planner.duringStyleSwap();
+  await planner.unavailable();
+
   const locationButton = testId('my-location');
   const permissionIs = (value) => `document.querySelector('${locationButton}')?.dataset.permission === '${value}'`;
   await waitFor('My location starts by asking for access', `${visible(locationButton)} && ${permissionIs('notDetermined')}`);
@@ -360,6 +367,11 @@ try {
   await waitFor('A plain browser reopens the map without Telegram', `performance.timeOrigin !== ${browserTimeOrigin} && !window.Telegram && ${mapScreen}`);
   await waitFor('Previously granted browser geolocation locates the user on open', `${permissionIs('granted')} && !${visible(testId('location-status'))}`);
   await waitFor('The browser location dot draws on the MapLibre canvas', () => mapContainsColor(userLocationDotColor, 20));
+  await planner.fromMyLocation({ latitude: 41.6512, longitude: 41.6402 });
+  await devTools.send('Browser.setPermission', { origin, permission: { name: 'geolocation' }, setting: 'denied' });
+  await evaluate(`document.dispatchEvent(new Event('visibilitychange')); true`);
+  await waitFor('The browser reports the denied location', permissionIs('denied'));
+  await planner.deniedLocation();
 
   for (const path of ['/v1/cities', '/v1/map/style.json', `/v1/cities/${fixtureCityId}/stops/nearby`, `/v1/cities/${fixtureCityId}/stops/${fixtureStopId}/arrivals`, fixtureShapePath]) {
     assert.ok(bffRequests.includes(path), `Expected a BFF request for ${path}`);
@@ -385,7 +397,9 @@ async function startFixtureServer() {
   const server = createServer(async (request, response) => {
     try {
       const url = new URL(request.url, origin).href;
-      const { status, type, body } = await fixture({ url, method: request.method });
+      const chunks = [];
+      for await (const chunk of request) chunks.push(chunk);
+      const { status, type, body } = await fixture({ url, method: request.method, body: Buffer.concat(chunks).toString('utf8') });
       if (/\/maplibre-gl-worker[^/]*\.m?js$/.test(new URL(url).pathname)) workerResponses.push(status);
       response.writeHead(status, { 'Content-Type': type, 'Cache-Control': 'no-store' }).end(body);
     } catch (error) {

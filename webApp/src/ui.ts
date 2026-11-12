@@ -1,7 +1,9 @@
 import { getCopy, getLanguage } from "./copy";
-import type { ArrivalsState, Attribution, CityState, MapState, RouteChoice, RoutesState, StopItem } from "./contracts";
+import { applyRouteColors, button, element, heading, icon, replacePreservingFocus, status } from "./dom";
+import type { ArrivalsState, Attribution, CityState, MapState, PlannerState, RouteChoice, RoutesState, StopItem } from "./contracts";
+import { renderPlannerPanel, type PlannerActions } from "./planner-ui";
 
-export interface ViewActions {
+export interface ViewActions extends PlannerActions {
   selectCity(id: string): void;
   confirmCity(): void;
   retryCities(): void;
@@ -97,14 +99,20 @@ export function createTransitView(root: HTMLElement, actions: ViewActions, langu
   root.replaceChildren(app);
 
   let screen: Screen = "startup";
-  let arrivalStop: string | null = null;
+  // The panel's current subject: a stop's arrivals, the planner, or null for nearby stops.
+  let panelKey: string | null = null;
+  let mapState: MapState | undefined;
+  let planner: PlannerState | undefined;
 
   app.addEventListener("keydown", (event) => {
     if (event.key !== "Escape" || event.defaultPrevented || event.isComposing) return;
     if (screen === "routes") {
       event.preventDefault();
       actions.cancelRoutes();
-    } else if (screen === "map" && arrivalStop) {
+    } else if (screen === "map" && planner?.open) {
+      event.preventDefault();
+      actions.closePlanner();
+    } else if (screen === "map" && panelKey) {
       event.preventDefault();
       actions.dismissArrivals();
     }
@@ -137,7 +145,7 @@ export function createTransitView(root: HTMLElement, actions: ViewActions, langu
   }
 
   function showCitySelection(state?: CityState) {
-    arrivalStop = null;
+    panelKey = null;
     confirmCity.disabled = !state?.canContinue;
     const rows = element("ul", "city-options");
     for (const item of state?.cities ?? []) {
@@ -169,6 +177,7 @@ export function createTransitView(root: HTMLElement, actions: ViewActions, langu
   }
 
   function showMap(state?: MapState) {
+    mapState = state;
     const returningFromRoutes = screen === "routes";
     if (screen !== "map" && (!returningFromRoutes || !state)) setMapLoading();
     const name = state?.cityName ?? "";
@@ -189,12 +198,13 @@ export function createTransitView(root: HTMLElement, actions: ViewActions, langu
     const summaryText = vehicleSummaryText(copy, state?.vehicleStatus, state?.vehicleRoutes ?? []);
     if (vehicleSummary.textContent !== summaryText) vehicleSummary.textContent = summaryText;
 
-    const nextArrivalStop = state?.arrivals?.stopId ?? null;
-    const previousArrivalStop = arrivalStop;
-    const content = state?.arrivals ? renderArrivals(state.arrivals, copy, actions) : renderStops(state, copy, actions);
+    const nextPanelKey = planner?.open ? "planner" : state?.arrivals?.stopId ?? null;
+    const previousArrivalStop = panelKey;
+    const content = planner?.open ? renderPlannerPanel(planner, copy, actions, language)
+      : state?.arrivals ? renderArrivals(state.arrivals, copy, actions) : renderStops(state, copy, actions);
     const panelHeading = content.querySelector<HTMLElement>("h1");
     if (panelHeading) panelHeading.id = "map-panel-heading";
-    if (nextArrivalStop !== previousArrivalStop) {
+    if (nextPanelKey !== previousArrivalStop) {
       mapPanel.replaceChildren(content);
       mapPanel.scrollTop = 0;
       const previousStop = Array.from(mapPanel.querySelectorAll<HTMLElement>("[data-stop-id]"))
@@ -203,7 +213,7 @@ export function createTransitView(root: HTMLElement, actions: ViewActions, langu
     } else {
       replacePreservingFocus(mapPanel, [content]);
     }
-    arrivalStop = nextArrivalStop;
+    panelKey = nextPanelKey;
     setScreen("map", returningFromRoutes && !openRoutes.hidden ? openRoutes : panelHeading ?? undefined);
   }
 
@@ -237,8 +247,15 @@ export function createTransitView(root: HTMLElement, actions: ViewActions, langu
     if (unavailable) mapOverlay.replaceChildren(status(copy.mapUnavailable));
   }
 
+  function showPlanner(state: PlannerState) {
+    planner = state;
+    if (screen === "map") showMap(mapState);
+  }
+
   showLoading();
-  return { mapElement, showLoading, showStartupError, showCitySelection, showMap, showRoutes, setMapLoading, setMapUnavailable };
+  return {
+    mapElement, showLoading, showStartupError, showCitySelection, showMap, showRoutes, showPlanner, setMapLoading, setMapUnavailable,
+  };
 }
 
 function createRoutePicker(copy: Copy, actions: ViewActions) {
@@ -479,13 +496,6 @@ function vehicleStatusText(copy: Copy, status?: string) {
   return label ? copy.vehiclesStatus.replace("%1$s", label) : null;
 }
 
-function applyRouteColors(badge: HTMLElement, background: string, foreground: string) {
-  if (/^#[0-9a-f]{6}$/i.test(background) && /^#[0-9a-f]{6}$/i.test(foreground)) {
-    badge.style.backgroundColor = background;
-    badge.style.color = foreground;
-  }
-}
-
 function formatNumber(template: string, count: number) {
   return template.replace("%1$d", String(count));
 }
@@ -627,14 +637,6 @@ function arrivalSource(copy: Copy, source: string) {
   }
 }
 
-function status(message: string, loading = false) {
-  const result = element("p", "status-message");
-  result.setAttribute("role", "status");
-  if (loading) result.append(icon("spinner"));
-  result.append(document.createTextNode(message));
-  return result;
-}
-
 function creditLinks(attribution: readonly Attribution[]) {
   const credits = element("div", "attribution-links");
   for (const item of attribution) {
@@ -663,42 +665,4 @@ function updateCredits(container: HTMLElement, attribution: readonly Attribution
   container.hidden = !credits.childElementCount;
   if (container.firstElementChild?.isEqualNode(credits)) return;
   container.replaceChildren(credits);
-}
-
-function replacePreservingFocus(container: HTMLElement, children: HTMLElement[]) {
-  const active = document.activeElement;
-  const focusKey = active instanceof HTMLElement && container.contains(active) ? active.dataset.focusKey : undefined;
-  container.replaceChildren(...children);
-  if (!focusKey) return;
-  const focused = Array.from(container.querySelectorAll<HTMLElement>("[data-focus-key]"))
-    .find((item) => item.dataset.focusKey === focusKey);
-  focused?.focus({ preventScroll: true });
-}
-
-function heading(text: string) {
-  const result = element("h1", "screen-heading", text);
-  result.tabIndex = -1;
-  result.dataset.focusKey = "heading";
-  return result;
-}
-
-function icon(className: string) {
-  const result = element("span", `icon ${className}`);
-  result.setAttribute("aria-hidden", "true");
-  return result;
-}
-
-function button(className: string, text: string, onClick: () => void, testId?: string) {
-  const result = element("button", className, text);
-  result.type = "button";
-  if (testId) result.dataset.testid = testId;
-  result.addEventListener("click", onClick);
-  return result;
-}
-
-function element<K extends keyof HTMLElementTagNameMap>(tag: K, className: string, text?: string): HTMLElementTagNameMap[K] {
-  const result = document.createElement(tag);
-  if (className) result.className = className;
-  if (text) result.textContent = text;
-  return result;
 }

@@ -54,6 +54,18 @@ direction.
 This intentionally conservative policy is the approved production ETA behavior. It must remain
 labelled approximate and must never be represented as an official arrival.
 
+### Journey planning (ADR 0022)
+
+`POST /v1/cities/batumi/journeys/plan` runs the in-house planner on the BFF. Each validated catalog
+publication atomically rebuilds an immutable graph: one pattern per route `Status` block, or one
+doubled lap for a `RouteIsCircle` route, with shape slices and 600 m walking neighbours. Planning
+reads only that graph and the latest city-wide live snapshot and makes no upstream request. Waits
+use the ETA model above for live buses within 45 minutes and otherwise a headway estimate from the
+active vehicle count. The intrinsic `tripPlanning` capability is reported in `/v1/cities` only
+while a catalog younger than seven days is published and the live snapshot is at most 60 seconds
+old. The checked-in capability-control example keeps `tripPlanning=false`; enabling it is a
+separate operator decision. Legacy `GET /journeys` always returns `501` for Batumi.
+
 For a production run, copy the checked-in example into a private operator-owned capability-control
 path (do not run against the checked-in file directly), create its paired state directory with the
 permissions required by the capability-control runbook, then run:

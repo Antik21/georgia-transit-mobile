@@ -218,7 +218,105 @@ export interface MapState {
   readonly stopLayer: MapStopLayer | null | undefined;
 }
 
+export interface PlannerPoint {
+  readonly latitude: number;
+  readonly longitude: number;
+}
+
+export interface PlannerEndpoint {
+  readonly kind: string;
+  readonly point: PlannerPoint | null | undefined;
+}
+
+export interface PlannerLeg {
+  readonly kind: string;
+  readonly minutes: number;
+  readonly role: string | null | undefined;
+  readonly meters: number | null | undefined;
+  readonly approximate: boolean;
+  readonly routeId: string | null | undefined;
+  readonly routeLabel: string | null | undefined;
+  readonly routeColor: string | null | undefined;
+  readonly routeTextColor: string | null | undefined;
+  readonly stopCount: number | null | undefined;
+  readonly waitMinutes: number | null | undefined;
+  readonly waitLive: boolean;
+  readonly routeMode: string | null | undefined;
+}
+
+export interface PlannerLabel {
+  readonly key: string;
+  readonly color: string;
+  readonly textColor: string;
+}
+
+export interface PlannerBus {
+  readonly id: string;
+  readonly latitude: number;
+  readonly longitude: number;
+  readonly bearing: number | null | undefined;
+  readonly etaMinutes: number;
+  readonly label: string;
+  readonly color: string;
+  readonly textColor: string;
+}
+
+export interface PlannerOption {
+  readonly id: string;
+  readonly totalMinutes: number;
+  readonly arrivalEpochMillis: number;
+  readonly transfers: number;
+  readonly walkingMeters: number | null | undefined;
+  readonly timing: string | null | undefined;
+  readonly selected: boolean;
+  readonly legs: readonly PlannerLeg[];
+  readonly labels: readonly PlannerLabel[];
+  readonly nearestEtas: readonly number[];
+}
+
+export interface PlannerRoute {
+  readonly revision: string;
+  readonly lines: readonly { readonly kind: string; readonly color: string; readonly points: readonly PlannerPoint[] }[];
+  readonly origin: PlannerPoint | null | undefined;
+  readonly destination: PlannerPoint | null | undefined;
+}
+
+export interface PlannerState {
+  readonly open: boolean;
+  readonly status: string;
+  readonly pin: PlannerPoint | null | undefined;
+  readonly origin: PlannerEndpoint;
+  readonly destination: PlannerEndpoint;
+  readonly side: string | null | undefined;
+  readonly reason: string | null | undefined;
+  readonly retryable: boolean;
+  readonly refreshing: boolean;
+  readonly stale: boolean;
+  readonly walkMeters: number | null | undefined;
+  readonly walkMinutes: number | null | undefined;
+  readonly options: readonly PlannerOption[];
+  readonly route: PlannerRoute;
+  readonly buses: readonly PlannerBus[];
+  readonly cameraFitRevision: string;
+}
+
+export interface PlannerEntry {
+  subscribe(onState: (state: PlannerState) => void): void;
+  longPressMap(latitude: number, longitude: number): void;
+  routeHere(): void;
+  routeFromHere(): void;
+  dismissPin(): void;
+  useMyLocationFor(side: string): void;
+  pickPointFor(side: string): void;
+  swap(): void;
+  clear(): void;
+  selectOption(id: string): void;
+  retry(): void;
+  close(): void;
+}
+
 export interface MapEntry {
+  readonly planner: PlannerEntry;
   subscribe(onState: (state: MapState) => void): void;
   subscribeVehicles(onVehicles: (layer: VehicleLayer) => void): void;
   selectVehicle(vehicleId: string, revision: string): void;

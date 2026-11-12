@@ -3,6 +3,7 @@ package com.denis.georgiatransit.shared.presentation.map
 import com.denis.georgiatransit.shared.domain.model.CityId
 import com.denis.georgiatransit.shared.domain.model.TransitCity
 import com.denis.georgiatransit.shared.domain.model.TransitRoute
+import com.denis.georgiatransit.shared.domain.model.VehicleId
 import com.denis.georgiatransit.shared.domain.repository.TransitRepository
 import com.denis.georgiatransit.shared.presentation.ui.RouteSelectionProjection
 import kotlinx.coroutines.CoroutineScope
@@ -40,6 +41,13 @@ internal class MapVehicleFeature(
     fun isCurrent(generation: Long, cityId: CityId): Boolean =
         generation == poller.generation && visible && city?.id == cityId &&
             city?.capabilities?.vehiclePositions == true && routes.isNotEmpty()
+
+    /** DEN-60: stale-safe vehicle hit testing with no vehicle-detail outcome yet; a validated no-op. */
+    fun acceptTap(vehicleId: VehicleId, sourceRevision: Long): Boolean {
+        if (sourceRevision != presentation.vehicleFrameRevision) return false
+        if (presentation.vehicleMarkers.none { it.id == vehicleId }) return false
+        return true
+    }
 
     fun start(scope: CoroutineScope, onChanged: (VehiclePollKey?) -> Unit) {
         val selectedCity = city ?: return

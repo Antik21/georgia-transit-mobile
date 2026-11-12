@@ -6,18 +6,13 @@ import com.denis.georgiatransit.bff.api.City
 import com.denis.georgiatransit.bff.api.GeoPoint
 import com.denis.georgiatransit.bff.api.JourneyPage
 import com.denis.georgiatransit.bff.api.Route
-import com.denis.georgiatransit.bff.api.RouteNotFound
-import com.denis.georgiatransit.bff.api.ServiceFailure
 import com.denis.georgiatransit.bff.api.Shape
 import com.denis.georgiatransit.bff.api.Stop
-import com.denis.georgiatransit.bff.api.StopNotFound
 import com.denis.georgiatransit.bff.api.UpstreamTimeout
 import com.denis.georgiatransit.bff.api.VehiclePage
 import com.denis.georgiatransit.bff.api.WalkingEstimate
 import com.denis.georgiatransit.bff.cache.BoundedKeyedTtlCache
-import com.denis.georgiatransit.bff.cache.CacheLookupOutcome
 import com.denis.georgiatransit.bff.cache.SingleFlight
-import com.denis.georgiatransit.bff.cache.SingleFlightLookupOutcome
 import com.denis.georgiatransit.bff.control.CapabilitySnapshotSource
 import com.denis.georgiatransit.bff.control.EffectiveCapabilitySnapshot
 import com.denis.georgiatransit.bff.control.EffectiveCity
@@ -26,25 +21,15 @@ import com.denis.georgiatransit.bff.geo.haversineMeters
 import com.denis.georgiatransit.bff.provider.JourneyQuery
 import com.denis.georgiatransit.bff.provider.WalkingQuery
 import com.denis.georgiatransit.bff.provider.NormalizedResponseValidator
-import com.denis.georgiatransit.bff.provider.ProviderBadGateway
-import com.denis.georgiatransit.bff.provider.ProviderCapabilityUnavailable
-import com.denis.georgiatransit.bff.provider.ProviderConflict
 import com.denis.georgiatransit.bff.provider.ProviderCircuitProtectedAdapter
 import com.denis.georgiatransit.bff.provider.ProviderFailure
-import com.denis.georgiatransit.bff.provider.ProviderInvalidArgument
 import com.denis.georgiatransit.bff.provider.ProviderJsonDecodeFailure
 import com.denis.georgiatransit.bff.provider.ProviderNormalizedSchemaFailure
-import com.denis.georgiatransit.bff.provider.ProviderRateLimited
 import com.denis.georgiatransit.bff.provider.ProviderRegistry
-import com.denis.georgiatransit.bff.provider.ProviderRouteNotFound
-import com.denis.georgiatransit.bff.provider.ProviderStopNotFound
-import com.denis.georgiatransit.bff.provider.ProviderTimeout
-import com.denis.georgiatransit.bff.provider.ProviderUnavailable
 import com.denis.georgiatransit.bff.provider.SyntheticProbeProvider
 import com.denis.georgiatransit.bff.provider.SyntheticProbeResult
 import com.denis.georgiatransit.bff.provider.SyntheticProbeTarget
 import com.denis.georgiatransit.bff.observability.BffObservability
-import com.denis.georgiatransit.bff.observability.CacheOutcome
 import com.denis.georgiatransit.bff.observability.ProviderOutcome
 import com.denis.georgiatransit.bff.observability.ProviderTelemetryLabels
 import com.denis.georgiatransit.bff.observability.TelemetryCapability
@@ -60,7 +45,6 @@ import kotlinx.serialization.json.Json
 import kotlin.time.Duration.Companion.seconds
 
 private const val MaximumDirectoryCacheKeys = 256
-private const val MaximumRetryAfterSeconds = 86_400
 private val routeListJson = Json {
     encodeDefaults = true
     explicitNulls = false
@@ -100,7 +84,14 @@ class TransitService(
     val isReady: Boolean get() = capabilitySnapshots.current().isReady
 
     /** City listing is derived directly from the current atomic snapshot, never a directory TTL. */
-    suspend fun cities(): List<City> = snapshot().cities.values.map(EffectiveCity::city)
+    suspend fun cities(): List<City> = snapshot().cities.values.map { effective ->
+        val capabilities = effective.city.capabilities
+        if (capabilities.tripPlanning && !effective.adapter.tripPlanningReady) {
+            effective.city.copy(capabilities = capabilities.copy(tripPlanning = false))
+        } else {
+            effective.city
+        }
+    }
 
     suspend fun routes(cityId: String, locale: String, mode: String?): List<Route> {
         val snapshot = snapshot()
@@ -488,65 +479,4 @@ class TransitService(
         observability?.recordDataResult(labels, observedAt, stale, itemCount, realtime, probe)
     }
 
-    private fun CacheLookupOutcome.telemetryOutcome(): CacheOutcome = when (this) {
-        CacheLookupOutcome.HIT -> CacheOutcome.HIT
-        CacheLookupOutcome.MISS_OWNER -> CacheOutcome.MISS_OWNER
-        CacheLookupOutcome.COALESCED -> CacheOutcome.COALESCED
-    }
-
-    private fun SingleFlightLookupOutcome.telemetryOutcome(): CacheOutcome = when (this) {
-        SingleFlightLookupOutcome.MISS_OWNER -> CacheOutcome.MISS_OWNER
-        SingleFlightLookupOutcome.COALESCED -> CacheOutcome.COALESCED
-    }
-
-    private fun com.denis.georgiatransit.bff.api.CityCapabilities.capabilityEnabled(
-        capability: TelemetryCapability,
-    ): Boolean = when (capability) {
-        TelemetryCapability.ROUTES -> routes
-        TelemetryCapability.STOPS -> stops
-        TelemetryCapability.ROUTE_GEOMETRY -> routeGeometry
-        TelemetryCapability.VEHICLE_POSITIONS -> vehiclePositions
-        TelemetryCapability.ARRIVALS -> arrivals
-        TelemetryCapability.TRIP_PLANNING -> tripPlanning
-    }
-
-    private fun ProviderFailure.toServiceFailure(): ServiceFailure =
-        when (this) {
-            is ProviderInvalidArgument -> com.denis.georgiatransit.bff.api.InvalidArgument(
-                "The transit provider rejected the request",
-            )
-            is ProviderRouteNotFound -> RouteNotFound("The requested route was not found")
-            is ProviderStopNotFound -> StopNotFound("The requested stop was not found")
-            is ProviderConflict -> com.denis.georgiatransit.bff.api.StateConflict("The provider ID changed")
-            is ProviderRateLimited -> com.denis.georgiatransit.bff.api.RequestRateLimited(
-                "The transit provider is rate limited",
-                retryAfterSeconds.validatedRetryAfterSeconds(),
-            )
-            is ProviderCapabilityUnavailable -> CapabilityNotAvailable("The requested capability is not available")
-            is ProviderBadGateway -> com.denis.georgiatransit.bff.api.UpstreamBadGateway(
-                "The provider returned an invalid response",
-            )
-            is ProviderUnavailable -> com.denis.georgiatransit.bff.api.UpstreamUnavailable(
-                "The transit provider is unavailable",
-                retryAfterSeconds.validatedRetryAfterSeconds(),
-            )
-            is ProviderTimeout -> UpstreamTimeout("The transit provider did not respond in time")
-        }
-
-    private fun ProviderFailure.telemetryOutcome(): ProviderOutcome =
-        when (this) {
-            is ProviderInvalidArgument -> ProviderOutcome.INVALID_ARGUMENT
-            is ProviderRouteNotFound,
-            is ProviderStopNotFound,
-            is ProviderConflict,
-            -> ProviderOutcome.INVALID_ARGUMENT
-            is ProviderRateLimited -> ProviderOutcome.RATE_LIMITED
-            is ProviderCapabilityUnavailable -> ProviderOutcome.CAPABILITY_UNAVAILABLE
-            is ProviderBadGateway -> ProviderOutcome.BAD_GATEWAY
-            is ProviderUnavailable -> ProviderOutcome.UNAVAILABLE
-            is ProviderTimeout -> ProviderOutcome.TIMEOUT
-        }
-
-    private fun Int?.validatedRetryAfterSeconds(): Int? =
-        takeIf { it in 1..MaximumRetryAfterSeconds }
 }

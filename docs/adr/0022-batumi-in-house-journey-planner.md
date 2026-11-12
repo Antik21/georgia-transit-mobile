@@ -9,8 +9,8 @@ planner defined here.
 
 ## Context
 
-Users need to choose two points in Batumi, origin A and destination B, and get one to three public
-transport options. Each option must state:
+Users need to choose two points in Batumi, origin A and destination B, and get the admissible
+public transport options. Each option must state:
 
 - the approximate walk to the boarding stop;
 - the walk between stops when a transfer uses a different stop;
@@ -100,22 +100,35 @@ bus wins naturally.
 
 ### Selection
 
-Keep a Pareto set over arrival time, walking distance, and transfers. Then return up to three
-distinct options in this order:
+Return every admissible option, ranked, up to six, instead of asking the user to pick a mode.
+Each option may carry labels, like the "best / cheapest / fastest" tags of flight search.
 
-1. the earliest arrival;
-2. the best option with fewer transfers;
-3. the least walking.
+Admissible options come from the Pareto set over arrival time, walking distance, and transfers,
+after these filters:
 
-Two options with the same route sequence are duplicates. Apply these filters:
-
-- drop an option that arrives more than `max(15 min, 50%)` after the earliest;
-- keep a transfer option only if it saves at least five minutes or no direct option exists;
+- two options with the same route sequence are duplicates; keep the lower generalized cost;
+- drop transit that neither arrives earlier nor walks less than walking directly;
+- drop an option that arrives more than `max(15 min, 50%)` after the earliest option, the direct
+  walk included when it is offered;
+- keep an option with more transfers only if it arrives at least five minutes earlier than every
+  option with fewer transfers;
 - add a walk-only option when direct walking is at most 2 km or beats every transit option.
 
-The request may select `FASTEST`, `LESS_WALKING`, or `FEWER_TRANSFERS`. The mode reorders and
-weights the same set: walking × 1.5, waiting × 1.2, and four minutes per transfer for the
-generalized cost.
+The generalized cost weighs walking × 1.5, waiting × 1.2, and four minutes per transfer.
+
+Labels are assigned only when at least two options are returned. Each label marks at most one
+option, and one option may carry several labels:
+
+| label | option |
+| --- | --- |
+| `OPTIMAL` | the lowest generalized cost |
+| `FASTEST` | the earliest arrival; ties go to the lower cost |
+| `LEAST_WALKING` | the least walking among transit options |
+| `NO_TRANSFERS` | the lowest-cost transit option without transfers, only when another transit option has transfers |
+
+When more than six options remain, keep every labelled option first, then fill by generalized
+cost. Order the page with the `OPTIMAL` option first, then by arrival time. Clients render the
+label with a fixed, label-specific colour that never depends on order, route, or session.
 
 ### Contract
 
@@ -126,7 +139,7 @@ The response reuses `JourneyPage` and extends `Journey` and `JourneySegment` wit
 only:
 
 - `Journey`: `durationSeconds`, `walkingDistanceMeters`, `timingQuality` (`LIVE`, `MIXED`,
-  `ESTIMATED`);
+  `ESTIMATED`), `labels` (`OPTIMAL`, `FASTEST`, `LEAST_WALKING`, `NO_TRANSFERS`);
 - every segment: `distanceMeters`, `geometry` (encoded polyline), `geometryApproximate`;
 - transit segments only: `intermediateStopCount`, `waitSeconds`, `waitBasis`, `vehicleId`.
 

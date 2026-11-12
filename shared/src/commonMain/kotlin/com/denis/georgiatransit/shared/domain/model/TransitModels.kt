@@ -174,6 +174,15 @@ data class TransitJourneySegment(
     val toStopId: StopId? = null,
     val fromPosition: GeoPoint? = null,
     val toPosition: GeoPoint? = null,
+    val distanceMeters: Double? = null,
+    /** Encoded polyline, precision 5. */
+    val geometry: String? = null,
+    val geometryApproximate: Boolean? = null,
+    val intermediateStopCount: Int? = null,
+    val waitSeconds: Int? = null,
+    /** Null when absent or unknown to this client; it must never be presented as live. */
+    val waitBasis: JourneyWaitBasis? = null,
+    val vehicleId: VehicleId? = null,
 )
 
 @Serializable
@@ -184,6 +193,10 @@ data class TransitJourney(
     val transfers: Int,
     val legs: List<TransitJourneyLeg>,
     val segments: List<TransitJourneySegment> = emptyList(),
+    val durationSeconds: Int? = null,
+    val walkingDistanceMeters: Double? = null,
+    val timingQuality: JourneyTimingQuality? = null,
+    val labels: List<JourneyLabel> = emptyList(),
 )
 
 @Serializable data class VehiclePage(val items: List<TransitVehicle>, val observedAt: Instant, val maxAgeSeconds: Int, val stale: Boolean)

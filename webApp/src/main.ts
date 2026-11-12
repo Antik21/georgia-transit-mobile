@@ -1,4 +1,5 @@
-import type { MapEntry, MapState, RoutesEntry, TransitRuntime, VehicleLayer } from "./contracts";
+import type { MapEntry, MapState, PlannerState, RoutesEntry, TransitRuntime, VehicleLayer } from "./contracts";
+import { getCopy } from "./copy";
 import type { TransitMap } from "./map";
 import { createLocationAdapter, type LocationAdapter } from "./location";
 import { connectTelegram } from "./telegram";
@@ -10,6 +11,7 @@ interface ActiveMap {
   location: LocationAdapter;
   state?: MapState;
   vehicles?: VehicleLayer;
+  planner?: PlannerState;
   renderer?: TransitMap;
   rendererRequested?: boolean;
   rendererUnavailable?: boolean;
@@ -44,12 +46,25 @@ const view = createTransitView(root, {
   retryRoute: (id) => activeMap?.bridge.retryRoute(id),
   removeRoute: (id) => activeMap?.bridge.removeRoute(id),
   myLocation: () => activeMap?.bridge.myLocation(),
+  closePlanner: () => activeMap?.bridge.planner.close(),
+  pickPointFor: (side) => activeMap?.bridge.planner.pickPointFor(side),
+  useMyLocationFor: (side) => activeMap?.bridge.planner.useMyLocationFor(side),
+  swapPlanner: () => activeMap?.bridge.planner.swap(),
+  clearPlanner: () => activeMap?.bridge.planner.clear(),
+  selectPlannerOption: (id) => activeMap?.bridge.planner.selectOption(id),
+  retryPlanner: () => activeMap?.bridge.planner.retry(),
 }, language);
+const copy = getCopy(language);
 
 const telegram = connectTelegram(() => {
   if (activeRoutes) activeRoutes.cancel();
+  else if (activeMap?.planner?.open) activeMap.bridge.planner.close();
   else activeMap?.bridge.dismissArrivals();
 });
+
+function updateBackButton(entry: ActiveMap) {
+  telegram.setBackVisible(Boolean(entry.state?.arrivals) || Boolean(entry.planner?.open));
+}
 
 function closeEntries() {
   const routes = activeRoutes;
@@ -95,9 +110,14 @@ async function loadMapRenderer(entry: ActiveMap) {
       updateViewport: (lat, lng, radius, zoom) => entry.bridge.updateViewport(lat, lng, radius, zoom),
       selectVehicle: (id, revision) => entry.bridge.selectVehicle(id, revision),
       setUnavailable,
-    });
+      longPress: (lat, lng) => entry.bridge.planner.longPressMap(lat, lng),
+      routeHere: () => entry.bridge.planner.routeHere(),
+      routeFromHere: () => entry.bridge.planner.routeFromHere(),
+      dismissPin: () => entry.bridge.planner.dismissPin(),
+    }, { routeHere: copy.plannerRouteHere, routeFromHere: copy.plannerRouteFromHere });
     entry.renderer.setVisible(mapVisible());
     if (entry.vehicles) entry.renderer.updateVehicles(entry.vehicles);
+    if (entry.planner) entry.renderer.updatePlanner(entry.planner);
     setUnavailable(false);
   } catch {
     setUnavailable(true);
@@ -106,7 +126,7 @@ async function loadMapRenderer(entry: ActiveMap) {
 
 function renderMap(entry: ActiveMap) {
   view.showMap(entry.state);
-  telegram.setBackVisible(Boolean(entry.state?.arrivals));
+  updateBackButton(entry);
   if (entry.renderer || entry.rendererUnavailable) view.setMapUnavailable(Boolean(entry.rendererUnavailable));
   if (!entry.state?.camera) return;
   if (entry.renderer) entry.renderer.update(entry.state);
@@ -151,6 +171,14 @@ function showMap(session: TransitRuntime) {
       if (activeMap !== entry) return;
       entry.vehicles = layer;
       entry.renderer?.updateVehicles(layer);
+    });
+    entry.bridge.planner.subscribe((state) => {
+      if (activeMap !== entry) return;
+      entry.planner = state;
+      // The panel first: a renderer failure must not leave the cards out of step with the map.
+      view.showPlanner(state);
+      if (!activeRoutes) updateBackButton(entry);
+      entry.renderer?.updatePlanner(state);
     });
   }
   updateVisibility();

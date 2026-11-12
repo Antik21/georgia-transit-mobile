@@ -41,6 +41,7 @@ enum class TelemetryOperation(val wireValue: String, val capability: TelemetryCa
     ARRIVALS("arrivals", TelemetryCapability.ARRIVALS),
     JOURNEYS("journeys", TelemetryCapability.TRIP_PLANNING),
     WALKING_ESTIMATE("walking_estimate", TelemetryCapability.TRIP_PLANNING),
+    JOURNEY_PLAN("journey_plan", TelemetryCapability.TRIP_PLANNING),
     PROBE_ARRIVALS("probe_arrivals", TelemetryCapability.ARRIVALS),
     PROBE_JOURNEYS("probe_journeys", TelemetryCapability.TRIP_PLANNING),
 }
@@ -57,6 +58,7 @@ enum class HttpOperation(val wireValue: String) {
     ARRIVALS("arrivals"),
     JOURNEYS("journeys"),
     WALKING_ESTIMATE("walking_estimate"),
+    JOURNEY_PLAN("journey_plan"),
     MAP_STYLE("map_style"),
     MAP_TILE("map_tile"),
 }

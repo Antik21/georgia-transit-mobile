@@ -5,10 +5,12 @@ import com.denis.georgiatransit.shared.data.cache.TransitCacheStore
 import com.denis.georgiatransit.shared.data.config.BffEndpointConfiguration
 import com.denis.georgiatransit.shared.data.network.TransitBffClient
 import com.denis.georgiatransit.shared.data.network.createTransitHttpClient
+import com.denis.georgiatransit.shared.data.repository.BffJourneyPlanRepository
 import com.denis.georgiatransit.shared.data.repository.BffTransitRepository
 import com.denis.georgiatransit.shared.data.repository.StoredRecentRouteHistory
 import com.denis.georgiatransit.shared.domain.config.RuntimeBootstrapConfigurationSource
 import com.denis.georgiatransit.shared.domain.interactor.BootstrapTransitSession
+import com.denis.georgiatransit.shared.domain.repository.JourneyPlanRepository
 import com.denis.georgiatransit.shared.domain.repository.RecentRouteHistory
 import com.denis.georgiatransit.shared.domain.repository.SelectedCityStore
 import com.denis.georgiatransit.shared.data.repository.RuntimeTransitSession
@@ -42,6 +44,7 @@ internal fun appModule(
     single { createTransitHttpClient() }
     single { TransitBffClient(httpClient = get(), endpoint = bffEndpointConfiguration) }
     single<TransitRepository> { BffTransitRepository(client = get(), cache = get()) }
+    single<JourneyPlanRepository> { BffJourneyPlanRepository(client = get()) }
     single<TransitSession> { RuntimeTransitSession(selectedCityStore = get()) }
     single<LocationSession> { RuntimeLocationSession() }
     single<VehicleRealtimeClock> { SystemVehicleRealtimeClock() }
@@ -65,6 +68,7 @@ internal fun appModule(
             realtimeClock = get(),
             realtimeTickerPolicy = get(),
             routeGeometryCoordinator = get(),
+            journeyPlanRepository = get(),
             bffStyleUrl = bffEndpointConfiguration?.mapStyleUrlOrNull(),
         )
     }
