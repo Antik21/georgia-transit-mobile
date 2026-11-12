@@ -179,6 +179,7 @@ export interface RouteChoice {
   readonly color: string;
   readonly textColor: string;
   readonly selected: boolean;
+  readonly mode: string;
 }
 
 export interface RoutesState {
