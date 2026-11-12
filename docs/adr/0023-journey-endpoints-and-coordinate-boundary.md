@@ -38,7 +38,7 @@ sealed interface JourneyEndpoint {
     data object CurrentLocation : JourneyEndpoint
     data class MapPoint(val point: GeoPoint) : JourneyEndpoint
 }
-JourneyRequest(origin: JourneyEndpoint, destination: JourneyEndpoint, mode, transferBuffer)
+JourneyRequest(origin: JourneyEndpoint, destination: JourneyEndpoint, transferBuffer)
 ```
 
 The model has these rules:
@@ -87,7 +87,7 @@ Coordinates leave the device in exactly one operation:
 
 ```text
 POST /v1/cities/{cityId}/journeys/plan
-{ from:{lat,lon}, to:{lat,lon}, departureAt?, maxTransfers, mode, transferBufferSeconds, locale }
+{ from:{lat,lon}, to:{lat,lon}, departureAt?, maxTransfers, transferBufferSeconds, locale }
 ```
 
 - The client rounds both points to 4 decimal places (about 11 m) before sending.

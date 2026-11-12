@@ -332,7 +332,7 @@ paths:
   /v1/cities/{cityId}/journeys/plan:
     post:
       operationId: planJourneyOptions
-      summary: Plan up to three public-transport options between two points (ADR 0022, ADR 0023).
+      summary: Plan the admissible public-transport options between two points (ADR 0022, ADR 0023).
       description: >-
         Privacy-sensitive operation. `from` and `to` are request-scoped, are never echoed in errors,
         logs, caches, telemetry labels, LKG, or durable storage, and the request never states whether a
@@ -349,14 +349,14 @@ paths:
             schema: {$ref: '#/components/schemas/JourneyPlanRequest'}
       responses:
         '200':
-          description: Zero to three ranked journey options. An empty `items` means no option was found.
+          description: Zero to six ranked journey options, the OPTIMAL one first and the rest by arrival time. An empty `items` means no option was found.
           headers:
             X-Request-ID: {$ref: '#/components/headers/RequestId'}
             Cache-Control: {$ref: '#/components/headers/NoStoreCacheControl'}
           content:
             application/json:
               schema: {$ref: '#/components/schemas/JourneyPage'}
-              example: {items: [{id: demo:fixture:journey:blue-direct, departureAt: '2030-01-01T00:00:00Z', arrivalAt: '2030-01-01T00:21:00Z', transfers: 0, durationSeconds: 1260, walkingDistanceMeters: 520, timingQuality: LIVE, legs: [{routeId: demo:fixture:route:blue, directionId: demo:fixture:direction:blue-outbound, fromStopId: demo:fixture:stop:center, toStopId: demo:fixture:stop:park, departureAt: '2030-01-01T00:06:00Z', arrivalAt: '2030-01-01T00:17:00Z'}], segments: [{departureAt: '2030-01-01T00:00:00Z', arrivalAt: '2030-01-01T00:04:00Z', mode: WALK, toStopId: demo:fixture:stop:center, fromPosition: {latitude: 41.7151, longitude: 44.8271}, toPosition: {latitude: 41.7162, longitude: 44.8292}, distanceMeters: 300, geometry: 'o~a~Fg`toG}EiL', geometryApproximate: true}, {departureAt: '2030-01-01T00:06:00Z', arrivalAt: '2030-01-01T00:17:00Z', mode: TRANSIT, routeId: demo:fixture:route:blue, directionId: demo:fixture:direction:blue-outbound, fromStopId: demo:fixture:stop:center, toStopId: demo:fixture:stop:park, fromPosition: {latitude: 41.7162, longitude: 44.8292}, toPosition: {latitude: 41.7281, longitude: 44.8402}, distanceMeters: 2100, geometry: 'mebs~Fu|uoGwiAke@', geometryApproximate: false, intermediateStopCount: 5, waitSeconds: 120, waitBasis: LIVE_VEHICLE, vehicleId: demo:fixture:vehicle:blue-01}, {departureAt: '2030-01-01T00:17:00Z', arrivalAt: '2030-01-01T00:21:00Z', mode: WALK, fromStopId: demo:fixture:stop:park, fromPosition: {latitude: 41.7281, longitude: 44.8402}, toPosition: {latitude: 41.7295, longitude: 44.8421}, distanceMeters: 220, geometry: 'eocs~Fsavo`AsGyJ', geometryApproximate: true}]}], observedAt: '2030-01-01T00:00:00Z', source: CLIENT_ESTIMATE, realtime: true, stale: false}
+              example: {items: [{id: demo:fixture:journey:blue-direct, departureAt: '2030-01-01T00:00:00Z', arrivalAt: '2030-01-01T00:21:00Z', transfers: 0, durationSeconds: 1260, walkingDistanceMeters: 520, timingQuality: LIVE, labels: [OPTIMAL, FASTEST], legs: [{routeId: demo:fixture:route:blue, directionId: demo:fixture:direction:blue-outbound, fromStopId: demo:fixture:stop:center, toStopId: demo:fixture:stop:park, departureAt: '2030-01-01T00:06:00Z', arrivalAt: '2030-01-01T00:17:00Z'}], segments: [{departureAt: '2030-01-01T00:00:00Z', arrivalAt: '2030-01-01T00:04:00Z', mode: WALK, toStopId: demo:fixture:stop:center, fromPosition: {latitude: 41.7151, longitude: 44.8271}, toPosition: {latitude: 41.7162, longitude: 44.8292}, distanceMeters: 300, geometry: 'o~a~Fg`toG}EiL', geometryApproximate: true}, {departureAt: '2030-01-01T00:06:00Z', arrivalAt: '2030-01-01T00:17:00Z', mode: TRANSIT, routeId: demo:fixture:route:blue, directionId: demo:fixture:direction:blue-outbound, fromStopId: demo:fixture:stop:center, toStopId: demo:fixture:stop:park, fromPosition: {latitude: 41.7162, longitude: 44.8292}, toPosition: {latitude: 41.7281, longitude: 44.8402}, distanceMeters: 2100, geometry: 'mebs~Fu|uoGwiAke@', geometryApproximate: false, intermediateStopCount: 5, waitSeconds: 120, waitBasis: LIVE_VEHICLE, vehicleId: demo:fixture:vehicle:blue-01}, {departureAt: '2030-01-01T00:17:00Z', arrivalAt: '2030-01-01T00:21:00Z', mode: WALK, fromStopId: demo:fixture:stop:park, fromPosition: {latitude: 41.7281, longitude: 44.8402}, toPosition: {latitude: 41.7295, longitude: 44.8421}, distanceMeters: 220, geometry: 'eocs~Fsavo`AsGyJ', geometryApproximate: true}]}], observedAt: '2030-01-01T00:00:00Z', source: CLIENT_ESTIMATE, realtime: true, stale: false}
         '400': {$ref: '#/components/responses/InvalidArgument'}
         '404': {$ref: '#/components/responses/CityNotFound'}
         '429': {$ref: '#/components/responses/RateLimited'}
@@ -608,7 +608,10 @@ components:
       type: string
       description: Additive. LIVE when every wait is LIVE_VEHICLE, ESTIMATED when none is (including a walk-only journey), MIXED otherwise.
       enum: [LIVE, MIXED, ESTIMATED]
-    JourneyPlanMode: {type: string, enum: [FASTEST, LESS_WALKING, FEWER_TRANSFERS]}
+    JourneyLabel:
+      type: string
+      description: Additive. OPTIMAL is the lowest generalized cost, FASTEST the earliest arrival, LEAST_WALKING the least walking among transit options, NO_TRANSFERS the best direct transit option when another option has transfers. Assigned only when the page has at least two options; each label marks at most one option.
+      enum: [OPTIMAL, FASTEST, LEAST_WALKING, NO_TRANSFERS]
     JourneyPlanRequest:
       type: object
       description: Coordinate-bearing, request-scoped input (ADR 0023). Never cacheable or retained by the BFF.
@@ -618,7 +621,6 @@ components:
         to: {$ref: '#/components/schemas/GeoPoint'}
         departureAt: {$ref: '#/components/schemas/UtcTimestamp', description: Absent means now. Must be within five minutes in the past and two hours ahead.}
         maxTransfers: {type: integer, minimum: 0, maximum: 2, default: 2}
-        mode: {$ref: '#/components/schemas/JourneyPlanMode', default: FASTEST}
         transferBufferSeconds: {type: integer, minimum: 0, maximum: 600, default: 60}
         locale: {type: string, enum: [ka, en, ru]}
     Journey:
@@ -637,6 +639,7 @@ components:
         durationSeconds: {type: integer, minimum: 0, description: Additive. arrivalAt minus departureAt.}
         walkingDistanceMeters: {type: number, minimum: 0, description: Additive. Sum of WALK segment distances.}
         timingQuality: {$ref: '#/components/schemas/JourneyTimingQuality'}
+        labels: {type: array, uniqueItems: true, description: Additive. Highlight labels of this option; absent or empty means none., items: {$ref: '#/components/schemas/JourneyLabel'}}
     VehiclePage:
       type: object
       required: [items, observedAt, maxAgeSeconds, stale]
