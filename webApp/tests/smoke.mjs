@@ -9,7 +9,7 @@ import { fileURLToPath } from 'node:url';
 import {
   browserFixture, fallbackMapColor, fixtureAttribution, fixtureCityId, fixtureControl, fixtureHeadsign,
   fixtureRouteColor, fixtureRouteId, fixtureShapePath, fixtureStopId, fixtureTileColor, otherCityId,
-  otherRouteId, otherShapePath, fixtureVehiclesPath, vehicleHeadlightColor, userLocationDotColor,
+  otherRouteId, otherShapePath, fixtureVehiclesPath, vehicleHeadlightColor, userLocationDotColor, stopPinGlyphColor,
 } from './browser-fixtures.mjs';
 
 const dist = resolve(process.argv[2] ?? fileURLToPath(new URL('../dist', import.meta.url)));
@@ -61,7 +61,6 @@ try {
   const testId = (id) => `[data-testid="${id}"]`;
   const cityOption = (id) => `${testId('city-option')}[data-city-id="${id}"]`;
   const stopOption = `${testId('stop-option')}[data-stop-id="${fixtureStopId}"]`;
-  const mapStop = `${testId('map-stop-marker')}[data-stop-id="${fixtureStopId}"]`;
   const routeOption = (id) => `${testId('route-option')}[data-route-id="${id}"]`;
   const routePressed = (id, value) => `document.querySelector(${JSON.stringify(routeOption(id))})?.getAttribute('aria-pressed') === '${value}'`;
   const routesScreen = visible(testId('routes-screen'));
@@ -178,6 +177,16 @@ try {
     return evaluate(`document.querySelector('.maplibregl-canvas').style.cursor`);
   }
 
+  async function tapAt(point) {
+    await send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [point] });
+    await send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+  }
+
+  async function stopPinPoint() {
+    const glyph = await colorCentroid(stopPinGlyphColor);
+    return glyph.count >= 20 ? glyph : null;
+  }
+
   async function tap(selector) {
     const point = await evaluate(`(() => {
       const element = document.querySelector(${JSON.stringify(selector)});
@@ -208,11 +217,14 @@ try {
     'Telegram back dismisses ETA',
     `!${arrivalsPanel} && ${visible(testId('map-screen'))} && window.__telegramSmoke?.backVisible === false`,
   );
-  await waitFor('MapLibre canvas and stop marker are visible', `${visible('.maplibregl-canvas')} && ${visible(mapStop)}`);
-  await tap(mapStop);
-  await waitFor('Map marker opens the same BFF arrival', etaVisible);
+  await waitFor('The native stop pin draws on the MapLibre canvas', async () => Boolean(await stopPinPoint()));
+  assert.equal(await evaluate(`document.querySelectorAll('.maplibregl-marker').length`), 0, 'Stops must not be DOM markers');
+  await tapAt(await stopPinPoint());
+  await waitFor('Tapping the canvas pin opens the same BFF arrival', etaVisible);
   await tap(testId('dismiss-arrivals'));
   await waitFor('In-app back returns to nearby stops', `!${arrivalsPanel} && ${visible(stopOption)}`);
+  let pinPoint;
+  await waitFor('The stop pin settles after the ETA camera move', async () => Boolean(pinPoint = await stopPinPoint()));
 
   await tap(testId('open-routes'));
   await waitFor('Route picker loads both catalog entries', `${routesScreen} && ${visible(routeOption(fixtureRouteId))} && ${visible(routeOption(otherRouteId))}`);
@@ -224,6 +236,11 @@ try {
   await tap(testId('confirm-routes'));
   await waitFor('Confirm returns to the map', `${mapScreen} && !${routesScreen}`);
   await waitFor('The selected route geometry draws on the MapLibre canvas', () => mapContainsColor(fixtureRouteColor, 75));
+  await waitFor('A stop on the selected route switches to the route-coloured pin', async () => !(await stopPinPoint()));
+  await tapAt(pinPoint);
+  await waitFor('Tapping the route-coloured pin opens ETA with a route selected', etaVisible);
+  await tap(testId('dismiss-arrivals'));
+  await waitFor('ETA closes back to the map with the route selected', `!${arrivalsPanel} && ${visible(stopOption)}`);
   await waitFor('The live vehicle badge draws on the MapLibre canvas', () => mapContainsColor(vehicleHeadlightColor, 6));
   await waitFor('Live vehicles show no degraded status', `!${visible(testId('vehicle-status'))}`);
   const vehicleSummary = `(document.querySelector('${testId('vehicle-summary')}')?.textContent ?? '')`;

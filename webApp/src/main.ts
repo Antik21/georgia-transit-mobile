@@ -91,7 +91,7 @@ async function loadMapRenderer(entry: ActiveMap) {
       return;
     }
     entry.renderer = createTransitMap(view.mapElement, entry.state, {
-      selectStop: (stop) => entry.bridge.selectStop(stop.id, stop.sourceRevision),
+      tapStop: (id, revision) => entry.bridge.tapStop(id, revision),
       updateViewport: (lat, lng, radius, zoom) => entry.bridge.updateViewport(lat, lng, radius, zoom),
       selectVehicle: (id, revision) => entry.bridge.selectVehicle(id, revision),
       setUnavailable,

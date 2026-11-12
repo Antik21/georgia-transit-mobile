@@ -614,7 +614,7 @@ function arrivalSource(copy: Copy, source: string) {
     case "OfficialRealtime": return copy.officialRealtime;
     case "AggregatorRealtime": return copy.aggregatorRealtime;
     case "Schedule": return copy.scheduled;
-    case "ClientEstimate": return copy.estimated;
+    case "Approximate": return copy.estimated;
     default: return null;
   }
 }
