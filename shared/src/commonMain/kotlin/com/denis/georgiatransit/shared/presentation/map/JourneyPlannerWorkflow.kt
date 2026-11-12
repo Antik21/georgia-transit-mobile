@@ -99,7 +99,7 @@ internal class JourneyPlannerWorkflow(
         val city = context.city?.takeIf { context.visible && context.available && it.capabilities.arrivals } ?: return null
         val option = state.selectedOption() ?: return null
         val boarding = option.boarding ?: return null
-        return JourneyBusKey(city.id, option.id, boarding, context.locale, city.capabilities.vehiclePositions)
+        return JourneyBusKey(city.id, option.id, boarding, context.locale, city.capabilities.vehiclePositions, city.capabilities.routeShapes)
     }
 
     fun cancel() {

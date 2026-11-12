@@ -15,6 +15,7 @@ import com.denis.georgiatransit.shared.domain.model.TransitArrival
 import com.denis.georgiatransit.shared.domain.model.TransitCity
 import com.denis.georgiatransit.shared.domain.model.TransitLocale
 import com.denis.georgiatransit.shared.domain.model.TransitRoute
+import com.denis.georgiatransit.shared.domain.model.TransitShape
 import com.denis.georgiatransit.shared.domain.model.TransitVehicle
 import com.denis.georgiatransit.shared.domain.model.VehicleId
 import com.denis.georgiatransit.shared.domain.model.VehiclePage
@@ -31,6 +32,7 @@ import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 import kotlin.time.Instant
 
@@ -98,6 +100,23 @@ class JourneyBusesWorkflowTest {
         assertEquals(2, repository.arrivalCalls, "Closing the planner stops polling")
     }
 
+    @Test
+    fun aFeedWithoutBearingStillFacesTheBusAlongItsRouteAndTheShapeIsLoadedOnce() = runTest {
+        val repository = BusRepository()
+        val workflow = JourneyBusesWorkflow(repository, vehicleIntervalMillis = 8_000)
+        val updates = mutableListOf<JourneyBusesUpdate>()
+        val boarding = BOARDING.copy(directionId = DIRECTION, stopPosition = GeoPoint(41.645, 41.63), departureBearing = 0.0)
+
+        workflow.sync(backgroundScope, JourneyBusKey(CITY.id, OPTION_A, boarding, TransitLocale.English, true, shapes = true)) { updates += it }
+        runCurrent()
+        val heading = assertNotNull(updates.last().headings[V1], "Batumi sends no bearing; the route shape supplies it")
+        assertTrue(heading < 5.0 || heading > 355.0, "The shape runs north, got $heading")
+
+        workflow.sync(backgroundScope, JourneyBusKey(CITY.id, OPTION_B, boarding, TransitLocale.English, true, shapes = true)) { updates += it }
+        runCurrent()
+        assertEquals(1, repository.shapeCalls, "A re-plan with new option IDs reuses the same route shape")
+    }
+
     private fun TestScope.execute(workflow: JourneyPlannerWorkflow, state: JourneyPlannerUi, context: JourneyPlannerContext) {
         workflow.execute(backgroundScope, JourneyPlannerStep(state), context) {}
         runCurrent()
@@ -125,6 +144,7 @@ class JourneyBusesWorkflowTest {
     ) : TransitRepository {
         var arrivalCalls = 0
         var vehicleCalls = 0
+        var shapeCalls = 0
         override fun cities() = listOf(CITY)
         override fun routes(cityId: CityId) = emptyList<TransitRoute>()
 
@@ -132,6 +152,11 @@ class JourneyBusesWorkflowTest {
             arrivalCalls++
             return TransitLoadResult.Data(ArrivalPage(arrivals, ArrivalSource.OfficialRealtime, Instant.fromEpochMilliseconds(0), false),
                 TransitFreshness.Network)
+        }
+
+        override suspend fun directionShape(cityId: CityId, routeId: RouteId, directionId: DirectionId): TransitLoadResult<TransitShape> {
+            shapeCalls++
+            return TransitLoadResult.Data(TransitShape("oza}Foza}F_|B?", 5, Instant.fromEpochMilliseconds(0)), TransitFreshness.Network)
         }
 
         override suspend fun vehicles(cityId: CityId, routeId: RouteId, directionId: DirectionId?): TransitLoadResult<VehiclePage> {
@@ -144,6 +169,7 @@ class JourneyBusesWorkflowTest {
     private companion object {
         val A = GeoPoint(41.64, 41.63)
         val ROUTE = RouteId("demo:fixture:route:blue")
+        val DIRECTION = DirectionId("demo:fixture:direction:blue-technical")
         val BOARDING = JourneyBoarding(StopId("demo:fixture:stop:a"), ROUTE)
         val OPTION_A = JourneyId("demo:fixture:journey:a")
         val OPTION_B = JourneyId("demo:fixture:journey:b")

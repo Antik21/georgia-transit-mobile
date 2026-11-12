@@ -112,6 +112,8 @@ class PlannerState(
     val options: Array<PlannerOption>,
     val route: PlannerRoute,
     val buses: Array<PlannerBus> = emptyArray(),
+    /** Frame the route only when this changes; periodic refreshes keep it. */
+    val cameraFitRevision: String = "0",
 )
 
 /** Planner commands and state for the Map entry; it lives and dies with its [MapBridge]. */
@@ -219,6 +221,7 @@ private fun JourneyPlannerUi.toJs(route: PlannerRoute): PlannerState {
             results.options.map { it.toJs(it.id == results.selectedId, buses) }.toTypedArray()
         } ?: emptyArray(),
         route = route,
+        cameraFitRevision = cameraFitRevision.toString(),
         buses = buses?.vehicles.orEmpty().map { bus ->
             PlannerBus(
                 id = bus.id.value, latitude = bus.position.latitude, longitude = bus.position.longitude,

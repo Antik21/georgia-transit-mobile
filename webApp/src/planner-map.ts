@@ -112,7 +112,7 @@ export function createPlannerMap(
   let styleReady = false;
   let renderedRoute: PlannerRoute | undefined;
   let renderedPoints: string | undefined;
-  let fittedRoute: PlannerRoute | undefined;
+  let fittedRevision: string | undefined;
   let renderedBuses: string | undefined;
   const busImages = new Map<string, string>();
   let retryPending = false;
@@ -201,8 +201,9 @@ export function createPlannerMap(
         syncSource(busSourceId, buses, busLayers);
         renderedBuses = busesKey;
       }
-      if (route?.lines.length && fittedRoute !== route) {
-        fittedRoute = route;
+      // Only a new plan or another chosen option re-frames; refreshes leave the user's camera alone.
+      if (route?.lines.length && state && fittedRevision !== state.cameraFitRevision) {
+        fittedRevision = state.cameraFitRevision;
         fitRoute(route);
       }
     } catch {
@@ -254,7 +255,6 @@ export function createPlannerMap(
     map.on("idle", retry);
   }
 
-  // A new answer is framed once; later refreshes of the same lines leave the user's camera alone.
   function fitRoute(route: PlannerRoute) {
     const bounds = new LngLatBounds();
     for (const line of route.lines) for (const point of line.points) bounds.extend([point.longitude, point.latitude]);

@@ -145,7 +145,8 @@ internal object JourneyPlannerReducer {
                 } else failed
             }
         }
-        return finish(state.copy(status = next), context)
+        val fresh = previous == Status.Loading && next is Status.Results
+        return finish(state.copy(status = next, cameraFitRevision = state.cameraFitRevision + if (fresh) 1 else 0), context)
     }
 
     private fun evaluate(
@@ -208,8 +209,10 @@ internal object JourneyPlannerReducer {
         state: JourneyPlannerUi, action: JourneyPlannerAction.SelectOption, context: JourneyPlannerContext,
     ): JourneyPlannerStep {
         val status = state.status as? Status.Results ?: return finish(state, context)
-        if (status.options.none { it.id == action.id }) return finish(state, context)
-        return finish(state.copy(status = status.copy(selectedId = action.id)), context)
+        if (status.options.none { it.id == action.id } || status.selectedId == action.id) return finish(state, context)
+        return finish(
+            state.copy(status = status.copy(selectedId = action.id), cameraFitRevision = state.cameraFitRevision + 1), context,
+        )
     }
 
     private fun retry(state: JourneyPlannerUi, context: JourneyPlannerContext): JourneyPlannerStep = when (val status = state.status) {

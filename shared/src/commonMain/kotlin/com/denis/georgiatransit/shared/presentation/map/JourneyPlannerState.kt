@@ -1,6 +1,7 @@
 package com.denis.georgiatransit.shared.presentation.map
 
 import androidx.compose.runtime.Immutable
+import com.denis.georgiatransit.shared.domain.model.DirectionId
 import com.denis.georgiatransit.shared.domain.model.GeoPoint
 import com.denis.georgiatransit.shared.domain.model.JourneyEndpoint
 import com.denis.georgiatransit.shared.domain.model.JourneyId
@@ -33,6 +34,8 @@ data class JourneyPlannerUi(
     val render: JourneyPlanRenderUi = JourneyPlanRenderUi(),
     /** The soonest buses for the selected option's first boarding; kept apart from [render] so they never re-frame the map. */
     val buses: JourneyBusesUi? = null,
+    /** Bumped only by user intent (a new plan or another option); refreshes must not re-frame the camera. */
+    val cameraFitRevision: Long = 0,
 )
 
 @Immutable
@@ -73,7 +76,14 @@ data class JourneyOptionUi(
 
 /** The first transit boarding of an option: where its nearest buses are looked up. */
 @Immutable
-data class JourneyBoarding(val stopId: StopId, val routeId: RouteId)
+data class JourneyBoarding(
+    val stopId: StopId,
+    val routeId: RouteId,
+    val directionId: DirectionId? = null,
+    val stopPosition: GeoPoint? = null,
+    /** Travel heading leaving the stop; picks the right branch where a route runs a street both ways. */
+    val departureBearing: Double? = null,
+)
 
 @Immutable
 data class JourneyBusesUi(

@@ -64,7 +64,9 @@ internal object JourneyPlanUiMapper {
             lines = segments.mapNotNull { line(it, routes) }.toPersistentList(),
             labels = JourneyLabelUi.of(journey.labels),
             boarding = segments.firstOrNull { it.mode == JourneySegmentMode.Transit }?.let { ride ->
-                JourneyBoarding(checkNotNull(ride.fromStopId), checkNotNull(ride.routeId))
+                JourneyBoarding(
+                    checkNotNull(ride.fromStopId), checkNotNull(ride.routeId), ride.directionId, ride.fromPosition, departureBearing(ride),
+                )
             },
         )
     }
@@ -101,6 +103,13 @@ internal object JourneyPlanUiMapper {
             textArgb = contrastSafeRouteTextColor(route.colorArgb, route.textColorArgb),
             mode = route.mode,
         )
+    }
+
+    private fun departureBearing(segment: TransitJourneySegment): Double? {
+        val points = (segment.geometry?.let { decodeEncodedPolyline(it, POLYLINE_PRECISION) } as? EncodedPolylineDecodeResult.Success)
+            ?.points ?: listOfNotNull(segment.fromPosition, segment.toPosition)
+        val start = points.firstOrNull() ?: return null
+        return points.drop(1).firstNotNullOfOrNull { directVehicleTravelBearing(start, it) }
     }
 
     private fun line(segment: TransitJourneySegment, routes: List<TransitRoute>): JourneyPlanLineUi? {

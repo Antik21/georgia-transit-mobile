@@ -6,6 +6,7 @@ import com.denis.georgiatransit.shared.domain.model.TransitArrival
 import com.denis.georgiatransit.shared.domain.model.TransitLocale
 import com.denis.georgiatransit.shared.domain.model.TransitVehicle
 import com.denis.georgiatransit.shared.domain.model.VehicleId
+import com.denis.georgiatransit.shared.domain.repository.TransitFreshness
 import com.denis.georgiatransit.shared.domain.repository.TransitLoadResult
 import com.denis.georgiatransit.shared.domain.repository.TransitRepository
 import kotlinx.coroutines.CancellationException
@@ -21,6 +22,7 @@ internal data class JourneyBusKey(
     val boarding: JourneyBoarding,
     val locale: TransitLocale,
     val positions: Boolean,
+    val shapes: Boolean = false,
 )
 
 internal data class JourneyBusesUpdate(
@@ -28,6 +30,7 @@ internal data class JourneyBusesUpdate(
     val generation: Long,
     val soonest: List<Pair<VehicleId, Int>>,
     val positions: Map<VehicleId, TransitVehicle>,
+    val headings: Map<VehicleId, Double> = emptyMap(),
 )
 
 internal object JourneyBusesProjector {
@@ -48,7 +51,7 @@ internal object JourneyBusesProjector {
             boarding = update.key.boarding,
             etaMinutes = update.soonest.map { it.second },
             vehicles = update.soonest.mapNotNull { (id, eta) ->
-                update.positions[id]?.let { vehicle -> JourneyBusUi(id, vehicle.position, vehicle.bearing, eta, route) }
+                update.positions[id]?.let { vehicle -> JourneyBusUi(id, vehicle.position, update.headings[id], eta, route) }
             },
         )
     }
@@ -66,6 +69,8 @@ internal class JourneyBusesWorkflow(
     private var key: JourneyBusKey? = null
     private var generation = 0L
     private var job: Job? = null
+    // Every minute's re-plan mints new option IDs and restarts polling; the route shape itself is unchanged.
+    private var cachedPath: Pair<JourneyBoarding, PreparedVehicleRoutePath>? = null
 
     fun isCurrent(update: JourneyBusesUpdate): Boolean = update.generation == generation && update.key == key
 
@@ -81,13 +86,20 @@ internal class JourneyBusesWorkflow(
         scope.launch {
             var soonest = emptyList<Pair<VehicleId, Int>>()
             var positions = emptyMap<VehicleId, TransitVehicle>()
+            var headings = emptyMap<VehicleId, Double>()
+            val headingSource = JourneyBusHeadings(routePath(key), key.boarding.stopPosition, key.boarding.departureBearing)
             suspend fun refreshPositions() {
                 if (!key.positions || soonest.isEmpty()) return
                 val page = guarded { repository.vehicles(key.cityId, key.boarding.routeId) }
-                if (page is TransitLoadResult.Data) positions = page.value.items.associateBy { it.id }
+                if (page is TransitLoadResult.Data) {
+                    positions = page.value.items.associateBy { it.id }
+                    headings = headingSource.update(positions.values)
+                }
             }
             fun publish() {
-                if (generation == this@JourneyBusesWorkflow.generation) onUpdate(JourneyBusesUpdate(key, generation, soonest, positions))
+                if (generation == this@JourneyBusesWorkflow.generation) {
+                    onUpdate(JourneyBusesUpdate(key, generation, soonest, positions, headings))
+                }
             }
             launch {
                 while (true) {
@@ -107,6 +119,18 @@ internal class JourneyBusesWorkflow(
                 }
             }
         }
+
+    private suspend fun routePath(key: JourneyBusKey): PreparedVehicleRoutePath? {
+        val directionId = key.boarding.directionId?.takeIf { key.positions && key.shapes } ?: return null
+        cachedPath?.takeIf { (boarding) -> boarding.routeId == key.boarding.routeId && boarding.directionId == directionId }
+            ?.let { return it.second }
+        val shape = guarded { repository.directionShape(key.cityId, key.boarding.routeId, directionId) }
+        val points = ((shape as? TransitLoadResult.Data)?.value?.let(::decodeEncodedPolyline) as? EncodedPolylineDecodeResult.Success)
+            ?.points ?: return null
+        return PreparedVehicleRoutePath.from(
+            MapPolyline(key.boarding.routeId, directionId, points, routeColorArgb = 0, TransitFreshness.Network),
+        )?.also { cachedPath = key.boarding to it }
+    }
 
     private suspend fun <T> guarded(block: suspend () -> TransitLoadResult<T>): TransitLoadResult<T>? = try {
         block()

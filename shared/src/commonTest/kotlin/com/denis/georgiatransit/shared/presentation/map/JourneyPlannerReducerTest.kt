@@ -152,6 +152,22 @@ class JourneyPlannerReducerTest {
     }
 
     @Test
+    fun onlyANewPlanOrAnotherOptionReframesTheCamera() {
+        val loading = JourneyPlannerUi(isOpen = true, origin = JourneyEndpoint.MapPoint(A),
+            destination = JourneyEndpoint.MapPoint(B), status = Status.Loading)
+
+        val first = JourneyPlannerReducer.outcome(loading, page("one", "two"), context()).state
+        val sameOption = JourneyPlannerReducer.action(first, JourneyPlannerAction.SelectOption(JourneyId("demo:fixture:journey:one")), context()).state
+        val refreshed = JourneyPlannerReducer.outcome(JourneyPlannerReducer.refresh(first, context()).state, page("one", "three"), context()).state
+        val other = JourneyPlannerReducer.action(refreshed, JourneyPlannerAction.SelectOption(JourneyId("demo:fixture:journey:three")), context()).state
+
+        assertEquals(1, first.cameraFitRevision)
+        assertEquals(1, sameOption.cameraFitRevision, "re-selecting the shown option keeps the user's camera")
+        assertEquals(1, refreshed.cameraFitRevision, "a periodic refresh keeps the user's camera")
+        assertEquals(2, other.cameraFitRevision)
+    }
+
+    @Test
     fun outcomesMapEmptyErrorsAndCapabilityLoss() {
         val loading = JourneyPlannerUi(isOpen = true, origin = JourneyEndpoint.MapPoint(A),
             destination = JourneyEndpoint.MapPoint(B), status = Status.Loading)
@@ -224,7 +240,8 @@ class JourneyPlannerReducerTest {
         assertEquals(JourneyId("demo:fixture:journey:labelled"), results.selectedId)
         assertEquals(listOf(JourneyLabelUi.Optimal, JourneyLabelUi.NoTransfers), results.options[0].labels)
         assertTrue(results.options[1].labels.isEmpty())
-        assertEquals(JourneyBoarding(STOP_A, ROUTE), results.options[0].boarding)
+        val boarding = assertNotNull(results.options[0].boarding)
+        assertEquals(STOP_A to ROUTE, boarding.stopId to boarding.routeId)
     }
 
     private fun retry(planner: JourneyPlannerUi, location: LocationState) =

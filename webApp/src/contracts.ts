@@ -297,6 +297,7 @@ export interface PlannerState {
   readonly options: readonly PlannerOption[];
   readonly route: PlannerRoute;
   readonly buses: readonly PlannerBus[];
+  readonly cameraFitRevision: string;
 }
 
 export interface PlannerEntry {
