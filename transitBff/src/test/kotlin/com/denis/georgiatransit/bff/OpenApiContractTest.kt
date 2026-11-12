@@ -2,12 +2,12 @@ package com.denis.georgiatransit.bff
 
 import com.denis.georgiatransit.bff.api.GeoPoint
 import com.denis.georgiatransit.bff.api.Journey
+import com.denis.georgiatransit.bff.api.JourneyLabel
 import com.denis.georgiatransit.bff.api.JourneyPlanRequest
 import com.denis.georgiatransit.bff.api.JourneySegment
 import com.denis.georgiatransit.bff.api.JourneySegmentMode
 import com.denis.georgiatransit.bff.api.JourneyTimingQuality
 import com.denis.georgiatransit.bff.api.JourneyWaitBasis
-import com.denis.georgiatransit.bff.planning.JourneyPlanMode
 import java.nio.file.Files
 import java.nio.file.Path
 import kotlin.io.path.readText
@@ -221,7 +221,9 @@ class OpenApiContractTest {
         assertEquals(request.map("properties").keys, requestJson.keys)
         assertEquals(2, request.map("properties").map("maxTransfers")["maximum"])
         assertEquals(600, request.map("properties").map("transferBufferSeconds")["maximum"])
-        assertEquals(JourneyPlanMode.entries.map { it.name }, schemas.map("JourneyPlanMode")["enum"])
+        assertFalse(schemas.containsKey("JourneyPlanMode"))
+        assertEquals(JourneyLabel.entries.map { it.name }, schemas.map("JourneyLabel")["enum"])
+        assertEquals(true, schemas.map("Journey").map("properties").map("labels")["uniqueItems"])
         assertEquals(JourneyWaitBasis.entries.map { it.name }, schemas.map("JourneyWaitBasis")["enum"])
         assertEquals(JourneyTimingQuality.entries.map { it.name }, schemas.map("JourneyTimingQuality")["enum"])
 
@@ -253,6 +255,7 @@ class OpenApiContractTest {
             durationSeconds = 600,
             walkingDistanceMeters = 0.0,
             timingQuality = JourneyTimingQuality.LIVE,
+            labels = listOf(JourneyLabel.OPTIMAL),
         )
         assertEquals(
             schemas.map("JourneySegment").map("properties").keys,

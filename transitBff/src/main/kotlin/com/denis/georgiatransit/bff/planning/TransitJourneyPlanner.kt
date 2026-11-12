@@ -19,17 +19,17 @@ internal class TransitJourneyPlanner(
         val departure = query.departureAt.epochSecond
         val walkOnly = walkOnlyItinerary(query.from, query.to, departure)
         val selected = if (greatCircleMeters(query.from, query.to) < PlannerParameters.SamePlaceMeters) {
-            listOf(walkOnly)
+            listOf(LabelledItinerary(walkOnly, emptyList()))
         } else {
             val transit = JourneySearch(graph, timetable, budget)
                 .search(query.from, query.to, departure, query.maxTransfers, query.transferBufferSeconds.toLong())
                 .map { it.toItinerary(graph, query.from, query.to, departure) }
             budget.checkpoint()
-            JourneySelection.select(transit, walkOnly, query.mode)
+            JourneySelection.select(transit, walkOnly)
         }
-        val rides = selected.flatMap(PlannedItinerary::rides)
+        val rides = selected.flatMap { it.itinerary.rides }
         return RealtimeJourneys(
-            items = selected.mapIndexed { rank, itinerary -> mapper.journey(itinerary, rank) },
+            items = selected.mapIndexed { rank, option -> mapper.journey(option.itinerary, rank, option.labels) },
             source = ArrivalSource.CLIENT_ESTIMATE,
             realtime = rides.isNotEmpty() && rides.all { it.waitBasis == JourneyWaitBasis.LIVE_VEHICLE },
             observedAt = timetable.observedAt,

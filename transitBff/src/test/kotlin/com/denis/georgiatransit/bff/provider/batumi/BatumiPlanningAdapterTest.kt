@@ -3,7 +3,6 @@ package com.denis.georgiatransit.bff.provider.batumi
 import com.denis.georgiatransit.bff.api.CapabilityNotAvailable
 import com.denis.georgiatransit.bff.api.GeoPoint
 import com.denis.georgiatransit.bff.config.BffConfig
-import com.denis.georgiatransit.bff.planning.JourneyPlanMode
 import com.denis.georgiatransit.bff.planning.JourneyPlanQuery
 import com.denis.georgiatransit.bff.planning.PlanningBudget
 import com.denis.georgiatransit.bff.provider.BatumiAllBusesClient
@@ -72,7 +71,7 @@ class BatumiPlanningAdapterTest {
             adapter.startGlobalFeed(enabled = { true })
             withTimeout(5_000) { while (!adapter.tripPlanningReady) delay(10) }
 
-            val query = JourneyPlanQuery(near(line[2]), near(line[8]), Instant.now(), 2, JourneyPlanMode.FASTEST, 60, "en")
+            val query = JourneyPlanQuery(near(line[2]), near(line[8]), Instant.now(), 2, 60, "en")
             val page = adapter.planJourney(query, PlanningBudget.unbounded())
 
             val ride = page.items.single().transitSegments.single()

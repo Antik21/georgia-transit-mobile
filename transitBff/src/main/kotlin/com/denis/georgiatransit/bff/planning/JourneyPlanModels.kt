@@ -6,19 +6,12 @@ import java.time.Instant
 import kotlin.math.ceil
 import kotlinx.coroutines.CancellationException
 
-enum class JourneyPlanMode {
-    FASTEST,
-    LESS_WALKING,
-    FEWER_TRANSFERS,
-}
-
 /** Request-scoped and never retained: it must not become a cache key, log field, or metric label. */
 data class JourneyPlanQuery(
     val from: GeoPoint,
     val to: GeoPoint,
     val departureAt: Instant,
     val maxTransfers: Int,
-    val mode: JourneyPlanMode,
     val transferBufferSeconds: Int,
     val locale: String,
 )
@@ -41,7 +34,7 @@ internal object PlannerParameters {
     const val WalkingMetersPerSecond = 1.3
     const val WalkOnlyMaximumMeters = 2_000.0
     const val SamePlaceMeters = 150.0
-    const val MaximumOptions = 3
+    const val MaximumOptions = 6
     const val SlackMinimumSeconds = 15 * 60L
     const val SlackFraction = 0.5
     const val TransferMinimumSavingSeconds = 5 * 60L

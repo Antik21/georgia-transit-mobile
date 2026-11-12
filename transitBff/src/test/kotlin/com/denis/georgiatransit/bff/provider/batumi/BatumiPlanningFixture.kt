@@ -2,12 +2,12 @@ package com.denis.georgiatransit.bff.provider.batumi
 
 import com.denis.georgiatransit.bff.api.GeoPoint
 import com.denis.georgiatransit.bff.api.Journey
+import com.denis.georgiatransit.bff.api.JourneyLabel
 import com.denis.georgiatransit.bff.api.JourneyPage
 import com.denis.georgiatransit.bff.api.JourneySegment
 import com.denis.georgiatransit.bff.api.JourneySegmentMode
 import com.denis.georgiatransit.bff.api.PositionKind
 import com.denis.georgiatransit.bff.api.Vehicle
-import com.denis.georgiatransit.bff.planning.JourneyPlanMode
 import com.denis.georgiatransit.bff.planning.JourneyPlanQuery
 import com.denis.georgiatransit.bff.planning.PlanningBudget
 import com.denis.georgiatransit.bff.provider.BatumiCatalog
@@ -104,12 +104,11 @@ internal class PlanningFixture(routes: List<FixtureRoute>, publishedAt: Instant 
         to: GeoPoint,
         departureAt: Instant = PlanNow,
         maxTransfers: Int = 2,
-        mode: JourneyPlanMode = JourneyPlanMode.FASTEST,
         bufferSeconds: Int = 60,
         liveObservedAt: Instant = PlanNow,
         budget: PlanningBudget = PlanningBudget.unbounded(),
     ): RealtimeJourneys {
-        val query = JourneyPlanQuery(from, to, departureAt, maxTransfers, mode, bufferSeconds, "en")
+        val query = JourneyPlanQuery(from, to, departureAt, maxTransfers, bufferSeconds, "en")
         return planning.plan(query, budget, vehicles, liveObservedAt, PlanNow).also { result ->
             JourneyPlanResponseValidator.page(
                 "batumi",
@@ -124,6 +123,10 @@ internal fun near(stop: FixtureStop, northMeters: Double = 30.0, eastMeters: Dou
     stop.latitude + northMeters / MetersPerLatitudeDegree,
     stop.longitude + eastMeters / (MetersPerLatitudeDegree * kotlin.math.cos(Math.toRadians(stop.latitude))),
 )
+
+/** The single option, or the one labelled FASTEST on a multi-option page. */
+internal fun RealtimeJourneys.fastest(): Journey =
+    items.singleOrNull() ?: items.single { JourneyLabel.FASTEST in it.labels.orEmpty() }
 
 internal val Journey.transitSegments: List<JourneySegment>
     get() = segments.filter { it.mode == JourneySegmentMode.TRANSIT }

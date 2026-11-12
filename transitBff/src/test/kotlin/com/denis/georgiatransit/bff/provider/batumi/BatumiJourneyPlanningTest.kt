@@ -1,6 +1,7 @@
 package com.denis.georgiatransit.bff.provider.batumi
 
 import com.denis.georgiatransit.bff.api.ArrivalSource
+import com.denis.georgiatransit.bff.api.JourneyLabel
 import com.denis.georgiatransit.bff.api.JourneySegmentMode.TRANSIT
 import com.denis.georgiatransit.bff.api.JourneySegmentMode.WALK
 import com.denis.georgiatransit.bff.api.JourneyTimingQuality
@@ -56,7 +57,7 @@ class BatumiJourneyPlanningTest {
         fixture.vehicle("1", "v1", lineA[0])
         fixture.vehicle("2", "w1", lineB[0])
 
-        val journey = fixture.plan(near(lineA[2]), near(lineB[9], northMeters = 0.0, eastMeters = 40.0)).items.first()
+        val journey = fixture.plan(near(lineA[2]), near(lineB[9], northMeters = 0.0, eastMeters = 40.0)).fastest()
 
         assertEquals(listOf(WALK, TRANSIT, TRANSIT, WALK), journey.modes)
         assertEquals(1, journey.transfers)
@@ -76,7 +77,7 @@ class BatumiJourneyPlanningTest {
         fixture.vehicle("1", "v1", lineA[0])
         fixture.vehicle("3", "c1", lineC[5])
 
-        val journey = fixture.plan(near(lineA[3]), near(lineC[4])).items.first()
+        val journey = fixture.plan(near(lineA[3]), near(lineC[4])).fastest()
 
         assertEquals(listOf(WALK, TRANSIT, WALK, TRANSIT, WALK), journey.modes)
         val transfer = journey.segments[2]
@@ -96,13 +97,16 @@ class BatumiJourneyPlanningTest {
 
         val page = fixture.plan(near(lineE[6], northMeters = -30.0), near(lineE[18], northMeters = -30.0))
 
-        val fastest = page.items.first()
+        val fastest = page.fastest()
+        assertEquals(listOf(JourneyLabel.OPTIMAL, JourneyLabel.FASTEST), fastest.labels)
+        assertEquals(fastest, page.items.first(), "the OPTIMAL option leads the page")
         assertEquals(fixture.routeId("1"), fastest.transitSegments.single().routeId)
         assertEquals(fixture.stopId("A6"), fastest.transitSegments.single().fromStopId)
         val nearest = page.items.single { it.transitSegments.singleOrNull()?.routeId == fixture.routeId("5") }
         assertEquals(fixture.stopId("E6"), nearest.transitSegments.single().fromStopId)
         assertTrue(fastest.arrivalAt < nearest.arrivalAt)
         assertTrue(assertNotNull(nearest.walkingDistanceMeters) < assertNotNull(fastest.walkingDistanceMeters))
+        assertEquals(listOf(JourneyLabel.LEAST_WALKING), nearest.labels)
     }
 
     @Test
@@ -112,7 +116,7 @@ class BatumiJourneyPlanningTest {
         fixture.vehicle("7", "l1", longLine[0])
 
         // The destination is far enough that walking all the way cannot beat the bus.
-        val page = fixture.plan(near(longLine[26]), near(longLine[44]))
+        val page = fixture.plan(near(longLine[26], eastMeters = -120.0), near(longLine[44]))
 
         val transit = page.items.single { it.transitSegments.isNotEmpty() }.transitSegments.single()
         assertEquals(fixture.stopId("L25"), transit.fromStopId)

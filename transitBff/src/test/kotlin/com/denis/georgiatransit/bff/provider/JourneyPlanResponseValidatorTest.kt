@@ -3,6 +3,7 @@ package com.denis.georgiatransit.bff.provider
 import com.denis.georgiatransit.bff.api.ArrivalSource
 import com.denis.georgiatransit.bff.api.GeoPoint
 import com.denis.georgiatransit.bff.api.Journey
+import com.denis.georgiatransit.bff.api.JourneyLabel
 import com.denis.georgiatransit.bff.api.JourneyLeg
 import com.denis.georgiatransit.bff.api.JourneyPage
 import com.denis.georgiatransit.bff.api.JourneySegment
@@ -111,5 +112,18 @@ class JourneyPlanResponseValidatorTest {
         rejects(page(journey(listOf(walkIn, ride.copy(geometry = "_"), walkOut))))
         rejects(page(journey()).copy(source = ArrivalSource.SCHEDULE))
         rejects(page(journey(), journey()))
+    }
+
+    @Test
+    fun `labels are unique, need two options, and OPTIMAL leads the page`() {
+        val second = journey().copy(id = "test:p:journey:j2")
+        JourneyPlanResponseValidator.page(
+            "test",
+            page(journey().copy(labels = listOf(JourneyLabel.OPTIMAL, JourneyLabel.FASTEST)), second.copy(labels = listOf(JourneyLabel.LEAST_WALKING))),
+        )
+        rejects(page(journey().copy(labels = listOf(JourneyLabel.OPTIMAL))))
+        rejects(page(journey().copy(labels = listOf(JourneyLabel.FASTEST, JourneyLabel.FASTEST)), second))
+        rejects(page(journey().copy(labels = listOf(JourneyLabel.FASTEST)), second.copy(labels = listOf(JourneyLabel.FASTEST))))
+        rejects(page(journey(), second.copy(labels = listOf(JourneyLabel.OPTIMAL))))
     }
 }

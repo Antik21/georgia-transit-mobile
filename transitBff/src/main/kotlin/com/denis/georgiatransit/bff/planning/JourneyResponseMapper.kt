@@ -1,6 +1,7 @@
 package com.denis.georgiatransit.bff.planning
 
 import com.denis.georgiatransit.bff.api.Journey
+import com.denis.georgiatransit.bff.api.JourneyLabel
 import com.denis.georgiatransit.bff.api.JourneyLeg
 import com.denis.georgiatransit.bff.api.JourneySegment
 import com.denis.georgiatransit.bff.api.JourneySegmentMode
@@ -20,7 +21,7 @@ internal class JourneyResponseMapper(
     private val cityId: String,
     private val providerId: String,
 ) {
-    fun journey(itinerary: PlannedItinerary, rank: Int): Journey {
+    fun journey(itinerary: PlannedItinerary, rank: Int, labels: List<JourneyLabel>): Journey {
         val segments = itinerary.legs.map { leg ->
             when (leg) {
                 is WalkLeg -> walkSegment(leg)
@@ -38,6 +39,7 @@ internal class JourneyResponseMapper(
             walkingDistanceMeters = segments.filter { it.mode == JourneySegmentMode.WALK }
                 .sumOf { it.distanceMeters ?: 0.0 },
             timingQuality = timingQuality(itinerary),
+            labels = labels.takeIf(List<JourneyLabel>::isNotEmpty),
         )
     }
 
