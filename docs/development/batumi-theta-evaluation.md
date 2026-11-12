@@ -7,6 +7,8 @@
 > the project's production classification. This evaluation covered the Theta catalog and legacy
 > route-live endpoints only. The later production approval also covers the distinct, hard-coded
 > BatBus bulk live endpoint `https://batbus.app/api/getAllBuses`, evaluated in ADR 0011.
+> The "never expose trip planning" constraint was lifted on 2026-11-12 for the BFF-derived planner
+> only, by [ADR 0022](../adr/0022-batumi-in-house-journey-planner.md).
 
 **Evaluation date:** 2026-09-10
 

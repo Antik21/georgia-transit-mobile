@@ -2,6 +2,10 @@
 
 Status: Accepted (2026-09-15)
 
+The `tripPlanning=false` classification was superseded on 2026-11-12 by
+[ADR 0022](0022-batumi-in-house-journey-planner.md) for the BFF-derived planner only. All other
+decisions in this ADR remain active.
+
 ## Context
 
 The configured Batumi adapter uses two fixed HTTPS origins: Theta supplies the route, stop, and
