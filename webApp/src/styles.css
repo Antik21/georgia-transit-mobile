@@ -557,7 +557,9 @@ body { background: var(--background); color: var(--ink); }
 .planner-leg { display: flex; align-items: center; gap: 8px; font-size: 0.8rem; }
 .planner-leg-detail { display: grid; min-inline-size: 0; gap: 1px; }
 .planner-leg-wait { color: var(--muted); font-size: 0.74rem; }
-.planner-walk-icon { inline-size: 34px; block-size: 3px; border-block-start: 3px dotted #6b7280; }
+.planner-walk-icon { display: inline-flex; align-items: center; flex: none; inline-size: 34px; gap: 1px; }
+.planner-walk-icon::before, .planner-walk-icon::after { content: ""; flex: 1; border-block-start: 3px dotted #6b7280; }
+.planner-walk-icon .planner-glyph { inline-size: 14px; block-size: 14px; }
 .planner-disclaimer { margin: 0; color: var(--muted); font-size: 0.76rem; line-height: 1.4; }
 .planner-pin-actions { display: grid; gap: 6px; padding-block-start: 4px; }
 .transit-app .maplibregl-popup-close-button { min-inline-size: 28px; min-block-size: 28px; color: #202124; }

@@ -192,7 +192,10 @@ function legRow(leg: PlannerLeg, copy: Copy) {
     const role = { access: copy.plannerWalkAccess, transfer: copy.plannerWalkTransfer, egress: copy.plannerWalkEgress }[leg.role ?? ""]
       ?? copy.plannerWalkDirect;
     const parts = [leg.meters != null ? format(copy.plannerMeters, leg.meters) : null, format(copy.plannerMinutes, leg.minutes)];
-    row.append(icon("planner-walk-icon"), element("span", "planner-leg-detail", `${role}: ${parts.filter(Boolean).join(" · ")}`));
+    const walkIcon = icon("planner-walk-icon");
+    walkIcon.dataset.testid = "planner-leg-walk-icon";
+    walkIcon.append(glyph("walk"));
+    row.append(walkIcon, element("span", "planner-leg-detail", `${role}: ${parts.filter(Boolean).join(" · ")}`));
   }
   return row;
 }

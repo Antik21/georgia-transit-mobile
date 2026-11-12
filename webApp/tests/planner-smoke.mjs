@@ -115,6 +115,8 @@ export function plannerSmoke({ send, evaluate, waitFor, tap, visible, testId, ma
         .map((label) => [label.dataset.label, label.textContent, getComputedStyle(label).backgroundColor]),
       pills: Array.from(option.querySelectorAll('${testId('planner-route-pill')}')).map((pill) => pill.textContent),
       walks: option.querySelectorAll('${testId('planner-itinerary')} ${testId('planner-glyph-walk')}').length,
+      walkSteps: Array.from(option.querySelectorAll('${testId('planner-leg-walk-icon')}'))
+        .map((icon) => icon.querySelectorAll('${testId('planner-glyph-walk')}').length),
       spoken: option.querySelector('${testId('planner-itinerary')} .visually-hidden')?.textContent,
     }))`);
   }
@@ -151,6 +153,8 @@ export function plannerSmoke({ send, evaluate, waitFor, tap, visible, testId, ma
       ], 'Labels keep their fixed order and colours; an unknown label is dropped');
       assert.deepEqual(cards.map((option) => option.pills), [['B7'], ['B12'], ['B12', 'B7'], []]);
       assert.deepEqual(cards.map((option) => option.walks), [2, 2, 3, 1]);
+      assert.ok(cards.every((option) => option.walkSteps.length > 0 && option.walkSteps.every((count) => count === 1)),
+        `Every walking step draws a walker on its dotted line: ${JSON.stringify(cards.map((option) => option.walkSteps))}`);
       assert.equal(cards[2].spoken, 'Walk, then bus B12, then walk, then bus B7, then walk.');
       await waitFor('The selected option shows its two soonest buses on the card and the map',
         async () => await evaluate(`${nearestText} === 'Nearest buses: 3 min, 11 min'`) && await highlightedBuses() === 2);
