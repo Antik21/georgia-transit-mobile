@@ -27,4 +27,6 @@ Smoke использует Chromium и тестовые данные, включ
 
 ## Подключение к Telegram
 
-Раздайте `webApp/dist` с HTTPS-хоста и проксируйте `/v1/` на Transit BFF по тому же origin. Сохраните пути `/v1/map/style.json` и `/v1/map/tiles/...` при проксировании. Укажите HTTPS URL Mini App в настройках бота через BotFather. Открытие внутри Telegram требует настройки бота и публичного хоста.
+Продовый клиент раздаёт статический сайт Render `antik21-georgia-transit-web` с прокси `/v1/` на Transit BFF ([ADR 0021](../docs/adr/0021-telegram-web-hosting.md)). Его бандл публикует CI в ветку `web-dist` после всех проверок на `main`; вручную туда ничего не коммитится. Выкат, проверка прокси и настройка бота в BotFather описаны в [render-deployment.md](../docs/development/render-deployment.md#telegram-web-client).
+
+Для другого хоста условия те же: HTTPS, `webApp/dist` и `/v1/` на одном origin, пути `/v1/map/style.json` и `/v1/map/tiles/...` при проксировании не меняются.
