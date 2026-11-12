@@ -6,7 +6,11 @@ const minBodyWidth = 58;
 const bodyRadius = 11;
 const outlineWidth = 2.5;
 const textPadding = 44;
-const font = "bold 17px system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif";
+const textSize = 17;
+const fontFamily = "system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif";
+// Same bounds as Android's non-linear font scaling, so a broken probe cannot blow the badge up.
+const minTextScale = 0.85;
+const maxTextScale = 2;
 const windowRadius = 4;
 const headlightRadius = 2.5;
 const headlightColor = "#ffdc7a";
@@ -62,7 +66,27 @@ function roundRect(context: CanvasRenderingContext2D, x: number, y: number, widt
   context.closePath();
 }
 
-export function drawVehicleBadge(style: VehicleBadgeStyle, pixelRatio: number, flipLabel: boolean): ImageData {
+// Web stand-in for Android's sp: iOS Dynamic Type via the WebKit body style, elsewhere the browser's
+// default font size. Probing `medium` keeps page CSS on the root element out of the measurement.
+export function systemTextScale(): number {
+  const probe = document.createElement("span");
+  const dynamicType = CSS.supports("font", "-apple-system-body");
+  probe.style.cssText = "position:absolute;visibility:hidden;contain:strict";
+  probe.style.font = dynamicType ? "-apple-system-body" : "medium sans-serif";
+  document.body.append(probe);
+  const size = Number.parseFloat(getComputedStyle(probe).fontSize);
+  probe.remove();
+  const scale = size / (dynamicType ? 17 : 16);
+  return Number.isFinite(scale) ? Math.min(maxTextScale, Math.max(minTextScale, scale)) : 1;
+}
+
+export function drawVehicleBadge(
+  style: VehicleBadgeStyle,
+  pixelRatio: number,
+  textScale: number,
+  flipLabel: boolean,
+): ImageData {
+  const font = `bold ${textSize * textScale}px ${fontFamily}`;
   const measure = document.createElement("canvas").getContext("2d");
   if (!measure) throw new Error("Canvas 2D is unavailable");
   measure.font = font;

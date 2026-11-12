@@ -1,8 +1,10 @@
-import { Map as MapLibreMap, Marker, setWorkerUrl, type GeoJSONSource, type StyleSpecification } from "maplibre-gl";
+import {
+  Map as MapLibreMap, Marker, setWorkerUrl, type GeoJSONSource, type MapMouseEvent, type StyleSpecification,
+} from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import mapWorkerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?url&no-inline";
 import type { MapState, StopItem, VehicleLayer } from "./contracts";
-import { drawVehicleBadge, vehicleBadgeStyle, type VehicleBadgeStyle } from "./vehicle-badge";
+import { drawVehicleBadge, systemTextScale, vehicleBadgeStyle, type VehicleBadgeStyle } from "./vehicle-badge";
 
 // MapLibre's sibling-file lookup cannot discover an asset renamed by Vite.
 setWorkerUrl(new URL(mapWorkerUrl, import.meta.url).href);
@@ -12,6 +14,7 @@ const userAccuracySourceId = "transit-user-accuracy";
 const userLocationSourceId = "transit-user-location";
 const vehicleSourceId = "transit-vehicles";
 const vehicleLayerId = "transit-vehicles";
+const attentionLayerId = "transit-vehicle-attention";
 const flippedSuffix = "-flipped";
 const overflowBadgeId = "transit-vehicle-badge-overflow";
 const maxVehicleMarkers = 2_000;
@@ -19,6 +22,15 @@ const maxBadgeImages = 256;
 const staleVehicleOpacity = 0.62;
 // Badge artwork points east; MapLibre's icon-rotate is clockwise from north.
 const eastwardArtworkBearing = 90;
+const minVehicleTarget = 48;
+// Pulse geometry and timing copied from the native adapters (PlatformMap.android.kt, MapLibreMapViewBridge.swift).
+const maxAttentionMarkers = 32;
+const attentionTickMillis = Math.ceil(1_000 / 15);
+const attentionCycleMillis = 1_600;
+const attentionMinRadius = 80 / 2 * 1.15 / 1.5 * 0.85;
+const attentionMaxRadius = 80 / 2 * 2 / 1.5 * 0.85;
+const attentionMinSizeOpacity = 0.5;
+const attentionMaxSizeOpacity = 0.1;
 
 const localStyle: StyleSpecification = {
   version: 8,
@@ -38,6 +50,7 @@ export interface TransitMap {
   updateVehicles(layer: VehicleLayer): void;
   retry(): void;
   resize(): void;
+  setVisible(visible: boolean): void;
   dispose(): void;
 }
 
@@ -55,22 +68,31 @@ function normalizedBearing(degrees: number) {
 }
 
 function vehicleData(layer: VehicleLayer, imageIds: Map<string, string>) {
+  const vehicles = layer.vehicles
+    .filter((vehicle) => Number.isFinite(vehicle.latitude) && Number.isFinite(vehicle.longitude))
+    .slice(0, maxVehicleMarkers);
+  // A deterministic bounded subset, as on mobile, keeps the pulse cost independent of fleet size.
+  const attention = new Set(vehicles.filter((vehicle) => vehicle.id && vehicle.routeId).map((vehicle) => vehicle.id)
+    .sort().slice(0, maxAttentionMarkers));
   return {
     type: "FeatureCollection" as const,
-    features: layer.vehicles
-      .filter((vehicle) => Number.isFinite(vehicle.latitude) && Number.isFinite(vehicle.longitude))
-      .slice(0, maxVehicleMarkers)
-      .map((vehicle) => ({
+    attentionCount: attention.size,
+    features: vehicles.map((vehicle) => {
+      const style = vehicleBadgeStyle(vehicle);
+      return {
         type: "Feature" as const,
         properties: {
           id: vehicle.id,
           revision: layer.revision,
-          image: imageIds.get(vehicleBadgeStyle(vehicle).key) ?? overflowBadgeId,
+          image: imageIds.get(style.key) ?? overflowBadgeId,
+          color: style.color,
+          attention: attention.has(vehicle.id),
           rotation: vehicle.bearing == null ? 0 : normalizedBearing(vehicle.bearing - eastwardArtworkBearing),
           opacity: vehicle.stale ? staleVehicleOpacity : 1,
         },
         geometry: { type: "Point" as const, coordinates: [vehicle.longitude, vehicle.latitude] },
-      })),
+      };
+    }),
   };
 }
 
@@ -146,6 +168,11 @@ export function createTransitMap(container: HTMLElement, initial: MapState, acti
   let renderedBadgeRevision: string | undefined;
   const badgeImageIds = new Map<string, string>();
   let nextBadgeImage = 0;
+  let textScale = systemTextScale();
+  let mapVisible = true;
+  let attentionCount = 0;
+  let attentionTimer: ReturnType<typeof setTimeout> | undefined;
+  const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
   const markers = new Map<string, { marker: Marker; stop: StopItem }>();
 
   function renderRouteLines() {
@@ -168,7 +195,7 @@ export function createTransitMap(container: HTMLElement, initial: MapState, acti
             "line-width": ["number", ["get", "strokeWidth"]],
             "line-opacity": ["number", ["get", "opacity"]],
           },
-        }, map.getLayer(vehicleLayerId) ? vehicleLayerId : undefined);
+        }, map.getLayer(attentionLayerId) ? attentionLayerId : undefined);
       }
     }
     renderedRouteRevision = latestState.routePolylineRevision;
@@ -200,7 +227,7 @@ export function createTransitMap(container: HTMLElement, initial: MapState, acti
   function addBadgeImages(id: string, style: VehicleBadgeStyle) {
     const pixelRatio = window.devicePixelRatio || 1;
     for (const flipped of [false, true]) {
-      const image = drawVehicleBadge(style, pixelRatio, flipped);
+      const image = drawVehicleBadge(style, pixelRatio, textScale, flipped);
       // Badges are drawn at the native adapters' size and shown at the same 1/1.5 scale.
       map.addImage(flipped ? id + flippedSuffix : id, image, { pixelRatio: pixelRatio * 1.5 });
     }
@@ -235,12 +262,24 @@ export function createTransitMap(container: HTMLElement, initial: MapState, acti
       syncBadgeImages(vehicles);
       renderedBadgeRevision = vehicles.badgeRevision;
     }
-    const data = vehicleData(vehicles, badgeImageIds);
+    const { attentionCount: nextAttentionCount, ...data } = vehicleData(vehicles, badgeImageIds);
     const source = map.getSource<GeoJSONSource>(vehicleSourceId);
     if (source) {
       source.setData(data);
     } else {
       map.addSource(vehicleSourceId, { type: "geojson", data });
+      // The route-coloured pulse stays below the badge and is never hit-tested.
+      map.addLayer({
+        id: attentionLayerId,
+        type: "circle",
+        source: vehicleSourceId,
+        filter: ["==", ["get", "attention"], true],
+        paint: {
+          "circle-color": ["to-color", ["get", "color"]],
+          "circle-radius": attentionMinRadius,
+          "circle-opacity": attentionMinSizeOpacity,
+        },
+      });
       map.addLayer({
         id: vehicleLayerId,
         type: "symbol",
@@ -260,7 +299,43 @@ export function createTransitMap(container: HTMLElement, initial: MapState, acti
       });
     }
     renderedVehicleRevision = vehicles.revision;
+    if (attentionCount !== nextAttentionCount) {
+      attentionCount = nextAttentionCount;
+      refreshAttention();
+    }
   }
+
+  function shouldAnimateAttention() {
+    return styleReady && mapVisible && attentionCount > 0 && !reducedMotion.matches;
+  }
+
+  // Without a progress value the ring stays static at its smallest, most opaque size (Reduce Motion, paused map).
+  function renderAttentionFrame(now?: number) {
+    if (!styleReady || !map.getLayer(attentionLayerId)) return;
+    const phase = now == null ? 0 : (now % attentionCycleMillis) / attentionCycleMillis;
+    const progress = (1 - Math.cos(phase * Math.PI * 2)) / 2;
+    map.setPaintProperty(attentionLayerId, "circle-radius",
+      attentionMinRadius + (attentionMaxRadius - attentionMinRadius) * progress);
+    map.setPaintProperty(attentionLayerId, "circle-opacity",
+      attentionMinSizeOpacity - (attentionMinSizeOpacity - attentionMaxSizeOpacity) * progress);
+  }
+
+  function attentionTick() {
+    attentionTimer = undefined;
+    refreshAttention();
+  }
+
+  function refreshAttention() {
+    if (!shouldAnimateAttention()) {
+      clearTimeout(attentionTimer);
+      attentionTimer = undefined;
+      renderAttentionFrame();
+      return;
+    }
+    renderAttentionFrame(performance.now());
+    attentionTimer ??= setTimeout(attentionTick, attentionTickMillis);
+  }
+  reducedMotion.addEventListener("change", refreshAttention);
 
   map.on("style.load", () => {
     remoteStyleLoading = false;
@@ -273,13 +348,34 @@ export function createTransitMap(container: HTMLElement, initial: MapState, acti
     badgeImageIds.clear();
     renderRouteLines();
     renderUserLocation();
+    attentionCount = 0;
     renderVehicles();
   });
-  map.on("click", vehicleLayerId, (event) => {
-    const properties = event.features?.[0]?.properties;
-    if (typeof properties?.id === "string" && properties.revision != null) {
-      actions.selectVehicle(properties.id, String(properties.revision));
+
+  // Badges are about 39×24 px, so taps are matched within a 48×48 target like the Android adapter.
+  function vehicleAt(event: MapMouseEvent) {
+    // Stop markers are DOM buttons whose clicks bubble into the map; the stop wins, as on mobile.
+    if ((event.originalEvent.target as Element | null)?.closest?.(".maplibregl-marker")) return undefined;
+    if (!map.getLayer(vehicleLayerId)) return undefined;
+    const { x, y } = event.point;
+    const half = minVehicleTarget / 2;
+    let nearest: { id: string; revision: string; distance: number } | undefined;
+    for (const feature of map.queryRenderedFeatures([[x - half, y - half], [x + half, y + half]], { layers: [vehicleLayerId] })) {
+      const { id, revision } = feature.properties;
+      if (typeof id !== "string" || revision == null || feature.geometry.type !== "Point") continue;
+      const [longitude, latitude] = feature.geometry.coordinates;
+      const point = map.project([longitude, latitude]);
+      const distance = Math.hypot(point.x - x, point.y - y);
+      if (!nearest || distance < nearest.distance) nearest = { id, revision: String(revision), distance };
     }
+    return nearest;
+  }
+  map.on("click", (event) => {
+    const vehicle = vehicleAt(event);
+    if (vehicle) actions.selectVehicle(vehicle.id, vehicle.revision);
+  });
+  map.on("mousemove", (event) => {
+    map.getCanvas().style.cursor = vehicleAt(event) ? "pointer" : "";
   });
   map.on("error", (event) => {
     // Any error listener replaces MapLibre's default logging, so tile failures must be logged here.
@@ -366,6 +462,16 @@ export function createTransitMap(container: HTMLElement, initial: MapState, acti
   }
   function onPixelRatioChange() {
     watchPixelRatio();
+    rebuildBadges();
+  }
+  // There is no event for a changed font size setting, so it is re-read whenever the user may be back from it.
+  function onTextScaleCheck() {
+    const scale = systemTextScale();
+    if (scale === textScale) return;
+    textScale = scale;
+    rebuildBadges();
+  }
+  function rebuildBadges() {
     if (!styleReady) return;
     for (const id of [...badgeImageIds.values(), overflowBadgeId]) {
       for (const imageId of [id, id + flippedSuffix]) if (map.hasImage(imageId)) map.removeImage(imageId);
@@ -382,10 +488,25 @@ export function createTransitMap(container: HTMLElement, initial: MapState, acti
     renderVehicles();
   }
 
+  function setVisible(visible: boolean) {
+    if (visible === mapVisible) return;
+    mapVisible = visible;
+    if (visible) onTextScaleCheck();
+    refreshAttention();
+  }
+
+  function resize() {
+    map.resize();
+    onTextScaleCheck();
+  }
+
   function dispose() {
     pixelRatioQuery?.removeEventListener("change", onPixelRatioChange);
+    reducedMotion.removeEventListener("change", refreshAttention);
+    clearTimeout(attentionTimer);
+    attentionTimer = undefined;
     map.remove();
   }
 
-  return { update, updateVehicles, retry, resize: () => map.resize(), dispose };
+  return { update, updateVehicles, retry, resize, setVisible, dispose };
 }

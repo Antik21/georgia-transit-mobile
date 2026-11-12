@@ -16,7 +16,7 @@ export const userLocationDotColor = [21, 101, 192];
 export const fixtureVehiclesPath = `/v1/cities/${fixtureCityId}/vehicles`;
 export const fixtureAttribution = 'Fixture tiles';
 // Toggled by the smoke to exercise the local-style fallback and its recovery.
-export const fixtureControl = { failStyle: false, staleVehicles: false, telegram: true };
+export const fixtureControl = { failStyle: false, staleVehicles: false, telegram: true, vehicleAdvanced: false };
 
 const position = { latitude: 41.715137, longitude: 44.827096 };
 const localized = (en) => ({ en, ru: en, ka: en });
@@ -130,7 +130,7 @@ function vehicles(routeId) {
       id: 'demo:fixture:vehicle:blue-01',
       routeId: fixtureRouteId,
       directionId: blueDirection.id,
-      position: { latitude: position.latitude + 0.0004, longitude: position.longitude + 0.0012 },
+      position: { latitude: position.latitude + 0.0004, longitude: position.longitude + (fixtureControl.vehicleAdvanced ? 0.0024 : 0.0012) },
       bearing: 62,
       observedAt,
       ageSeconds: 0,
