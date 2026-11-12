@@ -156,6 +156,39 @@ class JourneyPlannerBridgeTest {
         }
     }
 
+    @Test
+    fun aResubscribedRendererNeverSeesARouteRevisionTwice() = runTest {
+        Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+        val store = ViewModelStore()
+        try {
+            val entry = MapBridge(viewModel(store, JourneyPlanRepository { _, _ -> plan() }), store, CITY) {}
+            try {
+                val revisions = mutableListOf<String>()
+                entry.planner.subscribe { revisions += it.route.revision }
+                entry.setVisible(true)
+                settle()
+                entry.planner.longPressMap(A.latitude, A.longitude)
+                entry.planner.routeFromHere()
+                settle()
+                entry.planner.longPressMap(B.latitude, B.longitude)
+                settle()
+                val before = revisions.maxOf(String::toLong)
+                // A renderer keeps its "already framed" revision across a re-subscribe; a restarted counter would reuse it.
+                var resubscribed: String? = null
+                entry.planner.subscribe { resubscribed = it.route.revision }
+                settle()
+
+                assertTrue(before >= 2, "The plan must have produced a route with lines: $before")
+                assertTrue(assertNotNull(resubscribed).toLong() > before, "Got $resubscribed after $before")
+            } finally {
+                entry.dispose()
+            }
+        } finally {
+            store.clear()
+            Dispatchers.resetMain()
+        }
+    }
+
     private fun TestScope.viewModel(store: ViewModelStore, planner: JourneyPlanRepository): MapViewModel {
         val session = RuntimeTransitSession().also { it.selectCity(CITY) }
         val location = RuntimeLocationSession(scope = backgroundScope, nowMillis = { NOW })

@@ -487,12 +487,13 @@ export function createTransitMap(
     // A replaced style drops every image registered on the previous one.
     badgeImageIds.clear();
     stopImageIds.clear();
+    // First, so a failure in another layer cannot leave a planned route undrawn.
+    planner.styleLoaded();
     renderRouteLines();
     renderUserLocation();
     renderStops();
     attentionCount = 0;
     renderVehicles();
-    planner.styleLoaded();
   });
 
   // Like the native adapters only the drawn pin is a target and the selected one wins; clusters are not tappable.

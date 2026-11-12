@@ -335,8 +335,10 @@ try {
   await waitFor('The BFF style is retried when the network returns', () => mapContainsColor(fixtureTileColor, 2_000));
   await waitFor('Second city requests its own nearby stops', () => bffRequests.includes(`/v1/cities/${otherCityId}/stops/nearby`));
 
-  const planner = plannerSmoke({ send, evaluate, waitFor, tap, visible, testId, mapContainsColor, bffRequests });
+  const planner = plannerSmoke({ send, evaluate, waitFor, tap, visible, testId, mapContainsColor, analyzeMap, bffRequests });
   await planner.pointToPoint(() => evaluate('window.__telegramSmoke.backHandler(); true'));
+  await planner.beforeStyleLoads();
+  await planner.duringStyleSwap();
   await planner.unavailable();
 
   const locationButton = testId('my-location');

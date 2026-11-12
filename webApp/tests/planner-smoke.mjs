@@ -1,12 +1,12 @@
 import assert from 'node:assert/strict';
 import { setTimeout as delay } from 'node:timers/promises';
-import { fixtureControl, otherCityId, planRequests, plannerRouteColors } from './browser-fixtures.mjs';
+import { fallbackMapColor, fixtureControl, otherCityId, planRequests, plannerRouteColors } from './browser-fixtures.mjs';
 
 const planPath = `/v1/cities/${otherCityId}/journeys/plan`;
 const requestKeys = ['from', 'locale', 'maxTransfers', 'mode', 'to', 'transferBufferSeconds'];
 
-// Shared smoke helpers: { send, evaluate, waitFor, tap, visible, testId, mapContainsColor, bffRequests }.
-export function plannerSmoke({ send, evaluate, waitFor, tap, visible, testId, mapContainsColor, bffRequests }) {
+// Shared smoke helpers from smoke.mjs.
+export function plannerSmoke({ send, evaluate, waitFor, tap, visible, testId, mapContainsColor, analyzeMap, bffRequests }) {
   const panel = visible(testId('planner-panel'));
   const options = `document.querySelectorAll('${testId('planner-option')}')`;
   const optionText = (index) => `(${options}[${index}]?.textContent ?? '')`;
@@ -32,6 +32,43 @@ export function plannerSmoke({ send, evaluate, waitFor, tap, visible, testId, ma
     await longPress(x, y);
     await waitFor(`Long press offers ${choice}`, visible(testId(choice)));
     await tap(testId(choice));
+  }
+
+  function holdStyle() {
+    let release;
+    fixtureControl.styleHold = new Promise((resolve) => { release = resolve; });
+    return () => {
+      fixtureControl.styleHold = null;
+      release();
+    };
+  }
+
+  // Without a camera fitted to the answer its line spans about half the map; fitted, about three quarters.
+  async function planCloseTogether() {
+    await longPressAndChoose(0.35, 0.5, 'planner-route-here');
+    await waitFor('The planner waits for the start point', pressed(testId('planner-pick-origin')));
+    await longPress(0.65, 0.5);
+    await waitFor('The plan answers', `${options}.length === 2`);
+  }
+
+  function framedRoute() {
+    return analyzeMap(`
+      const [red, green, blue] = ${JSON.stringify(plannerRouteColors.orange)};
+      let count = 0, minX = Infinity, maxX = -Infinity;
+      for (let i = 0; i < pixels.length; i += 4) {
+        if (Math.abs(pixels[i] - red) <= 3 && Math.abs(pixels[i + 1] - green) <= 3 && Math.abs(pixels[i + 2] - blue) <= 3) {
+          const x = (i / 4) % width;
+          count++;
+          minX = Math.min(minX, x);
+          maxX = Math.max(maxX, x);
+        }
+      }
+      return count >= 75 && (maxX - minX) / width >= 0.65;`);
+  }
+
+  async function closePlanner() {
+    await tap(testId('planner-close'));
+    await waitFor('The planner closes', `!${panel}`);
   }
 
   function isRounded(point) {
@@ -80,6 +117,34 @@ export function plannerSmoke({ send, evaluate, waitFor, tap, visible, testId, ma
       await waitFor('Telegram BackButton handles the planner', `window.__telegramSmoke?.backVisible === true`);
       await telegramBack();
       await waitFor('Telegram back closes the planner', `!${panel} && window.__telegramSmoke?.backVisible === false`);
+    },
+
+    /** A plan that lands before the map style has loaded is drawn and framed once the style arrives. */
+    async beforeStyleLoads() {
+      const release = holdStyle();
+      const timeOrigin = await evaluate('performance.timeOrigin');
+      await send('Page.reload');
+      await waitFor('The map reopens while its style is still loading', `performance.timeOrigin !== ${timeOrigin} && ${visible('.maplibregl-canvas')}`);
+      await planCloseTogether();
+      release();
+      await waitFor('A plan made before the style loaded is drawn and framed', framedRoute);
+      await closePlanner();
+    },
+
+    /** The same while the style is being replaced: a fallback style switching back to the BFF style. */
+    async duringStyleSwap() {
+      fixtureControl.failStyle = true;
+      const timeOrigin = await evaluate('performance.timeOrigin');
+      await send('Page.reload');
+      await waitFor('The map falls back to its local style', async () =>
+        await evaluate(`performance.timeOrigin !== ${timeOrigin}`) && await mapContainsColor(fallbackMapColor, 2_000));
+      const release = holdStyle();
+      fixtureControl.failStyle = false;
+      await evaluate(`window.dispatchEvent(new Event('online')); true`);
+      await planCloseTogether();
+      release();
+      await waitFor('A plan made during a style swap is drawn and framed', framedRoute);
+      await closePlanner();
     },
 
     async unavailable() {

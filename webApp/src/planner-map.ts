@@ -1,4 +1,6 @@
-import { LngLatBounds, Popup, type AddLayerObject, type GeoJSONSource, type Map as MapLibreMap } from "maplibre-gl";
+import {
+  LngLatBounds, Popup, type AddLayerObject, type GeoJSONSource, type GeoJSONSourceSpecification, type Map as MapLibreMap,
+} from "maplibre-gl";
 import type { PlannerRoute, PlannerState } from "./contracts";
 
 const lineSourceId = "transit-planner-lines";
@@ -10,6 +12,30 @@ const longPressSlopPixels = 10;
 // Android WebViews also fire contextmenu for the same hold; one gesture must not open two pins.
 const duplicateGestureMillis = 400;
 const walkColor = "#6b7280";
+const lineLayout = { "line-cap": "round", "line-join": "round" } as const;
+const lineLayers: AddLayerObject[] = [
+  {
+    id: plannerLineLayerIds[0], type: "line", source: lineSourceId, filter: ["==", ["get", "kind"], "walk"], layout: lineLayout,
+    paint: { "line-color": walkColor, "line-width": 4, "line-dasharray": [0.6, 1.6] },
+  },
+  {
+    id: plannerLineLayerIds[1], type: "line", source: lineSourceId, filter: ["==", ["get", "kind"], "transit"], layout: lineLayout,
+    paint: { "line-color": "#ffffff", "line-width": 10 },
+  },
+  {
+    id: plannerLineLayerIds[2], type: "line", source: lineSourceId, filter: ["==", ["get", "kind"], "transit"], layout: lineLayout,
+    paint: { "line-color": ["to-color", ["get", "color"]], "line-width": 6 },
+  },
+];
+const pointLayer: AddLayerObject = {
+  id: plannerPointLayerId, type: "circle", source: pointSourceId,
+  paint: {
+    "circle-color": ["match", ["get", "kind"], "origin", "#2e7d32", "destination", "#8e1b2d", "#263238"],
+    "circle-radius": ["match", ["get", "kind"], "pin", 6, 8],
+    "circle-stroke-color": "#ffffff",
+    "circle-stroke-width": 3,
+  },
+};
 
 export interface PlannerMapActions {
   longPress(latitude: number, longitude: number): void;
@@ -62,7 +88,8 @@ export function createPlannerMap(
   let styleReady = false;
   let renderedRoute: PlannerRoute | undefined;
   let renderedPoints: string | undefined;
-  let fittedRevision: string | undefined;
+  let fittedRoute: PlannerRoute | undefined;
+  let retryPending = false;
   let popup: Popup | undefined;
   let popupKey: string | undefined;
   let lastLongPress = -Infinity;
@@ -116,61 +143,57 @@ export function createPlannerMap(
     fire(event.lngLat.lat, event.lngLat.wrap().lng);
   });
 
+  function ensureLayers(layers: AddLayerObject[]) {
+    for (const layer of layers) if (!map.getLayer(layer.id)) addLayerInOrder(layer);
+  }
+
+  function syncSource(id: string, data: GeoJSONSourceSpecification["data"], layers: AddLayerObject[]) {
+    const source = map.getSource<GeoJSONSource>(id);
+    if (source) source.setData(data);
+    else map.addSource(id, { type: "geojson", data });
+    ensureLayers(layers);
+  }
+
+  // Nothing counts as rendered until MapLibre accepted it, so a failed attempt is never mistaken for a drawn route.
   function renderLayers() {
     if (!styleReady) return;
-    const route = state?.route;
-    if (renderedRoute !== route) {
-      const data = lineData(route);
-      const source = map.getSource<GeoJSONSource>(lineSourceId);
-      if (source) {
-        source.setData(data);
-      } else {
-        map.addSource(lineSourceId, { type: "geojson", data });
-        addLayerInOrder({
-          id: plannerLineLayerIds[0], type: "line", source: lineSourceId, filter: ["==", ["get", "kind"], "walk"],
-          layout: { "line-cap": "round", "line-join": "round" },
-          paint: { "line-color": walkColor, "line-width": 4, "line-dasharray": [0.6, 1.6] },
-        });
-        addLayerInOrder({
-          id: plannerLineLayerIds[1], type: "line", source: lineSourceId, filter: ["==", ["get", "kind"], "transit"],
-          layout: { "line-cap": "round", "line-join": "round" },
-          paint: { "line-color": "#ffffff", "line-width": 10 },
-        });
-        addLayerInOrder({
-          id: plannerLineLayerIds[2], type: "line", source: lineSourceId, filter: ["==", ["get", "kind"], "transit"],
-          layout: { "line-cap": "round", "line-join": "round" },
-          paint: { "line-color": ["to-color", ["get", "color"]], "line-width": 6 },
-        });
+    try {
+      const route = state?.route;
+      if (renderedRoute !== route) {
+        syncSource(lineSourceId, lineData(route), lineLayers);
+        renderedRoute = route;
       }
-      renderedRoute = route;
-      fitRoute(route);
-    }
-    const points = pointData(state);
-    const pointsKey = JSON.stringify(points.features);
-    if (renderedPoints !== pointsKey) {
-      const source = map.getSource<GeoJSONSource>(pointSourceId);
-      if (source) {
-        source.setData(points);
-      } else {
-        map.addSource(pointSourceId, { type: "geojson", data: points });
-        addLayerInOrder({
-          id: plannerPointLayerId, type: "circle", source: pointSourceId,
-          paint: {
-            "circle-color": ["match", ["get", "kind"], "origin", "#2e7d32", "destination", "#8e1b2d", "#263238"],
-            "circle-radius": ["match", ["get", "kind"], "pin", 6, 8],
-            "circle-stroke-color": "#ffffff",
-            "circle-stroke-width": 3,
-          },
-        });
+      const points = pointData(state);
+      const pointsKey = JSON.stringify(points.features);
+      if (renderedPoints !== pointsKey) {
+        syncSource(pointSourceId, points, [pointLayer]);
+        renderedPoints = pointsKey;
       }
-      renderedPoints = pointsKey;
+      if (route?.lines.length && fittedRoute !== route) {
+        fittedRoute = route;
+        fitRoute(route);
+      }
+    } catch {
+      // MapLibre throws while a style it is (re)loading is not done; draw again once the style settles.
+      retryWhenStyleSettles();
     }
   }
 
+  function retryWhenStyleSettles() {
+    if (retryPending) return;
+    retryPending = true;
+    const retry = () => {
+      map.off("styledata", retry);
+      map.off("idle", retry);
+      retryPending = false;
+      renderLayers();
+    };
+    map.on("styledata", retry);
+    map.on("idle", retry);
+  }
+
   // A new answer is framed once; later refreshes of the same lines leave the user's camera alone.
-  function fitRoute(route: PlannerRoute | undefined) {
-    if (!route?.lines.length || fittedRevision === route.revision) return;
-    fittedRevision = route.revision;
+  function fitRoute(route: PlannerRoute) {
     const bounds = new LngLatBounds();
     for (const line of route.lines) for (const point of line.points) bounds.extend([point.longitude, point.latitude]);
     map.fitBounds(bounds, { padding: 48, maxZoom: 17, duration: reducedMotion.matches ? 0 : 400 });

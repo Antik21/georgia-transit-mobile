@@ -18,7 +18,7 @@ export const stopPinGlyphColor = [52, 65, 85];
 export const fixtureVehiclesPath = `/v1/cities/${fixtureCityId}/vehicles`;
 export const fixtureAttribution = 'Fixture tiles';
 // Toggled by the smoke to exercise the local-style fallback and its recovery.
-export const fixtureControl = { failStyle: false, staleVehicles: false, telegram: true, vehicleAdvanced: false, planStatus: 200 };
+export const fixtureControl = { failStyle: false, staleVehicles: false, telegram: true, vehicleAdvanced: false, planStatus: 200, styleHold: null };
 export const plannerRouteColors = { orange: [228, 87, 46], yellow: [242, 193, 78] };
 // Every plan request body, so the smoke can assert rounding and the absence of an origin-kind field.
 export const planRequests = [];
@@ -320,6 +320,7 @@ export function browserFixture(dist, bffRequests, origin) {
     switch (path) {
       case '/v1/cities': return json([demoCity, batumiCity]);
       case '/v1/map/style.json':
+        await fixtureControl.styleHold;
         return fixtureControl.failStyle ? json({ error: 'Style unavailable' }, 503) : json(mapStyle());
       case `/v1/cities/${fixtureCityId}/routes`: return json([route, otherRoute]);
       case `/v1/cities/${fixtureCityId}/routes/${fixtureRouteId}`: return json(route);

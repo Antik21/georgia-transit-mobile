@@ -176,9 +176,10 @@ function showMap(session: TransitRuntime) {
     entry.bridge.planner.subscribe((state) => {
       if (activeMap !== entry) return;
       entry.planner = state;
-      entry.renderer?.updatePlanner(state);
+      // The panel first: a renderer failure must not leave the cards out of step with the map.
       view.showPlanner(state);
       if (!activeRoutes) updateBackButton(entry);
+      entry.renderer?.updatePlanner(state);
     });
   }
   updateVisibility();

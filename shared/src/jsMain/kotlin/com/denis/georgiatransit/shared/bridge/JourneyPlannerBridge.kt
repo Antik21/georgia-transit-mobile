@@ -100,17 +100,18 @@ class JourneyPlannerBridge internal constructor(
     private val isDisposed: () -> Boolean,
 ) {
     private var subscription: Job? = null
+    // Owned by the bridge, not the subscription: a renderer that outlives a re-subscribe must never see a revision twice.
+    private var routeRevision = 0L
 
     fun subscribe(onState: (PlannerState) -> Unit) {
         check(!isDisposed())
         subscription?.cancel()
         val newSubscription = scope.launch(start = CoroutineStart.LAZY) {
-            var revision = 0L
             var render: JourneyPlanRenderUi? = null
             var projected: PlannerRoute? = null
             viewModel.container.stateFlow.map { it.journeyPlanner }.distinctUntilChanged().collect { planner ->
                 // The renderer redraws lines only when this route object changes identity.
-                val route = projected?.takeIf { render == planner.render } ?: planner.render.toJs(++revision)
+                val route = projected?.takeIf { render == planner.render } ?: planner.render.toJs(++routeRevision)
                 render = planner.render
                 projected = route
                 notifyHost { onState(planner.toJs(route)) }
