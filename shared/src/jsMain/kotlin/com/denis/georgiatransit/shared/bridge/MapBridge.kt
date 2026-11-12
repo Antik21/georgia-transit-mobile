@@ -149,6 +149,7 @@ class MapBridge internal constructor(
     private var subscription: Job? = null
     private var vehicleSubscription: Job? = null
     private var disposed = false
+    val planner = JourneyPlannerBridge(viewModel, scope) { disposed }
     private var locationHandler: ((LocationCommand) -> Unit)? = null
     private val pendingLocationCommands = ArrayDeque<LocationPlatformCommand>()
 
@@ -308,6 +309,7 @@ class MapBridge internal constructor(
         subscription = null
         vehicleSubscription?.cancel()
         vehicleSubscription = null
+        planner.unsubscribe()
     }
 
     fun focusRoute(id: String) {
