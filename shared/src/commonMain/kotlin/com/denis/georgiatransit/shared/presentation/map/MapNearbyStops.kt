@@ -48,6 +48,9 @@ internal class MapNearbyStops(repository: TransitRepository, session: TransitSes
 
     fun blocked(cityId: CityId): Boolean = blockedCityId == cityId
 
+    fun canRetry(city: TransitCity, content: MapContentState): Boolean =
+        city.capabilities.stops && !blocked(city.id) && content is MapContentState.RetryableError
+
     fun isCurrent(request: NearbyRequest, city: TransitCity?, locale: TransitLocale): Boolean =
         request.generation == generation && city?.id == request.city.id &&
             city.capabilities.stops && !blocked(request.city.id) && locale == request.locale

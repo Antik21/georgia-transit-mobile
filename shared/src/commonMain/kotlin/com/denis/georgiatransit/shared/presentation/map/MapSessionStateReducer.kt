@@ -21,6 +21,7 @@ internal object MapSessionStateReducer {
         stopArrivalsSheet = if (input.change.resetStops) null else input.sheet,
         vehicleLayerState = input.vehicleLayer,
         vehicleRoutes = input.vehicleRoutes,
+        journeyPlanner = input.planner,
     )
 }
 
@@ -36,4 +37,5 @@ internal data class MapSessionStateInput(
     val sheet: StopArrivalsSheetUi?,
     val vehicleLayer: VehicleLayerState,
     val vehicleRoutes: List<VehicleRouteAccessibilityUi>,
+    val planner: JourneyPlannerUi,
 )

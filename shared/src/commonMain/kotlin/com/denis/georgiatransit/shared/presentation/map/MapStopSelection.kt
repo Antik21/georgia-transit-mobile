@@ -37,6 +37,13 @@ internal class MapStopSelection(private val camera: MapCameraController) {
         return true
     }
 
+    /** Null unless [stopId] is a visible group pin; a stale group tap keeps the current camera. */
+    fun groupTap(stopId: StopId, eventRevision: Long, render: MapRenderState?): MapCameraCommand? {
+        val group = render?.stops?.firstOrNull { it.id == stopId && it.representsGroup } ?: return null
+        if (eventRevision != sourceRevision || eventRevision != render.stopSourceRevision) return render.camera
+        return camera.next(group.position, ROUTE_STOP_GROUP_TAP_ZOOM, animated = true)
+    }
+
     fun dismiss() {
         val previousCamera = camera.command
         selectedStopId = null

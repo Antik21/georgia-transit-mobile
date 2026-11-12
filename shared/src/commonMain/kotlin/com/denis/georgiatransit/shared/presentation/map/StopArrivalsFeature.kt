@@ -77,7 +77,7 @@ internal class StopArrivalsFeature(private val repository: TransitRepository) {
         selectedStopId: com.denis.georgiatransit.shared.domain.model.StopId?,
         visible: Boolean,
         current: () -> StopArrivalsContext,
-        onSheet: suspend (StopArrivalsRequest, (StopArrivalsSheetUi) -> StopArrivalsSheetUi) -> Unit,
+        onSheet: suspend ((StopArrivalsSheetUi) -> StopArrivalsSheetUi?) -> Unit,
     ) {
         val selectedStop = stop ?: return
         if (city == null || !visible || !city.capabilities.arrivals || isBlocked(city) ||
@@ -95,22 +95,27 @@ internal class StopArrivalsFeature(private val repository: TransitRepository) {
             } },
             onEvent = { event ->
                 val request = event.request
-                if (current().let { isCurrent(request, it.city, it.locale, it.selectedStopId, it.visible) }) {
+                val isCurrentNow = { current().let { isCurrent(request, it.city, it.locale, it.selectedStopId, it.visible) } }
+                // The transform runs inside the VM's scheduled intent, so currency is checked again there.
+                val publish: suspend ((StopArrivalsSheetUi) -> StopArrivalsSheetUi) -> Unit = { transform ->
+                    onSheet { sheet -> if (isCurrentNow()) transform(sheet) else null }
+                }
+                if (isCurrentNow()) {
                     when (event) {
-                        is StopArrivalsEvent.Loading -> onSheet(request) { sheet ->
+                        is StopArrivalsEvent.Loading -> publish { sheet ->
                             sheet.copy(
                                 state = if (sheet.rows.isEmpty()) StopArrivalsSheetState.Loading else sheet.state,
                                 isRefreshing = true,
                             )
                         }
-                        is StopArrivalsEvent.Arrivals -> onSheet(request) { sheet ->
+                        is StopArrivalsEvent.Arrivals -> publish { sheet ->
                             val (updated, blocked) = presentation.apply(
                                 sheet, event.result, request.cityId, current().locale, current().selection,
                             )
                             if (blocked) invalidate()
                             updated
                         }
-                        is StopArrivalsEvent.Routes -> onSheet(request) { sheet ->
+                        is StopArrivalsEvent.Routes -> publish { sheet ->
                             presentation.updateCatalog(event.routes)
                             presentation.reproject(sheet, current().locale, current().selection) ?: sheet
                         }

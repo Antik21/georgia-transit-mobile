@@ -41,6 +41,23 @@ internal class MapLocationActions(private val session: LocationSession) {
 
     fun refresh(): LocationPlatformCommand.RequestLocation? = beginLocationRequest(isRefresh = true)
 
+    /** A refresh while the map is hidden would wake a backgrounded adapter, so it is dropped. */
+    fun forAction(action: Action, permission: LocationPermissionState, visible: Boolean): LocationPlatformCommand? =
+        when (action) {
+            Action.MyLocationClicked -> onClick(permission)
+            Action.RefreshLocation -> if (visible) refresh() else null
+            is Action.LocationEventReceived -> onEvent(action.event)
+            else -> null
+        }
+
+    /** The planner asks for location only through the same explicit "My location" flow. */
+    fun forPlanner(request: JourneyLocationRequest?, permission: LocationPermissionState): LocationPlatformCommand? =
+        when (request) {
+            JourneyLocationRequest.Explicit -> onClick(permission)
+            JourneyLocationRequest.Refresh -> refresh()
+            null -> null
+        }
+
     private fun beginLocationRequest(isRefresh: Boolean = false): LocationPlatformCommand.RequestLocation? {
         val requestId = session.nextCommandId()
         return LocationPlatformCommand.RequestLocation(requestId, isRefresh)

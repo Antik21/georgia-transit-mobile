@@ -682,25 +682,25 @@ class MapResourceContractTest {
 
     @Test
     fun vehicleTapEventsRouteThroughCurrentFrameAndKnownVehicleGuards() {
-        val viewModel = projectRoot().resolve(
+        val viewModelFile = projectRoot().resolve(
             "shared/src/commonMain/kotlin/com/denis/georgiatransit/shared/presentation/map/MapViewModel.kt",
-        ).readText()
-        val eventHandler = viewModel.functionBody("private fun onMapEvent")
-        val vehicleTapHandler = viewModel.functionBody("private fun acceptVehicleTap")
+        )
+        val eventHandler = viewModelFile.readText().functionBody("private fun onMapEvent")
+        val vehicleTapHandler = viewModelFile.resolveSibling("MapVehicleFeature.kt").readText().functionBody("fun acceptTap")
         val compactVehicleTapHandler = vehicleTapHandler.compactWhitespace().trim()
 
         assertTrue(
-            compactVehicleTapHandler.startsWith("if (sourceRevision != vehicleFrameRevision) return"),
+            compactVehicleTapHandler.startsWith("if (sourceRevision != presentation.vehicleFrameRevision) return"),
             "Vehicle taps must reject an obsolete source revision before inspecting marker identity.",
         )
         assertCodePath(
             vehicleTapHandler,
-            "if (sourceRevision != vehicleFrameRevision) return",
-            "if (vehicleMarkers.none { it.id == vehicleId }) return",
+            "if (sourceRevision != presentation.vehicleFrameRevision) return",
+            "if (presentation.vehicleMarkers.none { it.id == vehicleId }) return",
         )
         assertTrue(
             eventHandler.compactWhitespace().contains(
-                "is MapPlatformEvent.VehicleTapped -> acceptVehicleTap(event.vehicleId, event.sourceRevision)",
+                "is MapPlatformEvent.VehicleTapped -> vehicleFeature.acceptTap(event.vehicleId, event.sourceRevision)",
             ),
             "VehicleTapped must route both its typed ID and source revision through the guarded handler.",
         )

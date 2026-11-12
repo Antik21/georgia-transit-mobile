@@ -4,6 +4,7 @@ import com.denis.georgiatransit.shared.domain.model.RouteId
 import com.denis.georgiatransit.shared.domain.model.TransitCity
 import com.denis.georgiatransit.shared.domain.model.TransitRoute
 import com.denis.georgiatransit.shared.domain.repository.TransitRepository
+import com.denis.georgiatransit.shared.domain.repository.TransitSession
 import com.denis.georgiatransit.shared.presentation.ui.RouteColorAvailability
 import com.denis.georgiatransit.shared.presentation.ui.RouteSelectionProjection
 import com.denis.georgiatransit.shared.presentation.ui.RouteSelectionProjector
@@ -40,6 +41,13 @@ internal class MapSessionSelection(private val repository: TransitRepository) {
     var vehicleRoutes: List<TransitRoute> = emptyList()
         private set
     private var lastSelectedRouteIds: Set<RouteId> = emptySet()
+
+    /** The session remains the sole selection owner; route removal is one replacement mutation. */
+    fun removeRoute(session: TransitSession, routeId: RouteId) {
+        val selectedCity = city ?: return
+        val selected = session.selectedRouteIds.value
+        if (routeId in selected) session.selectRoutes(selectedCity.id, selected - routeId)
+    }
 
     fun update(nextCity: TransitCity?, selectedIds: Set<RouteId>): MapSessionChange {
         val previousCity = city
