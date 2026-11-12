@@ -610,7 +610,7 @@ components:
       enum: [LIVE, MIXED, ESTIMATED]
     JourneyLabel:
       type: string
-      description: Additive. OPTIMAL is the lowest generalized cost, FASTEST the earliest arrival, LEAST_WALKING the least walking among transit options, NO_TRANSFERS the best direct transit option when another option has transfers. Assigned only when the page has at least two options; each label marks at most one option.
+      description: Additive. OPTIMAL is the lowest generalized cost, FASTEST the earliest arrival, LEAST_WALKING the least walking among transit options, NO_TRANSFERS the best direct transit option when another transit option has transfers. Assigned only when the page has at least two options; each label marks at most one option.
       enum: [OPTIMAL, FASTEST, LEAST_WALKING, NO_TRANSFERS]
     JourneyPlanRequest:
       type: object
