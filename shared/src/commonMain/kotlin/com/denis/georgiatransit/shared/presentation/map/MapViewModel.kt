@@ -232,6 +232,8 @@ class MapViewModel(
                 state.copy(
                     renderState = renderStateFor(city, state.location.fix, lastViewport?.zoom),
                     selectedStop = selectedStopUi(),
+                    // List items carry the source revision; stale ones are rejected on tap.
+                    nearbyStops = nearbyStopItems(),
                 )
             }
         }
