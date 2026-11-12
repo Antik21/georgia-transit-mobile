@@ -387,6 +387,52 @@ class MapNearbyViewModelTest {
     }
 
     @Test
+    fun nearbyListStaysSelectableAfterSelectedRouteStopsArrive() = runTest {
+        val city = city("batumi")
+        val direction = TransitDirection(
+            id = DirectionId("direction-10"),
+            name = LocalizedText.fromLegacy("Outbound"),
+            headsign = LocalizedText.fromLegacy("Terminus"),
+        )
+        val route = route(city.id, "route-10", "10", 0xFF0057B8).copy(directions = listOf(direction))
+        val repository = RecordingRepository().apply {
+            routesSnapshot = listOf(route)
+            results += { data(stop("ordinary-nearby")) }
+            directionStopResults[route.id to direction.id] = {
+                delay(1_000)
+                data(stop("route-stop", routeIds = listOf(route.id)))
+            }
+        }
+        val session = RuntimeTransitSession().also {
+            it.selectCity(city)
+            assertTrue(it.selectRoutes(city.id, setOf(route.id)))
+        }
+        val viewModel = MapViewModel(repository, session, RuntimeLocationSession(this))
+
+        viewModel.test(this) {
+            runOnCreate()
+            viewModel.dispatchAction(Action.RealtimeVisibilityChanged(true))
+            this@runTest.runCurrent()
+            try {
+                this@runTest.advanceNearby()
+                this@runTest.advanceTimeBy(1_000)
+                this@runTest.runCurrent()
+
+                val item = viewModel.state.nearbyStops.single()
+                assertEquals(requireNotNull(viewModel.state.renderState).stopSourceRevision, item.sourceRevision)
+                viewModel.dispatchAction(Action.StopSelected(item.id, item.sourceRevision))
+                this@runTest.runCurrent()
+                assertEquals(item.id, viewModel.state.selectedStop?.id)
+            } finally {
+                // Vehicle polling outlives a failed assertion and would keep runTest from idling.
+                viewModel.dispatchAction(Action.RealtimeVisibilityChanged(false))
+                this@runTest.runCurrent()
+            }
+            cancelAndIgnoreRemainingItems()
+        }
+    }
+
+    @Test
     fun staleStopRevisionCannotSelectAReusedIdAfterCityOrCapabilityChange() = runTest {
         val firstCity = city("first", defaultZoom = ALL_STOPS_MIN_ZOOM)
         val secondCity = city("second", defaultZoom = ALL_STOPS_MIN_ZOOM)
