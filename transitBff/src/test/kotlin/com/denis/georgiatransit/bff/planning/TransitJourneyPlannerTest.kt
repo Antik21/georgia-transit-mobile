@@ -46,7 +46,6 @@ class TransitJourneyPlannerTest {
         to = stops[to].position,
         departureAt = now,
         maxTransfers = 2,
-        mode = JourneyPlanMode.FASTEST,
         transferBufferSeconds = 60,
         locale = "en",
     )

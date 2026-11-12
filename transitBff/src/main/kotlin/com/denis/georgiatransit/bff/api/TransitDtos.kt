@@ -101,7 +101,6 @@ data class JourneyPlanRequest(
     val to: GeoPoint,
     val departureAt: String? = null,
     val maxTransfers: Int = 2,
-    val mode: String = "FASTEST",
     val transferBufferSeconds: Int = 60,
     val locale: String,
 )
@@ -245,6 +244,14 @@ enum class JourneyWaitBasis {
 }
 
 @Serializable
+enum class JourneyLabel {
+    OPTIMAL,
+    FASTEST,
+    LEAST_WALKING,
+    NO_TRANSFERS,
+}
+
+@Serializable
 enum class JourneyTimingQuality {
     LIVE,
     MIXED,
@@ -266,6 +273,7 @@ data class Journey(
     val durationSeconds: Long? = null,
     val walkingDistanceMeters: Double? = null,
     val timingQuality: JourneyTimingQuality? = null,
+    val labels: List<JourneyLabel>? = null,
 )
 
 @Serializable

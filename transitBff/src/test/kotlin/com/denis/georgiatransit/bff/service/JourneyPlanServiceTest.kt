@@ -12,7 +12,6 @@ import com.denis.georgiatransit.bff.api.UpstreamUnavailable
 import com.denis.georgiatransit.bff.capabilities
 import com.denis.georgiatransit.bff.control.IntrinsicCapabilitySnapshotSource
 import com.denis.georgiatransit.bff.planning.GeoBounds
-import com.denis.georgiatransit.bff.planning.JourneyPlanMode
 import com.denis.georgiatransit.bff.planning.JourneyPlanQuery
 import com.denis.georgiatransit.bff.planning.PlanningBudget
 import com.denis.georgiatransit.bff.planning.PlanningBudgetExceeded
@@ -57,7 +56,6 @@ class JourneyPlanServiceTest {
         to = GeoPoint(41.71, 44.81),
         departureAt = Instant.parse("2030-01-01T00:00:00Z"),
         maxTransfers = 2,
-        mode = JourneyPlanMode.FASTEST,
         transferBufferSeconds = 60,
         locale = "en",
     )

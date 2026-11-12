@@ -40,7 +40,7 @@ class BatumiPatternRulesTest {
         assertTrue(fixture.routeId("9") in fixture.catalog.circleRouteIds)
         fixture.vehicle("9", "t1", outbound[0])
 
-        val fastest = fixture.plan(near(outbound[2]), near(inbound[2])).items.first()
+        val fastest = fixture.plan(near(outbound[2]), near(inbound[2])).fastest()
 
         val ride = fastest.transitSegments.single()
         assertEquals(fixture.stopId("T2"), ride.fromStopId)
@@ -58,7 +58,7 @@ class BatumiPatternRulesTest {
         val fixture = PlanningFixture(listOf(FixtureRoute("8", square, circle = true)))
         fixture.vehicle("8", "q1", square[5])
 
-        val ride = fixture.plan(near(square[6]), near(square[2])).items.first().transitSegments.single()
+        val ride = fixture.plan(near(square[6]), near(square[2])).fastest().transitSegments.single()
 
         assertEquals(fixture.stopId("Q6"), ride.fromStopId)
         assertEquals(fixture.stopId("Q2"), ride.toStopId)
@@ -120,6 +120,7 @@ class BatumiPatternRulesTest {
         assertEquals(listOf(WALK), walk.modes)
         assertEquals(0, walk.transfers)
         assertTrue(walk.legs.isEmpty())
+        assertNull(walk.labels)
         assertEquals(JourneyTimingQuality.ESTIMATED, walk.timingQuality)
         assertEquals(true, walk.segments.single().geometryApproximate)
         assertTrue(walk.id.startsWith("batumi:theta:journey:walk-"))

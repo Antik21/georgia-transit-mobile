@@ -2,6 +2,7 @@ package com.denis.georgiatransit.bff.provider
 
 import com.denis.georgiatransit.bff.api.ArrivalSource
 import com.denis.georgiatransit.bff.api.Journey
+import com.denis.georgiatransit.bff.api.JourneyLabel
 import com.denis.georgiatransit.bff.api.JourneyPage
 import com.denis.georgiatransit.bff.api.JourneySegment
 import com.denis.georgiatransit.bff.api.JourneySegmentMode
@@ -13,7 +14,7 @@ import com.denis.georgiatransit.bff.geo.decodePolyline
 import java.time.Instant
 import kotlin.math.abs
 
-private const val MaximumPlannedOptions = 3
+private const val MaximumPlannedOptions = 6
 private const val DistanceToleranceMeters = 1.0
 
 /**
@@ -26,6 +27,7 @@ object JourneyPlanResponseValidator {
         if (page.source != ArrivalSource.CLIENT_ESTIMATE || page.items.size > MaximumPlannedOptions) invalid()
         if (page.items.map(Journey::id).distinct().size != page.items.size) invalid()
         page.items.forEach { journey(cityId, it) }
+        labels(page.items)
         val transit = page.items.flatMap(Journey::segments).filter { it.mode == JourneySegmentMode.TRANSIT }
         val expectedRealtime = transit.isNotEmpty() && transit.all { it.waitBasis == JourneyWaitBasis.LIVE_VEHICLE }
         if (page.realtime != expectedRealtime) invalid()
@@ -59,6 +61,14 @@ object JourneyPlanResponseValidator {
             else -> JourneyTimingQuality.MIXED
         }
         if (journey.timingQuality != expectedQuality) invalid()
+    }
+
+    private fun labels(items: List<Journey>) {
+        val perJourney = items.map { it.labels.orEmpty() }
+        if (perJourney.any { it.distinct().size != it.size }) invalid()
+        val all = perJourney.flatten()
+        if (all.distinct().size != all.size || (items.size < 2 && all.isNotEmpty())) invalid()
+        if (JourneyLabel.OPTIMAL in all && JourneyLabel.OPTIMAL !in perJourney.first()) invalid()
     }
 
     private fun adjacent(previous: JourneySegment, next: JourneySegment) {

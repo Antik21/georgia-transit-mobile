@@ -1,6 +1,5 @@
 package com.denis.georgiatransit.bff.api
 
-import com.denis.georgiatransit.bff.planning.JourneyPlanMode
 import com.denis.georgiatransit.bff.planning.JourneyPlanQuery
 import com.denis.georgiatransit.bff.planning.PlannerParameters
 import java.time.Duration
@@ -29,14 +28,11 @@ internal fun JourneyPlanRequest.toQuery(now: Instant): JourneyPlanQuery {
     if (transferBufferSeconds !in 0..MaximumTransferBufferSeconds) {
         throw InvalidArgument("transferBufferSeconds must be between 0 and $MaximumTransferBufferSeconds")
     }
-    val planMode = JourneyPlanMode.entries.firstOrNull { it.name == mode }
-        ?: throw InvalidArgument("mode must be one of FASTEST, LESS_WALKING, FEWER_TRANSFERS")
     return JourneyPlanQuery(
         from = validateGeoPoint(from),
         to = validateGeoPoint(to),
         departureAt = departure,
         maxTransfers = maxTransfers,
-        mode = planMode,
         transferBufferSeconds = transferBufferSeconds,
         locale = validateLocale(locale),
     )

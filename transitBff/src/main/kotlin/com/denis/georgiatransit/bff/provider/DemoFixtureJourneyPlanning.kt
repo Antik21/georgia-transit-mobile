@@ -72,7 +72,7 @@ internal class DemoFixtureJourneyPlanning(
 
     private companion object {
         const val DemoProvider = "fixture"
-        const val FirstDepartureSeconds = 300L
+        const val FirstDepartureSeconds = 600L
         const val HeadwaySeconds = 600L
         const val HorizonSeconds = 2 * 60 * 60L
     }
