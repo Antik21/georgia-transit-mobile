@@ -63,10 +63,15 @@ function closeEntries() {
   telegram.setBackVisible(false);
 }
 
+function mapVisible() {
+  return !activeRoutes && document.visibilityState === "visible";
+}
+
 function updateVisibility() {
-  const visible = !activeRoutes && document.visibilityState === "visible";
+  const visible = mapVisible();
   activeMap?.bridge.setVisible(visible);
   if (!activeMap) return;
+  activeMap.renderer?.setVisible(visible);
   if (visible) activeMap.location.resume();
   else activeMap.location.pause();
   activeMap.location.setRefreshing(visible && activeMap.state?.location?.permission === "granted");
@@ -91,6 +96,7 @@ async function loadMapRenderer(entry: ActiveMap) {
       selectVehicle: (id, revision) => entry.bridge.selectVehicle(id, revision),
       setUnavailable,
     });
+    entry.renderer.setVisible(mapVisible());
     if (entry.vehicles) entry.renderer.updateVehicles(entry.vehicles);
     setUnavailable(false);
   } catch {

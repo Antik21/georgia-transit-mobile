@@ -89,7 +89,8 @@ try {
     throw new Error(`${label} did not complete. Visible text: ${summary}${lastError ? ` (${lastError})` : ''}`);
   }
 
-  async function mapContainsColor(color, minimumPixels) {
+  // Runs `body` over the map canvas pixels of a fresh screenshot; it sees pixels, width, height and scale.
+  async function analyzeMap(body) {
     const { data } = await send('Page.captureScreenshot', { format: 'png', fromSurface: true });
     return evaluate(`(async () => {
       const bounds = document.querySelector('.maplibregl-canvas')?.getBoundingClientRect();
@@ -109,6 +110,14 @@ try {
       const context = canvas.getContext('2d');
       context.drawImage(image, -left, -top);
       const pixels = context.getImageData(0, 0, canvas.width, canvas.height).data;
+      const { width } = canvas;
+      const toPage = (x, y) => ({ x: (x + left) / scale, y: (y + top) / scale });
+      ${body}
+    })()`);
+  }
+
+  function mapContainsColor(color, minimumPixels) {
+    return analyzeMap(`
       const [red, green, blue] = ${JSON.stringify(color)};
       let count = 0;
       for (let i = 0; i < pixels.length; i += 4) {
@@ -116,8 +125,57 @@ try {
           if (++count >= ${minimumPixels}) return true;
         }
       }
-      return false;
-    })()`);
+      return false;`);
+  }
+
+  // Pixels of a colour, as a count and their centroid in page coordinates.
+  function colorCentroid(color) {
+    return analyzeMap(`
+      const [red, green, blue] = ${JSON.stringify(color)};
+      let count = 0, sumX = 0, sumY = 0;
+      for (let i = 0; i < pixels.length; i += 4) {
+        if (Math.abs(pixels[i] - red) <= 3 && Math.abs(pixels[i + 1] - green) <= 3 && Math.abs(pixels[i + 2] - blue) <= 3) {
+          count++;
+          sumX += (i / 4) % width;
+          sumY += Math.floor(i / 4 / width);
+        }
+      }
+      return count ? { count, ...toPage(sumX / count, sumY / count) } : { count };`);
+  }
+
+  // The translucent pulse is the only thing that mixes the route colour into the plain fixture tiles.
+  function pulseArea() {
+    return analyzeMap(`
+      const route = ${JSON.stringify(fixtureRouteColor)};
+      const tile = ${JSON.stringify(fixtureTileColor)};
+      const delta = route.map((value, index) => value - tile[index]);
+      const length = Math.hypot(...delta);
+      let count = 0, sumX = 0, sumY = 0;
+      for (let i = 0; i < pixels.length; i += 4) {
+        const offset = [0, 1, 2].map((index) => pixels[i + index] - tile[index]);
+        const alpha = offset.reduce((sum, value, index) => sum + value * delta[index], 0) / length / length;
+        if (alpha < 0.05 || alpha > 0.6) continue;
+        if (Math.hypot(...offset.map((value, index) => value - alpha * delta[index])) > 4) continue;
+        count++;
+        sumX += (i / 4) % width;
+        sumY += Math.floor(i / 4 / width);
+      }
+      return count ? { count, ...toPage(sumX / count, sumY / count) } : { count };`);
+  }
+
+  async function pulseAreas(samples) {
+    const areas = [];
+    for (let index = 0; index < samples; index++) {
+      areas.push((await pulseArea()).count);
+      await delay(150);
+    }
+    return areas;
+  }
+
+  async function cursorAt(point) {
+    await send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: point.x, y: point.y });
+    await delay(100);
+    return evaluate(`document.querySelector('.maplibregl-canvas').style.cursor`);
   }
 
   async function tap(selector) {
@@ -174,6 +232,43 @@ try {
   await waitFor('A stale BFF page shows the older-positions status', `${visible(testId('vehicle-status'))} && ${vehicleSummary}.includes('showing older positions')`);
   fixtureControl.staleVehicles = false;
   await waitFor('Fresh positions clear the degraded status', `!${visible(testId('vehicle-status'))} && ${vehicleSummary}.includes('D1: 1, live')`);
+
+  const animatedAreas = await pulseAreas(10);
+  assert.ok(Math.min(...animatedAreas) > 0 && Math.max(...animatedAreas) > Math.min(...animatedAreas) * 1.5,
+    `The vehicle pulse must grow and shrink, got areas ${animatedAreas}`);
+  console.log('PASS The vehicle pulse animates under the badge');
+  await send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: 'reduce' }] });
+  await delay(300);
+  const staticAreas = await pulseAreas(4);
+  assert.ok(Math.min(...staticAreas) > 1_000 && Math.max(...staticAreas) - Math.min(...staticAreas) <= Math.max(...staticAreas) * 0.05,
+    `Reduced motion must keep a static pulse ring, got areas ${staticAreas}`);
+  console.log('PASS Reduced motion freezes the vehicle pulse');
+
+  const vehicleCenter = await pulseArea();
+  const nearBadge = { x: vehicleCenter.x, y: vehicleCenter.y + 30 };
+  const awayFromBadge = { x: vehicleCenter.x, y: vehicleCenter.y + 60 };
+  assert.equal(await cursorAt(nearBadge), 'pointer', 'A point beside the badge must fall inside the 48 px vehicle target');
+  assert.equal(await cursorAt(awayFromBadge), '', 'A point well clear of the badge must not target the vehicle');
+  console.log('PASS The vehicle target extends to 48×48 around the badge');
+  await send('Emulation.setEmulatedMedia', { features: [] });
+
+  const start = await colorCentroid(vehicleHeadlightColor);
+  assert.ok(start.count > 0, 'The vehicle headlights must be visible before it moves');
+  fixtureControl.vehicleAdvanced = true;
+  const travelled = [];
+  const travelExpiresAt = Date.now() + 25_000;
+  while (Date.now() < travelExpiresAt) {
+    const current = await colorCentroid(vehicleHeadlightColor);
+    if (current.count) travelled.push(Math.hypot(current.x - start.x, current.y - start.y));
+    const settled = travelled.length > 8 && travelled.slice(-8).every((distance) => Math.abs(distance - travelled.at(-1)) < 1);
+    if (settled && travelled.at(-1) > 10) break;
+    await delay(200);
+  }
+  const finalDistance = travelled.at(-1) ?? 0;
+  assert.ok(finalDistance > 10, `The vehicle must reach its next polled position, travelled ${finalDistance}`);
+  assert.ok(travelled.some((distance) => distance > finalDistance * 0.2 && distance < finalDistance * 0.8),
+    `The vehicle must glide between polls instead of jumping, distances ${travelled.map(Math.round)}`);
+  console.log('PASS The vehicle glides between polled positions');
 
   await tap(testId('open-routes'));
   const vehicleRequests = () => bffRequests.filter((path) => path === fixtureVehiclesPath).length;
