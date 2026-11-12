@@ -5,8 +5,9 @@ package com.denis.georgiatransit.shared.bridge
 import com.denis.georgiatransit.shared.domain.model.GeoPoint
 import com.denis.georgiatransit.shared.domain.model.JourneyEndpoint
 import com.denis.georgiatransit.shared.domain.model.JourneyId
-import com.denis.georgiatransit.shared.domain.model.JourneyPlanMode
 import com.denis.georgiatransit.shared.presentation.map.Action
+import com.denis.georgiatransit.shared.presentation.map.JourneyBusesUi
+import com.denis.georgiatransit.shared.presentation.map.JourneyLabelUi
 import com.denis.georgiatransit.shared.presentation.map.JourneyLegUi
 import com.denis.georgiatransit.shared.presentation.map.JourneyOptionUi
 import com.denis.georgiatransit.shared.presentation.map.JourneyPlanLineKind
@@ -46,6 +47,24 @@ class PlannerLeg(
     val stopCount: Int? = null,
     val waitMinutes: Int? = null,
     val waitLive: Boolean = false,
+    val routeMode: String? = null,
+)
+
+/** A highlight label: [key] picks the localized text, the colours come from the shared palette. */
+@JsExport
+class PlannerLabel(val key: String, val color: String, val textColor: String)
+
+/** One of the soonest buses to the selected option's first boarding stop. */
+@JsExport
+class PlannerBus(
+    val id: String,
+    val latitude: Double,
+    val longitude: Double,
+    val bearing: Double?,
+    val etaMinutes: Int,
+    val label: String,
+    val color: String,
+    val textColor: String,
 )
 
 @JsExport
@@ -58,6 +77,9 @@ class PlannerOption(
     val timing: String?,
     val selected: Boolean,
     val legs: Array<PlannerLeg>,
+    val labels: Array<PlannerLabel> = emptyArray(),
+    /** Approximate minutes of the soonest buses; only the selected option has them. */
+    val nearestEtas: Array<Int> = emptyArray(),
 )
 
 /** A planned line: `transit` in its route colour, `walk` drawn dashed by the renderer. */
@@ -80,7 +102,6 @@ class PlannerState(
     val pin: PlannerPoint?,
     val origin: PlannerEndpoint,
     val destination: PlannerEndpoint,
-    val mode: String,
     val side: String?,
     val reason: String?,
     val retryable: Boolean,
@@ -90,6 +111,7 @@ class PlannerState(
     val walkMinutes: Int?,
     val options: Array<PlannerOption>,
     val route: PlannerRoute,
+    val buses: Array<PlannerBus> = emptyArray(),
 )
 
 /** Planner commands and state for the Map entry; it lives and dies with its [MapBridge]. */
@@ -151,16 +173,6 @@ class JourneyPlannerBridge internal constructor(
     fun clear() = dispatch(JourneyPlannerAction.Clear)
     fun selectOption(id: String) = dispatch(JourneyPlannerAction.SelectOption(JourneyId(id)))
 
-    fun setMode(mode: String) {
-        val planMode = when (mode) {
-            "fastest" -> JourneyPlanMode.Fastest
-            "lessWalking" -> JourneyPlanMode.LessWalking
-            "fewerTransfers" -> JourneyPlanMode.FewerTransfers
-            else -> return
-        }
-        dispatch(JourneyPlannerAction.ChangeMode(planMode))
-    }
-
     fun retry() = dispatch(JourneyPlannerAction.Retry)
     fun close() = dispatch(JourneyPlannerAction.ClosePlanner)
 
@@ -188,11 +200,6 @@ private fun JourneyPlannerUi.toJs(route: PlannerRoute): PlannerState {
         pin = pin?.toPlannerPoint(),
         origin = origin.toJs(),
         destination = destination.toJs(),
-        mode = when (mode) {
-            JourneyPlanMode.Fastest -> "fastest"
-            JourneyPlanMode.LessWalking -> "lessWalking"
-            JourneyPlanMode.FewerTransfers -> "fewerTransfers"
-        },
         side = when (status) {
             is JourneyPlannerStatus.PickingPoint -> status.side.toJs()
             is JourneyPlannerStatus.LocationNeeded -> status.side.toJs()
@@ -209,13 +216,20 @@ private fun JourneyPlannerUi.toJs(route: PlannerRoute): PlannerState {
         walkMeters = (status as? JourneyPlannerStatus.AlreadyThere)?.walkMeters,
         walkMinutes = (status as? JourneyPlannerStatus.AlreadyThere)?.walkMinutes,
         options = (status as? JourneyPlannerStatus.Results)?.let { results ->
-            results.options.map { it.toJs(it.id == results.selectedId) }.toTypedArray()
+            results.options.map { it.toJs(it.id == results.selectedId, buses) }.toTypedArray()
         } ?: emptyArray(),
         route = route,
+        buses = buses?.vehicles.orEmpty().map { bus ->
+            PlannerBus(
+                id = bus.id.value, latitude = bus.position.latitude, longitude = bus.position.longitude,
+                bearing = bus.bearingDegrees, etaMinutes = bus.etaMinutes, label = bus.route.label,
+                color = bus.route.backgroundArgb.toCssColor(), textColor = bus.route.textArgb.toCssColor(),
+            )
+        }.toTypedArray(),
     )
 }
 
-private fun JourneyOptionUi.toJs(selected: Boolean) = PlannerOption(
+private fun JourneyOptionUi.toJs(selected: Boolean, buses: JourneyBusesUi?) = PlannerOption(
     id = id.value,
     totalMinutes = totalMinutes,
     arrivalEpochMillis = arrivalAt.toEpochMilliseconds().toDouble(),
@@ -233,10 +247,23 @@ private fun JourneyOptionUi.toJs(selected: Boolean) = PlannerOption(
                 kind = "ride", minutes = leg.rideMinutes, routeId = leg.route.routeId.value,
                 routeLabel = leg.route.label, routeColor = leg.route.backgroundArgb.toCssColor(),
                 routeTextColor = leg.route.textArgb.toCssColor(), stopCount = leg.stopCount,
-                waitMinutes = leg.waitMinutes, waitLive = leg.waitIsLive,
+                waitMinutes = leg.waitMinutes, waitLive = leg.waitIsLive, routeMode = leg.route.mode.name.lowercase(),
             )
         }
     }.toTypedArray(),
+    labels = labels.map { it.toJs() }.toTypedArray(),
+    nearestEtas = buses?.takeIf { selected && it.optionId == id }?.etaMinutes.orEmpty().toTypedArray(),
+)
+
+private fun JourneyLabelUi.toJs() = PlannerLabel(
+    key = when (this) {
+        JourneyLabelUi.Optimal -> "optimal"
+        JourneyLabelUi.Fastest -> "fastest"
+        JourneyLabelUi.LeastWalking -> "leastWalking"
+        JourneyLabelUi.NoTransfers -> "noTransfers"
+    },
+    color = backgroundArgb.toCssColor(),
+    textColor = textArgb.toCssColor(),
 )
 
 private fun JourneyPlanRenderUi.toJs(revision: Long) = PlannerRoute(

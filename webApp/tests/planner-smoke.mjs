@@ -3,7 +3,13 @@ import { setTimeout as delay } from 'node:timers/promises';
 import { fallbackMapColor, fixtureControl, otherCityId, planRequests, plannerRouteColors } from './browser-fixtures.mjs';
 
 const planPath = `/v1/cities/${otherCityId}/journeys/plan`;
-const requestKeys = ['from', 'locale', 'maxTransfers', 'mode', 'to', 'transferBufferSeconds'];
+const requestKeys = ['from', 'locale', 'maxTransfers', 'to', 'transferBufferSeconds'];
+const optionCount = 4;
+// The shared label palette (JourneyLabelUi), as the browser reports computed colours.
+const labelColors = {
+  optimal: 'rgb(0, 121, 107)', fastest: 'rgb(194, 65, 12)', leastWalking: 'rgb(29, 78, 216)', noTransfers: 'rgb(109, 40, 217)',
+};
+const busHaloColor = [255, 195, 0];
 
 // Shared smoke helpers from smoke.mjs.
 export function plannerSmoke({ send, evaluate, waitFor, tap, visible, testId, mapContainsColor, analyzeMap, bffRequests }) {
@@ -11,6 +17,8 @@ export function plannerSmoke({ send, evaluate, waitFor, tap, visible, testId, ma
   const options = `document.querySelectorAll('${testId('planner-option')}')`;
   const optionText = (index) => `(${options}[${index}]?.textContent ?? '')`;
   const statusText = `(document.querySelector('${testId('planner-status')}')?.textContent ?? '')`;
+  const card = (id) => `${testId('planner-option')}[data-option-id="batumi:fixture:journey:${id}"]`;
+  const nearestText = `(document.querySelector('${testId('planner-nearest')}')?.textContent ?? '')`;
   const pressed = (selector) => `document.querySelector(${JSON.stringify(selector)})?.getAttribute('aria-pressed') === 'true'`;
 
   async function mapPoint(x, y) {
@@ -48,7 +56,7 @@ export function plannerSmoke({ send, evaluate, waitFor, tap, visible, testId, ma
     await longPressAndChoose(0.35, 0.5, 'planner-route-here');
     await waitFor('The planner waits for the start point', pressed(testId('planner-pick-origin')));
     await longPress(0.65, 0.5);
-    await waitFor('The plan answers', `${options}.length === 2`);
+    await waitFor('The plan answers', `${options}.length === ${optionCount}`);
   }
 
   function framedRoute() {
@@ -71,6 +79,46 @@ export function plannerSmoke({ send, evaluate, waitFor, tap, visible, testId, ma
     await waitFor('The planner closes', `!${panel}`);
   }
 
+  // Connected rings of the highlight colour: one per highlighted bus.
+  function highlightedBuses() {
+    return analyzeMap(`
+      const [red, green, blue] = ${JSON.stringify(busHaloColor)};
+      const step = 2, columns = Math.ceil(width / step), rows = Math.ceil(pixels.length / 4 / width / step);
+      const mask = new Uint8Array(columns * rows);
+      for (let y = 0; y < rows; y++) for (let x = 0; x < columns; x++) {
+        const i = ((y * step) * width + x * step) * 4;
+        if (Math.abs(pixels[i] - red) <= 6 && Math.abs(pixels[i + 1] - green) <= 6 && Math.abs(pixels[i + 2] - blue) <= 6) mask[y * columns + x] = 1;
+      }
+      let rings = 0;
+      for (let start = 0; start < mask.length; start++) {
+        if (mask[start] !== 1) continue;
+        let size = 0;
+        const queue = [start];
+        mask[start] = 2;
+        while (queue.length) {
+          const cell = queue.pop();
+          size++;
+          const x = cell % columns, y = Math.floor(cell / columns);
+          for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++) {
+            const nx = x + dx, ny = y + dy, next = ny * columns + nx;
+            if (nx >= 0 && ny >= 0 && nx < columns && ny < rows && mask[next] === 1) { mask[next] = 2; queue.push(next); }
+          }
+        }
+        if (size >= 10) rings++;
+      }
+      return rings;`);
+  }
+
+  async function labelsAndItineraries() {
+    return evaluate(`Array.from(${options}).map((option) => ({
+      labels: Array.from(option.querySelectorAll('${testId('planner-label')}'))
+        .map((label) => [label.dataset.label, label.textContent, getComputedStyle(label).backgroundColor]),
+      pills: Array.from(option.querySelectorAll('${testId('planner-route-pill')}')).map((pill) => pill.textContent),
+      walks: option.querySelectorAll('${testId('planner-itinerary')} ${testId('planner-glyph-walk')}').length,
+      spoken: option.querySelector('${testId('planner-itinerary')} .visually-hidden')?.textContent,
+    }))`);
+  }
+
   function isRounded(point) {
     return [point.latitude, point.longitude].every((value) => Math.abs(value * 1e4 - Math.round(value * 1e4)) < 1e-6);
   }
@@ -89,25 +137,42 @@ export function plannerSmoke({ send, evaluate, waitFor, tap, visible, testId, ma
       assert.equal(planRequests.length, 0, 'Without a granted location the planner waits for a start point');
       await longPress(0.7, 0.35);
       await waitFor('Choosing A by long press plans and shows the options',
-        `${options}.length === 2 && ${optionText(0)}.includes('≈ 21 min') && ${optionText(0)}.includes('Walk to the stop: 300 m · 4 min')
+        `${options}.length === ${optionCount} && ${optionText(0)}.includes('≈ 21 min') && ${optionText(0)}.includes('Walk to the stop: 300 m · 4 min')
           && ${optionText(0)}.includes('6 stops · 11 min') && ${optionText(0)}.includes('wait 2 min · live bus')
-          && ${optionText(1)}.includes('Walk to the transfer') && ${optionText(1)}.includes('wait ≈ 4 min · estimate')
+          && ${optionText(2)}.includes('Walk to the transfer') && ${optionText(2)}.includes('wait ≈ 4 min · estimate')
           && ${visible(testId('planner-disclaimer'))}`);
+      assert.equal(await evaluate(`document.querySelectorAll('${testId('planner-mode')}').length`), 0, 'Mode chips are gone');
+      const cards = await labelsAndItineraries();
+      assert.deepEqual(cards.map((option) => option.labels), [
+        [['optimal', 'Best', labelColors.optimal], ['fastest', 'Fastest', labelColors.fastest]],
+        [['noTransfers', 'No transfers', labelColors.noTransfers]],
+        [['leastWalking', 'Least walking', labelColors.leastWalking]],
+        [],
+      ], 'Labels keep their fixed order and colours; an unknown label is dropped');
+      assert.deepEqual(cards.map((option) => option.pills), [['B7'], ['B12'], ['B12', 'B7'], []]);
+      assert.deepEqual(cards.map((option) => option.walks), [2, 2, 3, 1]);
+      assert.equal(cards[2].spoken, 'Walk, then bus B12, then walk, then bus B7, then walk.');
+      await waitFor('The selected option shows its two soonest buses on the card and the map',
+        async () => await evaluate(`${nearestText} === 'Nearest buses: 3 min, 11 min'`) && await highlightedBuses() === 2);
       assert.equal(planRequests.length, 1);
       assertPrivateRequest(planRequests[0]);
       assert.equal(bffRequests.filter((path) => path === planPath).length, 1);
       await waitFor('The selected option draws its route-coloured line on the canvas',
         () => mapContainsColor(plannerRouteColors.orange, 75));
 
-      await tap(`${testId('planner-option')}[data-option-id="batumi:fixture:journey:transfer"]`);
-      await waitFor('Selecting another option redraws its lines',
-        async () => await evaluate(pressed(`${testId('planner-option')}[data-option-id="batumi:fixture:journey:transfer"]`))
-          && await mapContainsColor(plannerRouteColors.yellow, 75));
+      await tap(card('transfer'));
+      await waitFor('Selecting another option redraws its lines and shows the one bus that exists',
+        async () => await evaluate(`${pressed(card('transfer'))} && ${nearestText} === 'Nearest buses: 5 min'`)
+          && await mapContainsColor(plannerRouteColors.yellow, 75) && await highlightedBuses() === 1);
+      await tap(card('walk'));
+      await waitFor('A walk-only option shows no buses',
+        async () => await evaluate(`${pressed(card('walk'))} && !document.querySelector('${testId('planner-nearest')}')`)
+          && await highlightedBuses() === 0);
 
       await tap(testId('planner-swap'));
       await waitFor('Swap re-plans in the other direction', () => planRequests.length === 2);
       assert.deepEqual([planRequests[1].from, planRequests[1].to], [planRequests[0].to, planRequests[0].from]);
-      await waitFor('Swapped options arrive', `${options}.length === 2`);
+      await waitFor('Swapped options arrive', `${options}.length === ${optionCount}`);
 
       await tap(testId('planner-clear'));
       await waitFor('Clear drops the options and the planned lines',
@@ -163,7 +228,7 @@ export function plannerSmoke({ send, evaluate, waitFor, tap, visible, testId, ma
       const before = planRequests.length;
       await longPressAndChoose(0.15, 0.85, 'planner-route-here');
       await waitFor('Route here starts at my location when access is already granted',
-        `${panel} && document.querySelector('${testId('planner-origin-value')}')?.textContent === 'My location' && ${options}.length === 2`);
+        `${panel} && document.querySelector('${testId('planner-origin-value')}')?.textContent === 'My location' && ${options}.length === ${optionCount}`);
       const request = planRequests.at(-1);
       assert.equal(planRequests.length, before + 1);
       assertPrivateRequest(request);
@@ -182,7 +247,7 @@ export function plannerSmoke({ send, evaluate, waitFor, tap, visible, testId, ma
         `${statusText}.includes('Allow location access') && ${visible(testId('planner-pick-instead'))}`);
       await tap(testId('planner-pick-instead'));
       await longPress(0.7, 0.35);
-      await waitFor('A map point plans despite the denied location', `${options}.length === 2`);
+      await waitFor('A map point plans despite the denied location', `${options}.length === ${optionCount}`);
       assert.equal(planRequests.length, before + 1);
       assertPrivateRequest(planRequests.at(-1));
       await tap(testId('planner-close'));

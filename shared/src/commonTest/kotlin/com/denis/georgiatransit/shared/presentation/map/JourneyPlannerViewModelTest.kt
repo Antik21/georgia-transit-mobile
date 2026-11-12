@@ -72,8 +72,7 @@ class JourneyPlannerViewModelTest {
 
             val results = assertIs<Status.Results>(plannerState(viewModel).status)
             assertEquals(JourneyId("demo:fixture:journey:one"), results.selectedId)
-            assertEquals(listOf(JourneyPlanQuery(GeoPoint(41.64, 41.6301), B, planner.queries[0].mode, 2, 60,
-                planner.queries[0].locale)), planner.queries)
+            assertEquals(listOf(JourneyPlanQuery(GeoPoint(41.64, 41.6301), B, 2, 60, planner.queries[0].locale)), planner.queries)
             assertTrue(plannerState(viewModel).render.lines.isNotEmpty())
             cancelAndIgnoreRemainingItems()
         }

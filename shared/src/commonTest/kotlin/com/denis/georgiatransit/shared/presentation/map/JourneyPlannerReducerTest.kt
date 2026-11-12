@@ -7,6 +7,7 @@ import com.denis.georgiatransit.shared.domain.model.DirectionId
 import com.denis.georgiatransit.shared.domain.model.GeoPoint
 import com.denis.georgiatransit.shared.domain.model.JourneyEndpoint
 import com.denis.georgiatransit.shared.domain.model.JourneyId
+import com.denis.georgiatransit.shared.domain.model.JourneyLabel
 import com.denis.georgiatransit.shared.domain.model.JourneyPage
 import com.denis.georgiatransit.shared.domain.model.JourneySegmentMode
 import com.denis.georgiatransit.shared.domain.model.JourneyWaitBasis
@@ -208,6 +209,22 @@ class JourneyPlannerReducerTest {
         assertEquals("D1", ride.route.label)
         assertEquals(false, (options[0].legs[3] as JourneyLegUi.Ride).waitIsLive)
         assertEquals(JourneyTimingUi.Mixed, options[0].timing)
+    }
+
+    @Test
+    fun labelsUseTheFixedDisplayOrderAndTheFirstServerOptionIsSelected() {
+        val loading = JourneyPlannerUi(isOpen = true, origin = JourneyEndpoint.MapPoint(A),
+            destination = JourneyEndpoint.MapPoint(B), status = Status.Loading)
+        val labelled = journey("labelled").copy(labels = listOf(JourneyLabel.NoTransfers, JourneyLabel.Optimal))
+        val page = TransitLoadResult.Data(JourneyPage(listOf(labelled, journey("plain")), NOW, ArrivalSource.ClientEstimate),
+            TransitFreshness.Network)
+
+        val results = assertIs<Status.Results>(JourneyPlannerReducer.outcome(loading, page, context()).state.status)
+
+        assertEquals(JourneyId("demo:fixture:journey:labelled"), results.selectedId)
+        assertEquals(listOf(JourneyLabelUi.Optimal, JourneyLabelUi.NoTransfers), results.options[0].labels)
+        assertTrue(results.options[1].labels.isEmpty())
+        assertEquals(JourneyBoarding(STOP_A, ROUTE), results.options[0].boarding)
     }
 
     private fun retry(planner: JourneyPlannerUi, location: LocationState) =

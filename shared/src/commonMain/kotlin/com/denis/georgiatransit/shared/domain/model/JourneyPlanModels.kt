@@ -18,7 +18,8 @@ sealed interface JourneyEndpoint {
     data class MapPoint(val point: GeoPoint) : JourneyEndpoint
 }
 
-enum class JourneyPlanMode { Fastest, LessWalking, FewerTransfers }
+/** Highlight a planner option may carry (ADR 0022 Selection); each marks at most one option. */
+@Serializable enum class JourneyLabel { Optimal, Fastest, LeastWalking, NoTransfers }
 
 @Serializable enum class JourneyWaitBasis { LiveVehicle, HeadwayEstimate }
 
@@ -27,7 +28,6 @@ enum class JourneyPlanMode { Fastest, LessWalking, FewerTransfers }
 data class JourneyRequest(
     val origin: JourneyEndpoint,
     val destination: JourneyEndpoint,
-    val mode: JourneyPlanMode = JourneyPlanMode.Fastest,
     val maxTransfers: Int = DEFAULT_MAX_TRANSFERS,
     val transferBuffer: Duration = DEFAULT_TRANSFER_BUFFER,
 )
@@ -36,7 +36,6 @@ data class JourneyRequest(
 data class JourneyPlanQuery(
     val from: GeoPoint,
     val to: GeoPoint,
-    val mode: JourneyPlanMode,
     val maxTransfers: Int,
     val transferBufferSeconds: Int,
     val locale: TransitLocale,
@@ -75,7 +74,6 @@ object JourneyEndpointPolicy {
             JourneyPlanQuery(
                 from = from.roundedForPlanning(),
                 to = to.roundedForPlanning(),
-                mode = request.mode,
                 maxTransfers = request.maxTransfers,
                 transferBufferSeconds = request.transferBuffer.inWholeSeconds.toInt(),
                 locale = locale,

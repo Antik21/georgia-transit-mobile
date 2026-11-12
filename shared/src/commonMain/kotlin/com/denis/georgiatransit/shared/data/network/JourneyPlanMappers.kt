@@ -1,7 +1,7 @@
 package com.denis.georgiatransit.shared.data.network
 
 import com.denis.georgiatransit.shared.domain.model.JourneyPage
-import com.denis.georgiatransit.shared.domain.model.JourneyPlanMode
+import com.denis.georgiatransit.shared.domain.model.JourneyLabel
 import com.denis.georgiatransit.shared.domain.model.JourneyPlanQuery
 import com.denis.georgiatransit.shared.domain.model.JourneyTimingQuality
 import com.denis.georgiatransit.shared.domain.model.JourneyWaitBasis
@@ -12,11 +12,6 @@ internal fun JourneyPlanQuery.toDto() = JourneyPlanRequestDto(
     to = to.toDto(),
     departureAt = departureAt?.toString(),
     maxTransfers = maxTransfers,
-    mode = when (mode) {
-        JourneyPlanMode.Fastest -> "FASTEST"
-        JourneyPlanMode.LessWalking -> "LESS_WALKING"
-        JourneyPlanMode.FewerTransfers -> "FEWER_TRANSFERS"
-    },
     transferBufferSeconds = transferBufferSeconds,
     locale = when (locale) {
         TransitLocale.Georgian -> "ka"
@@ -49,6 +44,15 @@ internal fun String?.toWaitBasisOrNull(): JourneyWaitBasis? = when (this) {
     else -> null
 }
 
+/** A label this client does not know is dropped; the option itself stays. */
+internal fun String.toJourneyLabelOrNull(): JourneyLabel? = when (this) {
+    "OPTIMAL" -> JourneyLabel.Optimal
+    "FASTEST" -> JourneyLabel.Fastest
+    "LEAST_WALKING" -> JourneyLabel.LeastWalking
+    "NO_TRANSFERS" -> JourneyLabel.NoTransfers
+    else -> null
+}
+
 internal fun String?.toTimingQualityOrNull(): JourneyTimingQuality? = when (this) {
     "LIVE" -> JourneyTimingQuality.Live
     "MIXED" -> JourneyTimingQuality.Mixed
@@ -56,4 +60,4 @@ internal fun String?.toTimingQualityOrNull(): JourneyTimingQuality? = when (this
     else -> null
 }
 
-private const val MaxPlanOptions = 3
+private const val MaxPlanOptions = 6

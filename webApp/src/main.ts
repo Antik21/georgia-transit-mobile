@@ -52,7 +52,6 @@ const view = createTransitView(root, {
   swapPlanner: () => activeMap?.bridge.planner.swap(),
   clearPlanner: () => activeMap?.bridge.planner.clear(),
   selectPlannerOption: (id) => activeMap?.bridge.planner.selectOption(id),
-  setPlannerMode: (mode) => activeMap?.bridge.planner.setMode(mode),
   retryPlanner: () => activeMap?.bridge.planner.retry(),
 }, language);
 const copy = getCopy(language);

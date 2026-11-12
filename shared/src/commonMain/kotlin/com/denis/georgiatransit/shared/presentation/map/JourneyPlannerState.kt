@@ -4,8 +4,10 @@ import androidx.compose.runtime.Immutable
 import com.denis.georgiatransit.shared.domain.model.GeoPoint
 import com.denis.georgiatransit.shared.domain.model.JourneyEndpoint
 import com.denis.georgiatransit.shared.domain.model.JourneyId
-import com.denis.georgiatransit.shared.domain.model.JourneyPlanMode
 import com.denis.georgiatransit.shared.domain.model.RouteId
+import com.denis.georgiatransit.shared.domain.model.StopId
+import com.denis.georgiatransit.shared.domain.model.TransitMode
+import com.denis.georgiatransit.shared.domain.model.VehicleId
 import kotlinx.collections.immutable.PersistentList
 import kotlinx.collections.immutable.persistentListOf
 import kotlin.time.Instant
@@ -27,9 +29,10 @@ data class JourneyPlannerUi(
     val pin: GeoPoint? = null,
     val origin: JourneyEndpoint? = null,
     val destination: JourneyEndpoint? = null,
-    val mode: JourneyPlanMode = JourneyPlanMode.Fastest,
     val status: JourneyPlannerStatus = JourneyPlannerStatus.Idle,
     val render: JourneyPlanRenderUi = JourneyPlanRenderUi(),
+    /** The soonest buses for the selected option's first boarding; kept apart from [render] so they never re-frame the map. */
+    val buses: JourneyBusesUi? = null,
 )
 
 @Immutable
@@ -63,6 +66,30 @@ data class JourneyOptionUi(
     val timing: JourneyTimingUi?,
     val legs: List<JourneyLegUi>,
     val lines: PersistentList<JourneyPlanLineUi> = persistentListOf(),
+    /** In [JourneyLabelUi] display order, whatever order the BFF sent. */
+    val labels: List<JourneyLabelUi> = emptyList(),
+    val boarding: JourneyBoarding? = null,
+)
+
+/** The first transit boarding of an option: where its nearest buses are looked up. */
+@Immutable
+data class JourneyBoarding(val stopId: StopId, val routeId: RouteId)
+
+@Immutable
+data class JourneyBusesUi(
+    val optionId: JourneyId,
+    val boarding: JourneyBoarding,
+    val etaMinutes: List<Int>,
+    val vehicles: List<JourneyBusUi>,
+)
+
+@Immutable
+data class JourneyBusUi(
+    val id: VehicleId,
+    val position: GeoPoint,
+    val bearingDegrees: Double?,
+    val etaMinutes: Int,
+    val route: JourneyRouteBadgeUi,
 )
 
 enum class JourneyTimingUi { Live, Mixed, Estimated }
@@ -94,6 +121,7 @@ data class JourneyRouteBadgeUi(
     val label: String,
     val backgroundArgb: Long,
     val textArgb: Long,
+    val mode: TransitMode = TransitMode.Bus,
 )
 
 enum class JourneyPlanLineKind { Transit, Walk }
@@ -125,7 +153,6 @@ sealed interface JourneyPlannerAction : Action {
     data object Swap : JourneyPlannerAction
     data object Clear : JourneyPlannerAction
     data class SelectOption(val id: JourneyId) : JourneyPlannerAction
-    data class ChangeMode(val mode: JourneyPlanMode) : JourneyPlannerAction
     data object Retry : JourneyPlannerAction
     data object ClosePlanner : JourneyPlannerAction
 }

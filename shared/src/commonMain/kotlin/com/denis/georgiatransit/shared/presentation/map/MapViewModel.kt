@@ -61,7 +61,8 @@ class MapViewModel(
     private val vehicleFeature = MapVehicleFeature(repository, realtimeClock, realtimeTickerPolicy)
     private val vehiclePresentation get() = vehicleFeature.presentation
     private val renderProjector by lazy { MapRenderProjector(cameraController, stopSelection, vehiclePresentation, bffStyleUrl) }
-    private val journeyPlanner = JourneyPlannerWorkflow(journeyPlanRepository, repository, journeyPlanClock)
+    private val journeyPlanner =
+        JourneyPlannerWorkflow(journeyPlanRepository, repository, journeyPlanClock, realtimeTickerPolicy.pollIntervalMillis)
 
     override val container: Container<ViewState, SideEffect> = viewModelScope.container(
         initialState = ViewState(
@@ -318,11 +319,9 @@ class MapViewModel(
 
     private suspend fun Syntax<ViewState, SideEffect>.runPlannerStep(step: JourneyPlannerStep) {
         locationActions.forPlanner(step.location, state.location.permission)?.let { postSideEffect(SideEffect.HandleLocation(it)) }
-        journeyPlanner.execute(viewModelScope, step, plannerContext(state.location), onOutcome = { outcome ->
-            updatePlanner { planner, context ->
-                journeyPlanner.onOutcome(planner, outcome, context).takeIf { journeyPlanner.isCurrent(outcome, currentCity) }
-            }
-        }) { updatePlanner(journeyPlanner::onRefreshDue) }
+        journeyPlanner.execute(viewModelScope, step, plannerContext(state.location)) { event ->
+            updatePlanner { planner, context -> journeyPlanner.onEvent(planner, event, context) }
+        }
     }
 
     private fun onLocaleChanged(locale: TransitLocale) = intent {

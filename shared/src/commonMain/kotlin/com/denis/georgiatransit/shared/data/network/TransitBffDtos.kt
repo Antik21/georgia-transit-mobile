@@ -205,6 +205,7 @@ internal data class JourneyDto(
     val durationSeconds: Int? = null,
     val walkingDistanceMeters: Double? = null,
     val timingQuality: String? = null,
+    val labels: List<String> = emptyList(),
 )
 
 @Serializable
@@ -213,7 +214,6 @@ internal data class JourneyPlanRequestDto(
     val to: GeoPointDto,
     val departureAt: String? = null,
     val maxTransfers: Int,
-    val mode: String,
     val transferBufferSeconds: Int,
     val locale: String,
 )

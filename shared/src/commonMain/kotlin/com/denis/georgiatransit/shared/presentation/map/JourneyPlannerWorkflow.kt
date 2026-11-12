@@ -23,6 +23,12 @@ internal data class JourneyPlanKey(val generation: Long, val cityId: CityId)
 
 internal data class JourneyPlanOutcome(val key: JourneyPlanKey, val result: TransitLoadResult<JourneyPage>)
 
+internal sealed interface JourneyPlannerEvent {
+    data class Planned(val outcome: JourneyPlanOutcome) : JourneyPlannerEvent
+    data object RefreshDue : JourneyPlannerEvent
+    data class Buses(val update: JourneyBusesUpdate) : JourneyPlannerEvent
+}
+
 /**
  * Sole owner of the planner request, its generation, and the periodic re-plan ticker.
  * Latest wins: every launch or cancel advances the generation, so a late answer is never applied.
@@ -31,8 +37,10 @@ internal class JourneyPlannerWorkflow(
     private val repository: JourneyPlanRepository,
     private val catalog: TransitRepository,
     private val clock: LocationFreshnessClock,
+    vehicleIntervalMillis: Long,
     private val refreshIntervalMillis: Long = JOURNEY_REFRESH_INTERVAL_MILLIS,
 ) {
+    private val buses = JourneyBusesWorkflow(catalog, vehicleIntervalMillis)
     private var generation = 0L
     private var requestJob: Job? = null
     private var refreshJob: Job? = null
@@ -60,30 +68,38 @@ internal class JourneyPlannerWorkflow(
 
     fun onVisibility(state: JourneyPlannerUi, context: JourneyPlannerContext) = JourneyPlannerReducer.visibility(state, context)
 
-    fun onRefreshDue(state: JourneyPlannerUi, context: JourneyPlannerContext) = JourneyPlannerReducer.refresh(state, context)
-
-    fun onOutcome(state: JourneyPlannerUi, outcome: JourneyPlanOutcome, context: JourneyPlannerContext) =
-        JourneyPlannerReducer.outcome(state, outcome.result, context)
-
     /** Checked inside the scheduled intent: cancellation alone cannot stop a non-cooperative client. */
-    fun isCurrent(outcome: JourneyPlanOutcome, city: TransitCity?): Boolean =
+    fun onEvent(state: JourneyPlannerUi, event: JourneyPlannerEvent, context: JourneyPlannerContext): JourneyPlannerStep? =
+        when (event) {
+            is JourneyPlannerEvent.Planned -> event.outcome.takeIf { isCurrent(it, context.city) }
+                ?.let { JourneyPlannerReducer.outcome(state, it.result, context) }
+            JourneyPlannerEvent.RefreshDue -> JourneyPlannerReducer.refresh(state, context)
+            is JourneyPlannerEvent.Buses -> event.update.takeIf(buses::isCurrent)
+                ?.let { JourneyPlannerReducer.buses(state, it, context) }
+        }
+
+    private fun isCurrent(outcome: JourneyPlanOutcome, city: TransitCity?): Boolean =
         outcome.key.generation == generation && city?.id == outcome.key.cityId && city.capabilities.tripPlanning
 
-    fun execute(
-        scope: CoroutineScope,
-        step: JourneyPlannerStep,
-        context: JourneyPlannerContext,
-        onOutcome: (JourneyPlanOutcome) -> Unit,
-        onRefreshDue: () -> Unit,
-    ) {
+    fun execute(scope: CoroutineScope, step: JourneyPlannerStep, context: JourneyPlannerContext, onEvent: (JourneyPlannerEvent) -> Unit) {
         val status = step.state.status
         val city = context.city
         when {
             city == null || !context.visible || !context.available -> cancel()
-            step.query != null -> launch(scope, context, step.query, step.currentPoint, onOutcome)
-            status is JourneyPlannerStatus.Results && !status.isRefreshing -> scheduleRefresh(scope, onRefreshDue)
+            step.query != null -> launch(scope, context, step.query, step.currentPoint) { onEvent(JourneyPlannerEvent.Planned(it)) }
+            status is JourneyPlannerStatus.Results && !status.isRefreshing ->
+                scheduleRefresh(scope) { onEvent(JourneyPlannerEvent.RefreshDue) }
             status != JourneyPlannerStatus.Loading && status !is JourneyPlannerStatus.Results -> cancel()
         }
+        buses.sync(scope, busKey(step.state, context)) { onEvent(JourneyPlannerEvent.Buses(it)) }
+    }
+
+    /** Buses are looked up only for a visible, selected option that boards transit, under the arrivals capability. */
+    private fun busKey(state: JourneyPlannerUi, context: JourneyPlannerContext): JourneyBusKey? {
+        val city = context.city?.takeIf { context.visible && context.available && it.capabilities.arrivals } ?: return null
+        val option = state.selectedOption() ?: return null
+        val boarding = option.boarding ?: return null
+        return JourneyBusKey(city.id, option.id, boarding, context.locale, city.capabilities.vehiclePositions)
     }
 
     fun cancel() {

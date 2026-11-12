@@ -241,6 +241,24 @@ export interface PlannerLeg {
   readonly stopCount: number | null | undefined;
   readonly waitMinutes: number | null | undefined;
   readonly waitLive: boolean;
+  readonly routeMode: string | null | undefined;
+}
+
+export interface PlannerLabel {
+  readonly key: string;
+  readonly color: string;
+  readonly textColor: string;
+}
+
+export interface PlannerBus {
+  readonly id: string;
+  readonly latitude: number;
+  readonly longitude: number;
+  readonly bearing: number | null | undefined;
+  readonly etaMinutes: number;
+  readonly label: string;
+  readonly color: string;
+  readonly textColor: string;
 }
 
 export interface PlannerOption {
@@ -252,6 +270,8 @@ export interface PlannerOption {
   readonly timing: string | null | undefined;
   readonly selected: boolean;
   readonly legs: readonly PlannerLeg[];
+  readonly labels: readonly PlannerLabel[];
+  readonly nearestEtas: readonly number[];
 }
 
 export interface PlannerRoute {
@@ -267,7 +287,6 @@ export interface PlannerState {
   readonly pin: PlannerPoint | null | undefined;
   readonly origin: PlannerEndpoint;
   readonly destination: PlannerEndpoint;
-  readonly mode: string;
   readonly side: string | null | undefined;
   readonly reason: string | null | undefined;
   readonly retryable: boolean;
@@ -277,6 +296,7 @@ export interface PlannerState {
   readonly walkMinutes: number | null | undefined;
   readonly options: readonly PlannerOption[];
   readonly route: PlannerRoute;
+  readonly buses: readonly PlannerBus[];
 }
 
 export interface PlannerEntry {
@@ -290,7 +310,6 @@ export interface PlannerEntry {
   swap(): void;
   clear(): void;
   selectOption(id: string): void;
-  setMode(mode: string): void;
   retry(): void;
   close(): void;
 }

@@ -6,13 +6,21 @@ import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.denis.georgiatransit.shared.data.repository.RuntimeTransitSession
 import com.denis.georgiatransit.shared.domain.model.ArrivalSource
+import com.denis.georgiatransit.shared.domain.model.ArrivalPage
+import com.denis.georgiatransit.shared.domain.model.JourneyLabel
+import com.denis.georgiatransit.shared.domain.model.LocalizedText
+import com.denis.georgiatransit.shared.domain.model.TransitArrival
+import com.denis.georgiatransit.shared.domain.model.TransitLocale
+import com.denis.georgiatransit.shared.domain.model.TransitVehicle
+import com.denis.georgiatransit.shared.domain.model.VehicleId
+import com.denis.georgiatransit.shared.domain.model.VehiclePage
+import com.denis.georgiatransit.shared.domain.model.VehiclePositionKind
 import com.denis.georgiatransit.shared.domain.model.CityCapabilities
 import com.denis.georgiatransit.shared.domain.model.CityId
 import com.denis.georgiatransit.shared.domain.model.DirectionId
 import com.denis.georgiatransit.shared.domain.model.GeoPoint
 import com.denis.georgiatransit.shared.domain.model.JourneyId
 import com.denis.georgiatransit.shared.domain.model.JourneyPage
-import com.denis.georgiatransit.shared.domain.model.JourneyPlanMode
 import com.denis.georgiatransit.shared.domain.model.JourneyPlanQuery
 import com.denis.georgiatransit.shared.domain.model.JourneySegmentMode
 import com.denis.georgiatransit.shared.domain.model.JourneyWaitBasis
@@ -106,12 +114,6 @@ class JourneyPlannerBridgeTest {
                 assertEquals(B.latitude, state?.origin?.point?.latitude)
                 assertEquals(B, queries.last().from)
 
-                entry.planner.setMode("fewerTransfers")
-                settle()
-                assertEquals("fewerTransfers", state?.mode)
-                assertEquals(JourneyPlanMode.FewerTransfers, queries.last().mode)
-                entry.planner.setMode("not-a-mode")
-
                 answer = TransitLoadResult.Failure(TransitFailure.CapabilityUnavailable("off", "req"))
                 entry.planner.retry()
                 settle()
@@ -189,12 +191,58 @@ class JourneyPlannerBridgeTest {
         }
     }
 
-    private fun TestScope.viewModel(store: ViewModelStore, planner: JourneyPlanRepository): MapViewModel {
-        val session = RuntimeTransitSession().also { it.selectCity(CITY) }
+    @Test
+    fun theSelectedOptionCarriesLabelsAndItsTwoSoonestBuses() = runTest {
+        Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+        val store = ViewModelStore()
+        val repository = Repository()
+        try {
+            val vm = viewModel(store, { _, _ -> plan(withWalk = true) }, LIVE_CITY, repository)
+            val entry = MapBridge(vm, store, LIVE_CITY) {}
+            try {
+                var state: PlannerState? = null
+                entry.planner.subscribe { state = it }
+                entry.setVisible(true)
+                settle()
+                entry.planner.longPressMap(A.latitude, A.longitude)
+                entry.planner.routeFromHere()
+                settle()
+                entry.planner.longPressMap(B.latitude, B.longitude)
+                settle()
+
+                val ride = assertNotNull(state).options.first()
+                assertEquals(listOf("optimal", "fastest"), ride.labels.map { it.key }, "Labels come in the fixed display order")
+                assertEquals(listOf("#00796b", "#c2410c"), ride.labels.map { it.color })
+                assertEquals("bus", ride.legs[1].routeMode)
+                assertEquals(listOf(3, 11), ride.nearestEtas.toList())
+                assertEquals(listOf("demo:fixture:vehicle:v1", "demo:fixture:vehicle:v2"), state?.buses?.map { it.id })
+                assertEquals("#0057b8", state?.buses?.first()?.color)
+                assertTrue(state?.options?.last()?.labels?.isEmpty() == true)
+
+                entry.planner.selectOption("demo:fixture:journey:walk")
+                settle()
+                val arrivalCalls = repository.arrivalCalls
+                settle()
+                assertTrue(state?.buses?.isEmpty() == true, "A walk-only option shows no buses")
+                assertTrue(state?.options?.all { it.nearestEtas.isEmpty() } == true)
+                assertEquals(arrivalCalls, repository.arrivalCalls, "Nothing polls without a selected transit option")
+            } finally {
+                entry.dispose()
+            }
+        } finally {
+            store.clear()
+            Dispatchers.resetMain()
+        }
+    }
+
+    private fun TestScope.viewModel(
+        store: ViewModelStore, planner: JourneyPlanRepository, city: TransitCity = CITY, repository: TransitRepository = Repository(),
+    ): MapViewModel {
+        val session = RuntimeTransitSession().also { it.selectCity(city) }
         val location = RuntimeLocationSession(scope = backgroundScope, nowMillis = { NOW })
         val factory = viewModelFactory {
             initializer {
-                MapViewModel(Repository(), session, location, journeyPlanRepository = planner, journeyPlanClock = { NOW })
+                MapViewModel(repository, session, location, journeyPlanRepository = planner, journeyPlanClock = { NOW })
             }
         }
         return ViewModelProvider.create(store, factory)["map", MapViewModel::class]
@@ -207,7 +255,7 @@ class JourneyPlannerBridgeTest {
         }
     }
 
-    private fun plan(): TransitLoadResult<JourneyPage> {
+    private fun plan(withWalk: Boolean = false): TransitLoadResult<JourneyPage> {
         val start = Instant.fromEpochMilliseconds(NOW)
         fun at(minute: Int) = Instant.fromEpochMilliseconds(NOW + minute * 60_000L)
         val segments = listOf(
@@ -219,13 +267,38 @@ class JourneyPlannerBridgeTest {
             TransitJourneySegment(at(17), at(21), JourneySegmentMode.Walk, fromStopId = STOP_B, fromPosition = GeoPoint(41.649, 41.639),
                 toPosition = B, distanceMeters = 220.0),
         )
-        val journey = TransitJourney(JourneyId("demo:fixture:journey:one"), start, at(21), 0, emptyList(), segments, durationSeconds = 1260)
-        return TransitLoadResult.Data(JourneyPage(listOf(journey), start, ArrivalSource.ClientEstimate), TransitFreshness.Network)
+        val journey = TransitJourney(JourneyId("demo:fixture:journey:one"), start, at(21), 0, emptyList(), segments,
+            durationSeconds = 1260, labels = listOf(JourneyLabel.Fastest, JourneyLabel.Optimal))
+        val walk = TransitJourney(JourneyId("demo:fixture:journey:walk"), start, at(30), 0, emptyList(),
+            listOf(TransitJourneySegment(start, at(30), JourneySegmentMode.Walk, fromPosition = A, toPosition = B, distanceMeters = 2000.0)))
+        val items = if (withWalk) listOf(journey, walk) else listOf(journey)
+        return TransitLoadResult.Data(JourneyPage(items, start, ArrivalSource.ClientEstimate), TransitFreshness.Network)
     }
 
     private class Repository : TransitRepository {
+        var arrivalCalls = 0
         override fun cities() = listOf(CITY)
         override fun routes(cityId: CityId) = listOf(TransitRoute(ROUTE, CITY.id, "D1", "Demo Blue", 0xFF0057B8L))
+
+        override suspend fun arrivals(cityId: CityId, stopId: StopId, limit: Int, locale: TransitLocale): TransitLoadResult<ArrivalPage> {
+            arrivalCalls++
+            fun arrival(vehicle: String?, minutes: Int, route: RouteId = ROUTE) = TransitArrival(
+                stopId, route, vehicle?.let { VehicleId("demo:fixture:vehicle:$it") }, null, LocalizedText.fromLegacy("Park"),
+                null, null, minutes, realtime = true, cancelled = false, source = ArrivalSource.OfficialRealtime,
+            )
+            val items = listOf(arrival("v3", 15), arrival(null, 1), arrival("v9", 2, RouteId("demo:fixture:route:other")),
+                arrival("v2", 11), arrival("v1", 3))
+            return TransitLoadResult.Data(ArrivalPage(items, ArrivalSource.OfficialRealtime, Instant.fromEpochMilliseconds(NOW), false),
+                TransitFreshness.Network)
+        }
+
+        override suspend fun vehicles(cityId: CityId, routeId: RouteId, directionId: DirectionId?): TransitLoadResult<VehiclePage> {
+            val items = listOf("v1", "v2", "v3").mapIndexed { index, id ->
+                TransitVehicle(VehicleId("demo:fixture:vehicle:$id"), routeId, null, GeoPoint(41.642 + index * 0.002, 41.632), 90.0,
+                    null, null, 0, VehiclePositionKind.Gps)
+            }
+            return TransitLoadResult.Data(VehiclePage(items, Instant.fromEpochMilliseconds(NOW), 30, false), TransitFreshness.Network)
+        }
     }
 
     private companion object {
@@ -235,10 +308,11 @@ class JourneyPlannerBridgeTest {
         val ROUTE = RouteId("demo:fixture:route:blue")
         val STOP_A = StopId("demo:fixture:stop:a")
         val STOP_B = StopId("demo:fixture:stop:b")
-        val CITY = TransitCity(
+        val CITY: TransitCity = TransitCity(
             id = CityId("batumi"), name = "Batumi", center = A,
             capabilities = CityCapabilities(stops = false, vehicles = false, arrivals = false, routeShapes = false,
                 journeyPlanning = true, routes = true),
         )
+        val LIVE_CITY = CITY.copy(capabilities = CITY.capabilities.copy(arrivals = true, vehicles = true))
     }
 }

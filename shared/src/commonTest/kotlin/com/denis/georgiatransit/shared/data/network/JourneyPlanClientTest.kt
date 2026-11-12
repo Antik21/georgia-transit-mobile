@@ -4,7 +4,7 @@ import com.denis.georgiatransit.shared.data.config.BffEndpointConfiguration
 import com.denis.georgiatransit.shared.domain.model.ArrivalSource
 import com.denis.georgiatransit.shared.domain.model.CityId
 import com.denis.georgiatransit.shared.domain.model.GeoPoint
-import com.denis.georgiatransit.shared.domain.model.JourneyPlanMode
+import com.denis.georgiatransit.shared.domain.model.JourneyLabel
 import com.denis.georgiatransit.shared.domain.model.JourneyPlanQuery
 import com.denis.georgiatransit.shared.domain.model.JourneySegmentMode
 import com.denis.georgiatransit.shared.domain.model.JourneyTimingQuality
@@ -53,9 +53,8 @@ class JourneyPlanClientTest {
         assertEquals("/v1/cities/demo/journeys/plan", request.url.encodedPath)
         assertTrue(request.url.parameters.isEmpty(), "Coordinates must never travel in the URL")
         val body = Json.parseToJsonElement((request.body as OutgoingContent.ByteArrayContent).bytes().decodeToString()).jsonObject
-        assertEquals(setOf("from", "to", "maxTransfers", "mode", "transferBufferSeconds", "locale"), body.keys)
+        assertEquals(setOf("from", "to", "maxTransfers", "transferBufferSeconds", "locale"), body.keys, "mode is no longer sent")
         assertEquals("41.7151", body.getValue("from").jsonObject.getValue("latitude").jsonPrimitive.content)
-        assertEquals("LESS_WALKING", body.getValue("mode").jsonPrimitive.content)
         assertEquals("ka", body.getValue("locale").jsonPrimitive.content)
         assertEquals("120", body.getValue("transferBufferSeconds").jsonPrimitive.content)
     }
@@ -71,6 +70,7 @@ class JourneyPlanClientTest {
         assertEquals(1260, journey.durationSeconds)
         assertEquals(520.0, journey.walkingDistanceMeters)
         assertEquals(JourneyTimingQuality.Live, journey.timingQuality)
+        assertEquals(listOf(JourneyLabel.Optimal, JourneyLabel.Fastest), journey.labels)
         assertEquals(listOf(JourneySegmentMode.Walk, JourneySegmentMode.Transit, JourneySegmentMode.Walk), journey.segments.map { it.mode })
         val ride = journey.segments[1]
         assertEquals(5, ride.intermediateStopCount)
@@ -88,6 +88,7 @@ class JourneyPlanClientTest {
         val body = OPENAPI_EXAMPLE
             .replace("\"timingQuality\":\"LIVE\"", "\"timingQuality\":\"PREDICTED\"")
             .replace("\"waitBasis\":\"LIVE_VEHICLE\"", "\"waitBasis\":\"TIMETABLE\"")
+            .replace("\"labels\":[\"OPTIMAL\",\"FASTEST\"]", "\"labels\":[\"CHEAPEST\",\"FASTEST\",\"FASTEST\"]")
             .replace("\"items\":[{", "\"items\":[{\"id\":\"bad\",\"departureAt\":\"x\",\"arrivalAt\":\"y\",\"transfers\":0,\"legs\":[]},{")
         val client = TransitBffClient(mockHttpClient { jsonResponse(body) }, endpoint())
 
@@ -96,6 +97,7 @@ class JourneyPlanClientTest {
         val journey = page.items.single()
         assertNull(journey.timingQuality)
         assertNull(journey.segments[1].waitBasis, "An unknown wait basis must never be presented as live")
+        assertEquals(listOf(JourneyLabel.Fastest), journey.labels, "Unknown labels are ignored, not a failure")
     }
 
     @Test
@@ -144,7 +146,6 @@ class JourneyPlanClientTest {
     private fun query() = JourneyPlanQuery(
         from = GeoPoint(41.7151, 44.8271),
         to = GeoPoint(41.7295, 44.8421),
-        mode = JourneyPlanMode.LessWalking,
         maxTransfers = 2,
         transferBufferSeconds = 120,
         locale = TransitLocale.Georgian,
@@ -168,6 +169,6 @@ class JourneyPlanClientTest {
 
     private companion object {
         // The documented 200 example of planJourneyOptions in docs/openapi/transit-bff-v1.yaml.
-        const val OPENAPI_EXAMPLE = """{"items":[{"id":"demo:fixture:journey:blue-direct","departureAt":"2030-01-01T00:00:00Z","arrivalAt":"2030-01-01T00:21:00Z","transfers":0,"durationSeconds":1260,"walkingDistanceMeters":520,"timingQuality":"LIVE","legs":[{"routeId":"demo:fixture:route:blue","directionId":"demo:fixture:direction:blue-outbound","fromStopId":"demo:fixture:stop:center","toStopId":"demo:fixture:stop:park","departureAt":"2030-01-01T00:06:00Z","arrivalAt":"2030-01-01T00:17:00Z"}],"segments":[{"departureAt":"2030-01-01T00:00:00Z","arrivalAt":"2030-01-01T00:04:00Z","mode":"WALK","toStopId":"demo:fixture:stop:center","fromPosition":{"latitude":41.7151,"longitude":44.8271},"toPosition":{"latitude":41.7162,"longitude":44.8292},"distanceMeters":300,"geometry":"o~a~Fg`toG}EiL","geometryApproximate":true},{"departureAt":"2030-01-01T00:06:00Z","arrivalAt":"2030-01-01T00:17:00Z","mode":"TRANSIT","routeId":"demo:fixture:route:blue","directionId":"demo:fixture:direction:blue-outbound","fromStopId":"demo:fixture:stop:center","toStopId":"demo:fixture:stop:park","fromPosition":{"latitude":41.7162,"longitude":44.8292},"toPosition":{"latitude":41.7281,"longitude":44.8402},"distanceMeters":2100,"geometry":"mebs~Fu|uoGwiAke@","geometryApproximate":false,"intermediateStopCount":5,"waitSeconds":120,"waitBasis":"LIVE_VEHICLE","vehicleId":"demo:fixture:vehicle:blue-01"},{"departureAt":"2030-01-01T00:17:00Z","arrivalAt":"2030-01-01T00:21:00Z","mode":"WALK","fromStopId":"demo:fixture:stop:park","fromPosition":{"latitude":41.7281,"longitude":44.8402},"toPosition":{"latitude":41.7295,"longitude":44.8421},"distanceMeters":220,"geometry":"eocs~Fsavo`AsGyJ","geometryApproximate":true}]}],"observedAt":"2030-01-01T00:00:00Z","source":"CLIENT_ESTIMATE","realtime":true,"stale":false}"""
+        const val OPENAPI_EXAMPLE = """{"items":[{"id":"demo:fixture:journey:blue-direct","departureAt":"2030-01-01T00:00:00Z","arrivalAt":"2030-01-01T00:21:00Z","transfers":0,"durationSeconds":1260,"walkingDistanceMeters":520,"timingQuality":"LIVE","labels":["OPTIMAL","FASTEST"],"legs":[{"routeId":"demo:fixture:route:blue","directionId":"demo:fixture:direction:blue-outbound","fromStopId":"demo:fixture:stop:center","toStopId":"demo:fixture:stop:park","departureAt":"2030-01-01T00:06:00Z","arrivalAt":"2030-01-01T00:17:00Z"}],"segments":[{"departureAt":"2030-01-01T00:00:00Z","arrivalAt":"2030-01-01T00:04:00Z","mode":"WALK","toStopId":"demo:fixture:stop:center","fromPosition":{"latitude":41.7151,"longitude":44.8271},"toPosition":{"latitude":41.7162,"longitude":44.8292},"distanceMeters":300,"geometry":"o~a~Fg`toG}EiL","geometryApproximate":true},{"departureAt":"2030-01-01T00:06:00Z","arrivalAt":"2030-01-01T00:17:00Z","mode":"TRANSIT","routeId":"demo:fixture:route:blue","directionId":"demo:fixture:direction:blue-outbound","fromStopId":"demo:fixture:stop:center","toStopId":"demo:fixture:stop:park","fromPosition":{"latitude":41.7162,"longitude":44.8292},"toPosition":{"latitude":41.7281,"longitude":44.8402},"distanceMeters":2100,"geometry":"mebs~Fu|uoGwiAke@","geometryApproximate":false,"intermediateStopCount":5,"waitSeconds":120,"waitBasis":"LIVE_VEHICLE","vehicleId":"demo:fixture:vehicle:blue-01"},{"departureAt":"2030-01-01T00:17:00Z","arrivalAt":"2030-01-01T00:21:00Z","mode":"WALK","fromStopId":"demo:fixture:stop:park","fromPosition":{"latitude":41.7281,"longitude":44.8402},"toPosition":{"latitude":41.7295,"longitude":44.8421},"distanceMeters":220,"geometry":"eocs~Fsavo`AsGyJ","geometryApproximate":true}]}],"observedAt":"2030-01-01T00:00:00Z","source":"CLIENT_ESTIMATE","realtime":true,"stale":false}"""
     }
 }

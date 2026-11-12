@@ -196,6 +196,7 @@ data class TransitJourney(
     val durationSeconds: Int? = null,
     val walkingDistanceMeters: Double? = null,
     val timingQuality: JourneyTimingQuality? = null,
+    val labels: List<JourneyLabel> = emptyList(),
 )
 
 @Serializable data class VehiclePage(val items: List<TransitVehicle>, val observedAt: Instant, val maxAgeSeconds: Int, val stale: Boolean)

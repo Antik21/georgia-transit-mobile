@@ -62,6 +62,10 @@ internal object JourneyPlanUiMapper {
                 }
             },
             lines = segments.mapNotNull { line(it, routes) }.toPersistentList(),
+            labels = JourneyLabelUi.of(journey.labels),
+            boarding = segments.firstOrNull { it.mode == JourneySegmentMode.Transit }?.let { ride ->
+                JourneyBoarding(checkNotNull(ride.fromStopId), checkNotNull(ride.routeId))
+            },
         )
     }
 
@@ -95,6 +99,7 @@ internal object JourneyPlanUiMapper {
             label = route.displayLabel(),
             backgroundArgb = route.colorArgb,
             textArgb = contrastSafeRouteTextColor(route.colorArgb, route.textColorArgb),
+            mode = route.mode,
         )
     }
 

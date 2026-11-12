@@ -181,6 +181,7 @@ internal fun JourneyDto.toDomain(): TransitJourney {
         durationSeconds = durationSeconds?.takeIf { it >= 0 },
         walkingDistanceMeters = walkingDistanceMeters.nonNegativeOrNull(),
         timingQuality = timingQuality.toTimingQualityOrNull(),
+        labels = labels.mapNotNull { it.toJourneyLabelOrNull() }.distinct(),
     )
 }
 

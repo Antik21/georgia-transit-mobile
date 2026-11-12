@@ -517,7 +517,7 @@ body { background: var(--background); color: var(--ink); }
 .planner-endpoint-value { font-size: 0.92rem; font-weight: 650; overflow-wrap: anywhere; }
 .planner-endpoint-hint { color: var(--primary); font-size: 0.76rem; }
 .planner-endpoint-actions { display: flex; flex-wrap: wrap; grid-column: 2; gap: 6px; }
-.planner-tools, .planner-modes { display: flex; flex-wrap: wrap; gap: 6px; }
+.planner-tools { display: flex; flex-wrap: wrap; gap: 6px; }
 .transit-app .planner-chip {
   min-block-size: 36px;
   padding: 4px 11px;
@@ -528,12 +528,13 @@ body { background: var(--background); color: var(--ink); }
   font-size: 0.82rem;
 }
 .transit-app .planner-chip[aria-pressed="true"] { border-color: var(--primary); background: var(--tint); color: var(--primary); }
-.planner-options { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.planner-options { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; }
 .transit-app .planner-option {
   display: grid;
-  gap: 8px;
+  gap: 5px;
   inline-size: 100%;
-  padding: 10px 12px;
+  min-inline-size: 0;
+  padding: 8px 10px;
   border: 1px solid var(--edge);
   border-radius: 12px;
   color: var(--ink);
@@ -544,8 +545,16 @@ body { background: var(--background); color: var(--ink); }
 .planner-option-summary { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; }
 .planner-option-total { font-size: 1.05rem; font-variant-numeric: tabular-nums; }
 .planner-option-arrival, .planner-option-timing { color: var(--muted); font-size: 0.8rem; }
-.planner-legs { display: grid; gap: 5px; }
-.planner-leg { display: flex; align-items: center; gap: 8px; font-size: 0.84rem; }
+.planner-labels { display: flex; flex-wrap: wrap; gap: 4px; }
+.planner-label { padding: 2px 8px; border-radius: 999px; font-size: 0.72rem; font-weight: 700; line-height: 1.35; }
+.planner-itinerary-icons { display: flex; flex-wrap: wrap; align-items: center; gap: 3px 4px; }
+.planner-itinerary-arrow { color: var(--muted); font-size: 0.75rem; }
+.planner-route-pill { display: inline-flex; align-items: center; gap: 3px; padding: 1px 6px 1px 4px; border-radius: 7px; font-size: 0.78rem; font-weight: 730; }
+.planner-glyph { inline-size: 15px; block-size: 15px; flex: none; }
+.planner-glyph-walk { color: var(--muted); }
+.planner-nearest { color: var(--arrival); font-size: 0.78rem; font-weight: 650; }
+.planner-legs { display: grid; gap: 3px; }
+.planner-leg { display: flex; align-items: center; gap: 8px; font-size: 0.8rem; }
 .planner-leg-detail { display: grid; min-inline-size: 0; gap: 1px; }
 .planner-leg-wait { color: var(--muted); font-size: 0.74rem; }
 .planner-walk-icon { inline-size: 34px; block-size: 3px; border-block-start: 3px dotted #6b7280; }
