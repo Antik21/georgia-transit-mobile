@@ -55,7 +55,7 @@ function dimmed(color: string) {
   return `rgb(${channel(16)}, ${channel(8)}, ${channel(0)})`;
 }
 
-function roundRect(context: CanvasRenderingContext2D, x: number, y: number, width: number, height: number, radius: number) {
+export function roundRect(context: CanvasRenderingContext2D, x: number, y: number, width: number, height: number, radius: number) {
   context.beginPath();
   // CanvasRenderingContext2D.roundRect is missing before Safari 16, which older Telegram iOS WebViews use.
   context.moveTo(x + radius, y);

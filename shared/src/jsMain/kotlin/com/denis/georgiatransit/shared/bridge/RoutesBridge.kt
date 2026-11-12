@@ -5,6 +5,7 @@ package com.denis.georgiatransit.shared.bridge
 import androidx.lifecycle.ViewModelStore
 import com.denis.georgiatransit.shared.domain.model.RouteId
 import com.denis.georgiatransit.shared.domain.model.RouteSelectionPolicy
+import com.denis.georgiatransit.shared.domain.model.TransitMode
 import com.denis.georgiatransit.shared.domain.repository.TransitFreshness
 import com.denis.georgiatransit.shared.presentation.routes.Action
 import com.denis.georgiatransit.shared.presentation.routes.CatalogState
@@ -31,6 +32,7 @@ class RouteChoice(
     val color: String,
     val textColor: String,
     val selected: Boolean,
+    val mode: String = "bus",
 )
 
 @JsExport
@@ -134,6 +136,12 @@ private fun RouteItemUiModel.toJs(selectedIds: Set<RouteId>) = RouteChoice(
     color = colorArgb.toCssColor(),
     textColor = textColorArgb.toCssColor(),
     selected = id in selectedIds,
+    mode = when (mode) {
+        TransitMode.Bus -> "bus"
+        TransitMode.Metro -> "metro"
+        TransitMode.Tram -> "tram"
+        TransitMode.Ferry -> "ferry"
+    },
 )
 
 private fun TransitFreshness.toJs(): String = when (this) {

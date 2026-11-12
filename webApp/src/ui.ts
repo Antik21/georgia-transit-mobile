@@ -336,10 +336,10 @@ function createRoutePicker(copy: Copy, actions: ViewActions) {
       if (available) {
         if (!query.trim() && state.recentRoutes.length) {
           const recent = element("section", "routes-recent");
-          recent.append(element("h2", "routes-subheading", copy.routesRecent), routeOptions(state.recentRoutes, limitReached, isConfirming, actions, true));
+          recent.append(element("h2", "routes-subheading", copy.routesRecent), routeOptions(copy, state.recentRoutes, limitReached, isConfirming, actions, true));
           children.push(recent);
         }
-        if (state.routes.length) children.push(routeOptions(state.routes, limitReached, isConfirming, actions));
+        if (state.routes.length) children.push(routeOptions(copy, state.routes, limitReached, isConfirming, actions));
         else children.push(status(query.trim() ? copy.routesNoMatches : copy.routesEmpty));
       }
       replacePreservingFocus(content, children);
@@ -349,7 +349,7 @@ function createRoutePicker(copy: Copy, actions: ViewActions) {
   };
 }
 
-function routeOptions(routes: readonly RouteChoice[], limitReached: boolean, confirming: boolean, actions: ViewActions, recent = false) {
+function routeOptions(copy: Copy, routes: readonly RouteChoice[], limitReached: boolean, confirming: boolean, actions: ViewActions, recent = false) {
   const list = element("ul", "route-options");
   for (const route of routes) {
     const row = element("li", "");
@@ -362,8 +362,10 @@ function routeOptions(routes: readonly RouteChoice[], limitReached: boolean, con
     applyRouteColors(badge, route.color, route.textColor);
     const name = route.name === route.shortName ? "" : route.name;
     const direction = route.direction === route.shortName || route.direction === name ? "" : route.direction;
-    const detail = element("span", "list-name", name || direction);
-    if (name && direction) detail.append(element("small", "list-detail", direction));
+    // Same row as the mobile RouteRow: the mode title is always shown, so a catalogue without names is never blank.
+    const detail = element("span", "list-name", routeTitle(copy, route.mode, route.shortName));
+    const subtitle = direction || name;
+    if (subtitle) detail.append(element("small", "list-detail", subtitle));
     option.append(badge, detail, icon("selection-indicator"));
     row.append(option);
     list.append(row);
@@ -609,12 +611,18 @@ function arrivalStatus(copy: Copy, state: string) {
   }
 }
 
+function routeTitle(copy: Copy, mode: string, number: string) {
+  const template = mode === "metro" ? copy.routeTitleMetro : mode === "tram" ? copy.routeTitleTram
+    : mode === "ferry" ? copy.routeTitleFerry : copy.routeTitleBus;
+  return template.replace("%1$s", number);
+}
+
 function arrivalSource(copy: Copy, source: string) {
   switch (source) {
     case "OfficialRealtime": return copy.officialRealtime;
     case "AggregatorRealtime": return copy.aggregatorRealtime;
     case "Schedule": return copy.scheduled;
-    case "ClientEstimate": return copy.estimated;
+    case "Approximate": return copy.estimated;
     default: return null;
   }
 }

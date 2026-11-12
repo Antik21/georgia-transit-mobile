@@ -486,34 +486,6 @@ body { background: var(--background); color: var(--ink); }
 .spinner { inline-size: 14px; block-size: 14px; border: 1.5px solid var(--edge); border-inline-end-color: var(--primary); border-radius: 50%; animation: transit-spin 0.85s linear infinite; }
 @keyframes transit-spin { to { transform: rotate(360deg); } }
 
-.transit-app .transit-map-marker {
-  display: grid;
-  place-items: center;
-  inline-size: 30px;
-  block-size: 30px;
-  border: 0;
-  border-radius: 50%;
-  padding: 0;
-  background: transparent;
-}
-
-.transit-map-marker::before {
-  content: "";
-  inline-size: 13px;
-  block-size: 13px;
-  border: 2px solid #fff;
-  border-radius: 50%;
-  background: #8e1b2d;
-  box-shadow: 0 1px 5px #18191b66;
-}
-
-.transit-map-marker:is(:hover, [aria-pressed="true"])::before {
-  inline-size: 20px;
-  block-size: 20px;
-  border-width: 3px;
-  box-shadow: 0 0 0 3px #8e1b2d77, 0 2px 8px #18191b66;
-}
-
 @media (max-width: 680px) {
   .transit-header { min-block-size: 57px; padding-block: 6px; }
   .map-screen { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1.16fr) minmax(0, 1fr); }

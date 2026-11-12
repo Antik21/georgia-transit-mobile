@@ -1,9 +1,10 @@
 import {
-  Map as MapLibreMap, Marker, setWorkerUrl, type GeoJSONSource, type MapMouseEvent, type StyleSpecification,
+  Map as MapLibreMap, setWorkerUrl, type AddLayerObject, type GeoJSONSource, type MapMouseEvent, type StyleSpecification,
 } from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import mapWorkerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?url&no-inline";
-import type { MapState, StopItem, VehicleLayer } from "./contracts";
+import type { MapState, MapStopLayer, MapStopPin, VehicleLayer } from "./contracts";
+import { drawStopCluster, drawStopPin } from "./stop-pin";
 import { drawVehicleBadge, systemTextScale, vehicleBadgeStyle, type VehicleBadgeStyle } from "./vehicle-badge";
 
 // MapLibre's sibling-file lookup cannot discover an asset renamed by Vite.
@@ -17,6 +18,13 @@ const vehicleLayerId = "transit-vehicles";
 const attentionLayerId = "transit-vehicle-attention";
 const flippedSuffix = "-flipped";
 const overflowBadgeId = "transit-vehicle-badge-overflow";
+const stopSourceId = "transit-stops";
+const selectedStopSourceId = "transit-selected-stop";
+const stopLayerId = "transit-stop-pins";
+const clusterLayerId = "transit-stop-clusters";
+const selectedStopLayerId = "transit-selected-stop-pin";
+const clusterImagePrefix = "transit-stop-cluster-";
+const maxStopMarkers = 1_000;
 const maxVehicleMarkers = 2_000;
 const maxBadgeImages = 256;
 const staleVehicleOpacity = 0.62;
@@ -38,8 +46,14 @@ const localStyle: StyleSpecification = {
   layers: [{ id: "background", type: "background", paint: { "background-color": "#dce8e4" } }],
 };
 
+// Bottom to top, as in the native adapters: the selected stop and the user dot stay above vehicles.
+const layerOrder = [
+  "transit-route-lines-base", "transit-route-lines-emphasized", "transit-user-accuracy-fill", "transit-user-accuracy-line",
+  stopLayerId, clusterLayerId, attentionLayerId, vehicleLayerId, selectedStopLayerId, "transit-user-location",
+];
+
 interface MapActions {
-  selectStop(stop: StopItem): void;
+  tapStop(stopId: string, revision: string): void;
   updateViewport(latitude: number, longitude: number, radiusMeters: number, zoom: number): void;
   selectVehicle(vehicleId: string, revision: string): void;
   setUnavailable(unavailable: boolean): void;
@@ -123,6 +137,58 @@ function userLocationKey(location: MapState["userLocation"]) {
   return location ? `${location.latitude},${location.longitude},${location.accuracyMeters},${location.showDot}` : "none";
 }
 
+function stopFeature(id: string, revision: string, longitude: number, latitude: number, properties: object) {
+  return {
+    type: "Feature" as const,
+    properties: { id, revision, ...properties },
+    geometry: { type: "Point" as const, coordinates: [longitude, latitude] },
+  };
+}
+
+function isMapCoordinate(latitude: number, longitude: number) {
+  return Number.isFinite(latitude) && Number.isFinite(longitude) && Math.abs(latitude) <= 90 && Math.abs(longitude) <= 180;
+}
+
+const stopOrder = new WeakMap<MapStopLayer, { ordinary: MapStopPin[]; selected: MapStopPin[] }>();
+
+// Draw order, bottom to top. Route-highlighted stops survive the renderer cap first, exactly like the native adapters.
+function stopDrawOrder(layer: MapStopLayer) {
+  let order = stopOrder.get(layer);
+  if (!order) {
+    const valid = layer.stops.filter((stop) => stop.id && isMapCoordinate(stop.latitude, stop.longitude));
+    const byId = (a: MapStopPin, b: MapStopPin) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
+    order = {
+      ordinary: valid.filter((stop) => !stop.selected)
+        .sort((a, b) => Number(b.highlighted) - Number(a.highlighted) || byId(a, b)).slice(0, maxStopMarkers),
+      selected: valid.filter((stop) => stop.selected).sort(byId).slice(0, 1),
+    };
+    stopOrder.set(layer, order);
+  }
+  return order;
+}
+
+function stopHitOrder(layer: MapStopLayer) {
+  const { ordinary, selected } = stopDrawOrder(layer);
+  return { ordinary: [...ordinary].reverse(), selected };
+}
+
+function stopData(layer: MapStopLayer | null | undefined) {
+  const order = layer ? stopDrawOrder(layer) : { ordinary: [], selected: [] };
+  const pin = (stop: MapStopPin) => stopFeature(stop.id, layer!.revision, stop.longitude, stop.latitude,
+    { kind: "stop", image: stop.pin.imageId, scale: stop.scale, label: stop.label });
+  const ordinary = order.ordinary.map(pin);
+  const clusters = (layer?.clusters ?? [])
+    .filter((cluster) => cluster.id && cluster.count > 1 && isMapCoordinate(cluster.latitude, cluster.longitude))
+    .sort((a, b) => (a.id < b.id ? -1 : 1)).slice(0, maxStopMarkers)
+    .map((cluster) => stopFeature(cluster.id, layer!.revision, cluster.longitude, cluster.latitude,
+      { kind: "cluster", image: clusterImagePrefix + cluster.count, label: cluster.label }));
+  const selected = order.selected.map(pin);
+  return {
+    ordinary: { type: "FeatureCollection" as const, features: [...ordinary, ...clusters] },
+    selected: { type: "FeatureCollection" as const, features: selected },
+  };
+}
+
 function routeLineData(lines: MapState["routePolylines"]) {
   return {
     type: "FeatureCollection" as const,
@@ -173,7 +239,13 @@ export function createTransitMap(container: HTMLElement, initial: MapState, acti
   let attentionCount = 0;
   let attentionTimer: ReturnType<typeof setTimeout> | undefined;
   const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
-  const markers = new Map<string, { marker: Marker; stop: StopItem }>();
+  let renderedStops: MapStopLayer | null | undefined;
+  const stopImageIds = new Set<string>();
+
+  function addLayerInOrder(layer: AddLayerObject) {
+    const index = layerOrder.indexOf(layer.id);
+    map.addLayer(layer, layerOrder.slice(index + 1).find((id) => map.getLayer(id)));
+  }
 
   function renderRouteLines() {
     if (!styleReady || renderedRouteRevision === latestState.routePolylineRevision) return;
@@ -184,7 +256,7 @@ export function createTransitMap(container: HTMLElement, initial: MapState, acti
     } else {
       map.addSource(routeSourceId, { type: "geojson", data });
       for (const emphasized of [false, true]) {
-        map.addLayer({
+        addLayerInOrder({
           id: emphasized ? "transit-route-lines-emphasized" : "transit-route-lines-base",
           type: "line",
           source: routeSourceId,
@@ -195,7 +267,7 @@ export function createTransitMap(container: HTMLElement, initial: MapState, acti
             "line-width": ["number", ["get", "strokeWidth"]],
             "line-opacity": ["number", ["get", "opacity"]],
           },
-        }, map.getLayer(attentionLayerId) ? attentionLayerId : undefined);
+        });
       }
     }
     renderedRouteRevision = latestState.routePolylineRevision;
@@ -214,14 +286,75 @@ export function createTransitMap(container: HTMLElement, initial: MapState, acti
       // Same palette as the native adapters' accuracy area and location dot.
       map.addSource(userAccuracySourceId, { type: "geojson", data: accuracy });
       map.addSource(userLocationSourceId, { type: "geojson", data: dot });
-      map.addLayer({ id: "transit-user-accuracy-fill", type: "fill", source: userAccuracySourceId,
+      addLayerInOrder({ id: "transit-user-accuracy-fill", type: "fill", source: userAccuracySourceId,
         paint: { "fill-color": "#1976d2", "fill-opacity": 0.18 } });
-      map.addLayer({ id: "transit-user-accuracy-line", type: "line", source: userAccuracySourceId,
+      addLayerInOrder({ id: "transit-user-accuracy-line", type: "line", source: userAccuracySourceId,
         paint: { "line-color": "#0d47a1", "line-opacity": 0.75, "line-width": 2 } });
-      map.addLayer({ id: "transit-user-location", type: "circle", source: userLocationSourceId,
+      addLayerInOrder({ id: "transit-user-location", type: "circle", source: userLocationSourceId,
         paint: { "circle-color": "#1565c0", "circle-radius": 7, "circle-stroke-color": "#ffffff", "circle-stroke-width": 3 } });
     }
     renderedUserLocation = key;
+  }
+
+  function syncStopImages(layer: MapStopLayer | null | undefined) {
+    const pixelRatio = window.devicePixelRatio || 1;
+    const wanted = new Map<string, () => ImageData>();
+    for (const stop of layer?.stops ?? []) {
+      if (!wanted.has(stop.pin.imageId)) wanted.set(stop.pin.imageId, () => drawStopPin(stop.pin, pixelRatio));
+    }
+    for (const cluster of layer?.clusters ?? []) {
+      const id = clusterImagePrefix + cluster.count;
+      if (cluster.count > 1 && !wanted.has(id)) wanted.set(id, () => drawStopCluster(cluster.count, pixelRatio));
+    }
+    for (const id of stopImageIds) {
+      if (wanted.has(id)) continue;
+      if (map.hasImage(id)) map.removeImage(id);
+      stopImageIds.delete(id);
+    }
+    for (const [id, draw] of wanted) {
+      if (stopImageIds.has(id)) continue;
+      map.addImage(id, draw(), { pixelRatio });
+      stopImageIds.add(id);
+    }
+  }
+
+  function pinLayer(id: string, source: string, kind: string): AddLayerObject {
+    return {
+      id,
+      type: "symbol",
+      source,
+      filter: ["==", ["get", "kind"], kind],
+      layout: {
+        "icon-image": ["get", "image"],
+        "icon-size": kind === "stop" ? ["number", ["get", "scale"]] : 1,
+        "icon-anchor": kind === "stop" ? "bottom" : "center",
+        "icon-padding": 0,
+        "icon-allow-overlap": true,
+        "icon-ignore-placement": true,
+        // stopAt() walks the source order; the default viewport-Y order would put a different pin on top.
+        "symbol-z-order": "source",
+      },
+    };
+  }
+
+  // The layer object only changes identity when the bridge re-projects stop content.
+  function renderStops() {
+    const layer = latestState.stopLayer;
+    if (!styleReady || renderedStops === layer) return;
+    syncStopImages(layer);
+    const { ordinary, selected } = stopData(layer);
+    const source = map.getSource<GeoJSONSource>(stopSourceId);
+    if (source) {
+      source.setData(ordinary);
+      map.getSource<GeoJSONSource>(selectedStopSourceId)?.setData(selected);
+    } else {
+      map.addSource(stopSourceId, { type: "geojson", data: ordinary });
+      map.addSource(selectedStopSourceId, { type: "geojson", data: selected });
+      addLayerInOrder(pinLayer(stopLayerId, stopSourceId, "stop"));
+      addLayerInOrder(pinLayer(clusterLayerId, stopSourceId, "cluster"));
+      addLayerInOrder(pinLayer(selectedStopLayerId, selectedStopSourceId, "stop"));
+    }
+    renderedStops = layer;
   }
 
   function addBadgeImages(id: string, style: VehicleBadgeStyle) {
@@ -269,7 +402,7 @@ export function createTransitMap(container: HTMLElement, initial: MapState, acti
     } else {
       map.addSource(vehicleSourceId, { type: "geojson", data });
       // The route-coloured pulse stays below the badge and is never hit-tested.
-      map.addLayer({
+      addLayerInOrder({
         id: attentionLayerId,
         type: "circle",
         source: vehicleSourceId,
@@ -280,7 +413,7 @@ export function createTransitMap(container: HTMLElement, initial: MapState, acti
           "circle-opacity": attentionMinSizeOpacity,
         },
       });
-      map.addLayer({
+      addLayerInOrder({
         id: vehicleLayerId,
         type: "symbol",
         source: vehicleSourceId,
@@ -344,18 +477,36 @@ export function createTransitMap(container: HTMLElement, initial: MapState, acti
     renderedUserLocation = undefined;
     renderedVehicleRevision = undefined;
     renderedBadgeRevision = undefined;
+    renderedStops = undefined;
     // A replaced style drops every image registered on the previous one.
     badgeImageIds.clear();
+    stopImageIds.clear();
     renderRouteLines();
     renderUserLocation();
+    renderStops();
     attentionCount = 0;
     renderVehicles();
   });
 
+  // Like the native adapters only the drawn pin is a target and the selected one wins; clusters are not tappable.
+  // Hit-testing the current layer avoids MapLibre's collision index, which lags source updates by a fade.
+  function stopAt(event: MapMouseEvent) {
+    const layer = renderedStops;
+    if (!layer) return undefined;
+    const { x, y } = event.point;
+    const { ordinary, selected } = stopHitOrder(layer);
+    for (const stop of [...selected, ...ordinary]) {
+      const anchor = map.project([stop.longitude, stop.latitude]);
+      const halfWidth = stop.pin.width * stop.scale / 2;
+      if (Math.abs(x - anchor.x) <= halfWidth && y <= anchor.y && y >= anchor.y - stop.pin.height * stop.scale) {
+        return { id: stop.id, revision: layer.revision };
+      }
+    }
+    return undefined;
+  }
+
   // Badges are about 39×24 px, so taps are matched within a 48×48 target like the Android adapter.
   function vehicleAt(event: MapMouseEvent) {
-    // Stop markers are DOM buttons whose clicks bubble into the map; the stop wins, as on mobile.
-    if ((event.originalEvent.target as Element | null)?.closest?.(".maplibregl-marker")) return undefined;
     if (!map.getLayer(vehicleLayerId)) return undefined;
     const { x, y } = event.point;
     const half = minVehicleTarget / 2;
@@ -371,11 +522,16 @@ export function createTransitMap(container: HTMLElement, initial: MapState, acti
     return nearest;
   }
   map.on("click", (event) => {
+    const stop = stopAt(event);
+    if (stop) {
+      actions.tapStop(stop.id, stop.revision);
+      return;
+    }
     const vehicle = vehicleAt(event);
     if (vehicle) actions.selectVehicle(vehicle.id, vehicle.revision);
   });
   map.on("mousemove", (event) => {
-    map.getCanvas().style.cursor = vehicleAt(event) ? "pointer" : "";
+    map.getCanvas().style.cursor = stopAt(event) || vehicleAt(event) ? "pointer" : "";
   });
   map.on("error", (event) => {
     // Any error listener replaces MapLibre's default logging, so tile failures must be logged here.
@@ -401,9 +557,8 @@ export function createTransitMap(container: HTMLElement, initial: MapState, acti
     actions.setUnavailable(true);
   });
   map.on("webglcontextrestored", () => actions.setUnavailable(false));
-  map.on("moveend", (event) => {
-    // The ViewModel already owns the viewport for its programmatic camera commands.
-    if (!event.originalEvent) return;
+  // Programmatic moves are reported too, as on mobile: a group tap zooms in and the ViewModel must see the new zoom.
+  map.on("moveend", () => {
     const center = map.getCenter();
     const bounds = map.getBounds();
     const radius = Math.ceil(Math.max(
@@ -419,37 +574,11 @@ export function createTransitMap(container: HTMLElement, initial: MapState, acti
     renderUserLocation();
     if (state.camera && state.camera.revision !== cameraRevision) {
       cameraRevision = state.camera.revision;
-      map.jumpTo({ center: [state.camera.longitude, state.camera.latitude], zoom: state.camera.zoom });
+      const target = { center: [state.camera.longitude, state.camera.latitude] as [number, number], zoom: state.camera.zoom };
+      if (state.camera.animated && !reducedMotion.matches) map.easeTo(target);
+      else map.jumpTo(target);
     }
-
-    const currentIds = new Set<string>();
-    for (const stop of state.stops) {
-      if (stop.latitude == null || stop.longitude == null) continue;
-      currentIds.add(stop.id);
-      let item = markers.get(stop.id);
-      if (!item) {
-        const button = document.createElement("button");
-        button.type = "button";
-        button.className = "transit-map-marker";
-        button.dataset.testid = "map-stop-marker";
-        button.dataset.stopId = stop.id;
-        const marker = new Marker({ element: button }).setLngLat([stop.longitude, stop.latitude]).addTo(map);
-        item = { marker, stop };
-        const selectedItem = item;
-        button.addEventListener("click", () => actions.selectStop(selectedItem.stop));
-        markers.set(stop.id, item);
-      }
-      item.stop = stop;
-      item.marker.setLngLat([stop.longitude, stop.latitude]);
-      const button = item.marker.getElement();
-      button.setAttribute("aria-label", stop.name);
-      button.setAttribute("aria-pressed", String(state.arrivals?.stopId === stop.id));
-    }
-    for (const [id, item] of markers) {
-      if (currentIds.has(id)) continue;
-      item.marker.remove();
-      markers.delete(id);
-    }
+    renderStops();
   }
 
   update(initial);
@@ -463,6 +592,11 @@ export function createTransitMap(container: HTMLElement, initial: MapState, acti
   function onPixelRatioChange() {
     watchPixelRatio();
     rebuildBadges();
+    if (!styleReady) return;
+    for (const id of stopImageIds) if (map.hasImage(id)) map.removeImage(id);
+    stopImageIds.clear();
+    renderedStops = undefined;
+    renderStops();
   }
   // There is no event for a changed font size setting, so it is re-read whenever the user may be back from it.
   function onTextScaleCheck() {

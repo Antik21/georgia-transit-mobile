@@ -20,6 +20,8 @@ import com.denis.georgiatransit.shared.presentation.map.MapCameraCommand
 import com.denis.georgiatransit.shared.presentation.map.MapContentState
 import com.denis.georgiatransit.shared.presentation.map.MapPlatformEvent
 import com.denis.georgiatransit.shared.presentation.map.MapPolyline
+import com.denis.georgiatransit.shared.presentation.map.MapStopCluster
+import com.denis.georgiatransit.shared.presentation.map.MapStopMarker
 import com.denis.georgiatransit.shared.presentation.map.MapVehicleMarker
 import com.denis.georgiatransit.shared.presentation.map.MapViewModel
 import com.denis.georgiatransit.shared.presentation.map.MapViewport
@@ -71,7 +73,13 @@ class ArrivalsState(
 )
 
 @JsExport
-class MapCamera(val latitude: Double, val longitude: Double, val zoom: Double, val revision: String)
+class MapCamera(
+    val latitude: Double,
+    val longitude: Double,
+    val zoom: Double,
+    val revision: String,
+    val animated: Boolean = false,
+)
 
 @JsExport
 class TransitCredit(val label: String, val url: String)
@@ -95,6 +103,7 @@ class StopMapState(
     val vehicleRoutes: Array<VehicleRouteSummary> = emptyArray(),
     val location: LocationStatus? = null,
     val userLocation: UserLocation? = null,
+    val stopLayer: MapStopLayer? = null,
 )
 
 private data class VehicleSlice(
@@ -120,6 +129,9 @@ private data class StopSlice(
     val vehicleRoutes: List<VehicleRouteAccessibilityUi>,
     val location: LocationState,
     val userLocation: UserLocationFix?,
+    val mapStops: List<MapStopMarker>,
+    val mapStopClusters: List<MapStopCluster>,
+    val stopSourceRevision: Long?,
 )
 
 /** Owns the Map entry and its subscriptions; dispose when the host leaves the entry. */
@@ -189,6 +201,8 @@ class MapBridge internal constructor(
         val newSubscription = scope.launch(start = CoroutineStart.LAZY) {
             var projectedRevision: Long? = null
             var projectedPolylines = emptyArray<RoutePolyline>()
+            var projectedStopKey: Triple<Long?, List<MapStopMarker>, List<MapStopCluster>>? = null
+            var projectedStops: MapStopLayer? = null
             viewModel.container.stateFlow
                 .map { state ->
                     val render = state.renderState
@@ -209,6 +223,9 @@ class MapBridge internal constructor(
                         state.vehicleRoutes,
                         state.location,
                         render?.userLocation,
+                        render?.stops.orEmpty(),
+                        render?.stopClusters.orEmpty(),
+                        render?.stopSourceRevision,
                     )
                 }
                 .distinctUntilChanged()
@@ -217,7 +234,13 @@ class MapBridge internal constructor(
                         projectedRevision = slice.routePolylineRevision
                         projectedPolylines = slice.routePolylines.map { it.toJs() }.toTypedArray()
                     }
-                    notifyHost { onState(slice.toJs(city, languageTag, projectedPolylines)) }
+                    // The renderer compares this layer by identity, so it is rebuilt only when stop content changes.
+                    val stopKey = Triple(slice.stopSourceRevision, slice.mapStops, slice.mapStopClusters)
+                    if (projectedStopKey != stopKey) {
+                        projectedStopKey = stopKey
+                        projectedStops = slice.stopSourceRevision?.let { stopLayerOf(it, slice.mapStops, slice.mapStopClusters) }
+                    }
+                    notifyHost { onState(slice.toJs(city, languageTag, projectedPolylines, projectedStops)) }
                 }
         }
         subscription = newSubscription
@@ -271,6 +294,12 @@ class MapBridge internal constructor(
         if (!disposed) viewModel.dispatchAction(Action.StopSelected(StopId(id), revision))
     }
 
+    /** A map pin tap: unlike [selectStop] it is checked against the visible markers and may zoom into a group. */
+    fun tapStop(id: String, sourceRevision: String) {
+        val revision = sourceRevision.toLongOrNull() ?: return
+        if (!disposed) viewModel.dispatchAction(Action.MapEventReceived(MapPlatformEvent.StopTapped(StopId(id), revision)))
+    }
+
     fun dismissArrivals() { if (!disposed) viewModel.dispatchAction(Action.StopArrivalsDismissed) }
     fun retryArrivals() { if (!disposed) viewModel.dispatchAction(Action.RetryStopArrivals) }
     fun retryNearby() { if (!disposed) viewModel.dispatchAction(Action.RetryNearby) }
@@ -318,6 +347,7 @@ private fun StopSlice.toJs(
     city: TransitCity?,
     languageTag: String,
     polylines: Array<RoutePolyline>,
+    stopLayer: MapStopLayer?,
 ): StopMapState = StopMapState(
     cityName = city?.localizedName?.citySelectionDisplayName(languageTag, cityName) ?: cityName,
     content = when (content) {
@@ -334,7 +364,7 @@ private fun StopSlice.toJs(
     arrivals = sheet?.toJs(),
     cityId = city?.id?.value.orEmpty(),
     canChangeCity = canChangeCity,
-    camera = camera?.let { MapCamera(it.center.latitude, it.center.longitude, it.zoom, it.revision.toString()) },
+    camera = camera?.let { MapCamera(it.center.latitude, it.center.longitude, it.zoom, it.revision.toString(), it.animated) },
     styleUrl = styleUrl,
     attribution = attribution.toCredits(languageTag),
     canOpenRoutes = canOpenRoutes,
@@ -345,6 +375,7 @@ private fun StopSlice.toJs(
     vehicleRoutes = vehicleRoutes.map { it.toJs() }.toTypedArray(),
     location = location.toJs(),
     userLocation = userLocation?.toJs(),
+    stopLayer = stopLayer,
 )
 
 private fun StopArrivalsSheetUi.toJs(): ArrivalsState = ArrivalsState(

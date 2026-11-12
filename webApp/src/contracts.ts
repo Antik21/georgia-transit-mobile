@@ -48,6 +48,59 @@ export interface MapCamera {
   readonly longitude: number;
   readonly zoom: number;
   readonly revision: string;
+  readonly animated: boolean;
+}
+
+export interface StopPinRouteBadge {
+  readonly label: string;
+  readonly color: string;
+  readonly textColor: string;
+  readonly y: number;
+}
+
+export interface StopPin {
+  readonly imageId: string;
+  readonly color: string;
+  readonly glyphColor: string;
+  readonly width: number;
+  readonly height: number;
+  readonly bodyTop: number;
+  readonly bodyScale: number;
+  readonly cardTop: number;
+  readonly cardWidth: number;
+  readonly cardHeight: number;
+  readonly cardCornerRadius: number;
+  readonly badgeX: number;
+  readonly badgeWidth: number;
+  readonly badgeCornerRadius: number;
+  readonly badges: readonly StopPinRouteBadge[];
+}
+
+export interface MapStopPin {
+  readonly id: string;
+  readonly latitude: number;
+  readonly longitude: number;
+  readonly label: string;
+  readonly pin: StopPin;
+  readonly scale: number;
+  readonly selected: boolean;
+  readonly highlighted: boolean;
+  readonly outsideSelectedRoutes: boolean;
+  readonly representsGroup: boolean;
+}
+
+export interface MapStopCluster {
+  readonly id: string;
+  readonly latitude: number;
+  readonly longitude: number;
+  readonly count: number;
+  readonly label: string;
+}
+
+export interface MapStopLayer {
+  readonly revision: string;
+  readonly stops: readonly MapStopPin[];
+  readonly clusters: readonly MapStopCluster[];
 }
 
 export interface RoutePolyline {
@@ -126,6 +179,7 @@ export interface RouteChoice {
   readonly color: string;
   readonly textColor: string;
   readonly selected: boolean;
+  readonly mode: string;
 }
 
 export interface RoutesState {
@@ -161,6 +215,7 @@ export interface MapState {
   readonly vehicleRoutes: readonly VehicleRouteSummary[];
   readonly location: LocationStatus | null | undefined;
   readonly userLocation: UserLocation | null | undefined;
+  readonly stopLayer: MapStopLayer | null | undefined;
 }
 
 export interface MapEntry {
@@ -176,6 +231,7 @@ export interface MapEntry {
   locationCancelled(requestId: string): void;
   setVisible(visible: boolean): void;
   selectStop(stopId: string, sourceRevision: string): void;
+  tapStop(stopId: string, sourceRevision: string): void;
   updateViewport(latitude: number, longitude: number, radiusMeters: number, zoom: number): void;
   dismissArrivals(): void;
   retryArrivals(): void;

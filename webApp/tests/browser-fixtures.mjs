@@ -13,6 +13,8 @@ export const fallbackMapColor = [220, 232, 228];
 // Only the vehicle badge's headlights use this colour, so it separates the bus from its route line.
 export const vehicleHeadlightColor = [255, 220, 122];
 export const userLocationDotColor = [21, 101, 192];
+// The glyph of a stop pin outside any selected route (StopRouteHighlightUi in common).
+export const stopPinGlyphColor = [52, 65, 85];
 export const fixtureVehiclesPath = `/v1/cities/${fixtureCityId}/vehicles`;
 export const fixtureAttribution = 'Fixture tiles';
 // Toggled by the smoke to exercise the local-style fallback and its recovery.
