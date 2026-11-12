@@ -6,6 +6,7 @@ import com.denis.georgiatransit.shared.domain.model.CityId
 import com.denis.georgiatransit.shared.domain.model.DirectionId
 import com.denis.georgiatransit.shared.domain.model.GeoPoint
 import com.denis.georgiatransit.shared.domain.model.JourneyPage
+import com.denis.georgiatransit.shared.domain.model.JourneyPlanQuery
 import com.denis.georgiatransit.shared.domain.model.RouteId
 import com.denis.georgiatransit.shared.domain.model.StopId
 import com.denis.georgiatransit.shared.domain.model.TransitCity
@@ -24,12 +25,16 @@ import io.ktor.client.plugins.HttpRequestTimeoutException
 import io.ktor.client.plugins.timeout
 import io.ktor.client.request.get
 import io.ktor.client.request.header
+import io.ktor.client.request.post
+import io.ktor.client.request.setBody
 import io.ktor.client.request.url
 import io.ktor.client.statement.HttpResponse
 import io.ktor.client.statement.bodyAsText
 import io.ktor.client.network.sockets.ConnectTimeoutException
 import io.ktor.client.network.sockets.SocketTimeoutException
+import io.ktor.http.ContentType
 import io.ktor.http.HttpStatusCode
+import io.ktor.http.contentType
 import io.ktor.http.appendPathSegments
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.cancel
@@ -185,6 +190,33 @@ class TransitBffClient(
         ).map(JourneyPageDto::toDomain)
     }
 
+    /** Not retried: a newer plan replaces this one, and a POST body must never be replayed blindly. */
+    suspend fun planJourney(cityId: CityId, query: JourneyPlanQuery): TransitLoadResult<JourneyPage> {
+        configurationFailure()?.let { return TransitLoadResult.Failure(it) }
+        invalidPlanArguments(query)?.let { return TransitLoadResult.Failure(it) }
+        val configuredEndpoint = requireNotNull(endpoint)
+        val response = try {
+            httpClient.post {
+                url(configuredEndpoint.baseUrl)
+                url { appendPathSegments("v1", "cities", cityId.value, "journeys", "plan", encodeSlash = true) }
+                contentType(ContentType.Application.Json)
+                setBody(query.toDto())
+                timeout {
+                    connectTimeoutMillis = ConnectTimeoutMillis
+                    requestTimeoutMillis = RealtimeTimeoutMillis
+                    socketTimeoutMillis = RealtimeTimeoutMillis
+                }
+            }
+        } catch (failure: CancellationException) {
+            throw failure
+        } catch (failure: Throwable) {
+            return TransitLoadResult.Failure(
+                if (failure.isTimeoutTransport()) TransitFailure.Timeout() else TransitFailure.Transport("BFF transport failed"),
+            )
+        }
+        return decodeResponse<JourneyPageDto>(response).map(JourneyPageDto::toPlanDomain)
+    }
+
     private suspend inline fun <reified T> get(
         path: List<String>,
         query: List<Pair<String, String>> = emptyList(),
@@ -300,6 +332,13 @@ class TransitBffClient(
     private fun invalidJourneyArguments(from: GeoPoint, to: GeoPoint, maxTransfers: Int): TransitFailure? =
         invalidNearbyArguments(from, 1, 1) ?: invalidNearbyArguments(to, 1, 1) ?: maxTransfers.takeIf { it !in 0..6 }
             ?.let { TransitFailure.InvalidArgument("maxTransfers is invalid", null) }
+
+    private fun invalidPlanArguments(query: JourneyPlanQuery): TransitFailure? =
+        invalidNearbyArguments(query.from, 1, 1) ?: invalidNearbyArguments(query.to, 1, 1) ?: when {
+            query.maxTransfers !in 0..2 -> TransitFailure.InvalidArgument("maxTransfers is invalid", null)
+            query.transferBufferSeconds !in 0..600 -> TransitFailure.InvalidArgument("transferBufferSeconds is invalid", null)
+            else -> null
+        }
 
     private fun TransitLocale.toWire(): String = when (this) {
         TransitLocale.Georgian -> "ka"

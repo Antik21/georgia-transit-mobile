@@ -178,6 +178,9 @@ internal fun JourneyDto.toDomain(): TransitJourney {
         transfers = transfers.also { require(it in 0..6) { "transfers is invalid" } },
         legs = mappedLegs,
         segments = orderedSegments,
+        durationSeconds = durationSeconds?.takeIf { it >= 0 },
+        walkingDistanceMeters = walkingDistanceMeters.nonNegativeOrNull(),
+        timingQuality = timingQuality.toTimingQualityOrNull(),
     )
 }
 
@@ -210,6 +213,13 @@ internal fun JourneySegmentDto.toDomain(): TransitJourneySegment {
         toStopId = toStopId?.let { StopId(it.requirePublicId("stop id")) },
         fromPosition = fromPosition?.toDomain(),
         toPosition = toPosition?.toDomain(),
+        distanceMeters = distanceMeters.nonNegativeOrNull(),
+        geometry = geometry?.takeIf { it.isNotEmpty() && it.length <= MaxEncodedGeometryLength },
+        geometryApproximate = geometryApproximate,
+        intermediateStopCount = intermediateStopCount?.takeIf { it >= 0 },
+        waitSeconds = waitSeconds?.takeIf { it >= 0 },
+        waitBasis = waitBasis.toWaitBasisOrNull(),
+        vehicleId = vehicleId?.takeIf { it.length <= MaxPublicIdLength && PublicIdPattern.matches(it) }?.let(::VehicleId),
     )
 }
 
@@ -263,7 +273,7 @@ private fun AttributionLinkDto.toDomain() = TransitAttribution(
     label = label.toDomain(),
     url = url.also { require(UrlPattern.matches(it)) { "attribution url is invalid" } },
 )
-private fun GeoPointDto.toDomain() = GeoPoint(
+internal fun GeoPointDto.toDomain() = GeoPoint(
     latitude = latitude.requireFinite("latitude").also { require(it in -90.0..90.0) { "latitude is invalid" } },
     longitude = longitude.requireFinite("longitude").also { require(it in -180.0..180.0) { "longitude is invalid" } },
 )
@@ -292,7 +302,7 @@ private fun PositionKindDto.toDomain() = when (this) {
     PositionKindDto.Estimated -> VehiclePositionKind.Estimated
     PositionKindDto.Unknown -> VehiclePositionKind.Unknown
 }
-private fun ArrivalSourceDto.toDomain() = when (this) {
+internal fun ArrivalSourceDto.toDomain() = when (this) {
     ArrivalSourceDto.OfficialRealtime -> ArrivalSource.OfficialRealtime
     ArrivalSourceDto.AggregatorRealtime -> ArrivalSource.AggregatorRealtime
     ArrivalSourceDto.Schedule -> ArrivalSource.Schedule
@@ -302,7 +312,7 @@ private fun String.toArgb(): Long {
     require(ColorPattern.matches(this)) { "color is invalid" }
     return (0xFF000000L or substring(1).toLong(16))
 }
-private fun String.toUtcInstant(field: String): Instant {
+internal fun String.toUtcInstant(field: String): Instant {
     require(endsWith("Z")) { "$field must be UTC" }
     return Instant.parse(this)
 }
@@ -323,6 +333,7 @@ private fun Double.requireFinite(field: String): Double {
 private fun Int?.validRetryAfter(): Int? = takeIf { it != null && it in 1..86_400 }
 
 private const val MaxPublicIdLength = 256
+private const val MaxEncodedGeometryLength = 200_000
 private val CityIdPattern = Regex("^[a-z][a-z0-9-]{1,31}$")
 private val PublicIdPattern = Regex("^[^:\\s]+:[^:\\s]+:[^:\\s]+:[^:\\s]+$")
 private val AttributionIdPattern = Regex("^[a-z][a-z0-9-]{0,31}$")
