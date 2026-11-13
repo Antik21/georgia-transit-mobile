@@ -13,6 +13,8 @@ internal class MapCameraController {
     var command: MapCameraCommand? = null
         private set
     var insets = MapViewportInsets.None
+    var zoomStep: MapZoomStep? = null
+        private set
 
     fun reset() {
         lastCityId = null
@@ -36,6 +38,9 @@ internal class MapCameraController {
         return checkNotNull(command)
     }
 
+    fun zoomBy(delta: Double): MapZoomStep =
+        MapZoomStep(totalDelta = (zoomStep?.totalDelta ?: 0.0) + delta).also { zoomStep = it }
+
     fun next(
         center: GeoPoint,
         zoom: Double,
@@ -50,3 +55,6 @@ internal class MapCameraController {
             animated = animated,
         ).also { command = it }
 }
+
+/** Zoom buttons change only the published step; the camera command and its revision stay as they are. */
+internal fun ViewState.withZoomStep(step: MapZoomStep): ViewState = copy(renderState = renderState?.copy(zoomStep = step))

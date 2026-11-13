@@ -109,7 +109,7 @@ private class LocalMapController(
         if (destroyed) return
         latestState = renderState
         styleLoader.request(renderState.bffStyleUrl)
-        styleLoader.style?.let { installAndRender(it, renderState) }
+        styleLoader.style?.let { installAndRender(it, renderState) } ?: camera.applyZoomStep(renderState.zoomStep)
     }
 
     fun setLifecycleResumed(resumed: Boolean) {
@@ -156,6 +156,7 @@ private class LocalMapController(
         journeyLayers.render(loadedStyle, renderState.journey)
         camera.applyIfNeeded(renderState.camera)
         map?.let { journeyLayers.fitIfNeeded(it, renderState.journey, mapView) }
+        camera.applyZoomStep(renderState.zoomStep)
         attentionPulse.refresh()
     }
 

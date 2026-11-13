@@ -239,8 +239,7 @@ class MapResourceContractTest {
             userLocationTag < platformMapCall,
             "The conditional user-location ID must live on the Compose wrapper, before PlatformMap.",
         )
-        assertCodePath(canvas, "PlatformMap(", "onEvent = onMapEvent", "BaseLayerOverlay(")
-        assertTrue(canvas.compactWhitespace().contains("testTag(locationActionAutomationId)"))
+        assertCodePath(canvas, "PlatformMap(", "onEvent = onMapEvent", "BaseLayerOverlay(", "MapCameraControls(")
         assertFalse(content.contains("NearbyStopsAccessibility"), "Nearby stops must not consume visual space below the map.")
         assertCodePath(
             canvas,

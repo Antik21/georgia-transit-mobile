@@ -42,6 +42,8 @@
     <string name="map_routes_action">Choose routes</string>
     <string name="map_change_city_action">Change city</string>
     <string name="map_my_location_action">My location</string>
+    <string name="map_zoom_in_action">Zoom in</string>
+    <string name="map_zoom_out_action">Zoom out</string>
     <string name="map_selected_routes">Routes: %1$s</string>
     <string name="map_route_geometry_title">Selected routes</string>
     <string name="map_route_geometry_loading">Loading route line… %1$d of %2$d directions shown</string>

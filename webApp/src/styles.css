@@ -403,6 +403,19 @@ body { background: var(--background); color: var(--ink); }
   box-shadow: 0 2px 8px #18191b28;
   pointer-events: auto;
 }
+.transit-app .map-zoom-button {
+  display: grid;
+  place-items: center;
+  inline-size: 48px;
+  block-size: 48px;
+  border: 1px solid var(--edge);
+  border-radius: 50%;
+  color: var(--ink);
+  background: var(--raised);
+  box-shadow: 0 2px 8px #18191b28;
+  pointer-events: auto;
+}
+.map-zoom-icon { inline-size: 22px; block-size: 22px; fill: none; stroke: currentColor; stroke-width: 2.25; stroke-linecap: round; }
 .transit-app .map-location-button:disabled { color: var(--muted); opacity: 0.6; }
 .transit-app .map-location-button[aria-busy="true"] .map-location-icon { animation: transit-spin 1.2s linear infinite; }
 .map-location-icon { inline-size: 24px; block-size: 24px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; }

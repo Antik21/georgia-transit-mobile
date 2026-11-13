@@ -24,6 +24,8 @@ object AutomationId {
     const val MapChangeCity = "map.change-city"
     const val MapMyLocation = "map.my-location"
     const val MapLocationSettings = "map.location-settings"
+    const val MapZoomIn = "map.zoom-in"
+    const val MapZoomOut = "map.zoom-out"
     const val MapUserLocation = "map.user-location"
     const val MapLocalPreview = "map.content.local-preview"
     const val MapRouteGeometryLegend = "map.route-geometry.legend"

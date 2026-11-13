@@ -160,6 +160,7 @@ private fun Content(state: ViewState, connectionNoticeId: Int, onAction: (Action
                     pinOnlySide = planner.missingSide(),
                     onMapEvent = { onAction(Action.MapEventReceived(it)) },
                     onMyLocationClick = { onAction(Action.MyLocationClicked) },
+                    onZoomClick = { onAction(Action.ZoomClicked(it)) },
                     onCenterSettled = { mapCenter = it },
                     onTapMap = { point -> onAction(JourneyPlannerAction.TapMap(point)) },
                     onDismissPin = { onAction(JourneyPlannerAction.DismissPin) },
@@ -248,6 +249,7 @@ private fun MapArea(
     pinOnlySide: JourneyPlanSide?,
     onMapEvent: (MapPlatformEvent) -> Unit,
     onMyLocationClick: () -> Unit,
+    onZoomClick: (MapZoomDirection) -> Unit,
     onCenterSettled: (GeoPoint?) -> Unit,
     onTapMap: (GeoPoint) -> Unit,
     onDismissPin: () -> Unit,
@@ -271,6 +273,7 @@ private fun MapArea(
                 },
                 locationActionEnabled = locationActionEnabled(location.permission) && !location.isLocating,
                 onMyLocationClick = onMyLocationClick,
+                onZoomClick = onZoomClick,
                 onMapEvent = { event ->
                     when (event) {
                         MapPlatformEvent.CameraMoveStarted -> {

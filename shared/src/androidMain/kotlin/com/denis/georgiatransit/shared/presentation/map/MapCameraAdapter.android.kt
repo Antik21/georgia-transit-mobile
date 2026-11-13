@@ -23,8 +23,12 @@ internal class MapCameraAdapter(
     private var map: MapLibreMap? = null
     private var lastAppliedCameraRevision: Long? = null
     private var lastAppliedCameraCommand: MapCameraCommand? = null
+    private val zoomSteps = MapZoomStepTracker(MIN_ZOOM, MAX_ZOOM)
     private val cameraIdleListener = MapLibreMap.OnCameraIdleListener { notifyViewportSettled() }
-    private val cameraMoveStartedListener = MapLibreMap.OnCameraMoveStartedListener { onEvent(MapPlatformEvent.CameraMoveStarted) }
+    private val cameraMoveStartedListener = MapLibreMap.OnCameraMoveStartedListener { reason ->
+        if (reason == MapLibreMap.OnCameraMoveStartedListener.REASON_API_GESTURE) zoomSteps.cameraMovedElsewhere()
+        onEvent(MapPlatformEvent.CameraMoveStarted)
+    }
     private val layoutChangeListener = View.OnLayoutChangeListener { _, _, _, _, _, _, _, _, _ ->
         latestCommand()?.let { command ->
             map?.moveCamera(CameraUpdateFactory.paddingTo(0.0, 0.0, 0.0, viewportBottomPadding(command)))
@@ -96,7 +100,18 @@ internal class MapCameraAdapter(
         }
         lastAppliedCameraRevision = command.revision
         lastAppliedCameraCommand = command
+        zoomSteps.cameraMovedElsewhere()
         if (!command.animated) mapView.post { notifyViewportSettled() }
+    }
+
+    /**
+     * Called for every render state, even before getMapAsync completes, or the first tap becomes the baseline.
+     * Taps wait until the initial camera command is applied, which would otherwise overwrite their zoom.
+     */
+    fun applyZoomStep(step: MapZoomStep?) {
+        val readyZoom = map?.takeIf { lastAppliedCameraRevision != null }?.cameraPosition?.zoom ?: Double.NaN
+        zoomSteps.targetZoom(step, readyZoom)
+            ?.let { map?.animateCamera(CameraUpdateFactory.zoomTo(it), MapZoomStepTracker.ANIMATION_MILLIS) }
     }
 
     private fun shouldPreserveScreenAnchor(previous: MapCameraCommand, current: MapCameraCommand): Boolean =

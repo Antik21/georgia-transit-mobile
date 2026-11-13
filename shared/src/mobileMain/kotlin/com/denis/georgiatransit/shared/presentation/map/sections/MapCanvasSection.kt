@@ -9,7 +9,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.material3.MaterialTheme
@@ -24,12 +23,11 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.onClick
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.unit.dp
 import com.denis.georgiatransit.shared.presentation.map.MapBaseLayerState
 import com.denis.georgiatransit.shared.presentation.map.MapPlatformEvent
 import com.denis.georgiatransit.shared.presentation.map.MapRenderState
 import com.denis.georgiatransit.shared.presentation.map.PlatformMap
-import com.denis.georgiatransit.shared.presentation.map.PlatformMyLocationButton
+import com.denis.georgiatransit.shared.presentation.map.MapZoomDirection
 import com.denis.georgiatransit.shared.presentation.ui.automation.AutomationId
 import com.denis.georgiatransit.shared.presentation.ui.theme.TransitColors
 import com.denis.georgiatransit.shared.presentation.ui.theme.TransitShapes
@@ -68,6 +66,7 @@ internal fun MapCanvas(
     locationActionAutomationId: String,
     locationActionEnabled: Boolean,
     onMyLocationClick: () -> Unit,
+    onZoomClick: (MapZoomDirection) -> Unit,
     onMapEvent: (MapPlatformEvent) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -143,11 +142,12 @@ internal fun MapCanvas(
                 )
                 .padding(TransitSpacing.Medium),
         )
-        PlatformMyLocationButton(
-            contentDescription = locationActionLabel,
-            automationId = locationActionAutomationId,
-            enabled = locationActionEnabled,
-            onClick = onMyLocationClick,
+        MapCameraControls(
+            locationActionLabel = locationActionLabel,
+            locationActionAutomationId = locationActionAutomationId,
+            locationActionEnabled = locationActionEnabled,
+            onMyLocationClick = onMyLocationClick,
+            onZoomClick = onZoomClick,
             modifier = Modifier
                 .align(Alignment.BottomEnd)
                 .windowInsetsPadding(
@@ -160,9 +160,7 @@ internal fun MapCanvas(
                     top = TransitSpacing.Medium,
                     end = TransitSpacing.Medium,
                     bottom = TransitSpacing.ExtraLarge + TransitSpacing.Medium,
-                )
-                .size(48.dp)
-                .testTag(locationActionAutomationId),
+                ),
         )
         if (baseLayerState == MapBaseLayerState.BffStyle) {
             OpenStreetMapAttribution(

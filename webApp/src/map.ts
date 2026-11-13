@@ -15,6 +15,8 @@ import { maxPulseMarkers, pulseFrame, pulsePaint, pulseTickMillis } from "./vehi
 setWorkerUrl(new URL(mapWorkerUrl, import.meta.url).href);
 
 const routeSourceId = "transit-route-lines";
+const zoomStepDurationMs = 250;
+const zoomStepWindowMs = zoomStepDurationMs + 150;
 const userAccuracySourceId = "transit-user-accuracy";
 const userLocationSourceId = "transit-user-location";
 const vehicleSourceId = "transit-vehicles";
@@ -228,6 +230,9 @@ export function createTransitMap(
   map.touchZoomRotate.disableRotation();
   map.keyboard.disableRotation();
   let cameraRevision = camera.revision;
+  let zoomTotal = initial.zoomStep?.totalDelta ?? 0;
+  // Taps during our own ease build on its target; interrupting it reports an interim zoom.
+  let pendingZoom: { zoom: number; at: number } | undefined;
   let remoteStyleLoading = Boolean(styleUrl);
   let usingFallbackStyle = false;
   let styleReady = false;
@@ -567,6 +572,9 @@ export function createTransitMap(
   });
   map.on("webglcontextrestored", () => actions.setUnavailable(false));
   // Programmatic moves are reported too, as on mobile: a group tap zooms in and the ViewModel must see the new zoom.
+  map.on("movestart", (event) => {
+    if (event.originalEvent) pendingZoom = undefined;
+  });
   map.on("moveend", () => {
     const center = map.getCenter();
     const bounds = map.getBounds();
@@ -583,9 +591,20 @@ export function createTransitMap(
     renderUserLocation();
     if (state.camera && state.camera.revision !== cameraRevision) {
       cameraRevision = state.camera.revision;
+      pendingZoom = undefined;
       const target = { center: [state.camera.longitude, state.camera.latitude] as [number, number], zoom: state.camera.zoom };
       if (state.camera.animated && !reducedMotion.matches) map.easeTo(target);
       else map.jumpTo(target);
+    }
+    const nextZoomTotal = state.zoomStep?.totalDelta ?? 0;
+    if (nextZoomTotal !== zoomTotal) {
+      const delta = nextZoomTotal - zoomTotal;
+      zoomTotal = nextZoomTotal;
+      const now = performance.now();
+      const base = pendingZoom && now - pendingZoom.at < zoomStepWindowMs ? pendingZoom.zoom : map.getZoom();
+      const zoom = Math.min(Math.max(base + delta, map.getMinZoom()), map.getMaxZoom());
+      pendingZoom = { zoom, at: now };
+      map.easeTo({ zoom, duration: reducedMotion.matches ? 0 : zoomStepDurationMs });
     }
     renderStops();
   }

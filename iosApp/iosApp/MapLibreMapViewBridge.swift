@@ -39,6 +39,10 @@ private final class LocalMapLibreView: UIView, MLNMapViewDelegate {
     private var requestedBffStyleURL: URL?
     private var lastAppliedCameraRevision: Int64?
     private var lastAppliedCamera: AppliedCamera?
+    private let zoomSteps = MapZoomStepTracker(
+        minZoom: LocalMapLibreView.minimumZoom,
+        maxZoom: LocalMapLibreView.maximumZoom
+    )
     private var stopPinImageNames: Set<String> = []
     private var lastStops: [StopRenderInput]?
     private var lastStopSourceRevision: Int64?
@@ -121,9 +125,19 @@ private final class LocalMapLibreView: UIView, MLNMapViewDelegate {
         guard !released else { return }
         pendingRenderState = renderState
         updateBaseStyle(renderState.bffStyleUrl)
-        guard let style = mapView.style else { return }
-        installSourcesAndLayersIfNeeded(style: style)
-        render(renderState, style: style)
+        if let style = mapView.style {
+            installSourcesAndLayersIfNeeded(style: style)
+            render(renderState, style: style)
+        }
+        applyZoomStep(renderState.zoomStep)
+    }
+
+    /** After render(): a camera command applied later would overwrite the zoom, so taps wait for the first one. */
+    private func applyZoomStep(_ step: MapZoomStep?) {
+        let readyZoom = lastAppliedCameraRevision == nil ? Double.nan : mapView.zoomLevel
+        if let target = zoomSteps.targetZoom(step: step, currentZoom: readyZoom) {
+            mapView.setZoomLevel(target.doubleValue, animated: true)
+        }
     }
 
     private func updateBaseStyle(_ rawURL: String?) {
@@ -180,6 +194,7 @@ private final class LocalMapLibreView: UIView, MLNMapViewDelegate {
         clearRenderedLayerState()
         installSourcesAndLayersIfNeeded(style: style)
         pendingRenderState.map { render($0, style: style) }
+        applyZoomStep(pendingRenderState?.zoomStep)
     }
 
     func mapView(_ mapView: MLNMapView, didFailLoadingMapWithError error: Error) {
@@ -190,8 +205,13 @@ private final class LocalMapLibreView: UIView, MLNMapViewDelegate {
         mapView.styleURL = localStyle
     }
 
-    func mapView(_ mapView: MLNMapView, regionWillChangeAnimated animated: Bool) {
+    // One delegate method: MapLibre skips regionWillChangeAnimated when the reason variant exists.
+    func mapView(_ mapView: MLNMapView, regionWillChangeWith reason: MLNCameraChangeReason, animated: Bool) {
         guard !released else { return }
+        let gestures: MLNCameraChangeReason = [
+            .gesturePan, .gesturePinch, .gestureRotate, .gestureZoomIn, .gestureZoomOut, .gestureOneFingerZoom, .gestureTilt,
+        ]
+        if !reason.isDisjoint(with: gestures) { zoomSteps.cameraMovedElsewhere() }
         _ = onMapEvent(MapPlatformEventCameraMoveStarted.shared)
     }
 
@@ -404,6 +424,7 @@ private final class LocalMapLibreView: UIView, MLNMapViewDelegate {
         }
         lastAppliedCameraRevision = command.revision
         lastAppliedCamera = nextCamera
+        zoomSteps.cameraMovedElsewhere()
         if !command.animated { DispatchQueue.main.async { [weak self] in self?.reportSettledViewport() } }
     }
 

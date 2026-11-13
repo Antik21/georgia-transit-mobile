@@ -62,6 +62,10 @@ export interface MapCamera {
   readonly animated: boolean;
 }
 
+export interface MapZoom {
+  readonly totalDelta: number;
+}
+
 export interface StopPinRouteBadge {
   readonly label: string;
   readonly color: string;
@@ -220,6 +224,7 @@ export interface MapState {
   readonly stops: readonly StopItem[];
   readonly arrivals: ArrivalsState | null | undefined;
   readonly camera: MapCamera | null | undefined;
+  readonly zoomStep: MapZoom | null | undefined;
   readonly styleUrl: string | null | undefined;
   readonly attribution: readonly Attribution[];
   readonly vehicleStatus: string;
@@ -333,6 +338,8 @@ export interface MapEntry {
   selectVehicle(vehicleId: string, revision: string): void;
   subscribeLocationCommands(onCommand: (command: LocationCommand) => void): void;
   myLocation(): void;
+  zoomIn(): void;
+  zoomOut(): void;
   refreshLocation(): void;
   locationPermission(state: string, precise: boolean, canRetry: boolean): void;
   locationFix(requestId: string, latitude: number, longitude: number, accuracyMeters: number, capturedAt: number): void;
