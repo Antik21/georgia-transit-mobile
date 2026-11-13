@@ -16,6 +16,14 @@ trap cleanup EXIT HUP INT TERM
 
 docker volume create "$volume" >/dev/null
 
+# Simulate existing directories on a mounted disk with incompatible ownership and modes.
+docker run --rm --entrypoint sh --volume "${volume}:/app/storage" "$image" -eu -c '
+    mkdir -p /app/storage/control /app/storage/state
+    chown root:root /app/storage/control /app/storage/state
+    chmod 0755 /app/storage/control
+    chmod 0770 /app/storage/state
+'
+
 start_container() {
     container="$(
         docker run --detach \
@@ -95,6 +103,11 @@ start_container
 wait_until_ready
 assert_private_state
 state_before_restart="$(snapshot_private_state)"
+docker exec --user root "$container" sh -eu -c '
+    chown root:root /app/storage/control /app/storage/state
+    chmod 0755 /app/storage/control
+    chmod 0770 /app/storage/state
+'
 docker rm --force "$container" >/dev/null
 container=""
 
@@ -104,3 +117,31 @@ wait_until_ready
 assert_private_state
 state_after_restart="$(snapshot_private_state)"
 [ "$state_before_restart" = "$state_after_restart" ]
+
+docker rm --force "$container" >/dev/null
+container=""
+
+# Invalid directory paths must fail before launching the application or touching their targets.
+for directory in control state; do
+    for kind in symlink file; do
+        docker run --rm --entrypoint sh --volume "${volume}:/app/storage" "$image" -eu -c '
+            directory="$1"
+            kind="$2"
+            mv "/app/storage/$directory" "/app/storage/$directory.saved"
+            if [ "$kind" = symlink ]; then
+                ln -s "$directory.saved" "/app/storage/$directory"
+            else
+                printf sentinel > "/app/storage/$directory"
+            fi
+            before="$(stat -c "%u:%g:%a" "/app/storage/$directory.saved")"
+            if output="$(/usr/local/bin/start-transit-bff 2>&1)"; then
+                printf "%s\n" "Expected startup to reject $kind at $directory" >&2
+                exit 1
+            fi
+            printf "%s" "$output" | grep -q "private path is not a physical directory"
+            [ "$before" = "$(stat -c "%u:%g:%a" "/app/storage/$directory.saved")" ]
+            rm "/app/storage/$directory"
+            mv "/app/storage/$directory.saved" "/app/storage/$directory"
+        ' sh "$directory" "$kind"
+    done
+done

@@ -23,11 +23,13 @@ require_private_directory() {
     directory="$1"
     if path_exists "$directory"; then
         [ -d "$directory" ] && [ ! -L "$directory" ] || fail "private path is not a physical directory"
-        [ "$(stat -c '%U:%G:%a' "$directory")" = "${runtime_user}:${runtime_group}:700" ] || \
-            fail "private directory owner or mode is invalid"
     else
         install -d -o "$runtime_user" -g "$runtime_group" -m 0700 "$directory"
     fi
+    chown "$runtime_user:$runtime_group" "$directory"
+    chmod 0700 "$directory"
+    [ "$(stat -c '%U:%G:%a' "$directory")" = "${runtime_user}:${runtime_group}:700" ] || \
+        fail "private directory owner or mode is invalid"
 }
 
 [ "$(id -u)" -eq 0 ] || fail "entrypoint must initialize the mounted disk as root"
