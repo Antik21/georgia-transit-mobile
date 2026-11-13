@@ -77,7 +77,7 @@ internal fun JourneyPlannerPanel(
 ) {
     val status = planner.status
     Column(
-        modifier = modifier.testTag(AutomationId.MapPlannerPanel).verticalScroll(rememberScrollState()),
+        modifier = modifier.testTag(AutomationId.MapPlannerPanel),
         verticalArrangement = Arrangement.spacedBy(TransitSpacing.Small),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -98,56 +98,62 @@ internal fun JourneyPlannerPanel(
                 HeaderButton(CloseIcon, Res.string.map_planner_close, onClose, AutomationId.MapPlannerClose)
             }
         }
-        JourneyPlanSide.entries.forEach { side ->
-            JourneyEndpointBlock(
-                side = side,
-                endpoint = if (side == JourneyPlanSide.Origin) planner.origin else planner.destination,
-                isExpanded = expandedSide == side,
-                onToggle = { onToggleSide(side) },
-                onPickPoint = { onPickPoint(side) },
-                onUseMyLocation = { onUseMyLocation(side) },
+        // Only the body scrolls, so the title and its actions stay reachable over long results.
+        Column(
+            modifier = Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(TransitSpacing.Small),
+        ) {
+            JourneyPlanSide.entries.forEach { side ->
+                JourneyEndpointBlock(
+                    side = side,
+                    endpoint = if (side == JourneyPlanSide.Origin) planner.origin else planner.destination,
+                    isExpanded = expandedSide == side,
+                    onToggle = { onToggleSide(side) },
+                    onPickPoint = { onPickPoint(side) },
+                    onUseMyLocation = { onUseMyLocation(side) },
+                )
+            }
+            plannerStatusText(planner)?.let { message ->
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(TransitSpacing.Small),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    if (status.isBusy()) CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                    Text(
+                        message,
+                        modifier = Modifier.testTag(AutomationId.MapPlannerStatus).semantics { liveRegion = LiveRegionMode.Polite },
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                }
+            }
+            if (status is JourneyPlannerStatus.LocationNeeded) {
+                OutlinedButton(onClick = { onPickPoint(status.side) }, modifier = Modifier.testTag(AutomationId.MapPlannerPickInstead)) {
+                    Text(stringResource(Res.string.map_planner_pick_on_map))
+                }
+            }
+            if (status.canRetry()) {
+                OutlinedButton(onClick = onRetry, modifier = Modifier.testTag(AutomationId.MapPlannerRetry)) {
+                    Text(stringResource(Res.string.map_planner_retry))
+                }
+            }
+            if (status is JourneyPlannerStatus.Results) {
+                status.options.forEach { option ->
+                    val isSelected = option.id == status.selectedId
+                    JourneyOptionCard(
+                        option = option,
+                        isSelected = isSelected,
+                        nearestEtas = planner.buses?.takeIf { isSelected && it.optionId == option.id }?.etaMinutes.orEmpty(),
+                        onSelect = { onSelectOption(option.id) },
+                    )
+                }
+            }
+            Text(
+                stringResource(Res.string.map_planner_disclaimer),
+                modifier = Modifier.testTag(AutomationId.MapPlannerDisclaimer),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
-        plannerStatusText(planner)?.let { message ->
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(TransitSpacing.Small),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                if (status.isBusy()) CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
-                Text(
-                    message,
-                    modifier = Modifier.testTag(AutomationId.MapPlannerStatus).semantics { liveRegion = LiveRegionMode.Polite },
-                    style = MaterialTheme.typography.bodyMedium,
-                )
-            }
-        }
-        if (status is JourneyPlannerStatus.LocationNeeded) {
-            OutlinedButton(onClick = { onPickPoint(status.side) }, modifier = Modifier.testTag(AutomationId.MapPlannerPickInstead)) {
-                Text(stringResource(Res.string.map_planner_pick_on_map))
-            }
-        }
-        if (status.canRetry()) {
-            OutlinedButton(onClick = onRetry, modifier = Modifier.testTag(AutomationId.MapPlannerRetry)) {
-                Text(stringResource(Res.string.map_planner_retry))
-            }
-        }
-        if (status is JourneyPlannerStatus.Results) {
-            status.options.forEach { option ->
-                val isSelected = option.id == status.selectedId
-                JourneyOptionCard(
-                    option = option,
-                    isSelected = isSelected,
-                    nearestEtas = planner.buses?.takeIf { isSelected && it.optionId == option.id }?.etaMinutes.orEmpty(),
-                    onSelect = { onSelectOption(option.id) },
-                )
-            }
-        }
-        Text(
-            stringResource(Res.string.map_planner_disclaimer),
-            modifier = Modifier.testTag(AutomationId.MapPlannerDisclaimer),
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
     }
 }
 
