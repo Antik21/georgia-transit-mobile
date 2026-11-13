@@ -34,6 +34,11 @@ internal val PlaceIcon: ImageVector by lazy {
     )
 }
 
+/** Material Symbols "delete_outline" geometry, used under the Apache-2.0 license. */
+internal val TrashIcon: ImageVector by lazy {
+    glyph("DeleteOutline", "M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM8 9h8v10H8V9zm7.5-5-1-1h-5l-1 1H5v2h14V4z")
+}
+
 /** Material Symbols "expand_more" and "my_location" geometry, used under the Apache-2.0 license. */
 internal val ChevronDownIcon: ImageVector by lazy { glyph("ExpandMore", "M16.59 8.59 12 13.17 7.41 8.59 6 10l6 6 6-6z") }
 

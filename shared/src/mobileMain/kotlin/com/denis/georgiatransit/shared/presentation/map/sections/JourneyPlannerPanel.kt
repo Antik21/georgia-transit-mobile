@@ -8,14 +8,15 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
+import androidx.compose.material3.FilledTonalIconButton
+import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.liveRegion
@@ -56,6 +57,7 @@ import georgiatransit.shared.generated.resources.map_planner_stale
 import georgiatransit.shared.generated.resources.map_planner_swap
 import georgiatransit.shared.generated.resources.map_planner_title
 import georgiatransit.shared.generated.resources.map_planner_unavailable
+import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.stringResource
 
 /** The planner replaces the map controls while open; every state message comes from the shared status. */
@@ -85,14 +87,15 @@ internal fun JourneyPlannerPanel(
                 style = MaterialTheme.typography.titleLarge,
                 fontWeight = FontWeight.Bold,
             )
-            IconButton(onClick = onSwap, modifier = Modifier.testTag(AutomationId.MapPlannerSwap)) {
-                Icon(SwapIcon, contentDescription = stringResource(Res.string.map_planner_swap))
-            }
-            TextButton(onClick = onClear, modifier = Modifier.testTag(AutomationId.MapPlannerClear)) {
-                Text(stringResource(Res.string.map_planner_clear))
-            }
-            IconButton(onClick = onClose, modifier = Modifier.testTag(AutomationId.MapPlannerClose)) {
-                Icon(CloseIcon, contentDescription = stringResource(Res.string.map_planner_close))
+            Row(horizontalArrangement = Arrangement.spacedBy(TransitSpacing.Small)) {
+                // Swapping needs both points and clearing needs at least one, so the buttons appear only then.
+                if (planner.origin != null && planner.destination != null) {
+                    HeaderButton(SwapIcon, Res.string.map_planner_swap, onSwap, AutomationId.MapPlannerSwap)
+                }
+                if (planner.origin != null || planner.destination != null) {
+                    HeaderButton(TrashIcon, Res.string.map_planner_clear, onClear, AutomationId.MapPlannerClear)
+                }
+                HeaderButton(CloseIcon, Res.string.map_planner_close, onClose, AutomationId.MapPlannerClose)
             }
         }
         JourneyPlanSide.entries.forEach { side ->
@@ -145,6 +148,20 @@ internal fun JourneyPlannerPanel(
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
+    }
+}
+
+@Composable
+private fun HeaderButton(icon: ImageVector, label: StringResource, onClick: () -> Unit, testTag: String) {
+    FilledTonalIconButton(
+        onClick = onClick,
+        modifier = Modifier.size(44.dp).testTag(testTag),
+        colors = IconButtonDefaults.filledTonalIconButtonColors(
+            containerColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.06f),
+            contentColor = MaterialTheme.colorScheme.onSurface,
+        ),
+    ) {
+        Icon(icon, contentDescription = stringResource(label))
     }
 }
 
