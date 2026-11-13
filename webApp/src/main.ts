@@ -32,7 +32,6 @@ const view = createTransitView(root, {
   retryCities: () => runtime?.retryCities(),
   retryStartup: () => { void start(); },
   changeCity: () => runtime?.openCitySelection(),
-  selectStop: (id, revision) => activeMap?.bridge.selectStop(id, revision),
   retryNearby: () => activeMap?.bridge.retryNearby(),
   dismissArrivals: () => activeMap?.bridge.dismissArrivals(),
   retryArrivals: () => activeMap?.bridge.retryArrivals(),

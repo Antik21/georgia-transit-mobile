@@ -9,6 +9,7 @@ import {
 } from "./planner-map";
 import { drawStopCluster, drawStopPin } from "./stop-pin";
 import { drawVehicleBadge, systemTextScale, vehicleBadgeStyle, type VehicleBadgeStyle } from "./vehicle-badge";
+import { maxPulseMarkers, pulseFrame, pulsePaint, pulseTickMillis } from "./vehicle-pulse";
 
 // MapLibre's sibling-file lookup cannot discover an asset renamed by Vite.
 setWorkerUrl(new URL(mapWorkerUrl, import.meta.url).href);
@@ -35,14 +36,8 @@ const dimmedVehicleOpacity = 0.4;
 // Badge artwork points east; MapLibre's icon-rotate is clockwise from north.
 const eastwardArtworkBearing = 90;
 const minVehicleTarget = 48;
-// Pulse geometry and timing copied from the native adapters (PlatformMap.android.kt, MapLibreMapViewBridge.swift).
-const maxAttentionMarkers = 32;
-const attentionTickMillis = Math.ceil(1_000 / 15);
-const attentionCycleMillis = 1_600;
-const attentionMinRadius = 80 / 2 * 1.15 / 1.5 * 0.85;
-const attentionMaxRadius = 80 / 2 * 2 / 1.5 * 0.85;
-const attentionMinSizeOpacity = 0.5;
-const attentionMaxSizeOpacity = 0.1;
+// Fleet and planner halos share one clock, so every highlighted bus pulses in the same rhythm.
+const pulseLayerIds = [attentionLayerId, plannerBusLayerIds[0]];
 
 const localStyle: StyleSpecification = {
   version: 8,
@@ -95,7 +90,7 @@ function vehicleData(layer: VehicleLayer, imageIds: Map<string, string>, highlig
     .slice(0, maxVehicleMarkers);
   // A deterministic bounded subset, as on mobile, keeps the pulse cost independent of fleet size.
   const attention = new Set(vehicles.filter((vehicle) => vehicle.id && vehicle.routeId).map((vehicle) => vehicle.id)
-    .sort().slice(0, maxAttentionMarkers));
+    .sort().slice(0, maxPulseMarkers));
   return {
     type: "FeatureCollection" as const,
     attentionCount: attention.size,
@@ -248,6 +243,7 @@ export function createTransitMap(
   let textScale = systemTextScale();
   let mapVisible = true;
   let attentionCount = 0;
+  let plannerPulseCount = 0;
   let attentionTimer: ReturnType<typeof setTimeout> | undefined;
   const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
   let renderedStops: MapStopLayer | null | undefined;
@@ -418,11 +414,7 @@ export function createTransitMap(
         type: "circle",
         source: vehicleSourceId,
         filter: ["==", ["get", "attention"], true],
-        paint: {
-          "circle-color": ["to-color", ["get", "color"]],
-          "circle-radius": attentionMinRadius,
-          "circle-opacity": attentionMinSizeOpacity,
-        },
+        paint: pulsePaint(),
       });
       addLayerInOrder({
         id: vehicleLayerId,
@@ -450,18 +442,17 @@ export function createTransitMap(
   }
 
   function shouldAnimateAttention() {
-    return styleReady && mapVisible && attentionCount > 0 && !reducedMotion.matches;
+    return styleReady && mapVisible && attentionCount + plannerPulseCount > 0 && !reducedMotion.matches;
   }
 
-  // Without a progress value the ring stays static at its smallest, most opaque size (Reduce Motion, paused map).
   function renderAttentionFrame(now?: number) {
-    if (!styleReady || !map.getLayer(attentionLayerId)) return;
-    const phase = now == null ? 0 : (now % attentionCycleMillis) / attentionCycleMillis;
-    const progress = (1 - Math.cos(phase * Math.PI * 2)) / 2;
-    map.setPaintProperty(attentionLayerId, "circle-radius",
-      attentionMinRadius + (attentionMaxRadius - attentionMinRadius) * progress);
-    map.setPaintProperty(attentionLayerId, "circle-opacity",
-      attentionMinSizeOpacity - (attentionMinSizeOpacity - attentionMaxSizeOpacity) * progress);
+    if (!styleReady) return;
+    const { radius, opacity } = pulseFrame(now);
+    for (const id of pulseLayerIds) {
+      if (!map.getLayer(id)) continue;
+      map.setPaintProperty(id, "circle-radius", radius);
+      map.setPaintProperty(id, "circle-opacity", opacity);
+    }
   }
 
   function attentionTick() {
@@ -477,7 +468,7 @@ export function createTransitMap(
       return;
     }
     renderAttentionFrame(performance.now());
-    attentionTimer ??= setTimeout(attentionTick, attentionTickMillis);
+    attentionTimer ??= setTimeout(attentionTick, pulseTickMillis);
   }
   reducedMotion.addEventListener("change", refreshAttention);
   const planner = createPlannerMap(map, addLayerInOrder, actions, plannerLabels, reducedMotion);
@@ -663,6 +654,8 @@ export function createTransitMap(
 
   function updatePlanner(state: PlannerState) {
     planner.update(state);
+    plannerPulseCount = planner.busCount();
+    refreshAttention();
     const ids = new Set(state.buses.map((bus) => bus.id));
     if (ids.size === highlightedVehicles.size && [...ids].every((id) => highlightedVehicles.has(id))) return;
     highlightedVehicles = ids;
