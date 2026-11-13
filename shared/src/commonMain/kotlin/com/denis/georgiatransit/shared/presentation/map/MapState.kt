@@ -228,6 +228,7 @@ sealed interface Action {
 
 sealed interface SideEffect {
     data class HandleLocation(val command: LocationPlatformCommand) : SideEffect
+    data object ShowConnectionError : SideEffect
 }
 
 sealed interface NavigationEffect : SideEffect {

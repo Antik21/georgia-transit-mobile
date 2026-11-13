@@ -16,6 +16,7 @@ import com.denis.georgiatransit.shared.domain.model.TransitRoute
 import com.denis.georgiatransit.shared.domain.model.TransitShape
 import com.denis.georgiatransit.shared.domain.model.TransitStop
 import com.denis.georgiatransit.shared.domain.model.VehiclePage
+import com.denis.georgiatransit.shared.domain.repository.ConnectionErrorNotices
 import com.denis.georgiatransit.shared.domain.repository.TransitFailure
 import com.denis.georgiatransit.shared.domain.repository.TransitFreshness
 import com.denis.georgiatransit.shared.domain.repository.TransitLoadResult
@@ -83,6 +84,7 @@ class TransitBffClient(
     private val httpClient: HttpClient,
     private val endpoint: BffEndpointConfiguration?,
     private val retryDelay: ExponentialRetryDelay = ExponentialRetryDelay(),
+    private val connectionNotices: ConnectionErrorNotices? = null,
 ) {
     /** Checks configuration before cache use as well as before network I/O, so release fails closed. */
     fun configurationFailure(): TransitFailure.Configuration? = when {
@@ -210,10 +212,9 @@ class TransitBffClient(
         } catch (failure: CancellationException) {
             throw failure
         } catch (failure: Throwable) {
-            return TransitLoadResult.Failure(
-                if (failure.isTimeoutTransport()) TransitFailure.Timeout() else TransitFailure.Transport("BFF transport failed"),
-            )
+            return TransitLoadResult.Failure(failure.toTransportFailure())
         }
+        connectionNotices?.rearm()
         return decodeResponse<JourneyPageDto>(response).map(JourneyPageDto::toPlanDomain)
     }
 
@@ -262,6 +263,7 @@ class TransitBffClient(
                     delay(retryDelay.delayMillis(retryNumber, response.retryAfterSeconds()))
                     continue
                 }
+                connectionNotices?.rearm()
                 return RequestOutcome.Response(response)
             } catch (failure: CancellationException) {
                 throw failure
@@ -272,9 +274,7 @@ class TransitBffClient(
                     delay(retryDelay.delayMillis(retryNumber, null))
                     continue
                 }
-                return RequestOutcome.Failure(
-                    if (failure.isTimeoutTransport()) TransitFailure.Timeout() else TransitFailure.Transport("BFF transport failed"),
-                )
+                return RequestOutcome.Failure(failure.toTransportFailure())
             }
         }
     }
@@ -314,6 +314,11 @@ class TransitBffClient(
 
     private fun HttpResponse.retryAfterSeconds(): Int? =
         headers["Retry-After"]?.toIntOrNull()?.takeIf { it in 1..86_400 }
+
+    private fun Throwable.toTransportFailure(): TransitFailure {
+        connectionNotices?.onTransportFailure()
+        return if (isTimeoutTransport()) TransitFailure.Timeout() else TransitFailure.Transport("BFF transport failed")
+    }
 
     private fun Throwable.isRetryableTransport(): Boolean =
         this is HttpRequestTimeoutException || this is ConnectTimeoutException || this is SocketTimeoutException || this is IOException
