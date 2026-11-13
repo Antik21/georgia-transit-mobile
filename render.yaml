@@ -88,3 +88,24 @@ services:
       - path: /*
         name: Referrer-Policy
         value: strict-origin-when-cross-origin
+
+  - type: web
+    name: antik21-georgia-transit-landing
+    runtime: static
+    branch: main
+    buildCommand: test -f landing/index.html
+    staticPublishPath: landing
+    autoDeployTrigger: checksPass
+    buildFilter:
+      paths:
+        - landing/**
+    headers:
+      - path: /assets/*
+        name: Cache-Control
+        value: public, max-age=604800
+      - path: /*
+        name: X-Content-Type-Options
+        value: nosniff
+      - path: /*
+        name: Referrer-Policy
+        value: strict-origin-when-cross-origin
