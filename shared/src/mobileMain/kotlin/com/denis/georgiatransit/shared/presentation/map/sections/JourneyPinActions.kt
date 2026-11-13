@@ -1,5 +1,6 @@
 package com.denis.georgiatransit.shared.presentation.map.sections
 
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -7,6 +8,8 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
@@ -17,6 +20,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
@@ -51,21 +55,31 @@ internal fun JourneyPinPopup(
         content = {
             JourneyMapPickMarker()
             JourneyPinCard(onRouteFromHere = onRouteFromHere, onRouteHere = onRouteHere)
+            CardTail(pointsUp = true)
+            CardTail(pointsUp = false)
         },
     ) { measurables, constraints ->
         val loose = constraints.copy(minWidth = 0, minHeight = 0)
         val marker = measurables[0].measure(loose)
         val edge = TransitSpacing.Medium.roundToPx()
         val card = measurables[1].measure(loose.copy(maxWidth = (constraints.maxWidth - edge * 2).coerceAtLeast(0)))
+        val tailUp = measurables[2].measure(loose)
+        val tailDown = measurables[3].measure(loose)
         val x = anchor.x.dp.roundToPx()
         val y = anchor.y.dp.roundToPx()
-        val gap = CARD_GAP.roundToPx()
-        val below = y + gap
-        val cardY = if (below + card.height <= constraints.maxHeight - edge) below else y - PIN_HEIGHT.roundToPx() - gap - card.height
+        // The tail base tucks 1 px under the card so no seam shows between them.
+        val below = y + tailUp.height - 1
+        val fitsBelow = below + card.height <= constraints.maxHeight - edge
+        val cardY = if (fitsBelow) below else y - PIN_HEIGHT.roundToPx() - tailDown.height + 1 - card.height
         val cardX = (x - card.width / 2).coerceIn(edge, (constraints.maxWidth - card.width - edge).coerceAtLeast(edge))
         layout(constraints.maxWidth, constraints.maxHeight) {
             marker.place(x - marker.width / 2, y - marker.height / 2)
             card.place(cardX, cardY.coerceAtLeast(0))
+            if (fitsBelow) {
+                tailUp.place(x - tailUp.width / 2, y)
+            } else {
+                tailDown.place(x - tailDown.width / 2, cardY + card.height - 1)
+            }
         }
     }
 }
@@ -73,15 +87,15 @@ internal fun JourneyPinPopup(
 @Composable
 private fun JourneyPinCard(onRouteFromHere: () -> Unit, onRouteHere: () -> Unit) {
     Surface(
-        modifier = Modifier.widthIn(max = 340.dp).testTag(AutomationId.MapPlannerPin),
+        modifier = Modifier.width(CARD_WIDTH).testTag(AutomationId.MapPlannerPin),
         color = MaterialTheme.colorScheme.surface,
-        shape = RoundedCornerShape(20.dp),
+        shape = RoundedCornerShape(CARD_RADIUS),
         shadowElevation = TransitSpacing.Small,
     ) {
         Column(
-            modifier = Modifier.padding(TransitSpacing.Medium),
+            modifier = Modifier.padding(12.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(TransitSpacing.Medium),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             Text(
                 stringResource(Res.string.map_planner_build_route),
@@ -93,24 +107,47 @@ private fun JourneyPinCard(onRouteFromHere: () -> Unit, onRouteHere: () -> Unit)
             Row(horizontalArrangement = Arrangement.spacedBy(TransitSpacing.Small)) {
                 Button(
                     onClick = onRouteFromHere,
-                    modifier = Modifier.weight(1f).heightIn(min = 52.dp).testTag(AutomationId.MapPlannerRouteFromHere),
+                    modifier = Modifier.weight(1f).heightIn(min = 44.dp).testTag(AutomationId.MapPlannerRouteFromHere),
                     shape = TransitShapes.Large,
                     colors = ButtonDefaults.buttonColors(
                         containerColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.06f),
                         contentColor = MaterialTheme.colorScheme.onSurface,
                     ),
-                ) { Text(stringResource(Res.string.map_planner_from_here), fontWeight = FontWeight.Bold) }
+                ) { Text(stringResource(Res.string.map_planner_from_here), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold) }
                 Button(
                     onClick = onRouteHere,
-                    modifier = Modifier.weight(1f).heightIn(min = 52.dp).testTag(AutomationId.MapPlannerRouteHere),
+                    modifier = Modifier.weight(1f).heightIn(min = 44.dp).testTag(AutomationId.MapPlannerRouteHere),
                     shape = TransitShapes.Large,
-                ) { Text(stringResource(Res.string.map_planner_to_here), fontWeight = FontWeight.Bold) }
+                ) { Text(stringResource(Res.string.map_planner_to_here), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold) }
             }
         }
     }
 }
 
-private val CARD_GAP = 14.dp
+@Composable
+private fun CardTail(pointsUp: Boolean) {
+    val color = MaterialTheme.colorScheme.surface
+    Canvas(Modifier.size(TAIL_WIDTH, TAIL_HEIGHT)) {
+        val tail = Path().apply {
+            if (pointsUp) {
+                moveTo(size.width / 2f, 0f)
+                lineTo(size.width, size.height)
+                lineTo(0f, size.height)
+            } else {
+                moveTo(0f, 0f)
+                lineTo(size.width, 0f)
+                lineTo(size.width / 2f, size.height)
+            }
+            close()
+        }
+        drawPath(tail, color)
+    }
+}
+
+private val CARD_WIDTH = 264.dp
+private val CARD_RADIUS = 18.dp
+private val TAIL_WIDTH = 18.dp
+private val TAIL_HEIGHT = 10.dp
 private val PIN_HEIGHT = 56.dp
 
 @Preview
