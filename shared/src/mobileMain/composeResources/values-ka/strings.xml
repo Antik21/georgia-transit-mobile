@@ -136,6 +136,9 @@
     <string name="map_planner_title">მარშრუტი</string>
     <string name="map_planner_route_here">მარშრუტი აქამდე</string>
     <string name="map_planner_route_from_here">მარშრუტი აქედან</string>
+    <string name="map_planner_build_route">მარშრუტის აგება</string>
+    <string name="map_planner_from_here">აქედან</string>
+    <string name="map_planner_to_here">აქამდე</string>
     <string name="map_planner_close">მარშრუტის დახურვა</string>
     <string name="map_planner_dismiss_pin">წერტილის დამალვა</string>
     <string name="map_planner_origin">საიდან</string>

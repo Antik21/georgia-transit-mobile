@@ -136,6 +136,9 @@
     <string name="map_planner_title">Route</string>
     <string name="map_planner_route_here">Route here</string>
     <string name="map_planner_route_from_here">Route from here</string>
+    <string name="map_planner_build_route">Plan a route</string>
+    <string name="map_planner_from_here">From here</string>
+    <string name="map_planner_to_here">To here</string>
     <string name="map_planner_close">Close route</string>
     <string name="map_planner_dismiss_pin">Hide point</string>
     <string name="map_planner_origin">From</string>

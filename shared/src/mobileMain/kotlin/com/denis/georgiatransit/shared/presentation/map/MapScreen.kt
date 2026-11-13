@@ -32,7 +32,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.intl.Locale
 import androidx.compose.ui.tooling.preview.Preview
-import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
@@ -51,7 +50,7 @@ import com.denis.georgiatransit.shared.presentation.map.sections.CityAttribution
 import com.denis.georgiatransit.shared.presentation.map.sections.JourneyMapPickMarker
 import com.denis.georgiatransit.shared.presentation.map.sections.JourneyMapPickPanel
 import com.denis.georgiatransit.shared.presentation.map.sections.JourneyMapPickTopBar
-import com.denis.georgiatransit.shared.presentation.map.sections.JourneyPinActions
+import com.denis.georgiatransit.shared.presentation.map.sections.JourneyPinPopup
 import com.denis.georgiatransit.shared.presentation.map.sections.JourneyPlannerPanel
 import com.denis.georgiatransit.shared.presentation.map.sections.MapCanvas
 import com.denis.georgiatransit.shared.presentation.map.sections.MapContentPlaceholder
@@ -200,6 +199,8 @@ private fun MapArea(
     modifier: Modifier = Modifier,
 ) {
     val planner = state.journeyPlanner
+    var pinAnchor by remember { mutableStateOf<MapScreenPoint?>(null) }
+    val hasPin by rememberUpdatedState(planner.pin != null)
     Box(modifier = modifier) {
         state.renderState?.let { sessionRenderState ->
             val renderState = remember(sessionRenderState, planner) { sessionRenderState.withJourneyPlanner(planner) }
@@ -217,8 +218,17 @@ private fun MapArea(
                 onMyLocationClick = { onAction(Action.MyLocationClicked) },
                 onMapEvent = { event ->
                     when (event) {
-                        MapPlatformEvent.CameraMoveStarted -> onCenterSettled(null)
+                        MapPlatformEvent.CameraMoveStarted -> {
+                            onCenterSettled(null)
+                            // The card is pinned to screen coordinates, so it cannot follow a moving map.
+                            if (hasPin) onAction(JourneyPlannerAction.DismissPin)
+                        }
                         is MapPlatformEvent.ViewportSettled -> onCenterSettled(event.viewport.center)
+                        is MapPlatformEvent.MapTapped -> {
+                            pinAnchor = event.screen
+                            onAction(JourneyPlannerAction.TapMap(event.point))
+                        }
+                        is MapPlatformEvent.MapLongPressed -> pinAnchor = event.screen
                         else -> Unit
                     }
                     onAction(Action.MapEventReceived(event))
@@ -240,17 +250,15 @@ private fun MapArea(
                     .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal))
                     .padding(TransitSpacing.Medium),
             )
-        } else if (planner.pin != null) {
-            JourneyPinActions(
-                onRouteHere = { onAction(JourneyPlannerAction.RouteHere) },
-                onRouteFromHere = { onAction(JourneyPlannerAction.RouteFromHere) },
-                onDismiss = { onAction(JourneyPlannerAction.DismissPin) },
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal))
-                    // Clears the my-location button and the attribution in the bottom-right corner.
-                    .padding(start = TransitSpacing.Medium, end = TransitSpacing.Medium, bottom = PIN_ACTIONS_BOTTOM_OFFSET),
-            )
+        } else {
+            val anchor = pinAnchor
+            if (planner.pin != null && anchor != null) {
+                JourneyPinPopup(
+                    anchor = anchor,
+                    onRouteFromHere = { onAction(JourneyPlannerAction.RouteFromHere) },
+                    onRouteHere = { onAction(JourneyPlannerAction.RouteHere) },
+                )
+            }
         }
     }
 }
@@ -324,7 +332,6 @@ private fun JourneyPlanSide.myLocationAction(): JourneyPlannerAction = when (thi
 }
 
 private const val PLANNER_PANEL_HEIGHT_FRACTION = 0.55f
-private val PIN_ACTIONS_BOTTOM_OFFSET = TransitSpacing.ExtraLarge + TransitSpacing.Medium * 2 + 48.dp
 
 private fun String.toTransitLocale(): TransitLocale = when (this) {
     "ka" -> TransitLocale.Georgian

@@ -56,13 +56,19 @@ data class MapViewport(
     val zoom: Double,
 )
 
+/** Where an input landed inside the map view, in dp (points on iOS), for anchoring Compose UI to it. */
+@Immutable
+data class MapScreenPoint(val x: Float, val y: Float)
+
 /** Native map input is reduced to product-level viewport and revision-bound entity interactions. */
 sealed interface MapPlatformEvent {
     data class ViewportSettled(val viewport: MapViewport) : MapPlatformEvent
     data class StopTapped(val stopId: StopId, val sourceRevision: Long) : MapPlatformEvent
     data class VehicleTapped(val vehicleId: VehicleId, val sourceRevision: Long) : MapPlatformEvent
     /** A press-and-hold on empty map; touch adapters require ~500 ms without movement. */
-    data class MapLongPressed(val point: GeoPoint) : MapPlatformEvent
+    data class MapLongPressed(val point: GeoPoint, val screen: MapScreenPoint? = null) : MapPlatformEvent
+    /** A single tap that hit no stop or vehicle. */
+    data class MapTapped(val point: GeoPoint, val screen: MapScreenPoint) : MapPlatformEvent
     /** Any camera motion begins; the next [ViewportSettled] ends it. */
     data object CameraMoveStarted : MapPlatformEvent
 }

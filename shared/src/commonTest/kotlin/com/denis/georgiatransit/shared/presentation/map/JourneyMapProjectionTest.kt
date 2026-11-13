@@ -22,12 +22,8 @@ class JourneyMapProjectionTest {
     }
 
     @Test
-    fun pinAloneAddsAnOverlayAndKeepsSessionVehicles() {
-        val projected = base.withJourneyPlanner(JourneyPlannerUi(pin = pin))
-
-        assertEquals(MapJourneyOverlay(pin = pin), projected.journey)
-        assertEquals(base.vehicles, projected.vehicles)
-        assertEquals(base.vehicleSourceRevision, projected.vehicleSourceRevision)
+    fun pinAloneIsLeftToComposeAndKeepsTheSessionRender() {
+        assertSame(base, base.withJourneyPlanner(JourneyPlannerUi(pin = pin)))
     }
 
     @Test

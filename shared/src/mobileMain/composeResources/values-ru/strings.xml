@@ -136,6 +136,9 @@
     <string name="map_planner_title">Маршрут</string>
     <string name="map_planner_route_here">Маршрут сюда</string>
     <string name="map_planner_route_from_here">Маршрут отсюда</string>
+    <string name="map_planner_build_route">Построить маршрут</string>
+    <string name="map_planner_from_here">Отсюда</string>
+    <string name="map_planner_to_here">Сюда</string>
     <string name="map_planner_close">Закрыть маршрут</string>
     <string name="map_planner_dismiss_pin">Скрыть точку</string>
     <string name="map_planner_origin">Откуда</string>

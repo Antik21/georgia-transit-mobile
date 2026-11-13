@@ -10,12 +10,11 @@ import kotlinx.collections.immutable.toPersistentList
  */
 internal fun MapRenderState.withJourneyPlanner(planner: JourneyPlannerUi): MapRenderState {
     val render = planner.render
-    if (render == JourneyPlanRenderUi() && planner.pin == null) return this
+    if (render == JourneyPlanRenderUi()) return this
     val overlay = MapJourneyOverlay(
         lines = render.lines,
         origin = render.origin,
         destination = render.destination,
-        pin = planner.pin,
         fitRevision = planner.cameraFitRevision,
         fitSuspended = planner.mapPick != null,
     )

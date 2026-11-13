@@ -85,6 +85,11 @@ private final class LocalMapLibreView: UIView, MLNMapViewDelegate {
         addSubview(mapView)
         let tapRecognizer = UITapGestureRecognizer(target: self, action: #selector(handleMapTap(_:)))
         tapRecognizer.cancelsTouchesInView = false
+        // A double-tap zoom must not drop a route pin on its first tap.
+        mapView.gestureRecognizers?
+            .compactMap { $0 as? UITapGestureRecognizer }
+            .filter { $0.numberOfTapsRequired == 2 }
+            .forEach { tapRecognizer.require(toFail: $0) }
         mapView.addGestureRecognizer(tapRecognizer)
         let longPressRecognizer = UILongPressGestureRecognizer(target: self, action: #selector(handleMapLongPress(_:)))
         longPressRecognizer.minimumPressDuration = 0.5
@@ -525,14 +530,25 @@ private final class LocalMapLibreView: UIView, MLNMapViewDelegate {
         )
         if let vehicle = entityFeature(in: hitRect, layerID: Self.vehiclesLayerID, kind: Self.vehicleFeatureKind) {
             _ = onMapEvent(MapPlatformEventVehicleTapped(vehicleId: vehicle.id, sourceRevision: vehicle.sourceRevision))
+            return
         }
+        let coordinate = mapView.convert(point, toCoordinateFrom: mapView)
+        guard CLLocationCoordinate2DIsValid(coordinate) else { return }
+        _ = onMapEvent(MapPlatformEventMapTapped(
+            point: GeoPoint(latitude: coordinate.latitude, longitude: coordinate.longitude),
+            screen: MapScreenPoint(x: Float(point.x), y: Float(point.y))
+        ))
     }
 
     @objc private func handleMapLongPress(_ recognizer: UILongPressGestureRecognizer) {
         guard recognizer.state == .began else { return }
-        let coordinate = mapView.convert(recognizer.location(in: mapView), toCoordinateFrom: mapView)
+        let location = recognizer.location(in: mapView)
+        let coordinate = mapView.convert(location, toCoordinateFrom: mapView)
         guard CLLocationCoordinate2DIsValid(coordinate) else { return }
-        _ = onMapEvent(MapPlatformEventMapLongPressed(point: GeoPoint(latitude: coordinate.latitude, longitude: coordinate.longitude)))
+        _ = onMapEvent(MapPlatformEventMapLongPressed(
+            point: GeoPoint(latitude: coordinate.latitude, longitude: coordinate.longitude),
+            screen: MapScreenPoint(x: Float(location.x), y: Float(location.y))
+        ))
     }
 
     private func entityFeature(in rect: CGRect, layerID: String, kind: String) -> (id: String, sourceRevision: Int64)? {

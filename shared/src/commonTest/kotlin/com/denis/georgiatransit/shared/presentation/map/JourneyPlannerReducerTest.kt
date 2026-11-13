@@ -78,6 +78,22 @@ class JourneyPlannerReducerTest {
     }
 
     @Test
+    fun tappingEmptyMapTogglesThePinOnlyWhileThePlannerIsClosed() {
+        val dropped = JourneyPlannerReducer.action(JourneyPlannerUi(), JourneyPlannerAction.TapMap(B), context())
+        val cleared = JourneyPlannerReducer.action(dropped.state, JourneyPlannerAction.TapMap(A), context())
+        val open = JourneyPlannerUi(isOpen = true, origin = JourneyEndpoint.MapPoint(A), status = Status.PickingPoint(JourneyPlanSide.Destination))
+        val ignored = JourneyPlannerReducer.action(open, JourneyPlannerAction.TapMap(B), context())
+        val unavailable = JourneyPlannerReducer.action(JourneyPlannerUi(), JourneyPlannerAction.TapMap(B), context(tripPlanning = false))
+
+        assertEquals(B, dropped.state.pin)
+        assertNull(dropped.query)
+        assertNull(cleared.state.pin, "A second tap hides the pin instead of moving it")
+        assertNull(ignored.state.pin)
+        assertNull(ignored.state.destination, "Inside the planner a tap must not set an endpoint")
+        assertNull(unavailable.state.pin)
+    }
+
+    @Test
     fun confirmingTheCentredMarkerSetsThatSideAndPlans() {
         val open = JourneyPlannerUi(isOpen = true, pin = A, destination = JourneyEndpoint.MapPoint(B),
             status = Status.PickingPoint(JourneyPlanSide.Origin))

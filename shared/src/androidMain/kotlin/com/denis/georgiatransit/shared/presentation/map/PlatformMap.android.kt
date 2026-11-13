@@ -221,7 +221,7 @@ private class LocalMapController(
     private val mapClickListener = MapLibreMap.OnMapClickListener { point -> onMapClick(point) }
     private val mapLongClickListener = MapLibreMap.OnMapLongClickListener { point ->
         val wrapped = point.wrap()
-        onEvent(MapPlatformEvent.MapLongPressed(GeoPoint(wrapped.latitude, wrapped.longitude)))
+        onEvent(MapPlatformEvent.MapLongPressed(GeoPoint(wrapped.latitude, wrapped.longitude), screenPointOf(point)))
         true
     }
     private val journeyLayers = JourneyMapLayers(mapView.resources.displayMetrics)
@@ -585,7 +585,16 @@ private class LocalMapController(
             onEvent(MapPlatformEvent.VehicleTapped(VehicleId(feature.first), feature.second))
             return true
         }
-        return false
+        val wrapped = point.wrap()
+        val screen = screenPointOf(point) ?: return false
+        onEvent(MapPlatformEvent.MapTapped(GeoPoint(wrapped.latitude, wrapped.longitude), screen))
+        return true
+    }
+
+    private fun screenPointOf(point: LatLng): MapScreenPoint? {
+        val screen = map?.projection?.toScreenLocation(point) ?: return null
+        val density = mapView.resources.displayMetrics.density
+        return MapScreenPoint(screen.x / density, screen.y / density)
     }
 
     private fun findEntityFeature(
