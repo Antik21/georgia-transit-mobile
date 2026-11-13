@@ -79,10 +79,17 @@ private class LocalMapController(
         vehicleBadges.updateLabelOrientation(styleLoader.style, map?.cameraPosition?.bearing)
     }
     private val mapClickListener = MapLibreMap.OnMapClickListener { point ->
-        val event = map?.hitTestEntity(point, mapView.resources.displayMetrics.density)
-        event?.let(onEvent)
-        event != null
+        val currentMap = map ?: return@OnMapClickListener false
+        val density = mapView.resources.displayMetrics.density
+        onEvent(currentMap.hitTestEntity(point, density) ?: currentMap.emptyMapTap(point, density))
+        true
     }
+    private val mapLongClickListener = MapLibreMap.OnMapLongClickListener { point ->
+        val currentMap = map ?: return@OnMapLongClickListener false
+        onEvent(currentMap.longPress(point, mapView.resources.displayMetrics.density))
+        true
+    }
+    private val journeyLayers = JourneyMapLayers(mapView.resources.displayMetrics)
 
     init {
         mapView.getMapAsync { mapLibreMap ->
@@ -93,6 +100,7 @@ private class LocalMapController(
             camera.attach(mapLibreMap)
             mapLibreMap.addOnCameraMoveListener(cameraMoveListener)
             mapLibreMap.addOnMapClickListener(mapClickListener)
+            mapLibreMap.addOnMapLongClickListener(mapLongClickListener)
             styleLoader.attach(mapLibreMap)
         }
     }
@@ -113,6 +121,7 @@ private class LocalMapController(
         destroyed = true
         map?.removeOnCameraMoveListener(cameraMoveListener)
         map?.removeOnMapClickListener(mapClickListener)
+        map?.removeOnMapLongClickListener(mapLongClickListener)
         camera.destroy()
         styleLoader.destroy()
         map = null
@@ -138,12 +147,15 @@ private class LocalMapController(
                 vehicleLayer = vehicleBadges.layer(map?.cameraPosition?.bearing ?: 0.0),
                 attentionLayer = attentionPulse.layer(),
             )
+            journeyLayers.install(loadedStyle, belowLayerId = ATTENTION_LAYER_ID)
             layersInstalled = true
         }
         overlaySources.render(loadedStyle, renderState)
         vehicleBadges.render(loadedStyle, renderState)
         attentionPulse.render(loadedStyle, renderState)
+        journeyLayers.render(loadedStyle, renderState.journey)
         camera.applyIfNeeded(renderState.camera)
+        map?.let { journeyLayers.fitIfNeeded(it, renderState.journey, mapView) }
         camera.applyZoomStep(renderState.zoomStep)
         attentionPulse.refresh()
     }
@@ -155,5 +167,6 @@ private class LocalMapController(
         overlaySources.clear()
         vehicleBadges.clear()
         attentionPulse.clear()
+        journeyLayers.clearRendered()
     }
 }

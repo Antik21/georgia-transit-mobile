@@ -1,18 +1,29 @@
 package com.denis.georgiatransit.shared.presentation.map
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.EnterExitState
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.material3.Button
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -31,6 +42,13 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.navigationevent.NavigationEventInfo
+import androidx.navigationevent.compose.NavigationBackHandler
+import androidx.navigationevent.compose.rememberNavigationEventState
+import com.denis.georgiatransit.shared.domain.model.GeoPoint
+import com.denis.georgiatransit.shared.domain.model.JourneyEndpoint
+import com.denis.georgiatransit.shared.domain.model.RouteId
+import com.denis.georgiatransit.shared.domain.model.TransitAttribution
 import com.denis.georgiatransit.shared.domain.model.TransitLocale
 import com.denis.georgiatransit.shared.presentation.location.LocationFailure
 import com.denis.georgiatransit.shared.presentation.location.LocationPermissionState
@@ -38,6 +56,11 @@ import com.denis.georgiatransit.shared.presentation.location.LocationPlatformCom
 import com.denis.georgiatransit.shared.presentation.location.LocationState
 import com.denis.georgiatransit.shared.presentation.location.PlatformLocationEffect
 import com.denis.georgiatransit.shared.presentation.map.sections.CityAttribution
+import com.denis.georgiatransit.shared.presentation.map.sections.JourneyMapPickMarker
+import com.denis.georgiatransit.shared.presentation.map.sections.JourneyMapPickPanel
+import com.denis.georgiatransit.shared.presentation.map.sections.JourneyMapPickTopBar
+import com.denis.georgiatransit.shared.presentation.map.sections.JourneyPinPopup
+import com.denis.georgiatransit.shared.presentation.map.sections.JourneyPlannerPanel
 import com.denis.georgiatransit.shared.presentation.map.sections.MapCanvas
 import com.denis.georgiatransit.shared.presentation.map.sections.MapConnectionToast
 import com.denis.georgiatransit.shared.presentation.map.sections.MapContentPlaceholder
@@ -102,10 +125,50 @@ fun MapScreen(viewModel: MapViewModel, handleNavigation: suspend (NavigationEffe
 
 @Composable
 private fun Content(state: ViewState, connectionNoticeId: Int, onAction: (Action) -> Unit) {
-    Box(modifier = Modifier.fillMaxSize().testTag(AutomationId.MapScreen)) {
+    val planner = state.journeyPlanner
+    val mapPick = planner.mapPick
+    NavigationBackHandler(
+        state = rememberNavigationEventState(NavigationEventInfo.None),
+        isBackEnabled = planner.isOpen || planner.pin != null,
+        onBackCompleted = {
+            onAction(
+                when {
+                    mapPick != null -> JourneyPlannerAction.CancelMapPick
+                    planner.pin != null -> JourneyPlannerAction.DismissPin
+                    else -> JourneyPlannerAction.ClosePlanner
+                },
+            )
+        },
+    )
+    // The camera target is only reported once the map settles; null while it moves, so a fling cannot confirm a stale point.
+    var mapCenter by remember { mutableStateOf<GeoPoint?>(null) }
+    // Re-keyed on endpoint changes so a choice collapses its block and opens the missing one; taps toggle in between.
+    var expandedSide by remember(planner.origin, planner.destination) {
+        mutableStateOf(journeyExpandedSideFor(planner.origin, planner.destination))
+    }
+    BoxWithConstraints(modifier = Modifier.fillMaxSize().testTag(AutomationId.MapScreen)) {
+        val panelMaxHeight = maxHeight * PLANNER_PANEL_HEIGHT_FRACTION
         Column(modifier = Modifier.fillMaxSize()) {
+            val renderState = remember(state.renderState, planner) { state.renderState?.withJourneyPlanner(planner) }
             Box(modifier = Modifier.fillMaxWidth().weight(1f)) {
-                MapArea(state = state, onAction = onAction)
+                MapArea(
+                    renderState = renderState,
+                    baseLayerState = state.baseLayerState,
+                    location = state.location,
+                    isMapPicking = mapPick != null,
+                    hasPin = planner.pin != null,
+                    pinOnlySide = planner.missingSide(),
+                    onMapEvent = { onAction(Action.MapEventReceived(it)) },
+                    onMyLocationClick = { onAction(Action.MyLocationClicked) },
+                    onZoomClick = { onAction(Action.ZoomClicked(it)) },
+                    onCenterSettled = { mapCenter = it },
+                    onTapMap = { point -> onAction(JourneyPlannerAction.TapMap(point)) },
+                    onDismissPin = { onAction(JourneyPlannerAction.DismissPin) },
+                    onRouteFromHere = { onAction(JourneyPlannerAction.RouteFromHere) },
+                    onRouteHere = { onAction(JourneyPlannerAction.RouteHere) },
+                    onCancelMapPick = { onAction(JourneyPlannerAction.CancelMapPick) },
+                    modifier = Modifier.fillMaxSize(),
+                )
                 MapConnectionToast(
                     noticeId = connectionNoticeId,
                     // Clears the MapLibre logo and OSM attribution along the bottom edge.
@@ -114,41 +177,55 @@ private fun Content(state: ViewState, connectionNoticeId: Int, onAction: (Action
                         .padding(bottom = TransitSpacing.ExtraLarge + TransitSpacing.Medium),
                 )
             }
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .windowInsetsPadding(
-                        WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal + WindowInsetsSides.Bottom),
-                    )
-                    .padding(TransitSpacing.Medium),
-            ) {
-                VehicleAccessibility(
-                    layerState = state.vehicleLayerState,
-                    routes = state.vehicleRoutes,
+            val bottomModifier = Modifier
+                .fillMaxWidth()
+                .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal + WindowInsetsSides.Bottom))
+            if (mapPick != null) {
+                JourneyMapPickPanel(
+                    side = mapPick,
+                    canConfirm = mapCenter != null,
+                    onConfirm = { mapCenter?.let { onAction(JourneyPlannerAction.ConfirmMapPick(it)) } },
+                    modifier = Modifier
+                        .background(MaterialTheme.colorScheme.surface)
+                        .then(bottomModifier)
+                        .padding(TransitSpacing.Medium),
                 )
-                Column(verticalArrangement = Arrangement.spacedBy(TransitSpacing.Small)) {
-                    RouteGeometryLegend(
-                        routes = state.routeGeometryLegends,
-                        onFocus = { routeId -> onAction(Action.RouteGeometryFocused(routeId)) },
-                        onRetry = { routeId -> onAction(Action.RetryRouteGeometry(routeId)) },
-                        onRemove = { routeId -> onAction(Action.RemoveRouteGeometry(routeId)) },
-                    )
-                    Row(horizontalArrangement = Arrangement.spacedBy(TransitSpacing.Small)) {
-                        if (state.canChangeCity) {
-                            OutlinedButton(
-                                onClick = { onAction(Action.ChangeCityClicked) },
-                                modifier = Modifier.weight(1f).testTag(AutomationId.MapChangeCity),
-                            ) { Text(stringResource(Res.string.map_change_city_action)) }
-                        }
-                        if (state.routesAvailable) {
-                            Button(
-                                onClick = { onAction(Action.RoutesClicked) },
-                                modifier = Modifier.weight(1f).testTag(AutomationId.MapRoutes),
-                            ) { Text(stringResource(Res.string.map_routes_action)) }
-                        }
-                    }
-                    CityAttribution(state.attribution)
-                }
+            } else if (planner.isOpen) {
+                JourneyPlannerPanel(
+                    planner = planner,
+                    expandedSide = expandedSide,
+                    onToggleSide = { side -> expandedSide = side.takeIf { it != expandedSide } },
+                    onClose = { onAction(JourneyPlannerAction.ClosePlanner) },
+                    onPickPoint = { side -> onAction(JourneyPlannerAction.StartMapPick(side)) },
+                    onUseMyLocation = { side ->
+                        if (side.endpointIn(planner) == JourneyEndpoint.CurrentLocation) expandedSide = null
+                        onAction(side.myLocationAction())
+                    },
+                    onSwap = { onAction(JourneyPlannerAction.Swap) },
+                    onClear = { onAction(JourneyPlannerAction.Clear) },
+                    onSelectOption = { id -> onAction(JourneyPlannerAction.SelectOption(id)) },
+                    onRetry = { onAction(JourneyPlannerAction.Retry) },
+                    modifier = Modifier
+                        .heightIn(max = panelMaxHeight)
+                        .background(MaterialTheme.colorScheme.surface)
+                        .then(bottomModifier)
+                        .padding(horizontal = TransitSpacing.Medium, vertical = TransitSpacing.Small),
+                )
+            } else {
+                MapControls(
+                    vehicleLayerState = state.vehicleLayerState,
+                    vehicleRoutes = state.vehicleRoutes,
+                    routeGeometryLegends = state.routeGeometryLegends,
+                    canChangeCity = state.canChangeCity,
+                    routesAvailable = state.routesAvailable,
+                    attribution = state.attribution,
+                    onFocusRoute = { routeId -> onAction(Action.RouteGeometryFocused(routeId)) },
+                    onRetryRoute = { routeId -> onAction(Action.RetryRouteGeometry(routeId)) },
+                    onRemoveRoute = { routeId -> onAction(Action.RemoveRouteGeometry(routeId)) },
+                    onChangeCity = { onAction(Action.ChangeCityClicked) },
+                    onRoutes = { onAction(Action.RoutesClicked) },
+                    modifier = bottomModifier.padding(TransitSpacing.Medium),
+                )
             }
         }
         state.stopArrivalsSheet?.let { sheet ->
@@ -161,26 +238,130 @@ private fun Content(state: ViewState, connectionNoticeId: Int, onAction: (Action
     }
 }
 
+/** The native map with the planner overlays drawn above it: the centred pick marker or the tapped pin card. */
 @Composable
-private fun MapArea(state: ViewState, onAction: (Action) -> Unit) {
-    val modifier = Modifier.fillMaxSize()
-    state.renderState?.let { renderState ->
-        MapCanvas(
-            renderState = renderState,
-            baseLayerState = state.baseLayerState,
-            locationActionLabel = locationActionLabel(state.location),
-            locationActionAutomationId = if (state.location.permission == LocationPermissionState.SettingsRequired) {
-                AutomationId.MapLocationSettings
-            } else {
-                AutomationId.MapMyLocation
-            },
-            locationActionEnabled = locationActionEnabled(state.location.permission) && !state.location.isLocating,
-            onMyLocationClick = { onAction(Action.MyLocationClicked) },
-            onZoomClick = { onAction(Action.ZoomClicked(it)) },
-            onMapEvent = { onAction(Action.MapEventReceived(it)) },
-            modifier = modifier,
-        )
-    } ?: MapContentPlaceholder(baseLayerState = state.baseLayerState, modifier = modifier)
+private fun MapArea(
+    renderState: MapRenderState?,
+    baseLayerState: MapBaseLayerState,
+    location: LocationState,
+    isMapPicking: Boolean,
+    hasPin: Boolean,
+    pinOnlySide: JourneyPlanSide?,
+    onMapEvent: (MapPlatformEvent) -> Unit,
+    onMyLocationClick: () -> Unit,
+    onZoomClick: (MapZoomDirection) -> Unit,
+    onCenterSettled: (GeoPoint?) -> Unit,
+    onTapMap: (GeoPoint) -> Unit,
+    onDismissPin: () -> Unit,
+    onRouteFromHere: () -> Unit,
+    onRouteHere: () -> Unit,
+    onCancelMapPick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    var pinAnchor by remember { mutableStateOf<MapScreenPoint?>(null) }
+    val currentHasPin by rememberUpdatedState(hasPin)
+    Box(modifier = modifier) {
+        renderState?.let {
+            MapCanvas(
+                renderState = it,
+                baseLayerState = baseLayerState,
+                locationActionLabel = locationActionLabel(location),
+                locationActionAutomationId = if (location.permission == LocationPermissionState.SettingsRequired) {
+                    AutomationId.MapLocationSettings
+                } else {
+                    AutomationId.MapMyLocation
+                },
+                locationActionEnabled = locationActionEnabled(location.permission) && !location.isLocating,
+                onMyLocationClick = onMyLocationClick,
+                onZoomClick = onZoomClick,
+                onMapEvent = { event ->
+                    when (event) {
+                        MapPlatformEvent.CameraMoveStarted -> {
+                            onCenterSettled(null)
+                            // The card is pinned to screen coordinates, so it cannot follow a moving map.
+                            if (currentHasPin) onDismissPin()
+                        }
+                        is MapPlatformEvent.ViewportSettled -> onCenterSettled(event.viewport.center)
+                        is MapPlatformEvent.MapTapped -> {
+                            pinAnchor = event.screen
+                            onTapMap(event.point)
+                        }
+                        is MapPlatformEvent.MapLongPressed -> pinAnchor = event.screen
+                        else -> Unit
+                    }
+                    onMapEvent(event)
+                },
+                modifier = Modifier.fillMaxSize(),
+            )
+        } ?: MapContentPlaceholder(baseLayerState = baseLayerState, modifier = Modifier.fillMaxSize())
+        if (isMapPicking) {
+            JourneyMapPickMarker(modifier = Modifier.align(Alignment.Center))
+            JourneyMapPickTopBar(
+                onBack = onCancelMapPick,
+                modifier = Modifier
+                    .align(Alignment.TopStart)
+                    .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal))
+                    .padding(TransitSpacing.Medium),
+            )
+        } else {
+            val visible = hasPin && pinAnchor != null
+            // The dismissing tap already moved pinAnchor, so the fade-out keeps the anchor it appeared at.
+            val shownAnchor = remember { arrayOfNulls<MapScreenPoint>(1) }
+            if (visible) shownAnchor[0] = pinAnchor
+            AnimatedVisibility(visible = visible, enter = fadeIn(tween(PIN_FADE_MILLIS)), exit = fadeOut(tween(PIN_FADE_MILLIS))) {
+                val cardScale by transition.animateFloat(
+                    transitionSpec = { tween(PIN_SCALE_MILLIS, easing = FastOutSlowInEasing) },
+                ) { if (it == EnterExitState.Visible) 1f else PIN_CARD_START_SCALE }
+                shownAnchor[0]?.let { anchor ->
+                    JourneyPinPopup(
+                        anchor = anchor,
+                        onlySide = pinOnlySide,
+                        onRouteFromHere = onRouteFromHere,
+                        onRouteHere = onRouteHere,
+                        cardScale = { cardScale },
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun MapControls(
+    vehicleLayerState: VehicleLayerState,
+    vehicleRoutes: List<VehicleRouteAccessibilityUi>,
+    routeGeometryLegends: List<RouteGeometryLegendUi>,
+    canChangeCity: Boolean,
+    routesAvailable: Boolean,
+    attribution: List<TransitAttribution>,
+    onFocusRoute: (RouteId) -> Unit,
+    onRetryRoute: (RouteId) -> Unit,
+    onRemoveRoute: (RouteId) -> Unit,
+    onChangeCity: () -> Unit,
+    onRoutes: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Box(modifier = modifier) {
+        VehicleAccessibility(layerState = vehicleLayerState, routes = vehicleRoutes)
+        Column(verticalArrangement = Arrangement.spacedBy(TransitSpacing.Small)) {
+            RouteGeometryLegend(routes = routeGeometryLegends, onFocus = onFocusRoute, onRetry = onRetryRoute, onRemove = onRemoveRoute)
+            Row(horizontalArrangement = Arrangement.spacedBy(TransitSpacing.Small)) {
+                if (canChangeCity) {
+                    OutlinedButton(
+                        onClick = onChangeCity,
+                        modifier = Modifier.weight(1f).testTag(AutomationId.MapChangeCity),
+                    ) { Text(stringResource(Res.string.map_change_city_action)) }
+                }
+                if (routesAvailable) {
+                    Button(
+                        onClick = onRoutes,
+                        modifier = Modifier.weight(1f).testTag(AutomationId.MapRoutes),
+                    ) { Text(stringResource(Res.string.map_routes_action)) }
+                }
+            }
+            CityAttribution(attribution)
+        }
+    }
 }
 
 /** Common navigation/composition visibility plus the host lifecycle is the realtime ownership gate. */
@@ -209,6 +390,22 @@ private fun MapRealtimeVisibilityEffect(onVisibilityChanged: (Boolean) -> Unit) 
         }
     }
 }
+
+/** Inside the planner with one endpoint set, a dropped pin can only fill the other one. */
+private fun JourneyPlannerUi.missingSide(): JourneyPlanSide? = if (isOpen) journeyExpandedSideFor(origin, destination) else null
+
+private fun JourneyPlanSide.endpointIn(planner: JourneyPlannerUi) =
+    if (this == JourneyPlanSide.Origin) planner.origin else planner.destination
+
+private fun JourneyPlanSide.myLocationAction(): JourneyPlannerAction = when (this) {
+    JourneyPlanSide.Origin -> JourneyPlannerAction.SetOriginToMyLocation
+    JourneyPlanSide.Destination -> JourneyPlannerAction.SetDestinationToMyLocation
+}
+
+private const val PLANNER_PANEL_HEIGHT_FRACTION = 0.55f
+private const val PIN_FADE_MILLIS = 180
+private const val PIN_SCALE_MILLIS = 220
+private const val PIN_CARD_START_SCALE = 0.8f
 
 private fun String.toTransitLocale(): TransitLocale = when (this) {
     "ka" -> TransitLocale.Georgian

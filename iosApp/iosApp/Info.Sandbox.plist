@@ -30,7 +30,7 @@
 	<key>NSLocalNetworkUsageDescription</key>
 	<string>Geo Transit Sandbox connects to a Transit BFF running on your development network.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>Geo Transit uses your location to center the map and show nearby stops.</string>
+	<string>Geo Transit uses your location to center the map and show nearby stops. If you choose My location for a route, an approximate location is sent to the Geo Transit server to plan it.</string>
 	<key>UILaunchScreen</key>
 	<dict>
 		<key>UIColorName</key>

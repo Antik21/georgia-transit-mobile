@@ -10,6 +10,7 @@
 		0A0000010000000000000001 /* GeorgiaTransitApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A0000110000000000000001 /* GeorgiaTransitApp.swift */; };
 		0A0000010000000000000002 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A0000110000000000000002 /* ContentView.swift */; };
 		0A0000010000000000000003 /* MapLibreMapViewBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A0000110000000000000004 /* MapLibreMapViewBridge.swift */; };
+		0A000001000000000000AB01 /* MapLibreJourneyLayers.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A000011000000000000AB02 /* MapLibreJourneyLayers.swift */; };
 		0A0000010000000000000004 /* MapLibrePrototypeStyle.json in Resources */ = {isa = PBXBuildFile; fileRef = 0A0000110000000000000005 /* MapLibrePrototypeStyle.json */; };
 		0A0000010000000000000005 /* MapLibre in Frameworks */ = {isa = PBXBuildFile; productRef = 0A0000910000000000000001 /* MapLibre */; };
 		0A0000010000000000000006 /* InfoPlist.strings in Resources */ = {isa = PBXBuildFile; fileRef = 0A0000310000000000000002 /* InfoPlist.strings */; };
@@ -22,6 +23,7 @@
 		0A0000110000000000000002 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		0A0000110000000000000003 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		0A0000110000000000000004 /* MapLibreMapViewBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MapLibreMapViewBridge.swift; sourceTree = "<group>"; };
+		0A000011000000000000AB02 /* MapLibreJourneyLayers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MapLibreJourneyLayers.swift; sourceTree = "<group>"; };
 		0A0000110000000000000005 /* MapLibrePrototypeStyle.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = MapLibrePrototypeStyle.json; sourceTree = "<group>"; };
 		0A0000110000000000000006 /* en */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = en; path = en.lproj/InfoPlist.strings; sourceTree = "<group>"; };
 		0A0000110000000000000007 /* ka */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = ka; path = ka.lproj/InfoPlist.strings; sourceTree = "<group>"; };
@@ -61,6 +63,7 @@
 				0A0000110000000000000001 /* GeorgiaTransitApp.swift */,
 				0A0000110000000000000002 /* ContentView.swift */,
 				0A0000110000000000000004 /* MapLibreMapViewBridge.swift */,
+				0A000011000000000000AB02 /* MapLibreJourneyLayers.swift */,
 				0A0000110000000000000010 /* DebugNetworkInspector.swift */,
 				0A0000110000000000000005 /* MapLibrePrototypeStyle.json */,
 				0A0000110000000000000009 /* Assets.xcassets */,
@@ -192,6 +195,7 @@
 				0A0000010000000000000001 /* GeorgiaTransitApp.swift in Sources */,
 				0A0000010000000000000002 /* ContentView.swift in Sources */,
 				0A0000010000000000000003 /* MapLibreMapViewBridge.swift in Sources */,
+				0A000001000000000000AB01 /* MapLibreJourneyLayers.swift in Sources */,
 				0A0000010000000000000010 /* DebugNetworkInspector.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

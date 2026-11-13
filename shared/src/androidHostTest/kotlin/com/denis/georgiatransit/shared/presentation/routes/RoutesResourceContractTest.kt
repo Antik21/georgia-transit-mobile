@@ -122,8 +122,8 @@ class RoutesResourceContractTest {
             "TransitMode.Ferry -> Res.string.routes_mode_ferry",
         )
         assertCodePath(
-            mapScreen.functionBody("private fun Content"),
-            "if (state.routesAvailable)",
+            mapScreen.functionBody("private fun MapControls"),
+            "if (routesAvailable)",
             "testTag(AutomationId.MapRoutes)",
         )
         assertCodePath(

@@ -27,6 +27,7 @@ internal class MapCameraAdapter(
     private val cameraIdleListener = MapLibreMap.OnCameraIdleListener { notifyViewportSettled() }
     private val cameraMoveStartedListener = MapLibreMap.OnCameraMoveStartedListener { reason ->
         if (reason == MapLibreMap.OnCameraMoveStartedListener.REASON_API_GESTURE) zoomSteps.cameraMovedElsewhere()
+        onEvent(MapPlatformEvent.CameraMoveStarted)
     }
     private val layoutChangeListener = View.OnLayoutChangeListener { _, _, _, _, _, _, _, _, _ ->
         latestCommand()?.let { command ->
