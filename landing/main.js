@@ -206,10 +206,10 @@ const storage = {
 };
 
 function pickLanguage() {
-  const stored = storage.get("gt-landing-lang");
-  if (stored && translations[stored]) return stored;
   const fromUrl = new URLSearchParams(location.search).get("lang");
   if (fromUrl && translations[fromUrl]) return fromUrl;
+  const stored = storage.get("gt-landing-lang");
+  if (stored && translations[stored]) return stored;
   const browser = (navigator.language || "ru").toLowerCase().split("-")[0];
   return translations[browser] ? browser : "ru";
 }
