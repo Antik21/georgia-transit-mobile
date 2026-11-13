@@ -185,6 +185,11 @@ private final class LocalMapLibreView: UIView, MLNMapViewDelegate {
         mapView.styleURL = localStyle
     }
 
+    func mapView(_ mapView: MLNMapView, regionWillChangeAnimated animated: Bool) {
+        guard !released else { return }
+        _ = onMapEvent(MapPlatformEventCameraMoveStarted.shared)
+    }
+
     func mapView(_ mapView: MLNMapView, regionDidChangeAnimated animated: Bool) {
         reportSettledViewport()
     }

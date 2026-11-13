@@ -217,6 +217,7 @@ private class LocalMapController(
     private var destroyed = false
     private val cameraMoveListener = MapLibreMap.OnCameraMoveListener { updateVehicleLabelOrientation() }
     private val cameraIdleListener = MapLibreMap.OnCameraIdleListener { notifyViewportSettled() }
+    private val cameraMoveStartedListener = MapLibreMap.OnCameraMoveStartedListener { onEvent(MapPlatformEvent.CameraMoveStarted) }
     private val mapClickListener = MapLibreMap.OnMapClickListener { point -> onMapClick(point) }
     private val mapLongClickListener = MapLibreMap.OnMapLongClickListener { point ->
         val wrapped = point.wrap()
@@ -254,6 +255,7 @@ private class LocalMapController(
             mapLibreMap.setPrefetchZoomDelta(0)
             map = mapLibreMap
             mapLibreMap.addOnCameraIdleListener(cameraIdleListener)
+            mapLibreMap.addOnCameraMoveStartedListener(cameraMoveStartedListener)
             mapLibreMap.addOnCameraMoveListener(cameraMoveListener)
             mapLibreMap.addOnMapClickListener(mapClickListener)
             mapLibreMap.addOnMapLongClickListener(mapLongClickListener)
@@ -317,6 +319,7 @@ private class LocalMapController(
         if (destroyed) return
         destroyed = true
         map?.removeOnCameraIdleListener(cameraIdleListener)
+        map?.removeOnCameraMoveStartedListener(cameraMoveStartedListener)
         map?.removeOnCameraMoveListener(cameraMoveListener)
         map?.removeOnMapClickListener(mapClickListener)
         map?.removeOnMapLongClickListener(mapLongClickListener)

@@ -128,7 +128,7 @@ private fun Content(state: ViewState, onAction: (Action) -> Unit) {
             )
         },
     )
-    // The camera target is only reported once the map settles, so the last settled centre is the marker's point.
+    // The camera target is only reported once the map settles; null while it moves, so a fling cannot confirm a stale point.
     var mapCenter by remember { mutableStateOf<GeoPoint?>(null) }
     BoxWithConstraints(modifier = Modifier.fillMaxSize().testTag(AutomationId.MapScreen)) {
         val panelMaxHeight = maxHeight * PLANNER_PANEL_HEIGHT_FRACTION
@@ -186,7 +186,7 @@ private fun Content(state: ViewState, onAction: (Action) -> Unit) {
 private fun MapArea(
     state: ViewState,
     onAction: (Action) -> Unit,
-    onCenterSettled: (GeoPoint) -> Unit,
+    onCenterSettled: (GeoPoint?) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val planner = state.journeyPlanner
@@ -206,7 +206,11 @@ private fun MapArea(
                 locationActionEnabled = locationActionEnabled(state.location.permission) && !state.location.isLocating,
                 onMyLocationClick = { onAction(Action.MyLocationClicked) },
                 onMapEvent = { event ->
-                    if (event is MapPlatformEvent.ViewportSettled) onCenterSettled(event.viewport.center)
+                    when (event) {
+                        MapPlatformEvent.CameraMoveStarted -> onCenterSettled(null)
+                        is MapPlatformEvent.ViewportSettled -> onCenterSettled(event.viewport.center)
+                        else -> Unit
+                    }
                     onAction(Action.MapEventReceived(event))
                 },
                 onRetry = { onAction(Action.RetryNearby) },

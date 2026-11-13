@@ -63,6 +63,8 @@ sealed interface MapPlatformEvent {
     data class VehicleTapped(val vehicleId: VehicleId, val sourceRevision: Long) : MapPlatformEvent
     /** A press-and-hold on empty map; touch adapters require ~500 ms without movement. */
     data class MapLongPressed(val point: GeoPoint) : MapPlatformEvent
+    /** Any camera motion begins; the next [ViewportSettled] ends it. */
+    data object CameraMoveStarted : MapPlatformEvent
 }
 
 /** A compact SDK-free map marker; labels and stop details stay in future product flows. */
