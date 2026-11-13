@@ -29,7 +29,8 @@ import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
 
 private const val DefaultMaximumConcurrentPlans = 4
-private val DefaultPlanningBudget = 300.milliseconds
+// A cold JVM on the 0.5-CPU production instance overran 300 ms; warm plans stay far below this.
+private val DefaultPlanningBudget = 1_000.milliseconds
 
 /**
  * `POST /journeys/plan` orchestration (ADR 0022, ADR 0023). Coordinates stay request-scoped: no
