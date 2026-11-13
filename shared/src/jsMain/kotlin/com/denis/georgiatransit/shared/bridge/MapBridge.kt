@@ -170,6 +170,7 @@ class MapBridge internal constructor(
                 when (effect) {
                     is NavigationEffect -> onNavigation?.invoke(effect)
                     is SideEffect.HandleLocation -> deliverLocationCommand(effect.command)
+                    SideEffect.ShowConnectionError -> Unit
                 }
             }
         }

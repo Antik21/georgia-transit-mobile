@@ -23,6 +23,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.intl.Locale
@@ -38,6 +39,7 @@ import com.denis.georgiatransit.shared.presentation.location.LocationState
 import com.denis.georgiatransit.shared.presentation.location.PlatformLocationEffect
 import com.denis.georgiatransit.shared.presentation.map.sections.CityAttribution
 import com.denis.georgiatransit.shared.presentation.map.sections.MapCanvas
+import com.denis.georgiatransit.shared.presentation.map.sections.MapConnectionToast
 import com.denis.georgiatransit.shared.presentation.map.sections.MapContentPlaceholder
 import com.denis.georgiatransit.shared.presentation.map.sections.RouteGeometryLegend
 import com.denis.georgiatransit.shared.presentation.map.sections.StopArrivalsSheet
@@ -82,10 +84,12 @@ fun MapScreen(viewModel: MapViewModel, handleNavigation: suspend (NavigationEffe
         viewModel.dispatchAction(Action.RefreshLocation)
     }
     var platformCommand by remember { mutableStateOf<LocationPlatformCommand?>(null) }
+    var connectionNoticeId by remember { mutableStateOf(0) }
     viewModel.collectSideEffect { effect ->
         when (effect) {
             is NavigationEffect -> handleNavigation(effect)
             is SideEffect.HandleLocation -> platformCommand = effect.command
+            SideEffect.ShowConnectionError -> connectionNoticeId++
         }
     }
     PlatformLocationEffect(
@@ -93,38 +97,23 @@ fun MapScreen(viewModel: MapViewModel, handleNavigation: suspend (NavigationEffe
         onCommandConsumed = { platformCommand = null },
         onEvent = { viewModel.dispatchAction(Action.LocationEventReceived(it)) },
     )
-    Content(state = state, onAction = viewModel::dispatchAction)
+    Content(state = state, connectionNoticeId = connectionNoticeId, onAction = viewModel::dispatchAction)
 }
 
 @Composable
-private fun Content(state: ViewState, onAction: (Action) -> Unit) {
-    val isLocationActionable = locationActionEnabled(state.location.permission) && !state.location.isLocating
+private fun Content(state: ViewState, connectionNoticeId: Int, onAction: (Action) -> Unit) {
     Box(modifier = Modifier.fillMaxSize().testTag(AutomationId.MapScreen)) {
         Column(modifier = Modifier.fillMaxSize()) {
-            val mapModifier = Modifier.fillMaxWidth().weight(1f)
-            state.renderState?.let { renderState ->
-                MapCanvas(
-                    renderState = renderState,
-                    contentState = state.contentState,
-                    baseLayerState = state.baseLayerState,
-                    locationActionLabel = locationActionLabel(state.location),
-                    locationActionAutomationId = if (state.location.permission == LocationPermissionState.SettingsRequired) {
-                        AutomationId.MapLocationSettings
-                    } else {
-                        AutomationId.MapMyLocation
-                    },
-                    locationActionEnabled = isLocationActionable,
-                    onMyLocationClick = { onAction(Action.MyLocationClicked) },
-                    onZoomClick = { onAction(Action.ZoomClicked(it)) },
-                    onMapEvent = { onAction(Action.MapEventReceived(it)) },
-                    onRetry = { onAction(Action.RetryNearby) },
-                    modifier = mapModifier,
+            Box(modifier = Modifier.fillMaxWidth().weight(1f)) {
+                MapArea(state = state, onAction = onAction)
+                MapConnectionToast(
+                    noticeId = connectionNoticeId,
+                    // Clears the MapLibre logo and OSM attribution along the bottom edge.
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .padding(bottom = TransitSpacing.ExtraLarge + TransitSpacing.Medium),
                 )
-            } ?: MapContentPlaceholder(
-                contentState = state.contentState,
-                baseLayerState = state.baseLayerState,
-                modifier = mapModifier,
-            )
+            }
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -170,6 +159,28 @@ private fun Content(state: ViewState, onAction: (Action) -> Unit) {
             )
         }
     }
+}
+
+@Composable
+private fun MapArea(state: ViewState, onAction: (Action) -> Unit) {
+    val modifier = Modifier.fillMaxSize()
+    state.renderState?.let { renderState ->
+        MapCanvas(
+            renderState = renderState,
+            baseLayerState = state.baseLayerState,
+            locationActionLabel = locationActionLabel(state.location),
+            locationActionAutomationId = if (state.location.permission == LocationPermissionState.SettingsRequired) {
+                AutomationId.MapLocationSettings
+            } else {
+                AutomationId.MapMyLocation
+            },
+            locationActionEnabled = locationActionEnabled(state.location.permission) && !state.location.isLocating,
+            onMyLocationClick = { onAction(Action.MyLocationClicked) },
+            onZoomClick = { onAction(Action.ZoomClicked(it)) },
+            onMapEvent = { onAction(Action.MapEventReceived(it)) },
+            modifier = modifier,
+        )
+    } ?: MapContentPlaceholder(baseLayerState = state.baseLayerState, modifier = modifier)
 }
 
 /** Common navigation/composition visibility plus the host lifecycle is the realtime ownership gate. */
@@ -236,11 +247,8 @@ private fun locationActionEnabled(permission: LocationPermissionState): Boolean 
 private fun Preview() {
     GeorgiaTransitTheme {
         Content(
-            state = ViewState(
-                cityName = "Tbilisi",
-                routesAvailable = true,
-                contentState = MapContentState.Empty,
-            ),
+            state = ViewState(cityName = "Tbilisi", routesAvailable = true),
+            connectionNoticeId = 0,
             onAction = {},
         )
     }

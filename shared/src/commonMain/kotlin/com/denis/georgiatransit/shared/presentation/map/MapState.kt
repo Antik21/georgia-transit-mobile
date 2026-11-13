@@ -231,6 +231,7 @@ enum class MapZoomDirection(val delta: Double) { In(1.0), Out(-1.0) }
 
 sealed interface SideEffect {
     data class HandleLocation(val command: LocationPlatformCommand) : SideEffect
+    data object ShowConnectionError : SideEffect
 }
 
 sealed interface NavigationEffect : SideEffect {

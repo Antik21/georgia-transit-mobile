@@ -113,17 +113,12 @@ class MapResourceContractTest {
             AutomationId.MapZoomIn,
             AutomationId.MapZoomOut,
             AutomationId.MapUserLocation,
-            AutomationId.MapLoading,
-            AutomationId.MapEmpty,
-            AutomationId.MapError,
-            AutomationId.MapUnavailable,
-            AutomationId.MapOffline,
+            AutomationId.MapConnectionError,
             AutomationId.MapLocalPreview,
             AutomationId.MapNearbyStops,
             AutomationId.MapNearbyStop,
             AutomationId.MapVehicles,
             AutomationId.MapVehiclesLiveNonempty,
-            AutomationId.MapRetry,
             AutomationId.MapAttribution,
             AutomationId.MapStopArrivalsSheet,
             AutomationId.MapStopArrivalsHandle,
@@ -152,7 +147,7 @@ class MapResourceContractTest {
         assertEquals("map.nearby-stop", AutomationId.MapNearbyStop)
         assertEquals("map.vehicles", AutomationId.MapVehicles)
         assertEquals("map.vehicles.live-nonempty", AutomationId.MapVehiclesLiveNonempty)
-        assertEquals("map.retry", AutomationId.MapRetry)
+        assertEquals("map.connection.error", AutomationId.MapConnectionError)
         assertEquals("map.attribution.link.transitous", AutomationId.mapAttributionLink("transitous"))
         assertEquals("map.stop-arrivals.sheet", AutomationId.MapStopArrivalsSheet)
         assertEquals("map.stop-arrivals.handle", AutomationId.MapStopArrivalsHandle)
@@ -225,7 +220,7 @@ class MapResourceContractTest {
             "shared/src/commonMain/kotlin/com/denis/georgiatransit/shared/presentation/map/MapStopsProjector.kt",
         ).readText()
         val canvas = canvasSource.functionBody("fun MapCanvas")
-        val contentOverlay = canvasSource.functionBody("private fun MapContentOverlay")
+        val connectionToast = projectRoot().mapSectionSource("MapConnectionToast.kt")
         val baseLayerOverlay = canvasSource.functionBody("private fun BaseLayerOverlay")
         val content = screen.functionBody("private fun Content")
         val stopArrivalsSheet = stopArrivalsSource.functionBody("fun StopArrivalsSheet")
@@ -234,12 +229,9 @@ class MapResourceContractTest {
         val stopAccessibilityLabel = stopsProjector.functionBody("private fun TransitStop.accessibilityLabel")
 
         assertCodePath(baseLayerOverlay, "MapBaseLayerState.LocalPreview", "map_preview_note", "MapLocalPreview")
-        assertCodePath(contentOverlay, "MapContentState.Loading", "map_content_loading", "MapLoading")
-        assertCodePath(contentOverlay, "MapContentState.Empty", "map_content_empty", "MapEmpty")
-        assertCodePath(contentOverlay, "MapContentState.RetryableError", "map_content_error", "MapError")
-        assertCodePath(contentOverlay, "MapContentState.Unavailable", "map_content_unavailable", "MapUnavailable")
-        assertCodePath(contentOverlay, "MapContentState.Offline", "contentState.isStale", "map_content_stale", "map_content_offline", "MapOffline")
-        assertTrue(contentOverlay.compactWhitespace().contains("MapContentState.Ready -> return"))
+        assertFalse(canvasSource.contains("MapContentState"), "Nearby-stop loading status must not be drawn over the map.")
+        assertCodePath(connectionToast, "LaunchedEffect(noticeId)", "delay(TOAST_DURATION_MILLIS)", "MapConnectionError", "map_connection_error")
+        assertCodePath(screen, "SideEffect.ShowConnectionError -> connectionNoticeId++", "MapConnectionToast(")
         assertTrue(viewModel.compactWhitespace().contains("contentState = MapContentState.Loading"))
         val userLocationTag = canvas.indexOf("AutomationId.MapUserLocation")
         val platformMapCall = canvas.indexOf("PlatformMap(")
@@ -249,11 +241,10 @@ class MapResourceContractTest {
             userLocationTag < platformMapCall,
             "The conditional user-location ID must live on the Compose wrapper, before PlatformMap.",
         )
-        assertCodePath(canvas, "PlatformMap(", "onEvent = onMapEvent", "MapStatusOverlays(", "onRetry = onRetry", "MapCameraControls(")
+        assertCodePath(canvas, "PlatformMap(", "onEvent = onMapEvent", "BaseLayerOverlay(", "MapCameraControls(")
         val cameraControls = projectRoot().mapSectionSource("MapCameraControls.kt").functionBody("fun MapCameraControls")
         assertCodePath(cameraControls, "PlatformMyLocationButton(", "AutomationId.MapZoomIn", "AutomationId.MapZoomOut")
         assertTrue(cameraControls.compactWhitespace().contains("testTag(locationActionAutomationId)"))
-        assertCodePath(contentOverlay, "contentState is MapContentState.RetryableError", "Button(", "onClick = onRetry", "MapRetry")
         assertFalse(content.contains("NearbyStopsAccessibility"), "Nearby stops must not consume visual space below the map.")
         assertCodePath(
             canvas,
@@ -1080,12 +1071,6 @@ class MapResourceContractTest {
         val NoArgumentConversions = setOf('%', 'n')
         val MapResourceKeys = setOf(
             "map_preview_note",
-            "map_content_loading",
-            "map_content_empty",
-            "map_content_error",
-            "map_content_unavailable",
-            "map_content_offline",
-            "map_content_stale",
             "map_routes_action",
             "map_change_city_action",
             "map_my_location_action",
@@ -1125,7 +1110,7 @@ class MapResourceContractTest {
             "map_vehicle_status_unavailable",
             "map_vehicle_status_mixed",
             "map_cluster_stops",
-            "map_retry_action",
+            "map_connection_error",
             "map_attribution_title",
         )
         const val ShellSmokeFlow = "ui-tests/maestro/flows/shell-smoke.yaml"
