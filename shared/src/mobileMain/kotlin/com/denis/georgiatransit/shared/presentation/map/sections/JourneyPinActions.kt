@@ -2,6 +2,7 @@ package com.denis.georgiatransit.shared.presentation.map.sections
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -132,16 +133,18 @@ private fun JourneyPinCard(onRouteFromHere: () -> Unit, onRouteHere: () -> Unit)
                     onClick = onRouteFromHere,
                     modifier = Modifier.weight(1f).heightIn(min = 44.dp).testTag(AutomationId.MapPlannerRouteFromHere),
                     shape = TransitShapes.Large,
+                    contentPadding = PIN_BUTTON_PADDING,
                     colors = ButtonDefaults.buttonColors(
                         containerColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.06f),
                         contentColor = MaterialTheme.colorScheme.onSurface,
                     ),
-                ) { Text(stringResource(Res.string.map_planner_from_here), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold) }
+                ) { Text(stringResource(Res.string.map_planner_from_here), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, maxLines = 1, softWrap = false) }
                 Button(
                     onClick = onRouteHere,
                     modifier = Modifier.weight(1f).heightIn(min = 44.dp).testTag(AutomationId.MapPlannerRouteHere),
                     shape = TransitShapes.Large,
-                ) { Text(stringResource(Res.string.map_planner_to_here), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold) }
+                    contentPadding = PIN_BUTTON_PADDING,
+                ) { Text(stringResource(Res.string.map_planner_to_here), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, maxLines = 1, softWrap = false) }
             }
         }
     }
@@ -171,7 +174,8 @@ private fun JourneyPinSingleCard(side: JourneyPlanSide, onChoose: () -> Unit) {
                     if (side == JourneyPlanSide.Origin) AutomationId.MapPlannerRouteFromHere else AutomationId.MapPlannerRouteHere,
                 ),
                 shape = TransitShapes.Large,
-            ) { Text(stringResource(Res.string.map_planner_map_pick_confirm), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold) }
+                    contentPadding = PIN_BUTTON_PADDING,
+            ) { Text(stringResource(Res.string.map_planner_map_pick_confirm), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, maxLines = 1, softWrap = false) }
         }
     }
 }
@@ -196,6 +200,8 @@ private fun CardTail(pointsUp: Boolean) {
     }
 }
 
+// Two labels share a 264 dp card, so the default 24 dp side padding would wrap "From here".
+private val PIN_BUTTON_PADDING = PaddingValues(horizontal = 8.dp, vertical = 8.dp)
 private val CARD_WIDTH = 264.dp
 private val SINGLE_CARD_WIDTH = 200.dp
 private val CARD_RADIUS = 18.dp
