@@ -34,6 +34,17 @@ internal val PlaceIcon: ImageVector by lazy {
     )
 }
 
+/** Material Symbols "expand_more" and "my_location" geometry, used under the Apache-2.0 license. */
+internal val ChevronDownIcon: ImageVector by lazy { glyph("ExpandMore", "M16.59 8.59 12 13.17 7.41 8.59 6 10l6 6 6-6z") }
+
+internal val MyLocationIcon: ImageVector by lazy {
+    glyph(
+        "MyLocation",
+        "M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8zm8.94 3A8.99 8.99 0 0 0 13 3.06V1h-2v2.06A8.99 8.99 0 0 0 3.06 11H1v2h2.06" +
+            "A8.99 8.99 0 0 0 11 20.94V23h2v-2.06A8.99 8.99 0 0 0 20.94 13H23v-2h-2.06zM12 19a7 7 0 1 1 0-14 7 7 0 0 1 0 14z",
+    )
+}
+
 private fun glyph(name: String, path: String, autoMirror: Boolean = false): ImageVector = ImageVector.Builder(
     name = name,
     defaultWidth = 24.dp,

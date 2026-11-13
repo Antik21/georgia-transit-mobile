@@ -40,6 +40,7 @@ import androidx.navigationevent.NavigationEventInfo
 import androidx.navigationevent.compose.NavigationBackHandler
 import androidx.navigationevent.compose.rememberNavigationEventState
 import com.denis.georgiatransit.shared.domain.model.GeoPoint
+import com.denis.georgiatransit.shared.domain.model.JourneyEndpoint
 import com.denis.georgiatransit.shared.domain.model.TransitLocale
 import com.denis.georgiatransit.shared.presentation.location.LocationFailure
 import com.denis.georgiatransit.shared.presentation.location.LocationPermissionState
@@ -130,6 +131,10 @@ private fun Content(state: ViewState, onAction: (Action) -> Unit) {
     )
     // The camera target is only reported once the map settles; null while it moves, so a fling cannot confirm a stale point.
     var mapCenter by remember { mutableStateOf<GeoPoint?>(null) }
+    // Re-keyed on endpoint changes so a choice collapses its block and opens the missing one; taps toggle in between.
+    var expandedSide by remember(planner.origin, planner.destination) {
+        mutableStateOf(journeyExpandedSideFor(planner.origin, planner.destination))
+    }
     BoxWithConstraints(modifier = Modifier.fillMaxSize().testTag(AutomationId.MapScreen)) {
         val panelMaxHeight = maxHeight * PLANNER_PANEL_HEIGHT_FRACTION
         Column(modifier = Modifier.fillMaxSize()) {
@@ -155,9 +160,14 @@ private fun Content(state: ViewState, onAction: (Action) -> Unit) {
             } else if (planner.isOpen) {
                 JourneyPlannerPanel(
                     planner = planner,
+                    expandedSide = expandedSide,
+                    onToggleSide = { side -> expandedSide = side.takeIf { it != expandedSide } },
                     onClose = { onAction(JourneyPlannerAction.ClosePlanner) },
                     onPickPoint = { side -> onAction(JourneyPlannerAction.StartMapPick(side)) },
-                    onUseMyLocation = { side -> onAction(side.myLocationAction()) },
+                    onUseMyLocation = { side ->
+                        if (side.endpointIn(planner) == JourneyEndpoint.CurrentLocation) expandedSide = null
+                        onAction(side.myLocationAction())
+                    },
                     onSwap = { onAction(JourneyPlannerAction.Swap) },
                     onClear = { onAction(JourneyPlannerAction.Clear) },
                     onSelectOption = { id -> onAction(JourneyPlannerAction.SelectOption(id)) },
@@ -304,6 +314,9 @@ private fun MapRealtimeVisibilityEffect(onVisibilityChanged: (Boolean) -> Unit) 
         }
     }
 }
+
+private fun JourneyPlanSide.endpointIn(planner: JourneyPlannerUi) =
+    if (this == JourneyPlanSide.Origin) planner.origin else planner.destination
 
 private fun JourneyPlanSide.myLocationAction(): JourneyPlannerAction = when (this) {
     JourneyPlanSide.Origin -> JourneyPlannerAction.SetOriginToMyLocation

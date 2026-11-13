@@ -81,6 +81,8 @@ object AutomationId {
     const val MapPlannerLeg = "map.planner.leg"
     const val MapPlannerNearest = "map.planner.nearest"
     const val MapPlannerDisclaimer = "map.planner.disclaimer"
+    const val MapPlannerOriginToggle = "map.planner.origin.toggle"
+    const val MapPlannerDestinationToggle = "map.planner.destination.toggle"
     const val MapPlannerMapPick = "map.planner.map-pick"
     const val MapPlannerMapPickBack = "map.planner.map-pick.back"
     const val MapPlannerMapPickMarker = "map.planner.map-pick.marker"

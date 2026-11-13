@@ -1,18 +1,12 @@
 package com.denis.georgiatransit.shared.presentation.map.sections
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -22,7 +16,6 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.liveRegion
@@ -45,7 +38,6 @@ import georgiatransit.shared.generated.resources.Res
 import georgiatransit.shared.generated.resources.map_planner_already_there
 import georgiatransit.shared.generated.resources.map_planner_clear
 import georgiatransit.shared.generated.resources.map_planner_close
-import georgiatransit.shared.generated.resources.map_planner_destination
 import georgiatransit.shared.generated.resources.map_planner_disclaimer
 import georgiatransit.shared.generated.resources.map_planner_empty
 import georgiatransit.shared.generated.resources.map_planner_error_busy
@@ -57,11 +49,6 @@ import georgiatransit.shared.generated.resources.map_planner_loading
 import georgiatransit.shared.generated.resources.map_planner_location_approximate
 import georgiatransit.shared.generated.resources.map_planner_location_locating
 import georgiatransit.shared.generated.resources.map_planner_location_permission
-import georgiatransit.shared.generated.resources.map_planner_map_point
-import georgiatransit.shared.generated.resources.map_planner_my_location
-import georgiatransit.shared.generated.resources.map_planner_not_set
-import georgiatransit.shared.generated.resources.map_planner_origin
-import georgiatransit.shared.generated.resources.map_planner_pick_hint
 import georgiatransit.shared.generated.resources.map_planner_pick_on_map
 import georgiatransit.shared.generated.resources.map_planner_refreshing
 import georgiatransit.shared.generated.resources.map_planner_retry
@@ -75,6 +62,8 @@ import org.jetbrains.compose.resources.stringResource
 @Composable
 internal fun JourneyPlannerPanel(
     planner: JourneyPlannerUi,
+    expandedSide: JourneyPlanSide?,
+    onToggleSide: (JourneyPlanSide) -> Unit,
     onClose: () -> Unit,
     onPickPoint: (JourneyPlanSide) -> Unit,
     onUseMyLocation: (JourneyPlanSide) -> Unit,
@@ -94,6 +83,7 @@ internal fun JourneyPlannerPanel(
                 stringResource(Res.string.map_planner_title),
                 modifier = Modifier.weight(1f),
                 style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold,
             )
             IconButton(onClick = onSwap, modifier = Modifier.testTag(AutomationId.MapPlannerSwap)) {
                 Icon(SwapIcon, contentDescription = stringResource(Res.string.map_planner_swap))
@@ -105,13 +95,14 @@ internal fun JourneyPlannerPanel(
                 Icon(CloseIcon, contentDescription = stringResource(Res.string.map_planner_close))
             }
         }
-        JourneySide.entries.forEach { side ->
-            JourneyEndpointRow(
+        JourneyPlanSide.entries.forEach { side ->
+            JourneyEndpointBlock(
                 side = side,
-                endpoint = if (side.side == JourneyPlanSide.Origin) planner.origin else planner.destination,
-                isPicking = (status as? JourneyPlannerStatus.PickingPoint)?.side == side.side,
-                onPickPoint = { onPickPoint(side.side) },
-                onUseMyLocation = { onUseMyLocation(side.side) },
+                endpoint = if (side == JourneyPlanSide.Origin) planner.origin else planner.destination,
+                isExpanded = expandedSide == side,
+                onToggle = { onToggleSide(side) },
+                onPickPoint = { onPickPoint(side) },
+                onUseMyLocation = { onUseMyLocation(side) },
             )
         }
         plannerStatusText(planner)?.let { message ->
@@ -154,78 +145,6 @@ internal fun JourneyPlannerPanel(
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
-    }
-}
-
-private enum class JourneySide(val side: JourneyPlanSide, val letter: String, val colorArgb: Long) {
-    Origin(JourneyPlanSide.Origin, "A", 0xFF2E7D32),
-    Destination(JourneyPlanSide.Destination, "B", 0xFF8E1B2D),
-}
-
-@Composable
-private fun JourneyEndpointRow(
-    side: JourneySide,
-    endpoint: JourneyEndpoint?,
-    isPicking: Boolean,
-    onPickPoint: () -> Unit,
-    onUseMyLocation: () -> Unit,
-) {
-    val isOrigin = side.side == JourneyPlanSide.Origin
-    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-        Row(horizontalArrangement = Arrangement.spacedBy(TransitSpacing.Small), verticalAlignment = Alignment.CenterVertically) {
-            Box(
-                modifier = Modifier.size(24.dp).background(Color(side.colorArgb), CircleShape),
-                contentAlignment = Alignment.Center,
-            ) {
-                Text(side.letter, color = Color.White, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
-            }
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    stringResource(if (isOrigin) Res.string.map_planner_origin else Res.string.map_planner_destination),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                Text(
-                    stringResource(
-                        when (endpoint) {
-                            JourneyEndpoint.CurrentLocation -> Res.string.map_planner_my_location
-                            is JourneyEndpoint.MapPoint -> Res.string.map_planner_map_point
-                            null -> Res.string.map_planner_not_set
-                        },
-                    ),
-                    modifier = Modifier.testTag(
-                        if (isOrigin) AutomationId.MapPlannerOriginValue else AutomationId.MapPlannerDestinationValue,
-                    ),
-                    style = MaterialTheme.typography.bodyLarge,
-                )
-                if (isPicking) {
-                    Text(
-                        stringResource(Res.string.map_planner_pick_hint),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.primary,
-                    )
-                }
-            }
-        }
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(start = 32.dp),
-            horizontalArrangement = Arrangement.spacedBy(TransitSpacing.Small),
-        ) {
-            FilterChip(
-                selected = isPicking,
-                onClick = onPickPoint,
-                label = { Text(stringResource(Res.string.map_planner_pick_on_map)) },
-                modifier = Modifier.testTag(if (isOrigin) AutomationId.MapPlannerPickOrigin else AutomationId.MapPlannerPickDestination),
-            )
-            FilterChip(
-                selected = endpoint == JourneyEndpoint.CurrentLocation,
-                onClick = onUseMyLocation,
-                label = { Text(stringResource(Res.string.map_planner_my_location)) },
-                modifier = Modifier.testTag(
-                    if (isOrigin) AutomationId.MapPlannerMyLocationOrigin else AutomationId.MapPlannerMyLocationDestination,
-                ),
-            )
-        }
     }
 }
 
@@ -283,6 +202,7 @@ private fun JourneyPlannerPanelPreview() {
                 destination = JourneyEndpoint.MapPoint(GeoPoint(41.6413, 41.6359)),
                 status = JourneyPlannerStatus.Results(listOf(PreviewJourneyOption), selectedId = PreviewJourneyOption.id),
             ),
+            expandedSide = null, onToggleSide = {},
             onClose = {}, onPickPoint = {}, onUseMyLocation = {}, onSwap = {}, onClear = {}, onSelectOption = {}, onRetry = {},
         )
     }
