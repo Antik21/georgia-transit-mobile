@@ -22,7 +22,7 @@ import org.orbitmvi.orbit.test.OrbitTestContext
 import org.orbitmvi.orbit.test.test
 import kotlin.test.AfterTest
 import kotlin.test.Test
-import kotlin.test.assertEquals
+import kotlin.test.assertNotEquals
 import kotlin.test.assertTrue
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -69,22 +69,35 @@ class MapConnectionNoticeViewModelTest {
             notices.onTransportFailure()
             notices.onTransportFailure()
             this@runTest.runCurrent()
-            assertEquals(1, drainConnectionNotices())
+            awaitConnectionNotice()
 
             assertTrue(session.selectRoutes(city.id, setOf(route.id)))
             this@runTest.runCurrent()
+            // A duplicate notice from the first outage would surface before the selection state.
+            awaitStateWithoutNotice { it.selectedRouteNames == listOf("1") }
+
             notices.onTransportFailure()
             this@runTest.runCurrent()
-            assertEquals(1, drainConnectionNotices())
+            awaitConnectionNotice()
             cancelAndIgnoreRemainingItems()
         }
     }
 
-    private suspend fun OrbitTestContext<ViewState, SideEffect, MapViewModel>.drainConnectionNotices(): Int {
-        var count = 0
+    private suspend fun OrbitTestContext<ViewState, SideEffect, MapViewModel>.awaitConnectionNotice() {
         while (true) {
-            val item = runCatching { awaitItem() }.getOrNull() ?: return count
-            if (item is Item.SideEffectItem && item.value == SideEffect.ShowConnectionError) count++
+            val item = awaitItem()
+            if (item is Item.SideEffectItem && item.value == SideEffect.ShowConnectionError) return
+        }
+    }
+
+    private suspend fun OrbitTestContext<ViewState, SideEffect, MapViewModel>.awaitStateWithoutNotice(
+        predicate: (ViewState) -> Boolean,
+    ) {
+        while (true) {
+            when (val item = awaitItem()) {
+                is Item.StateItem -> if (predicate(item.value)) return
+                is Item.SideEffectItem -> assertNotEquals<SideEffect>(SideEffect.ShowConnectionError, item.value)
+            }
         }
     }
 
