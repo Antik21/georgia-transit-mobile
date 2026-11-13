@@ -123,7 +123,7 @@ class RoutesResourceContractTest {
         )
         assertCodePath(
             mapScreen.functionBody("private fun MapControls"),
-            "if (state.routesAvailable)",
+            "if (routesAvailable)",
             "testTag(AutomationId.MapRoutes)",
         )
         assertCodePath(
