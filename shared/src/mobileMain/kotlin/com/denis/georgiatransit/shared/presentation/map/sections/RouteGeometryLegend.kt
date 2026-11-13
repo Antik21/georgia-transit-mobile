@@ -221,7 +221,7 @@ internal val DirectionsBusIcon: ImageVector by lazy {
 }
 
 /** Material Symbols "close" geometry, used under the Apache-2.0 license. */
-private val CloseIcon: ImageVector by lazy {
+internal val CloseIcon: ImageVector by lazy {
     ImageVector.Builder(
         name = "Close",
         defaultWidth = 24.dp,

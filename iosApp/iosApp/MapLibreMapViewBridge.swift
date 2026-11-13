@@ -56,6 +56,7 @@ private final class LocalMapLibreView: UIView, MLNMapViewDelegate {
     private var attentionDisplayLink: CADisplayLink?
     private var lifecycleObservers: [NSObjectProtocol] = []
     private var released = false
+    private let journeyLayers = MapLibreJourneyLayers()
     private let onViewportSettled: (MapViewport) -> KotlinUnit
     private let onMapEvent: (MapPlatformEvent) -> KotlinUnit
 
@@ -85,6 +86,9 @@ private final class LocalMapLibreView: UIView, MLNMapViewDelegate {
         let tapRecognizer = UITapGestureRecognizer(target: self, action: #selector(handleMapTap(_:)))
         tapRecognizer.cancelsTouchesInView = false
         mapView.addGestureRecognizer(tapRecognizer)
+        let longPressRecognizer = UILongPressGestureRecognizer(target: self, action: #selector(handleMapLongPress(_:)))
+        longPressRecognizer.minimumPressDuration = 0.5
+        mapView.addGestureRecognizer(longPressRecognizer)
         installAttentionLifecycleObservers()
     }
 
@@ -278,6 +282,7 @@ private final class LocalMapLibreView: UIView, MLNMapViewDelegate {
         userLocationLayer.circleStrokeColor = NSExpression(forConstantValue: UIColor.white)
         userLocationLayer.circleStrokeWidth = NSExpression(forConstantValue: 3)
         style.addLayer(userLocationLayer)
+        journeyLayers.install(style: style, below: attentionLayer)
 
         layersInstalled = true
     }
@@ -337,7 +342,9 @@ private final class LocalMapLibreView: UIView, MLNMapViewDelegate {
             updateSource(style: style, identifier: Self.userAccuracySourceID, features: userAccuracyFeatures(state.userLocation))
             lastUserLocation = userLocation
         }
+        journeyLayers.render(state.journey, style: style)
         applyCameraIfNeeded(state.camera)
+        journeyLayers.fitIfNeeded(mapView: mapView, overlay: state.journey)
         refreshAttentionAnimation()
     }
 
@@ -514,6 +521,13 @@ private final class LocalMapLibreView: UIView, MLNMapViewDelegate {
         if let vehicle = entityFeature(in: hitRect, layerID: Self.vehiclesLayerID, kind: Self.vehicleFeatureKind) {
             _ = onMapEvent(MapPlatformEventVehicleTapped(vehicleId: vehicle.id, sourceRevision: vehicle.sourceRevision))
         }
+    }
+
+    @objc private func handleMapLongPress(_ recognizer: UILongPressGestureRecognizer) {
+        guard recognizer.state == .began else { return }
+        let coordinate = mapView.convert(recognizer.location(in: mapView), toCoordinateFrom: mapView)
+        guard CLLocationCoordinate2DIsValid(coordinate) else { return }
+        _ = onMapEvent(MapPlatformEventMapLongPressed(point: GeoPoint(latitude: coordinate.latitude, longitude: coordinate.longitude)))
     }
 
     private func entityFeature(in rect: CGRect, layerID: String, kind: String) -> (id: String, sourceRevision: Int64)? {
@@ -997,6 +1011,7 @@ private final class LocalMapLibreView: UIView, MLNMapViewDelegate {
     }
 
     private func clearRenderedLayerState() {
+        journeyLayers.clearRendered()
         lastStops = nil
         lastStopSourceRevision = nil
         lastPolylineSourceRevision = nil

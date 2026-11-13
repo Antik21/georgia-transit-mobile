@@ -154,6 +154,19 @@ data class MapPolyline(
 }
 
 /**
+ * Planner geometry drawn above route lines and never hit-tested. Adapters frame [lines] only when
+ * [fitRevision] changes, so live refreshes never move a camera the user has panned.
+ */
+@Immutable
+data class MapJourneyOverlay(
+    val lines: PersistentList<JourneyPlanLineUi> = persistentListOf(),
+    val origin: GeoPoint? = null,
+    val destination: GeoPoint? = null,
+    val pin: GeoPoint? = null,
+    val fitRevision: Long = 0L,
+)
+
+/**
  * The complete renderer boundary shared by Android and iOS. It intentionally contains no native
  * map objects, provider DTOs, upstream URLs, keys, or service lookup. [bffStyleUrl], when set,
  * is a validated same-BFF URL injected by host composition; empty layer lists are valid.
@@ -175,6 +188,8 @@ data class MapRenderState(
     val vehicleSourceRevision: Long = 0L,
     /** Changes only when a native route-badge bitmap style can change, never for frame geometry. */
     val vehicleBadgeRevision: Long = 0L,
+    /** The A→B planner overlay; null when neither a plan nor a long-press pin is shown. */
+    val journey: MapJourneyOverlay? = null,
 ) {
     /**
      * Converts arbitrary caller-owned iterables into persistent snapshots, which is the convenient

@@ -218,6 +218,12 @@ private class LocalMapController(
     private val cameraMoveListener = MapLibreMap.OnCameraMoveListener { updateVehicleLabelOrientation() }
     private val cameraIdleListener = MapLibreMap.OnCameraIdleListener { notifyViewportSettled() }
     private val mapClickListener = MapLibreMap.OnMapClickListener { point -> onMapClick(point) }
+    private val mapLongClickListener = MapLibreMap.OnMapLongClickListener { point ->
+        val wrapped = point.wrap()
+        onEvent(MapPlatformEvent.MapLongPressed(GeoPoint(wrapped.latitude, wrapped.longitude)))
+        true
+    }
+    private val journeyLayers = JourneyMapLayers(mapView.resources.displayMetrics)
     private val styleLoadedListener = MapView.OnDidFinishLoadingStyleListener {
         val loadedStyle = map?.style ?: return@OnDidFinishLoadingStyleListener
         val uri = loadedStyle.uri.takeIf(String::isNotBlank)
@@ -250,6 +256,7 @@ private class LocalMapController(
             mapLibreMap.addOnCameraIdleListener(cameraIdleListener)
             mapLibreMap.addOnCameraMoveListener(cameraMoveListener)
             mapLibreMap.addOnMapClickListener(mapClickListener)
+            mapLibreMap.addOnMapLongClickListener(mapLongClickListener)
             loadStyle(mapLibreMap, Style.Builder().fromJson(LOCAL_STYLE_JSON), remote = false)
         }
     }
@@ -312,6 +319,7 @@ private class LocalMapController(
         map?.removeOnCameraIdleListener(cameraIdleListener)
         map?.removeOnCameraMoveListener(cameraMoveListener)
         map?.removeOnMapClickListener(mapClickListener)
+        map?.removeOnMapLongClickListener(mapLongClickListener)
         mapView.removeOnLayoutChangeListener(layoutChangeListener)
         mapView.removeOnDidFinishLoadingStyleListener(styleLoadedListener)
         mapView.removeOnDidFailLoadingMapListener(styleFailureListener)
@@ -332,10 +340,13 @@ private class LocalMapController(
         val loadedStyle = style ?: return
         if (!layersInstalled) {
             installSourcesAndLayers(loadedStyle)
+            journeyLayers.install(loadedStyle, belowLayerId = ATTENTION_LAYER_ID)
             layersInstalled = true
         }
         updateSources(loadedStyle, renderState)
+        journeyLayers.render(loadedStyle, renderState.journey)
         applyCameraIfNeeded(renderState)
+        map?.let { journeyLayers.fitIfNeeded(it, renderState.journey, mapView) }
         refreshAttentionAnimation()
     }
 
@@ -732,6 +743,7 @@ private class LocalMapController(
         lastVehicleBadgeRevision = null
         lastAttentionVehicleSourceRevision = null
         stopPinImages.clear()
+        journeyLayers.clearRendered()
         badgeImageIds.clear()
         nextBadgeImageIndex = 0L
         overflowBadgeImagesInstalled = false
