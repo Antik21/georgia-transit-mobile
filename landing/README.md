@@ -29,24 +29,7 @@ update it.
 
 ## Hosting
 
-The folder can be published as is. Suggested Render static site, matching the existing web client
-service in `render.yaml` (not added yet):
-
-```yaml
-  - type: web
-    name: antik21-georgia-transit-landing
-    runtime: static
-    branch: main
-    buildCommand: test -f landing/index.html
-    staticPublishPath: landing
-    buildFilter:
-      paths:
-        - landing/**
-    headers:
-      - path: /assets/*
-        name: Cache-Control
-        value: public, max-age=604800
-      - path: /*
-        name: X-Content-Type-Options
-        value: nosniff
-```
+Published by the `antik21-georgia-transit-landing` static site in [render.yaml](../render.yaml):
+the `landing/` folder is served as is from `main` (no build step) after the required checks pass,
+and only changes under `landing/` trigger a deploy. The default address is
+`https://antik21-georgia-transit-landing.onrender.com`.
