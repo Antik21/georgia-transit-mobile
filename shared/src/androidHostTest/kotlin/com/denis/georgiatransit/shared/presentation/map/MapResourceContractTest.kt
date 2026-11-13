@@ -372,37 +372,41 @@ class MapResourceContractTest {
     @Test
     fun realtimeVehicleAdapterSourceSmokePinsGroupedNativeLayerAndReleaseHooks() {
         val root = projectRoot()
-        val android = root.resolve(
-            "shared/src/androidMain/kotlin/com/denis/georgiatransit/shared/presentation/map/PlatformMap.android.kt",
-        ).readText()
+        val android = root.androidMapSource("PlatformMap.android.kt")
+        val androidLayers = root.androidMapSource("MapOverlayLayers.android.kt")
+        val androidVehicles = root.androidMapSource("VehicleBadgeLayer.android.kt")
+        val androidAttention = root.androidMapSource("VehicleAttentionPulse.android.kt")
         val swift = root.resolve("iosApp/iosApp/MapLibreMapViewBridge.swift").readText()
 
+        assertCodePath(androidLayers, "GeoJsonSource(VEHICLES_SOURCE_ID")
         assertCodePath(
-            android,
-            "GeoJsonSource(VEHICLES_SOURCE_ID",
+            androidVehicles,
             "SymbolLayer(VEHICLES_LAYER_ID, VEHICLES_SOURCE_ID)",
             "iconRotate(Expression.get(BEARING_PROPERTY))",
             "iconRotationAlignment(\"map\")",
-            "lastVehicleSourceRevision != renderState.vehicleSourceRevision",
+            "lastVehicleSourceRevision == renderState.vehicleSourceRevision) return",
             "lastVehicleBadgeRevision != renderState.vehicleBadgeRevision",
             "MAX_VEHICLE_BADGE_IMAGES = 256",
             "STALE_VEHICLE_OPACITY",
         )
         assertTrue(android.contains("clearRenderedLayerState()"))
         assertTrue(android.contains("layersInstalled = false"))
-        assertTrue(android.contains("ATTENTION_RADIUS_REDUCTION_FACTOR = 1.5f"))
-        assertTrue(android.contains("ATTENTION_ADDITIONAL_RADIUS_SCALE = 0.85f"))
+        assertTrue(androidAttention.contains("ATTENTION_RADIUS_REDUCTION_FACTOR = 1.5f"))
+        assertTrue(androidAttention.contains("ATTENTION_ADDITIONAL_RADIUS_SCALE = 0.85f"))
         assertTrue(
-            android.contains(
+            androidAttention.contains(
                 "BADGE_DIAMETER_PX / 2f * 1.15f / ATTENTION_RADIUS_REDUCTION_FACTOR * ATTENTION_ADDITIONAL_RADIUS_SCALE",
             ),
         )
         assertTrue(
-            android.contains(
+            androidAttention.contains(
                 "BADGE_DIAMETER_PX / 2f * 2f / ATTENTION_RADIUS_REDUCTION_FACTOR * ATTENTION_ADDITIONAL_RADIUS_SCALE",
             ),
         )
-        assertFalse(android.contains("MarkerView"), "Source smoke: no Android per-vehicle view adapter")
+        assertFalse(
+            root.androidMapAdapterSources().contains("MarkerView"),
+            "Source smoke: no Android per-vehicle view adapter",
+        )
         assertCodePath(
             swift,
             "MLNShapeSource(identifier: Self.vehiclesSourceID",
@@ -439,16 +443,14 @@ class MapResourceContractTest {
     @Test
     fun highlightedStopsKeepCommonStyleRevisionAndSelectedTapPriorityOnBothAdapters() {
         val root = projectRoot()
-        val android = root.resolve(
-            "shared/src/androidMain/kotlin/com/denis/georgiatransit/shared/presentation/map/PlatformMap.android.kt",
-        ).readText()
+        val androidOverlays = root.androidMapSource("MapOverlaySources.android.kt")
         val swift = root.resolve("iosApp/iosApp/MapLibreMapViewBridge.swift").readText()
-        val androidStops = android.declarationSection(
+        val androidStops = androidOverlays.declarationSection(
             "private fun ordinaryStopFeatures",
             "private fun selectedStopFeatures",
         )
-        val androidSources = android.functionBody("private fun updateSources")
-        val androidTap = android.functionBody("private fun onMapClick")
+        val androidSources = androidOverlays.functionBody("fun render(")
+        val androidTap = root.androidMapSource("MapHitTesting.android.kt").functionBody("internal fun MapLibreMap.hitTestEntity")
         val iosStops = swift.functionBody(
             "private func ordinaryStopFeatures(_ markers: [MapStopMarker], sourceRevision: Int64)",
         )
@@ -505,13 +507,12 @@ class MapResourceContractTest {
     @Test
     fun routeGeometryAdaptersKeepOneOrderedCappedSourceWithRevisionEarlyExitAndStyleReset() {
         val root = projectRoot()
-        val android = root.resolve(
-            "shared/src/androidMain/kotlin/com/denis/georgiatransit/shared/presentation/map/PlatformMap.android.kt",
-        ).readText()
+        val android = root.androidMapSource("MapOverlayLayers.android.kt")
+        val androidOverlays = root.androidMapSource("MapOverlaySources.android.kt")
         val swift = root.resolve("iosApp/iosApp/MapLibreMapViewBridge.swift").readText()
-        val androidUpdates = android.functionBody("private fun updateSources")
-        val androidPolylines = android.declarationSection("private fun polylineFeatures", "private fun userLocationFeatures")
-        val androidReset = android.functionBody("private fun clearRenderedLayerState")
+        val androidUpdates = androidOverlays.functionBody("fun render(")
+        val androidPolylines = androidOverlays.declarationSection("private fun polylineFeatures", "private fun userLocationFeatures")
+        val androidReset = androidOverlays.functionBody("fun clear()")
         val iosRender = swift.functionBody("private func render")
         val iosPolylines = swift.functionBody("private func polylineFeatures")
         val iosReset = swift.functionBody("private func clearRenderedLayerState")
@@ -576,8 +577,8 @@ class MapResourceContractTest {
             "Self.routeWidthProperty: safePolylineWidth(polyline.strokeWidth)",
             "Self.routeOpacityProperty: safePolylineOpacity(polyline.opacity)",
         )
-        assertEquals(256.0, android.numericDeclaration("MAX_POLYLINES"))
-        assertTrue(android.contains("MAX_POLYLINE_POINTS = 20_000"))
+        assertEquals(256.0, androidOverlays.numericDeclaration("MAX_POLYLINES"))
+        assertTrue(androidOverlays.contains("MAX_POLYLINE_POINTS = 20_000"))
         assertEquals(256.0, swift.numericDeclaration("maximumPolylines"))
         assertTrue(swift.contains("maximumPolylinePoints = 20_000"))
         assertCodePath(androidReset, "lastPolylineSourceRevision = null")
@@ -709,9 +710,12 @@ class MapResourceContractTest {
     @Test
     fun androidAndIosAdaptersReceiveTypedStateAndReleaseResourcesWithoutMapSdkPermissionOwnership() {
         val root = projectRoot()
-        val android = root.resolve(
-            "shared/src/androidMain/kotlin/com/denis/georgiatransit/shared/presentation/map/PlatformMap.android.kt",
-        ).readText()
+        val android = root.androidMapSource("PlatformMap.android.kt")
+        val androidOverlays = root.androidMapSource("MapOverlaySources.android.kt")
+        val androidVehicles = root.androidMapSource("VehicleBadgeLayer.android.kt")
+        val androidCameraAdapter = root.androidMapSource("MapCameraAdapter.android.kt")
+        val androidStyleLoader = root.androidMapSource("MapStyleLoader.android.kt")
+        val androidHitTesting = root.androidMapSource("MapHitTesting.android.kt")
         val ios = root.resolve(
             "shared/src/iosMain/kotlin/com/denis/georgiatransit/shared/presentation/map/PlatformMap.ios.kt",
         ).readText()
@@ -719,25 +723,25 @@ class MapResourceContractTest {
             "shared/src/iosMain/kotlin/com/denis/georgiatransit/shared/presentation/map/IosMapCompositionBridge.kt",
         ).readText()
         val swift = root.resolve("iosApp/iosApp/MapLibreMapViewBridge.swift").readText()
-        val androidHitTest = android.functionBody("private fun onMapClick")
+        val androidHitTest = androidHitTesting.functionBody("internal fun MapLibreMap.hitTestEntity")
         val iosHitTest = swift.functionBody("private func handleMapTap")
-        val androidLayers = android.functionBody("private fun installSourcesAndLayers")
+        val androidLayers = root.androidMapSource("MapOverlayLayers.android.kt").functionBody("internal fun installSourcesAndLayers")
         val iosLayers = swift.functionBody("private func installSourcesAndLayersIfNeeded")
-        val androidCamera = android.functionBody("private fun applyCameraIfNeeded")
+        val androidCamera = androidCameraAdapter.functionBody("fun applyIfNeeded")
         val iosCamera = swift.functionBody("private func applyCameraIfNeeded")
-        val androidSourceUpdates = android.functionBody("private fun updateSources")
+        val androidSourceUpdates = androidOverlays.functionBody("fun render(")
         val iosSourceUpdates = swift.functionBody("private func render")
-        val androidOrdinaryStopFactories = android.declarationSection(
+        val androidOrdinaryStopFactories = androidOverlays.declarationSection(
             "private fun ordinaryStopFeatures",
             "private fun selectedStopFeatures",
         )
         val androidOrdinaryStopFeature = androidOrdinaryStopFactories.functionBody(".map { marker ->")
         val androidClusterFeature = androidOrdinaryStopFactories.functionBody(".map { cluster ->")
-        val androidSelectedStopFeature = android.declarationSection(
+        val androidSelectedStopFeature = androidOverlays.declarationSection(
             "private fun selectedStopFeatures",
             "private fun polylineFeatures",
         )
-        val androidVehicleFeatures = android.declarationSection(
+        val androidVehicleFeatures = androidVehicles.declarationSection(
             "private fun vehicleFeatures",
             "private fun updateBadgeImages",
         )
@@ -756,7 +760,7 @@ class MapResourceContractTest {
 
         assertTrue(android.contains("actual fun PlatformMap("))
         assertTrue(android.contains("onEvent: (MapPlatformEvent) -> Unit"))
-        assertTrue(android.contains("MapPlatformEvent.ViewportSettled"))
+        assertTrue(androidCameraAdapter.contains("MapPlatformEvent.ViewportSettled"))
         assertCodePath(
             androidHitTest,
             "stopPinLayerId(SELECTED_STOP_SOURCE_ID), FEATURE_KIND_STOP)",
@@ -766,7 +770,7 @@ class MapResourceContractTest {
             "RectF(",
             "screenPoint.x - halfTarget",
             "screenPoint.x + halfTarget",
-            "findEntityFeature(currentMap, hitRect, VEHICLES_LAYER_ID, FEATURE_KIND_VEHICLE)",
+            "findEntityFeature(hitRect, VEHICLES_LAYER_ID, FEATURE_KIND_VEHICLE)",
             "MapPlatformEvent.VehicleTapped",
         )
         assertFalse(androidHitTest.contains("hitRect, STOPS_LAYER_ID, FEATURE_KIND_STOP"))
@@ -796,16 +800,23 @@ class MapResourceContractTest {
             androidSourceUpdates,
             "ordinaryStopFeatures(renderState)",
             "selectedStopFeatures(renderState)",
+        )
+        assertCodePath(
+            androidVehicles.functionBody("fun render("),
             "vehicleFeatures(renderState.vehicles, renderState.vehicleSourceRevision)",
         )
         assertCodePath(
             androidLayers,
             "CircleLayer(STOPS_LAYER_ID, STOPS_SOURCE_ID)",
-            "SymbolLayer(VEHICLES_LAYER_ID, VEHICLES_SOURCE_ID)",
+            "addLayer(vehicleLayer)",
             "CircleLayer(SELECTED_STOP_LAYER_ID, SELECTED_STOP_SOURCE_ID)",
         )
+        assertCodePath(
+            androidVehicles.declarationSection("fun layer(", "fun render("),
+            "SymbolLayer(VEHICLES_LAYER_ID, VEHICLES_SOURCE_ID)",
+        )
         assertTrue(
-            android.numericDeclaration("MIN_VEHICLE_TARGET_DP") >= 48.0,
+            androidHitTesting.numericDeclaration("MIN_VEHICLE_TARGET_DP") >= 48.0,
             "Android vehicle activation target must remain at least 48dp.",
         )
         assertTrue(android.contains("MapLibre.setConnected(false)"))
@@ -813,6 +824,10 @@ class MapResourceContractTest {
             android,
             "mapView.getMapAsync",
             "mapLibreMap.setPrefetchZoomDelta(0)",
+            "styleLoader.attach(mapLibreMap)",
+        )
+        assertCodePath(
+            androidStyleLoader.functionBody("fun attach("),
             "loadStyle(mapLibreMap, Style.Builder().fromJson(LOCAL_STYLE_JSON), remote = false)",
         )
         assertCodePath(
@@ -823,12 +838,12 @@ class MapResourceContractTest {
         )
         assertCodePath(
             androidCamera,
-            "lastAppliedCameraRevision == renderState.camera.revision",
+            "lastAppliedCameraRevision == command.revision",
             "viewportBottomPadding(command)",
             "lastAppliedCameraRevision = command.revision",
         )
         assertCodePath(
-            android.functionBody("private fun viewportBottomPadding"),
+            androidCameraAdapter.functionBody("private fun viewportBottomPadding"),
             "takeIf(Double::isFinite)",
             "coerceIn(0.0, MAX_BOTTOM_OCCLUSION_FRACTION)",
         )
@@ -1053,6 +1068,12 @@ class MapResourceContractTest {
             ?: error("Could not parse numeric declaration '$name'")
     }
 
+    private fun Path.androidMapSource(fileName: String): String = resolve(AndroidMapAdapterDirectory).resolve(fileName).readText()
+
+    private fun Path.androidMapAdapterSources(): String = Files.list(resolve(AndroidMapAdapterDirectory)).use { files ->
+        files.sorted().toList().joinToString(separator = "\n") { it.readText() }
+    }
+
     private fun Path.mapSectionSource(fileName: String): String = resolve(
         "shared/src/mobileMain/kotlin/com/denis/georgiatransit/shared/presentation/map/sections/$fileName",
     ).readText()
@@ -1063,6 +1084,9 @@ class MapResourceContractTest {
             ?: error("Could not locate the project root from ${Path.of("").toAbsolutePath()}")
 
     private companion object {
+        const val AndroidMapAdapterDirectory =
+            "shared/src/androidMain/kotlin/com/denis/georgiatransit/shared/presentation/map"
+
         data class ResourceString(
             val value: String,
             val formatted: Boolean = true,
