@@ -55,3 +55,6 @@ internal class MapCameraController {
             animated = animated,
         ).also { command = it }
 }
+
+/** Zoom buttons change only the published step; the camera command and its revision stay as they are. */
+internal fun ViewState.withZoomStep(step: MapZoomStep): ViewState = copy(renderState = renderState?.copy(zoomStep = step))
