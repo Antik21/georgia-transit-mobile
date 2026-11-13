@@ -166,6 +166,8 @@ data class MapJourneyOverlay(
     val destination: GeoPoint? = null,
     val pin: GeoPoint? = null,
     val fitRevision: Long = 0L,
+    /** The user is positioning a point under the centred marker; no fit may start or finish meanwhile. */
+    val fitSuspended: Boolean = false,
 )
 
 /**

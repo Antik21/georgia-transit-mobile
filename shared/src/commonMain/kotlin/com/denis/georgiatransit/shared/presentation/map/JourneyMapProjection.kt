@@ -17,6 +17,7 @@ internal fun MapRenderState.withJourneyPlanner(planner: JourneyPlannerUi): MapRe
         destination = render.destination,
         pin = planner.pin,
         fitRevision = planner.cameraFitRevision,
+        fitSuspended = planner.mapPick != null,
     )
     if (render.lines.isEmpty()) return copy(journey = overlay)
     val buses = planner.buses?.let { buses -> buses.vehicles.map { it.toMarker(buses.boarding) } }.orEmpty()

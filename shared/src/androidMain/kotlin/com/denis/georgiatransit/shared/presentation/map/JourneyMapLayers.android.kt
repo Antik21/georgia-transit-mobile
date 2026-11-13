@@ -91,7 +91,7 @@ internal class JourneyMapLayers(private val metrics: DisplayMetrics) {
 
     fun render(style: Style, overlay: MapJourneyOverlay?) {
         if (overlay?.lines.isNullOrEmpty()) fitGeneration++
-        val content = overlay?.copy(fitRevision = 0L)
+        val content = overlay?.copy(fitRevision = 0L, fitSuspended = false)
         if (hasRendered && content == renderedOverlay) return
         style.getSourceAs<GeoJsonSource>(LINES_SOURCE_ID)?.setGeoJson(lineFeatures(content))
         style.getSourceAs<GeoJsonSource>(POINTS_SOURCE_ID)?.setGeoJson(pointFeatures(content))
@@ -101,6 +101,10 @@ internal class JourneyMapLayers(private val metrics: DisplayMetrics) {
 
     /** Frames the plan once per user intent; a re-created view frames the visible plan again. */
     fun fitIfNeeded(map: MapLibreMap, overlay: MapJourneyOverlay?, view: View) {
+        if (overlay?.fitSuspended == true) {
+            fitGeneration++
+            return
+        }
         if (overlay == null || overlay.lines.isEmpty() || fittedRevision == overlay.fitRevision) return
         fittedRevision = overlay.fitRevision
         // Results resize the planner panel in the same frame, so frame after the map is re-laid out.

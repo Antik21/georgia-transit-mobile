@@ -52,6 +52,15 @@ class JourneyMapProjectionTest {
     }
 
     @Test
+    fun mapPickingSuspendsCameraFitsWithoutHidingThePlan() {
+        val projected = base.withJourneyPlanner(planned(buses = null).copy(mapPick = JourneyPlanSide.Destination))
+
+        val overlay = checkNotNull(projected.journey)
+        assertTrue(overlay.fitSuspended)
+        assertEquals(render.lines, overlay.lines)
+    }
+
+    @Test
     fun movedBusChangesTheSourceRevisionButNotTheBadgeRevision() {
         val before = base.withJourneyPlanner(planned(buses(bus("bus-1", 41.64))))
         val after = base.withJourneyPlanner(planned(buses(bus("bus-1", 41.641))))

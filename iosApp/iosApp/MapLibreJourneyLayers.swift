@@ -67,6 +67,10 @@ final class MapLibreJourneyLayers {
 
     /** Frames the plan once per user intent; a re-created view frames the visible plan again. */
     func fitIfNeeded(mapView: MLNMapView, overlay: MapJourneyOverlay?) {
+        if overlay?.fitSuspended == true {
+            fitGeneration += 1
+            return
+        }
         guard let overlay, !overlay.lines.isEmpty, fittedRevision != overlay.fitRevision else { return }
         fittedRevision = overlay.fitRevision
         fitGeneration += 1
