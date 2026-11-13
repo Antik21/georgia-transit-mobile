@@ -41,7 +41,10 @@ try {
       const intercept = new URL(params.request.url).origin === origin
         ? send('Fetch.continueRequest', { requestId: params.requestId })
         : fulfill(send, params, fixture);
-      intercept.catch((error) => errors.push(error.message));
+      // The page may cancel a paused request (e.g. a tile while the map moves) before it is answered.
+      intercept.catch((error) => {
+        if (!error.message.includes('Invalid InterceptionId')) errors.push(error.message);
+      });
     }
   });
 
