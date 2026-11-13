@@ -13,6 +13,8 @@ internal class MapCameraController {
     var command: MapCameraCommand? = null
         private set
     var insets = MapViewportInsets.None
+    var zoomStep: MapZoomStep? = null
+        private set
 
     fun reset() {
         lastCityId = null
@@ -35,6 +37,9 @@ internal class MapCameraController {
         }
         return checkNotNull(command)
     }
+
+    fun zoomBy(delta: Double): MapZoomStep =
+        MapZoomStep(totalDelta = (zoomStep?.totalDelta ?: 0.0) + delta).also { zoomStep = it }
 
     fun next(
         center: GeoPoint,

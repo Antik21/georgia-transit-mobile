@@ -23,6 +23,8 @@ export interface ViewActions extends PlannerActions {
   retryRoute(id: string): void;
   removeRoute(id: string): void;
   myLocation(): void;
+  zoomIn(): void;
+  zoomOut(): void;
 }
 
 type Copy = ReturnType<typeof getCopy>;
@@ -91,7 +93,14 @@ export function createTransitView(root: HTMLElement, actions: ViewActions, langu
     actions.myLocation();
   }, "my-location");
   locationButton.append(locationIcon());
-  locationControls.append(locationStatus, locationButton);
+  const zoomIn = button("map-zoom-button", "", actions.zoomIn, "zoom-in");
+  const zoomOut = button("map-zoom-button", "", actions.zoomOut, "zoom-out");
+  for (const [control, label, glyph] of [[zoomIn, copy.zoomIn, "M5 12h14M12 5v14"], [zoomOut, copy.zoomOut, "M5 12h14"]] as const) {
+    control.setAttribute("aria-label", label);
+    control.title = label;
+    control.append(zoomIcon(glyph));
+  }
+  locationControls.append(locationStatus, locationButton, zoomIn, zoomOut);
   // Mirrors the mobile map overlay: nearby-stop loading and errors show on the map, never as a list.
   const contentStatus = element("div", "map-content-status");
   contentStatus.dataset.testid = "map-content-status";
@@ -249,8 +258,11 @@ export function createTransitView(root: HTMLElement, actions: ViewActions, langu
   }
 
   function renderLocation(location: MapState["location"]) {
-    locationControls.hidden = !location;
-    if (!location) return;
+    locationButton.hidden = !location;
+    if (!location) {
+      locationStatus.hidden = true;
+      return;
+    }
     const label = locationActionLabel(copy, location);
     locationButton.setAttribute("aria-label", label);
     locationButton.title = label;
@@ -497,6 +509,17 @@ function locationStatusText(copy: Copy, location: NonNullable<MapState["location
 }
 
 const svgNamespace = "http://www.w3.org/2000/svg";
+
+function zoomIcon(path: string) {
+  const svg = document.createElementNS(svgNamespace, "svg");
+  svg.setAttribute("viewBox", "0 0 24 24");
+  svg.setAttribute("aria-hidden", "true");
+  svg.classList.add("map-zoom-icon");
+  const shape = document.createElementNS(svgNamespace, "path");
+  shape.setAttribute("d", path);
+  svg.append(shape);
+  return svg;
+}
 
 function locationIcon() {
   const svg = document.createElementNS(svgNamespace, "svg");

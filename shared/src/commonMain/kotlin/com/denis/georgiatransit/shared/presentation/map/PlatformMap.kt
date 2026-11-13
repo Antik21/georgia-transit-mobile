@@ -33,6 +33,13 @@ data class MapCameraCommand(
 )
 
 /**
+ * Zoom buttons, kept apart from [MapCameraCommand] so adapters zoom around the live camera and
+ * keep the user's pan and selection. A running sum survives state conflation of rapid taps.
+ */
+@Immutable
+data class MapZoomStep(val totalDelta: Double)
+
+/**
  * SDK-free viewport padding expressed as a stable fraction of the map height. Fractions avoid
  * leaking Android pixels or UIKit points and remain deterministic across density and font scale.
  */
@@ -175,6 +182,8 @@ data class MapRenderState(
     val vehicleSourceRevision: Long = 0L,
     /** Changes only when a native route-badge bitmap style can change, never for frame geometry. */
     val vehicleBadgeRevision: Long = 0L,
+    /** Adapters apply changes of the sum and ignore the value present when they attach. */
+    val zoomStep: MapZoomStep? = null,
 ) {
     /**
      * Converts arbitrary caller-owned iterables into persistent snapshots, which is the convenient

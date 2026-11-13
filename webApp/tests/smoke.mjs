@@ -379,6 +379,33 @@ try {
   await waitFor('Returning from settings grants access and locates the user', `${permissionIs('granted')} && !${visible(testId('location-status'))}`);
   await waitFor('The user location dot draws on the MapLibre canvas', () => mapContainsColor(userLocationDotColor, 20));
 
+  const zoomIn = testId('zoom-in');
+  const zoomOut = testId('zoom-out');
+  await waitFor('Zoom controls stack below my location in one column', `(() => {
+    const box = (selector) => document.querySelector(selector)?.getBoundingClientRect();
+    const location = box('${locationButton}'), plus = box('${zoomIn}'), minus = box('${zoomOut}');
+    return Boolean(location && plus && minus && plus.width > 0 && location.bottom <= plus.top && plus.bottom <= minus.top
+      && Math.abs(location.right - plus.right) < 1 && Math.abs(plus.right - minus.right) < 1);
+  })()`);
+  const tileZoomsSince = (start) => bffRequests.slice(start)
+    .filter((path) => path.startsWith('/v1/map/tiles/')).map((path) => Number(path.split('/')[4]));
+  const settledTileZoom = tileZoomsSince(0).at(-1);
+  const beforeZoomIn = bffRequests.length;
+  await tap(zoomIn);
+  await tap(zoomIn);
+  await waitFor('Two zoom-in taps load tiles two levels deeper', () => tileZoomsSince(beforeZoomIn).includes(settledTileZoom + 2));
+  // Lower tile levels are already cached, so zoom-out is measured by the metre-sized accuracy halo.
+  const accuracyHaloPixels = () => analyzeMap(`
+    let count = 0;
+    for (let i = 0; i < pixels.length; i += 4) {
+      if (Math.abs(pixels[i] - 27) <= 4 && Math.abs(pixels[i + 1] - 169) <= 4 && Math.abs(pixels[i + 2] - 145) <= 4) count++;
+    }
+    return count;`);
+  await delay(600);
+  const zoomedInHalo = await accuracyHaloPixels();
+  for (let step = 0; step < 4; step++) await tap(zoomOut);
+  await waitFor('Zoom-out taps shrink the accuracy halo', async () => (await accuracyHaloPixels()) * 16 < zoomedInHalo);
+
   // Outside Telegram the same flow runs on navigator.geolocation.
   fixtureControl.telegram = false;
   await devTools.send('Browser.grantPermissions', { origin, permissions: ['geolocation'] });

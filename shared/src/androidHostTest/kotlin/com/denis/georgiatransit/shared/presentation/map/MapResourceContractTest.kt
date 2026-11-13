@@ -110,6 +110,8 @@ class MapResourceContractTest {
             AutomationId.MapChangeCity,
             AutomationId.MapMyLocation,
             AutomationId.MapLocationSettings,
+            AutomationId.MapZoomIn,
+            AutomationId.MapZoomOut,
             AutomationId.MapUserLocation,
             AutomationId.MapLoading,
             AutomationId.MapEmpty,
@@ -247,8 +249,10 @@ class MapResourceContractTest {
             userLocationTag < platformMapCall,
             "The conditional user-location ID must live on the Compose wrapper, before PlatformMap.",
         )
-        assertCodePath(canvas, "PlatformMap(", "onEvent = onMapEvent", "MapStatusOverlays(", "onRetry = onRetry", "Button(")
-        assertTrue(canvas.compactWhitespace().contains("testTag(locationActionAutomationId)"))
+        assertCodePath(canvas, "PlatformMap(", "onEvent = onMapEvent", "MapStatusOverlays(", "onRetry = onRetry", "MapCameraControls(")
+        val cameraControls = projectRoot().mapSectionSource("MapCameraControls.kt").functionBody("fun MapCameraControls")
+        assertCodePath(cameraControls, "PlatformMyLocationButton(", "AutomationId.MapZoomIn", "AutomationId.MapZoomOut")
+        assertTrue(cameraControls.compactWhitespace().contains("testTag(locationActionAutomationId)"))
         assertCodePath(contentOverlay, "contentState is MapContentState.RetryableError", "Button(", "onClick = onRetry", "MapRetry")
         assertFalse(content.contains("NearbyStopsAccessibility"), "Nearby stops must not consume visual space below the map.")
         assertCodePath(
@@ -1085,6 +1089,8 @@ class MapResourceContractTest {
             "map_routes_action",
             "map_change_city_action",
             "map_my_location_action",
+            "map_zoom_in_action",
+            "map_zoom_out_action",
             "map_selected_routes",
             "map_stop_arrivals_title",
             "map_stop_arrivals_stop_details_unavailable",

@@ -39,6 +39,10 @@ private final class LocalMapLibreView: UIView, MLNMapViewDelegate {
     private var requestedBffStyleURL: URL?
     private var lastAppliedCameraRevision: Int64?
     private var lastAppliedCamera: AppliedCamera?
+    private let zoomSteps = MapZoomStepTracker(
+        minZoom: LocalMapLibreView.minimumZoom,
+        maxZoom: LocalMapLibreView.maximumZoom
+    )
     private var stopPinImageNames: Set<String> = []
     private var lastStops: [StopRenderInput]?
     private var lastStopSourceRevision: Int64?
@@ -112,6 +116,9 @@ private final class LocalMapLibreView: UIView, MLNMapViewDelegate {
         guard !released else { return }
         pendingRenderState = renderState
         updateBaseStyle(renderState.bffStyleUrl)
+        if let target = zoomSteps.targetZoom(step: renderState.zoomStep, currentZoom: mapView.zoomLevel) {
+            mapView.setZoomLevel(target.doubleValue, animated: true)
+        }
         guard let style = mapView.style else { return }
         installSourcesAndLayersIfNeeded(style: style)
         render(renderState, style: style)

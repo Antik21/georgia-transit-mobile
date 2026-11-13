@@ -189,6 +189,7 @@ private class LocalMapController(
     private var layersInstalled = false
     private var lastAppliedCameraRevision: Long? = null
     private var lastAppliedCameraCommand: MapCameraCommand? = null
+    private val zoomSteps = MapZoomStepTracker(MIN_ZOOM, MAX_ZOOM)
     private val stopPinImages = StopPinImages()
     private var lastStops: List<MapStopMarker>? = null
     private var lastStopClusters: List<MapStopCluster>? = null
@@ -259,6 +260,10 @@ private class LocalMapController(
         latestState = renderState
         updateBaseStyle(renderState.bffStyleUrl)
         if (style != null) installAndRender(renderState)
+        map?.let { currentMap ->
+            zoomSteps.targetZoom(renderState.zoomStep, currentMap.cameraPosition.zoom)
+                ?.let { currentMap.animateCamera(CameraUpdateFactory.zoomTo(it), MapZoomStepTracker.ANIMATION_MILLIS) }
+        }
     }
 
     fun setLifecycleResumed(resumed: Boolean) {

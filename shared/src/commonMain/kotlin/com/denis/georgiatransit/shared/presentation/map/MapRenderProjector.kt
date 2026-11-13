@@ -28,6 +28,7 @@ internal class MapRenderProjector(
             stopSourceRevision = selection.sourceRevision,
             vehicleSourceRevision = vehicles.vehicleFrameRevision,
             vehicleBadgeRevision = vehicles.vehicleBadgeRevision,
+            zoomStep = camera.zoomStep,
         )
     }
 }

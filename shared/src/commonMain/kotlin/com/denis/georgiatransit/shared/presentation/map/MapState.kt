@@ -210,6 +210,7 @@ sealed interface Action {
     data object RoutesClicked : Action
     data object ChangeCityClicked : Action
     data object MyLocationClicked : Action
+    data class ZoomClicked(val direction: MapZoomDirection) : Action
     data object RefreshLocation : Action
     data class LocationEventReceived(val event: LocationPlatformEvent) : Action
     data class MapEventReceived(val event: MapPlatformEvent) : Action
@@ -225,6 +226,8 @@ sealed interface Action {
     /** Emitted by the common composed Map entry and its host lifecycle; it never reflects panning. */
     data class RealtimeVisibilityChanged(val isVisibleAndStarted: Boolean) : Action
 }
+
+enum class MapZoomDirection(val delta: Double) { In(1.0), Out(-1.0) }
 
 sealed interface SideEffect {
     data class HandleLocation(val command: LocationPlatformCommand) : SideEffect

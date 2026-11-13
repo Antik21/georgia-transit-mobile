@@ -25,6 +25,8 @@ import com.denis.georgiatransit.shared.presentation.map.MapStopMarker
 import com.denis.georgiatransit.shared.presentation.map.MapVehicleMarker
 import com.denis.georgiatransit.shared.presentation.map.MapViewModel
 import com.denis.georgiatransit.shared.presentation.map.MapViewport
+import com.denis.georgiatransit.shared.presentation.map.MapZoomDirection
+import com.denis.georgiatransit.shared.presentation.map.MapZoomStep
 import com.denis.georgiatransit.shared.presentation.map.NearbyStopUi
 import com.denis.georgiatransit.shared.presentation.map.NavigationEffect
 import com.denis.georgiatransit.shared.presentation.map.RouteGeometryLegendUi
@@ -85,6 +87,9 @@ class MapCamera(
 )
 
 @JsExport
+class MapZoom(val totalDelta: Double)
+
+@JsExport
 class TransitCredit(val label: String, val url: String)
 
 @JsExport
@@ -107,6 +112,7 @@ class StopMapState(
     val location: LocationStatus? = null,
     val userLocation: UserLocation? = null,
     val stopLayer: MapStopLayer? = null,
+    val zoomStep: MapZoom? = null,
 )
 
 private data class VehicleSlice(
@@ -135,6 +141,7 @@ private data class StopSlice(
     val mapStops: List<MapStopMarker>,
     val mapStopClusters: List<MapStopCluster>,
     val stopSourceRevision: Long?,
+    val zoomStep: MapZoomStep?,
 )
 
 /** Owns the Map entry and its subscriptions; dispose when the host leaves the entry. */
@@ -184,6 +191,8 @@ class MapBridge internal constructor(
     }
 
     fun myLocation() { if (!disposed) viewModel.dispatchAction(Action.MyLocationClicked) }
+    fun zoomIn() { if (!disposed) viewModel.dispatchAction(Action.ZoomClicked(MapZoomDirection.In)) }
+    fun zoomOut() { if (!disposed) viewModel.dispatchAction(Action.ZoomClicked(MapZoomDirection.Out)) }
     fun refreshLocation() { if (!disposed) viewModel.dispatchAction(Action.RefreshLocation) }
 
     fun locationPermission(state: String, precise: Boolean, canRetry: Boolean) =
@@ -230,6 +239,7 @@ class MapBridge internal constructor(
                         render?.stops.orEmpty(),
                         render?.stopClusters.orEmpty(),
                         render?.stopSourceRevision,
+                        render?.zoomStep,
                     )
                 }
                 .distinctUntilChanged()
@@ -381,6 +391,7 @@ private fun StopSlice.toJs(
     location = location.toJs(),
     userLocation = userLocation?.toJs(),
     stopLayer = stopLayer,
+    zoomStep = zoomStep?.let { MapZoom(it.totalDelta) },
 )
 
 private fun StopArrivalsSheetUi.toJs(): ArrivalsState = ArrivalsState(

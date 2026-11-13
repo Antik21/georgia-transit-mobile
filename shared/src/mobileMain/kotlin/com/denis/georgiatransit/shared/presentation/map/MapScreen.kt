@@ -115,6 +115,7 @@ private fun Content(state: ViewState, onAction: (Action) -> Unit) {
                     },
                     locationActionEnabled = isLocationActionable,
                     onMyLocationClick = { onAction(Action.MyLocationClicked) },
+                    onZoomClick = { onAction(Action.ZoomClicked(it)) },
                     onMapEvent = { onAction(Action.MapEventReceived(it)) },
                     onRetry = { onAction(Action.RetryNearby) },
                     modifier = mapModifier,

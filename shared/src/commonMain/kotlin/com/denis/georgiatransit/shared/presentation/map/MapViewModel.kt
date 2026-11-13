@@ -134,6 +134,10 @@ class MapViewModel(
                 locationActions.forAction(action, state.location.permission, realtimeVisibleAndStarted)
                     ?.let { postSideEffect(SideEffect.HandleLocation(it)) }
             }
+            is Action.ZoomClicked -> intent {
+                val step = cameraController.zoomBy(action.direction.delta)
+                reduce { state.copy(renderState = state.renderState?.copy(zoomStep = step)) }
+            }
             Action.RetryNearby -> retryNearby()
             is Action.RouteGeometryFocused -> routeGeometryCoordinator.focus(action.routeId)
             is Action.RetryRouteGeometry -> routeGeometryCoordinator.retry(viewModelScope, action.routeId)
