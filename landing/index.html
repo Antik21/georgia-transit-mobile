@@ -1,0 +1,216 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="color-scheme" content="light dark">
+  <meta name="theme-color" content="#8E1B2D">
+  <title>Geo Transit — автобусы Батуми в реальном времени</title>
+  <meta name="description" content="Geo Transit показывает автобусы Батуми на карте, примерное время прибытия на остановку и варианты пути из точки А в точку Б. Android, iOS, веб и Telegram.">
+  <meta property="og:title" content="Geo Transit — автобусы Батуми в реальном времени">
+  <meta property="og:description" content="Автобусы на карте, прибытия на остановки и путь из А в Б. Android, iOS, веб и Telegram.">
+  <meta property="og:type" content="website">
+  <meta property="og:image" content="assets/brand/icon-512.webp">
+  <link rel="icon" type="image/png" sizes="32x32" href="assets/brand/favicon-32.png">
+  <link rel="apple-touch-icon" href="assets/brand/apple-touch-icon.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Noto+Sans+Georgian:wght@400;600;700;800&display=swap">
+  <link rel="stylesheet" href="styles.css">
+  <script>
+    try {
+      const theme = localStorage.getItem("gt-landing-theme");
+      if (theme === "light" || theme === "dark") document.documentElement.dataset.theme = theme;
+    } catch {}
+  </script>
+</head>
+<body>
+  <a class="skip" href="#main" data-i18n="skip">Перейти к содержимому</a>
+
+  <header class="topbar">
+    <div class="wrap topbar__row">
+      <a class="brand" href="#top" aria-label="Geo Transit">
+        <img src="assets/brand/icon-192.png" width="40" height="40" alt="">
+        <span>Geo Transit</span>
+      </a>
+      <nav class="topbar__nav" aria-label="Навигация" data-i18n-aria="navLabel">
+        <a href="#features" data-i18n="navFeatures">Возможности</a>
+        <a href="#planner" data-i18n="navPlanner">Из А в Б</a>
+        <a href="#platforms" data-i18n="navPlatforms">Платформы</a>
+      </nav>
+      <div class="topbar__tools">
+        <div class="lang" role="group" aria-label="Язык" data-i18n-aria="langLabel">
+          <button type="button" data-lang="ru" aria-pressed="true" lang="ru">RU</button>
+          <button type="button" data-lang="en" aria-pressed="false" lang="en">EN</button>
+          <button type="button" data-lang="ka" aria-pressed="false" lang="ka">ქა</button>
+        </div>
+        <button type="button" class="theme-toggle" aria-label="Сменить тему" data-i18n-aria="themeLabel">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a9 9 0 1 0 9 9 7 7 0 0 1-9-9Z"/></svg>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <main id="main">
+    <section class="hero" id="top" aria-labelledby="hero-title">
+      <svg class="hero__route" viewBox="0 0 1440 640" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+        <path class="hero__line" pathLength="1" d="M-60 610 C 260 640 560 600 760 520 S 980 300 1160 250 S 1380 110 1520 70"/>
+        <circle class="hero__stop hero__stop--a" data-at="0.3" r="15"/>
+                <circle class="hero__stop hero__stop--b" data-at="0.95" r="15"/>
+      </svg>
+      <div class="wrap hero__grid">
+        <div class="hero__copy">
+          <p class="hero__city" data-i18n="heroCity">Батуми, Грузия</p>
+          <h1 id="hero-title" data-i18n="heroTitle">Автобусы Батуми на карте — прямо сейчас</h1>
+          <p class="hero__lead" data-i18n="heroLead">Geo Transit показывает, где едут автобусы, примерно когда они будут на вашей остановке и как добраться из точки А в точку Б.</p>
+          <div class="hero__actions">
+            <a class="button button--light" href="https://antik21-georgia-transit-web.onrender.com/" data-link="web" data-i18n="ctaWeb">Открыть веб-версию</a>
+            <a class="button button--ghost" href="#platforms" data-i18n="ctaPlatforms">Android, iOS и Telegram</a>
+          </div>
+          <ul class="hero__facts">
+            <li data-i18n="factFree">Без регистрации</li>
+            <li data-i18n="factLangs">Русский, English, ქართული</li>
+            <li data-i18n="factTheme">Светлая и тёмная тема</li>
+          </ul>
+        </div>
+        <div class="hero__phones">
+          <figure class="phone phone--back">
+            <div class="phone__screen">
+              <img class="only-light" src="assets/screens/live-map.webp" width="780" height="1688" alt="Карта Батуми с автобусами в реальном времени и списком ближайших остановок" data-i18n-alt="altLiveMap">
+              <img class="only-dark" src="assets/screens/live-map-dark.webp" width="780" height="1688" alt="Карта Батуми с автобусами в реальном времени в тёмной теме" data-i18n-alt="altLiveMapDark" loading="lazy">
+            </div>
+          </figure>
+          <figure class="phone phone--front">
+            <div class="phone__screen">
+              <img src="assets/screens/planner.webp" width="780" height="1688" alt="Путь из точки А в точку Б: вариант «Оптимальный» и «Быстрее всего» на автобусе 7A, около 38 минут" data-i18n-alt="altPlanner" fetchpriority="high">
+            </div>
+          </figure>
+        </div>
+      </div>
+    </section>
+
+    <section class="features" id="features" aria-labelledby="features-title">
+      <div class="wrap">
+        <h2 id="features-title" class="section-title" data-i18n="featuresTitle">Всё, что нужно на остановке</h2>
+        <p class="section-lead" data-i18n="featuresLead">Четыре вещи, ради которых открывают Geo Transit. Каждая — на настоящих данных Батуми.</p>
+
+        <ol class="line">
+          <li class="stop">
+            <div class="stop__text">
+              <h3 data-i18n="f1Title">Автобусы в движении</h3>
+              <p data-i18n="f1Body">Все автобусы города на одной карте. Видно, где сейчас едет нужный номер и сколько машин на линии.</p>
+            </div>
+            <figure class="phone phone--small">
+              <div class="phone__screen">
+                <img src="assets/screens/live-map.webp" width="780" height="1688" loading="lazy" alt="Автобусы Батуми на карте вокруг текущего местоположения" data-i18n-alt="altLiveMapNearby">
+              </div>
+            </figure>
+          </li>
+          <li class="stop">
+            <div class="stop__text">
+              <h3 data-i18n="f2Title">Когда придёт автобус</h3>
+              <p data-i18n="f2Body">Откройте остановку рядом — увидите номера маршрутов и сколько минут до прибытия.</p>
+              <p class="note" data-i18n="f2Note">Время — оценка по движению автобусов, а не официальное расписание.</p>
+            </div>
+            <figure class="phone phone--small">
+              <div class="phone__screen">
+                <img src="assets/screens/arrivals.webp" width="780" height="1688" loading="lazy" alt="Остановка Akaki Tsereteli Street №2: маршруты 8, 1A и 20 через 1 минуту" data-i18n-alt="altArrivals">
+              </div>
+            </figure>
+          </li>
+          <li class="stop">
+            <div class="stop__text">
+              <h3 data-i18n="f3Title">Только ваши маршруты</h3>
+              <p data-i18n="f3Body">Отметьте нужные номера — их линии и автобусы на карте окрасятся в цвета маршрутов, остальное отойдёт на второй план.</p>
+            </div>
+            <div class="phone-pair">
+              <figure class="phone phone--small">
+                <div class="phone__screen">
+                  <img src="assets/screens/routes-list.webp" width="780" height="1688" loading="lazy" alt="Список маршрутов Батуми с цветными номерами, выбраны 1A, 8 и 20" data-i18n-alt="altRoutesList">
+                </div>
+              </figure>
+              <figure class="phone phone--small">
+                <div class="phone__screen">
+                  <img src="assets/screens/routes-map.webp" width="780" height="1688" loading="lazy" alt="Маршруты 1, 4 и 6 на карте своими цветами" data-i18n-alt="altRoutesMap">
+                </div>
+              </figure>
+            </div>
+          </li>
+        </ol>
+      </div>
+    </section>
+
+    <section class="planner" id="planner" aria-labelledby="planner-title">
+      <div class="wrap planner__grid">
+        <div class="planner__copy">
+          <h2 id="planner-title" class="section-title" data-i18n="plannerTitle">Из точки А в точку Б</h2>
+          <p class="section-lead" data-i18n="plannerLead">Удерживайте палец на карте, чтобы отметить начало и конец пути. Geo Transit предложит варианты на автобусах и подпишет, чем каждый хорош.</p>
+          <ul class="chips" aria-label="Подписи вариантов" data-i18n-aria="chipsLabel">
+            <li class="chip chip--optimal" data-i18n="labelOptimal">Оптимальный</li>
+            <li class="chip chip--fastest" data-i18n="labelFastest">Быстрее всего</li>
+            <li class="chip chip--walk" data-i18n="labelLeastWalking">Меньше пешком</li>
+            <li class="chip chip--direct" data-i18n="labelNoTransfers">Без пересадок</li>
+          </ul>
+          <dl class="legs">
+            <div><dt data-i18n="legWalkTitle">Пешие участки</dt><dd data-i18n="legWalkBody">Сколько метров и минут идти до остановки, между остановками и до места.</dd></div>
+            <div><dt data-i18n="legBusTitle">Ближайшие автобусы</dt><dd data-i18n="legBusBody">Ожидание и время в пути с учётом автобусов, которые уже едут к остановке.</dd></div>
+            <div><dt data-i18n="legPrivacyTitle">Точки не сохраняются</dt><dd data-i18n="legPrivacyBody">Начало и конец пути нужны только для расчёта и нигде не хранятся.</dd></div>
+          </dl>
+          <p class="note" data-i18n="plannerNote">Сейчас в веб-версии и Telegram; в приложениях для Android и iOS — в работе. Всё время примерное и не является официальным расписанием.</p>
+        </div>
+        <figure class="phone phone--planner">
+          <div class="phone__screen">
+            <img src="assets/screens/planner.webp" width="780" height="1688" loading="lazy" alt="Варианты пути: 38 минут на автобусе 7A и 53 минуты на автобусе 11, с пешими участками" data-i18n-alt="altPlannerOptions">
+          </div>
+        </figure>
+      </div>
+    </section>
+
+    <section class="platforms" id="platforms" aria-labelledby="platforms-title">
+      <div class="wrap">
+        <h2 id="platforms-title" class="section-title" data-i18n="platformsTitle">Там, где вам удобно</h2>
+        <p class="section-lead" data-i18n="platformsLead">Geo Transit работает на Android, iOS, в браузере и внутри Telegram. Логика общая, поэтому карта и время прибытия везде одинаковые.</p>
+        <ul class="platform-list">
+          <li class="platform">
+            <svg class="platform__icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 9.5h10v7a1 1 0 0 1-1 1h-1v2.5a1 1 0 0 1-2 0V17.5h-2v2.5a1 1 0 0 1-2 0V17.5H8a1 1 0 0 1-1-1v-7Zm-2.5 0a1 1 0 0 1 1 1v4.5a1 1 0 0 1-2 0v-4.5a1 1 0 0 1 1-1Zm15 0a1 1 0 0 1 1 1v4.5a1 1 0 0 1-2 0v-4.5a1 1 0 0 1 1-1ZM7.1 8.5a5 5 0 0 1 2.6-3.9l-.9-1.4a.4.4 0 0 1 .7-.4l.9 1.5a5 5 0 0 1 3.2 0l.9-1.5a.4.4 0 0 1 .7.4l-.9 1.4a5 5 0 0 1 2.6 3.9H7.1ZM10 6.4a.6.6 0 1 0 0 1.2.6.6 0 0 0 0-1.2Zm4 0a.6.6 0 1 0 0 1.2.6.6 0 0 0 0-1.2Z"/></svg>
+            <h3>Android</h3>
+            <p data-i18n="pAndroid">Приложение для телефонов на Android.</p>
+            <span class="platform__link is-pending" data-link="android" data-i18n="linkSoon">Ссылка появится здесь</span>
+          </li>
+          <li class="platform">
+            <svg class="platform__icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M16.4 12.6c0-2.3 1.9-3.4 2-3.5a4.3 4.3 0 0 0-3.4-1.8c-1.4-.2-2.8.8-3.5.8-.7 0-1.8-.8-3-.8a4.5 4.5 0 0 0-3.8 2.3c-1.6 2.8-.4 7 1.2 9.3.8 1.1 1.7 2.4 2.9 2.3 1.2 0 1.6-.7 3-.7s1.8.7 3 .7c1.3 0 2.1-1.1 2.8-2.3.9-1.3 1.3-2.6 1.3-2.6s-2.5-1-2.5-3.7ZM14.2 5.8a4 4 0 0 0 .9-3c-.9 0-2 .6-2.6 1.4a3.8 3.8 0 0 0-1 2.9c1 0 2-.5 2.7-1.3Z"/></svg>
+            <h3>iOS</h3>
+            <p data-i18n="pIos">Приложение для iPhone.</p>
+            <span class="platform__link is-pending" data-link="ios" data-i18n="linkSoon">Ссылка появится здесь</span>
+          </li>
+          <li class="platform">
+            <svg class="platform__icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.5a9.5 9.5 0 1 0 0 19 9.5 9.5 0 0 0 0-19Zm6.9 8.5h-3a15 15 0 0 0-1.3-5.9 7.5 7.5 0 0 1 4.3 5.9ZM12 4.6c.8 1 1.8 3.2 2 6.4h-4c.2-3.2 1.2-5.4 2-6.4ZM9.4 5.1A15 15 0 0 0 8.1 11h-3a7.5 7.5 0 0 1 4.3-5.9ZM5.1 13h3a15 15 0 0 0 1.3 5.9A7.5 7.5 0 0 1 5.1 13Zm6.9 6.4c-.8-1-1.8-3.2-2-6.4h4c-.2 3.2-1.2 5.4-2 6.4Zm2.6-.5a15 15 0 0 0 1.3-5.9h3a7.5 7.5 0 0 1-4.3 5.9Z"/></svg>
+            <h3 data-i18n="webTitle">Веб</h3>
+            <p data-i18n="pWeb">В любом браузере на телефоне или компьютере, без установки.</p>
+            <a class="platform__link" href="https://antik21-georgia-transit-web.onrender.com/" data-link="web" data-i18n="linkWeb">Открыть сайт</a>
+          </li>
+          <li class="platform">
+            <svg class="platform__icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20.7 4.3 2.9 11.2c-1.2.5-1.2 1.2-.2 1.5l4.6 1.4 1.7 5.4c.2.6.4.8.9.8.4 0 .6-.2.9-.5l2.2-2.1 4.6 3.4c.8.5 1.4.2 1.6-.8l3-14.2c.3-1.2-.5-1.8-1.5-1.3ZM9.4 14.2l8.4-7.6c.4-.3-.1-.5-.6-.2L6.8 13l-.1-.1 2.7.8Z"/></svg>
+            <h3>Telegram</h3>
+            <p data-i18n="pTelegram">Мини-приложение прямо в Telegram — ничего не нужно устанавливать.</p>
+            <span class="platform__link is-pending" data-link="telegram" data-i18n="linkSoon">Ссылка появится здесь</span>
+          </li>
+        </ul>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <div class="wrap footer__row">
+      <div class="footer__brand">
+        <img src="assets/brand/icon-192.png" width="32" height="32" alt="">
+        <span>Geo Transit</span>
+      </div>
+      <p data-i18n="footerCity">Начинаем с Батуми.</p>
+      <p class="footer__small" data-i18n="footerNote">Время прибытия и длительность поездки — примерные оценки, не официальное расписание. Картографические данные на снимках экрана © участники OpenStreetMap.</p>
+    </div>
+  </footer>
+
+  <script src="main.js" type="module"></script>
+</body>
+</html>
