@@ -78,6 +78,38 @@ class JourneyPlannerReducerTest {
     }
 
     @Test
+    fun confirmingTheCentredMarkerSetsThatSideAndPlans() {
+        val open = JourneyPlannerUi(isOpen = true, pin = A, destination = JourneyEndpoint.MapPoint(B),
+            status = Status.PickingPoint(JourneyPlanSide.Origin))
+
+        val picking = JourneyPlannerReducer.action(open, JourneyPlannerAction.StartMapPick(JourneyPlanSide.Origin), context())
+        val ignored = JourneyPlannerReducer.longPress(picking.state, B, context())
+        val step = JourneyPlannerReducer.action(picking.state, JourneyPlannerAction.ConfirmMapPick(A), context())
+
+        assertEquals(JourneyPlanSide.Origin, picking.state.mapPick)
+        assertNull(picking.state.pin)
+        assertEquals(picking.state, ignored.state, "A long press must not compete with the centred marker")
+        assertNull(step.state.mapPick)
+        assertEquals(JourneyEndpoint.MapPoint(A), step.state.origin)
+        assertEquals(Status.Loading, step.state.status)
+        assertEquals(A, assertNotNull(step.query).from)
+    }
+
+    @Test
+    fun cancellingTheCentredMarkerRestoresThePanelUntouched() {
+        val results = JourneyPlannerUi(isOpen = true, origin = JourneyEndpoint.MapPoint(A),
+            destination = JourneyEndpoint.MapPoint(B), status = Status.Empty)
+
+        val picking = JourneyPlannerReducer.action(results, JourneyPlannerAction.StartMapPick(JourneyPlanSide.Destination), context())
+        val cancelled = JourneyPlannerReducer.action(picking.state, JourneyPlannerAction.CancelMapPick, context())
+        val closed = JourneyPlannerReducer.action(JourneyPlannerUi(), JourneyPlannerAction.StartMapPick(JourneyPlanSide.Origin), context())
+
+        assertEquals(results, cancelled.state.copy(render = JourneyPlanRenderUi()), "Only the derived markers differ")
+        assertNull(cancelled.query)
+        assertNull(closed.state.mapPick, "Only an open planner can enter map picking")
+    }
+
+    @Test
     fun myLocationMovesInsteadOfDuplicatingAndAsksThroughTheExplicitFlow() {
         val open = JourneyPlannerUi(isOpen = true, origin = JourneyEndpoint.CurrentLocation,
             destination = JourneyEndpoint.MapPoint(B), status = Status.Loading)

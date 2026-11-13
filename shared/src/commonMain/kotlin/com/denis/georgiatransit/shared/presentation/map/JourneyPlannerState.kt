@@ -36,6 +36,8 @@ data class JourneyPlannerUi(
     val buses: JourneyBusesUi? = null,
     /** Bumped only by user intent (a new plan or another option); refreshes must not re-frame the camera. */
     val cameraFitRevision: Long = 0,
+    /** The side being placed under the centred map marker; the panel stays hidden until it is chosen or cancelled. */
+    val mapPick: JourneyPlanSide? = null,
 )
 
 @Immutable
@@ -160,6 +162,9 @@ sealed interface JourneyPlannerAction : Action {
     data object SetDestinationToMyLocation : JourneyPlannerAction
     data object StartPickingOrigin : JourneyPlannerAction
     data object StartPickingDestination : JourneyPlannerAction
+    data class StartMapPick(val side: JourneyPlanSide) : JourneyPlannerAction
+    data class ConfirmMapPick(val point: GeoPoint) : JourneyPlannerAction
+    data object CancelMapPick : JourneyPlannerAction
     data object Swap : JourneyPlannerAction
     data object Clear : JourneyPlannerAction
     data class SelectOption(val id: JourneyId) : JourneyPlannerAction

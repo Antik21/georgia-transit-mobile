@@ -20,12 +20,27 @@ internal val SwapIcon: ImageVector by lazy {
     glyph("SwapVert", "M16 17.01V10h-2v7.01h-3L15 21l4-3.99h-3zM9 3 5 6.99h3V14h2V6.99h3L9 3z")
 }
 
-private fun glyph(name: String, path: String): ImageVector = ImageVector.Builder(
+/** Material Symbols "arrow_back", "check" and "location_on" geometry, used under the Apache-2.0 license. */
+internal val BackArrowIcon: ImageVector by lazy {
+    glyph("ArrowBack", "M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z", autoMirror = true)
+}
+
+internal val CheckIcon: ImageVector by lazy { glyph("Check", "M9 16.17 4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z") }
+
+internal val PlaceIcon: ImageVector by lazy {
+    glyph(
+        "Place",
+        "M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5a2.5 2.5 0 0 1 0-5 2.5 2.5 0 0 1 0 5z",
+    )
+}
+
+private fun glyph(name: String, path: String, autoMirror: Boolean = false): ImageVector = ImageVector.Builder(
     name = name,
     defaultWidth = 24.dp,
     defaultHeight = 24.dp,
     viewportWidth = 24f,
     viewportHeight = 24f,
+    autoMirror = autoMirror,
 ).apply {
     addPath(fill = SolidColor(Color.Black), pathData = PathParser().parsePathString(path).toNodes())
 }.build()

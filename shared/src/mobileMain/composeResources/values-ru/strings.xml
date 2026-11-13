@@ -145,6 +145,11 @@
     <string name="map_planner_not_set">Не выбрано</string>
     <string name="map_planner_pick_on_map">Выбрать на карте</string>
     <string name="map_planner_pick_hint">Нажмите и удерживайте карту, чтобы выбрать точку.</string>
+    <string name="map_planner_map_pick_screen">Выбор точки</string>
+    <string name="map_planner_map_pick_title">Выберите точку на карте</string>
+    <string name="map_planner_map_pick_body">Переместите карту под маркер, чтобы указать нужное место.</string>
+    <string name="map_planner_map_pick_confirm">Выбрать</string>
+    <string name="map_planner_back">Назад</string>
     <string name="map_planner_incomplete">Нажмите и удерживайте карту, чтобы выбрать точку.</string>
     <string name="map_planner_swap">Поменять местами</string>
     <string name="map_planner_clear">Очистить</string>

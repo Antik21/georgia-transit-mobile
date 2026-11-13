@@ -145,6 +145,11 @@
     <string name="map_planner_not_set">Not chosen</string>
     <string name="map_planner_pick_on_map">Pick on map</string>
     <string name="map_planner_pick_hint">Press and hold the map to choose this point.</string>
+    <string name="map_planner_map_pick_screen">Choose a point</string>
+    <string name="map_planner_map_pick_title">Choose a point on the map</string>
+    <string name="map_planner_map_pick_body">Move the map under the marker to set the place.</string>
+    <string name="map_planner_map_pick_confirm">Choose</string>
+    <string name="map_planner_back">Back</string>
     <string name="map_planner_incomplete">Press and hold the map to choose a point.</string>
     <string name="map_planner_swap">Swap start and destination</string>
     <string name="map_planner_clear">Clear</string>

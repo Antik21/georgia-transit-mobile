@@ -39,6 +39,7 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.navigationevent.NavigationEventInfo
 import androidx.navigationevent.compose.NavigationBackHandler
 import androidx.navigationevent.compose.rememberNavigationEventState
+import com.denis.georgiatransit.shared.domain.model.GeoPoint
 import com.denis.georgiatransit.shared.domain.model.TransitLocale
 import com.denis.georgiatransit.shared.presentation.location.LocationFailure
 import com.denis.georgiatransit.shared.presentation.location.LocationPermissionState
@@ -46,6 +47,9 @@ import com.denis.georgiatransit.shared.presentation.location.LocationPlatformCom
 import com.denis.georgiatransit.shared.presentation.location.LocationState
 import com.denis.georgiatransit.shared.presentation.location.PlatformLocationEffect
 import com.denis.georgiatransit.shared.presentation.map.sections.CityAttribution
+import com.denis.georgiatransit.shared.presentation.map.sections.JourneyMapPickMarker
+import com.denis.georgiatransit.shared.presentation.map.sections.JourneyMapPickPanel
+import com.denis.georgiatransit.shared.presentation.map.sections.JourneyMapPickTopBar
 import com.denis.georgiatransit.shared.presentation.map.sections.JourneyPinActions
 import com.denis.georgiatransit.shared.presentation.map.sections.JourneyPlannerPanel
 import com.denis.georgiatransit.shared.presentation.map.sections.MapCanvas
@@ -110,25 +114,49 @@ fun MapScreen(viewModel: MapViewModel, handleNavigation: suspend (NavigationEffe
 @Composable
 private fun Content(state: ViewState, onAction: (Action) -> Unit) {
     val planner = state.journeyPlanner
+    val mapPick = planner.mapPick
     NavigationBackHandler(
         state = rememberNavigationEventState(NavigationEventInfo.None),
         isBackEnabled = planner.isOpen || planner.pin != null,
         onBackCompleted = {
-            onAction(if (planner.pin != null) JourneyPlannerAction.DismissPin else JourneyPlannerAction.ClosePlanner)
+            onAction(
+                when {
+                    mapPick != null -> JourneyPlannerAction.CancelMapPick
+                    planner.pin != null -> JourneyPlannerAction.DismissPin
+                    else -> JourneyPlannerAction.ClosePlanner
+                },
+            )
         },
     )
+    // The camera target is only reported once the map settles, so the last settled centre is the marker's point.
+    var mapCenter by remember { mutableStateOf<GeoPoint?>(null) }
     BoxWithConstraints(modifier = Modifier.fillMaxSize().testTag(AutomationId.MapScreen)) {
         val panelMaxHeight = maxHeight * PLANNER_PANEL_HEIGHT_FRACTION
         Column(modifier = Modifier.fillMaxSize()) {
-            MapArea(state = state, onAction = onAction, modifier = Modifier.fillMaxWidth().weight(1f))
+            MapArea(
+                state = state,
+                onAction = onAction,
+                onCenterSettled = { mapCenter = it },
+                modifier = Modifier.fillMaxWidth().weight(1f),
+            )
             val bottomModifier = Modifier
                 .fillMaxWidth()
                 .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal + WindowInsetsSides.Bottom))
-            if (planner.isOpen) {
+            if (mapPick != null) {
+                JourneyMapPickPanel(
+                    side = mapPick,
+                    canConfirm = mapCenter != null,
+                    onConfirm = { mapCenter?.let { onAction(JourneyPlannerAction.ConfirmMapPick(it)) } },
+                    modifier = Modifier
+                        .background(MaterialTheme.colorScheme.surface)
+                        .then(bottomModifier)
+                        .padding(TransitSpacing.Medium),
+                )
+            } else if (planner.isOpen) {
                 JourneyPlannerPanel(
                     planner = planner,
                     onClose = { onAction(JourneyPlannerAction.ClosePlanner) },
-                    onPickPoint = { side -> onAction(side.pickAction()) },
+                    onPickPoint = { side -> onAction(JourneyPlannerAction.StartMapPick(side)) },
                     onUseMyLocation = { side -> onAction(side.myLocationAction()) },
                     onSwap = { onAction(JourneyPlannerAction.Swap) },
                     onClear = { onAction(JourneyPlannerAction.Clear) },
@@ -155,7 +183,12 @@ private fun Content(state: ViewState, onAction: (Action) -> Unit) {
 }
 
 @Composable
-private fun MapArea(state: ViewState, onAction: (Action) -> Unit, modifier: Modifier = Modifier) {
+private fun MapArea(
+    state: ViewState,
+    onAction: (Action) -> Unit,
+    onCenterSettled: (GeoPoint) -> Unit,
+    modifier: Modifier = Modifier,
+) {
     val planner = state.journeyPlanner
     Box(modifier = modifier) {
         state.renderState?.let { sessionRenderState ->
@@ -172,7 +205,10 @@ private fun MapArea(state: ViewState, onAction: (Action) -> Unit, modifier: Modi
                 },
                 locationActionEnabled = locationActionEnabled(state.location.permission) && !state.location.isLocating,
                 onMyLocationClick = { onAction(Action.MyLocationClicked) },
-                onMapEvent = { onAction(Action.MapEventReceived(it)) },
+                onMapEvent = { event ->
+                    if (event is MapPlatformEvent.ViewportSettled) onCenterSettled(event.viewport.center)
+                    onAction(Action.MapEventReceived(event))
+                },
                 onRetry = { onAction(Action.RetryNearby) },
                 modifier = Modifier.fillMaxSize(),
             )
@@ -181,7 +217,16 @@ private fun MapArea(state: ViewState, onAction: (Action) -> Unit, modifier: Modi
             baseLayerState = state.baseLayerState,
             modifier = Modifier.fillMaxSize(),
         )
-        if (planner.pin != null) {
+        if (planner.mapPick != null) {
+            JourneyMapPickMarker(modifier = Modifier.align(Alignment.Center))
+            JourneyMapPickTopBar(
+                onBack = { onAction(JourneyPlannerAction.CancelMapPick) },
+                modifier = Modifier
+                    .align(Alignment.TopStart)
+                    .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal))
+                    .padding(TransitSpacing.Medium),
+            )
+        } else if (planner.pin != null) {
             JourneyPinActions(
                 onRouteHere = { onAction(JourneyPlannerAction.RouteHere) },
                 onRouteFromHere = { onAction(JourneyPlannerAction.RouteFromHere) },
@@ -254,11 +299,6 @@ private fun MapRealtimeVisibilityEffect(onVisibilityChanged: (Boolean) -> Unit) 
             currentOnVisibilityChanged.value(false)
         }
     }
-}
-
-private fun JourneyPlanSide.pickAction(): JourneyPlannerAction = when (this) {
-    JourneyPlanSide.Origin -> JourneyPlannerAction.StartPickingOrigin
-    JourneyPlanSide.Destination -> JourneyPlannerAction.StartPickingDestination
 }
 
 private fun JourneyPlanSide.myLocationAction(): JourneyPlannerAction = when (this) {
