@@ -26,3 +26,16 @@ navigation stack. Versions are pinned exactly and upgraded under the same review
 Telegram's WebApp script is loaded from `telegram.org` as the platform requires; it is not
 bundled or redistributed, and its use is governed by the Telegram Bot Platform terms. The client
 reads no Telegram identity data.
+
+## Landing site (`landing`)
+
+The landing page is plain static HTML, CSS and JavaScript with no npm dependencies and no
+analytics or tracking. It loads two fonts from Google Fonts at runtime; both are free for
+commercial use and are not redistributed in the repository.
+
+| asset | role | license |
+| --- | --- | --- |
+| Inter | Latin and Cyrillic text, matching the web client's font stack | SIL Open Font License 1.1 |
+| Noto Sans Georgian | Georgian text | SIL Open Font License 1.1 |
+
+Screenshots are captured from the app and show OpenStreetMap data, credited in the page footer.
