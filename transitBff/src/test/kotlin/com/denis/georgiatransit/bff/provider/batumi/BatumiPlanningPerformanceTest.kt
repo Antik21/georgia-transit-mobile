@@ -30,7 +30,7 @@ class BatumiPlanningPerformanceTest {
     }
 
     @Test
-    fun `a full-size synthetic graph plans within the 300 ms budget`() {
+    fun `a full-size synthetic graph plans within 300 ms once warm, well inside the budget`() {
         val (fixture, routes) = syntheticCity()
         val graph = BatumiNetworkGraphBuilder.build(fixture.catalog, PlanNow).graph
         assertEquals(60, graph.patterns.size)

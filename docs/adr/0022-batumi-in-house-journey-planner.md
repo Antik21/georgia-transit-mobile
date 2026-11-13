@@ -153,8 +153,9 @@ Legacy `GET /journeys` is deprecated. Batumi answers it with `501 NOT_IMPLEMENTE
 
 ### Bounds and observability
 
-- Each request has a 300 ms planning budget and four concurrent plans per instance. Excess load
-  receives the existing `429` envelope.
+- Each request has a 1 s planning budget and four concurrent plans per instance. Excess load
+  receives the existing `429` envelope. The budget was 300 ms until 2026-11-13, when the first plan
+  on a cold JVM of the 0.5-CPU production instance exceeded it; warm plans stay well below 300 ms.
 - Metrics use the static operation `journey_plan` with outcome and latency only.
 - No new library, cache, or upstream is added.
 
@@ -198,7 +199,7 @@ Golden tests on a recorded catalog fixture cover:
 - the 45-minute horizon;
 - selection and deduplication;
 - segment continuity;
-- the 300 ms budget on the full Batumi graph.
+- a warm plan on a full-size Batumi-like graph within 300 ms, well inside the 1 s budget.
 
 Contract tests cover the optional fields, the `CLIENT_ESTIMATE` validator path, legacy GET 501, and
 the capability gate.
