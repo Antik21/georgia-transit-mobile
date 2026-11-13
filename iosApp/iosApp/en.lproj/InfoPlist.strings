@@ -1,1 +1,1 @@
-"NSLocationWhenInUseUsageDescription" = "Geo Transit uses your location to center the map and show nearby stops.";
+"NSLocationWhenInUseUsageDescription" = "Geo Transit uses your location to center the map and show nearby stops. If you choose My location for a route, an approximate location is sent to the Geo Transit server to plan it.";

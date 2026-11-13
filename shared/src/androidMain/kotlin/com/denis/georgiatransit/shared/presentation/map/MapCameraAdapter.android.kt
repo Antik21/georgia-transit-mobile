@@ -24,6 +24,7 @@ internal class MapCameraAdapter(
     private var lastAppliedCameraRevision: Long? = null
     private var lastAppliedCameraCommand: MapCameraCommand? = null
     private val cameraIdleListener = MapLibreMap.OnCameraIdleListener { notifyViewportSettled() }
+    private val cameraMoveStartedListener = MapLibreMap.OnCameraMoveStartedListener { onEvent(MapPlatformEvent.CameraMoveStarted) }
     private val layoutChangeListener = View.OnLayoutChangeListener { _, _, _, _, _, _, _, _, _ ->
         latestCommand()?.let { command ->
             map?.moveCamera(CameraUpdateFactory.paddingTo(0.0, 0.0, 0.0, viewportBottomPadding(command)))
@@ -37,6 +38,7 @@ internal class MapCameraAdapter(
     fun attach(mapLibreMap: MapLibreMap) {
         map = mapLibreMap
         mapLibreMap.addOnCameraIdleListener(cameraIdleListener)
+        mapLibreMap.addOnCameraMoveStartedListener(cameraMoveStartedListener)
     }
 
     /** A new style must re-apply the current command even when its revision is unchanged. */
@@ -47,6 +49,7 @@ internal class MapCameraAdapter(
 
     fun destroy() {
         map?.removeOnCameraIdleListener(cameraIdleListener)
+        map?.removeOnCameraMoveStartedListener(cameraMoveStartedListener)
         mapView.removeOnLayoutChangeListener(layoutChangeListener)
         map = null
         reset()

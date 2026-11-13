@@ -45,6 +45,7 @@ internal data class JourneyPlannerStep(
 internal object JourneyPlannerReducer {
     fun longPress(state: JourneyPlannerUi, point: GeoPoint, context: JourneyPlannerContext): JourneyPlannerStep {
         if (!context.available) return finish(state.copy(pin = null), context)
+        if (state.mapPick != null) return finish(state, context)
         val status = state.status
         if (state.isOpen && status is Status.PickingPoint) {
             return evaluate(state.with(status.side, JourneyEndpoint.MapPoint(point)).copy(pin = null), context)
@@ -64,10 +65,21 @@ internal object JourneyPlannerReducer {
                 evaluate(state.copy(pin = null, origin = JourneyEndpoint.MapPoint(pin), destination = destination), context)
             } ?: finish(state, context)
             JourneyPlannerAction.DismissPin -> finish(state.copy(pin = null), context)
+            is JourneyPlannerAction.TapMap -> when {
+                state.mapPick != null -> finish(state, context)
+                state.pin != null || !context.available -> finish(state.copy(pin = null), context)
+                else -> finish(state.copy(pin = action.point), context)
+            }
             JourneyPlannerAction.SetOriginToMyLocation -> myLocation(state, JourneyPlanSide.Origin, context)
             JourneyPlannerAction.SetDestinationToMyLocation -> myLocation(state, JourneyPlanSide.Destination, context)
             JourneyPlannerAction.StartPickingOrigin -> picking(state, JourneyPlanSide.Origin, context)
             JourneyPlannerAction.StartPickingDestination -> picking(state, JourneyPlanSide.Destination, context)
+            is JourneyPlannerAction.StartMapPick ->
+                finish(if (state.isOpen) state.copy(pin = null, mapPick = action.side) else state, context)
+            is JourneyPlannerAction.ConfirmMapPick -> state.mapPick?.let { side ->
+                evaluate(state.with(side, JourneyEndpoint.MapPoint(action.point)).copy(pin = null, mapPick = null), context)
+            } ?: finish(state, context)
+            JourneyPlannerAction.CancelMapPick -> finish(state.copy(mapPick = null), context)
             JourneyPlannerAction.Swap -> if (!state.isOpen) finish(state, context) else {
                 evaluate(state.copy(origin = state.destination, destination = state.origin), context)
             }

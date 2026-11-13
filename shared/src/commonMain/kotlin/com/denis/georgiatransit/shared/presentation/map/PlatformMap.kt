@@ -56,13 +56,21 @@ data class MapViewport(
     val zoom: Double,
 )
 
+/** Where an input landed inside the map view, in dp (points on iOS), for anchoring Compose UI to it. */
+@Immutable
+data class MapScreenPoint(val x: Float, val y: Float)
+
 /** Native map input is reduced to product-level viewport and revision-bound entity interactions. */
 sealed interface MapPlatformEvent {
     data class ViewportSettled(val viewport: MapViewport) : MapPlatformEvent
     data class StopTapped(val stopId: StopId, val sourceRevision: Long) : MapPlatformEvent
     data class VehicleTapped(val vehicleId: VehicleId, val sourceRevision: Long) : MapPlatformEvent
     /** A press-and-hold on empty map; touch adapters require ~500 ms without movement. */
-    data class MapLongPressed(val point: GeoPoint) : MapPlatformEvent
+    data class MapLongPressed(val point: GeoPoint, val screen: MapScreenPoint? = null) : MapPlatformEvent
+    /** A single tap that hit no stop or vehicle. */
+    data class MapTapped(val point: GeoPoint, val screen: MapScreenPoint) : MapPlatformEvent
+    /** Any camera motion begins; the next [ViewportSettled] ends it. */
+    data object CameraMoveStarted : MapPlatformEvent
 }
 
 /** A compact SDK-free map marker; labels and stop details stay in future product flows. */
@@ -154,6 +162,21 @@ data class MapPolyline(
 }
 
 /**
+ * Planner geometry drawn above route lines and never hit-tested. Adapters frame [lines] only when
+ * [fitRevision] changes, so live refreshes never move a camera the user has panned.
+ */
+@Immutable
+data class MapJourneyOverlay(
+    val lines: PersistentList<JourneyPlanLineUi> = persistentListOf(),
+    val origin: GeoPoint? = null,
+    val destination: GeoPoint? = null,
+    val pin: GeoPoint? = null,
+    val fitRevision: Long = 0L,
+    /** The user is positioning a point under the centred marker; no fit may start or finish meanwhile. */
+    val fitSuspended: Boolean = false,
+)
+
+/**
  * The complete renderer boundary shared by Android and iOS. It intentionally contains no native
  * map objects, provider DTOs, upstream URLs, keys, or service lookup. [bffStyleUrl], when set,
  * is a validated same-BFF URL injected by host composition; empty layer lists are valid.
@@ -175,6 +198,8 @@ data class MapRenderState(
     val vehicleSourceRevision: Long = 0L,
     /** Changes only when a native route-badge bitmap style can change, never for frame geometry. */
     val vehicleBadgeRevision: Long = 0L,
+    /** The A→B planner overlay; null when neither a plan nor a long-press pin is shown. */
+    val journey: MapJourneyOverlay? = null,
 ) {
     /**
      * Converts arbitrary caller-owned iterables into persistent snapshots, which is the convenient
