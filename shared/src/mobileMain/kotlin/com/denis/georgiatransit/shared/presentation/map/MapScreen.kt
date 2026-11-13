@@ -1,5 +1,12 @@
 package com.denis.georgiatransit.shared.presentation.map
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.EnterExitState
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
@@ -251,13 +258,22 @@ private fun MapArea(
                     .padding(TransitSpacing.Medium),
             )
         } else {
-            val anchor = pinAnchor
-            if (planner.pin != null && anchor != null) {
-                JourneyPinPopup(
-                    anchor = anchor,
-                    onRouteFromHere = { onAction(JourneyPlannerAction.RouteFromHere) },
-                    onRouteHere = { onAction(JourneyPlannerAction.RouteHere) },
-                )
+            val visible = planner.pin != null && pinAnchor != null
+            // The dismissing tap already moved pinAnchor, so the fade-out keeps the anchor it appeared at.
+            val shownAnchor = remember { arrayOfNulls<MapScreenPoint>(1) }
+            if (visible) shownAnchor[0] = pinAnchor
+            AnimatedVisibility(visible = visible, enter = fadeIn(tween(PIN_FADE_MILLIS)), exit = fadeOut(tween(PIN_FADE_MILLIS))) {
+                val cardScale by transition.animateFloat(
+                    transitionSpec = { tween(PIN_SCALE_MILLIS, easing = FastOutSlowInEasing) },
+                ) { if (it == EnterExitState.Visible) 1f else PIN_CARD_START_SCALE }
+                shownAnchor[0]?.let { anchor ->
+                    JourneyPinPopup(
+                        anchor = anchor,
+                        onRouteFromHere = { onAction(JourneyPlannerAction.RouteFromHere) },
+                        onRouteHere = { onAction(JourneyPlannerAction.RouteHere) },
+                        cardScale = { cardScale },
+                    )
+                }
             }
         }
     }
@@ -332,6 +348,9 @@ private fun JourneyPlanSide.myLocationAction(): JourneyPlannerAction = when (thi
 }
 
 private const val PLANNER_PANEL_HEIGHT_FRACTION = 0.55f
+private const val PIN_FADE_MILLIS = 180
+private const val PIN_SCALE_MILLIS = 220
+private const val PIN_CARD_START_SCALE = 0.8f
 
 private fun String.toTransitLocale(): TransitLocale = when (this) {
     "ka" -> TransitLocale.Georgian

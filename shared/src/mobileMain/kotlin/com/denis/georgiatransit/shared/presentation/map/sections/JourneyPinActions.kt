@@ -21,6 +21,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
@@ -49,6 +50,7 @@ internal fun JourneyPinPopup(
     onRouteFromHere: () -> Unit,
     onRouteHere: () -> Unit,
     modifier: Modifier = Modifier,
+    cardScale: () -> Float = { 1f },
 ) {
     Layout(
         modifier = modifier.fillMaxSize(),
@@ -74,7 +76,14 @@ internal fun JourneyPinPopup(
         val cardX = (x - card.width / 2).coerceIn(edge, (constraints.maxWidth - card.width - edge).coerceAtLeast(edge))
         layout(constraints.maxWidth, constraints.maxHeight) {
             marker.place(x - marker.width / 2, y - marker.height / 2)
-            card.place(cardX, cardY.coerceAtLeast(0))
+            // Grows out of the tail tip, which is where the anchor sits horizontally.
+            val pivot = TransformOrigin(((x - cardX).toFloat() / card.width).coerceIn(0f, 1f), if (fitsBelow) 0f else 1f)
+            card.placeWithLayer(cardX, cardY.coerceAtLeast(0)) {
+                val scale = cardScale()
+                scaleX = scale
+                scaleY = scale
+                transformOrigin = pivot
+            }
             if (fitsBelow) {
                 tailUp.place(x - tailUp.width / 2, y)
             } else {
