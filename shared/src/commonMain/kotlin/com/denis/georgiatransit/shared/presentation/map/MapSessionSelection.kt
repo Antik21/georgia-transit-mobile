@@ -17,6 +17,8 @@ internal data class MapSessionChange(
     val geometryCapabilityChanged: Boolean,
     val arrivalsCapabilityChanged: Boolean,
     val vehicleSelectionChanged: Boolean,
+    /** The first emission restores the session; it is not a new user request. */
+    val initial: Boolean = false,
 ) {
     val selectionOverlayChanged: Boolean get() = vehicleSelectionChanged || routesCapabilityChanged
     val resetStops: Boolean get() = cityChanged || stopsCapabilityChanged
@@ -26,6 +28,7 @@ internal data class MapSessionChange(
         stopsCapabilityChanged || vehicleSelectionChanged
     val resetGeometry: Boolean get() = cityChanged || routesCapabilityChanged ||
         geometryCapabilityChanged || vehicleSelectionChanged
+    val userRequestedNewData: Boolean get() = !initial && (cityChanged || vehicleSelectionChanged)
 }
 
 /** Reconciles the active city's canonical route catalogue with committed selection. */
@@ -41,6 +44,7 @@ internal class MapSessionSelection(private val repository: TransitRepository) {
     var vehicleRoutes: List<TransitRoute> = emptyList()
         private set
     private var lastSelectedRouteIds: Set<RouteId> = emptySet()
+    private var observed = false
 
     /** The session remains the sole selection owner; route removal is one replacement mutation. */
     fun removeRoute(session: TransitSession, routeId: RouteId) {
@@ -75,8 +79,10 @@ internal class MapSessionSelection(private val repository: TransitRepository) {
             arrivalsCapabilityChanged = !cityChanged &&
                 nextCity?.capabilities?.arrivals != previousCity?.capabilities?.arrivals,
             vehicleSelectionChanged = selectedIds != lastSelectedRouteIds || projection != previousProjection,
+            initial = !observed,
         )
         lastSelectedRouteIds = selectedIds.toSet()
+        observed = true
         return change
     }
 }
