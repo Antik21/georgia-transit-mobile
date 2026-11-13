@@ -27,9 +27,11 @@ require_private_directory() {
         install -d -o "$runtime_user" -g "$runtime_group" -m 0700 "$directory"
     fi
     chown "$runtime_user:$runtime_group" "$directory"
-    chmod 0700 "$directory"
-    [ "$(stat -c '%U:%G:%a' "$directory")" = "${runtime_user}:${runtime_group}:700" ] || \
-        fail "private directory owner or mode is invalid"
+    # GNU chmod preserves directory setuid/setgid with 0700; five digits clear them too.
+    chmod 00700 "$directory"
+    actual_permissions="$(stat -c '%U:%G:%a' "$directory")"
+    [ "$actual_permissions" = "${runtime_user}:${runtime_group}:700" ] || \
+        fail "private directory $directory has $actual_permissions; expected ${runtime_user}:${runtime_group}:700"
 }
 
 [ "$(id -u)" -eq 0 ] || fail "entrypoint must initialize the mounted disk as root"
@@ -42,7 +44,7 @@ else
     mkdir -p "$storage_root"
 fi
 chown "$runtime_user:$runtime_group" "$storage_root"
-chmod 0700 "$storage_root"
+chmod 00700 "$storage_root"
 
 require_private_directory "$control_directory"
 require_private_directory "$state_directory"
