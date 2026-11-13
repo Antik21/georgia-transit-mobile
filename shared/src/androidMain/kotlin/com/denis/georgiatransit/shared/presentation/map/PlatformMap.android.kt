@@ -101,8 +101,7 @@ private class LocalMapController(
         if (destroyed) return
         latestState = renderState
         styleLoader.request(renderState.bffStyleUrl)
-        styleLoader.style?.let { installAndRender(it, renderState) }
-        camera.applyZoomStep(renderState.zoomStep)
+        styleLoader.style?.let { installAndRender(it, renderState) } ?: camera.applyZoomStep(renderState.zoomStep)
     }
 
     fun setLifecycleResumed(resumed: Boolean) {
@@ -145,6 +144,7 @@ private class LocalMapController(
         vehicleBadges.render(loadedStyle, renderState)
         attentionPulse.render(loadedStyle, renderState)
         camera.applyIfNeeded(renderState.camera)
+        camera.applyZoomStep(renderState.zoomStep)
         attentionPulse.refresh()
     }
 

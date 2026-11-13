@@ -120,8 +120,13 @@ private final class LocalMapLibreView: UIView, MLNMapViewDelegate {
             installSourcesAndLayersIfNeeded(style: style)
             render(renderState, style: style)
         }
-        // After render(): a camera command in the same frame would otherwise overwrite the zoom animation.
-        if let target = zoomSteps.targetZoom(step: renderState.zoomStep, currentZoom: mapView.zoomLevel) {
+        applyZoomStep(renderState.zoomStep)
+    }
+
+    /** After render(): a camera command applied later would overwrite the zoom, so taps wait for the first one. */
+    private func applyZoomStep(_ step: MapZoomStep?) {
+        let readyZoom = lastAppliedCameraRevision == nil ? Double.nan : mapView.zoomLevel
+        if let target = zoomSteps.targetZoom(step: step, currentZoom: readyZoom) {
             mapView.setZoomLevel(target.doubleValue, animated: true)
         }
     }
@@ -180,6 +185,7 @@ private final class LocalMapLibreView: UIView, MLNMapViewDelegate {
         clearRenderedLayerState()
         installSourcesAndLayersIfNeeded(style: style)
         pendingRenderState.map { render($0, style: style) }
+        applyZoomStep(pendingRenderState?.zoomStep)
     }
 
     func mapView(_ mapView: MLNMapView, didFailLoadingMapWithError error: Error) {

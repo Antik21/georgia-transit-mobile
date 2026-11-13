@@ -17,14 +17,18 @@ class MapZoomStepTracker internal constructor(
     private var pendingTarget: Double? = null
     private var pendingSince: TimeMark? = null
 
-    /** Null when the sum is unchanged and for the sum present when the adapter attaches. */
+    /**
+     * Null when the sum is unchanged and for the sum present when the adapter attaches. A non-finite
+     * [currentZoom] means the camera is not ready: the change is kept and applied on a later call.
+     */
     fun targetZoom(step: MapZoomStep?, currentZoom: Double): Double? {
         val total = step?.totalDelta ?: 0.0
         val previous = lastTotal
+        if (previous == null) lastTotal = total
+        if (previous == null || previous == total || !currentZoom.isFinite()) return null
         lastTotal = total
-        if (previous == null || previous == total) return null
         val delta = total - previous
-        if (!delta.isFinite() || !currentZoom.isFinite()) return null
+        if (!delta.isFinite()) return null
         // Taps during our own animation build on its target; interrupting it reports an interim zoom.
         val base = pendingTarget?.takeIf { pendingSince?.elapsedNow()?.let { it < AnimationWindow } == true }
         return ((base ?: currentZoom) + delta).coerceIn(minZoom, maxZoom).also {

@@ -93,4 +93,15 @@ class MapZoomStepTest {
         assertNull(tracker.targetZoom(null, currentZoom = Double.NaN))
         assertEquals(14.0, tracker.targetZoom(MapZoomStep(totalDelta = 1.0), currentZoom = 13.0))
     }
+
+    @Test
+    fun tapsWhileTheCameraIsNotReadyAreKeptAndAppliedOnceItIs() {
+        val tracker = MapZoomStepTracker(minZoom = 0.0, maxZoom = 22.0, timeSource = TestTimeSource())
+        tracker.targetZoom(null, currentZoom = Double.NaN)
+
+        assertNull(tracker.targetZoom(MapZoomStep(totalDelta = 1.0), currentZoom = Double.NaN))
+        assertNull(tracker.targetZoom(MapZoomStep(totalDelta = 2.0), currentZoom = Double.NaN))
+        assertEquals(14.0, tracker.targetZoom(MapZoomStep(totalDelta = 2.0), currentZoom = 12.0))
+        assertNull(tracker.targetZoom(MapZoomStep(totalDelta = 2.0), currentZoom = 14.0))
+    }
 }

@@ -103,9 +103,13 @@ internal class MapCameraAdapter(
         if (!command.animated) mapView.post { notifyViewportSettled() }
     }
 
-    /** Called for every render state, even before getMapAsync completes, or the first tap becomes the baseline. */
+    /**
+     * Called for every render state, even before getMapAsync completes, or the first tap becomes the baseline.
+     * Taps wait until the initial camera command is applied, which would otherwise overwrite their zoom.
+     */
     fun applyZoomStep(step: MapZoomStep?) {
-        zoomSteps.targetZoom(step, map?.cameraPosition?.zoom ?: Double.NaN)
+        val readyZoom = map?.takeIf { lastAppliedCameraRevision != null }?.cameraPosition?.zoom ?: Double.NaN
+        zoomSteps.targetZoom(step, readyZoom)
             ?.let { map?.animateCamera(CameraUpdateFactory.zoomTo(it), MapZoomStepTracker.ANIMATION_MILLIS) }
     }
 
