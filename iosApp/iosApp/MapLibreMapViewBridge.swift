@@ -188,6 +188,13 @@ private final class LocalMapLibreView: UIView, MLNMapViewDelegate {
         mapView.styleURL = localStyle
     }
 
+    func mapView(_ mapView: MLNMapView, regionWillChangeWith reason: MLNCameraChangeReason, animated: Bool) {
+        let gestures: MLNCameraChangeReason = [
+            .gesturePan, .gesturePinch, .gestureRotate, .gestureZoomIn, .gestureZoomOut, .gestureOneFingerZoom, .gestureTilt,
+        ]
+        if !reason.isDisjoint(with: gestures) { zoomSteps.cameraMovedElsewhere() }
+    }
+
     func mapView(_ mapView: MLNMapView, regionDidChangeAnimated animated: Bool) {
         reportSettledViewport()
     }
@@ -394,6 +401,7 @@ private final class LocalMapLibreView: UIView, MLNMapViewDelegate {
         }
         lastAppliedCameraRevision = command.revision
         lastAppliedCamera = nextCamera
+        zoomSteps.cameraMovedElsewhere()
         if !command.animated { DispatchQueue.main.async { [weak self] in self?.reportSettledViewport() } }
     }
 

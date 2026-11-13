@@ -75,4 +75,14 @@ class MapZoomStepTest {
         time += 1.seconds
         assertEquals(12.5, tracker.targetZoom(MapZoomStep(totalDelta = -1.0), currentZoom = 15.5))
     }
+
+    @Test
+    fun anotherCameraMoveDropsThePendingTargetInsideTheAnimationWindow() {
+        val tracker = MapZoomStepTracker(minZoom = 0.0, maxZoom = 22.0, timeSource = TestTimeSource())
+        tracker.targetZoom(null, currentZoom = 13.0)
+
+        assertEquals(14.0, tracker.targetZoom(MapZoomStep(totalDelta = 1.0), currentZoom = 13.0))
+        tracker.cameraMovedElsewhere()
+        assertEquals(14.0, tracker.targetZoom(MapZoomStep(totalDelta = 0.0), currentZoom = 15.0))
+    }
 }

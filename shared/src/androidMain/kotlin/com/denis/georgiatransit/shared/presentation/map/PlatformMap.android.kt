@@ -218,6 +218,9 @@ private class LocalMapController(
     private var destroyed = false
     private val cameraMoveListener = MapLibreMap.OnCameraMoveListener { updateVehicleLabelOrientation() }
     private val cameraIdleListener = MapLibreMap.OnCameraIdleListener { notifyViewportSettled() }
+    private val cameraMoveStartedListener = MapLibreMap.OnCameraMoveStartedListener { reason ->
+        if (reason == MapLibreMap.OnCameraMoveStartedListener.REASON_API_GESTURE) zoomSteps.cameraMovedElsewhere()
+    }
     private val mapClickListener = MapLibreMap.OnMapClickListener { point -> onMapClick(point) }
     private val styleLoadedListener = MapView.OnDidFinishLoadingStyleListener {
         val loadedStyle = map?.style ?: return@OnDidFinishLoadingStyleListener
@@ -249,6 +252,7 @@ private class LocalMapController(
             mapLibreMap.setPrefetchZoomDelta(0)
             map = mapLibreMap
             mapLibreMap.addOnCameraIdleListener(cameraIdleListener)
+            mapLibreMap.addOnCameraMoveStartedListener(cameraMoveStartedListener)
             mapLibreMap.addOnCameraMoveListener(cameraMoveListener)
             mapLibreMap.addOnMapClickListener(mapClickListener)
             loadStyle(mapLibreMap, Style.Builder().fromJson(LOCAL_STYLE_JSON), remote = false)
@@ -315,6 +319,7 @@ private class LocalMapController(
         if (destroyed) return
         destroyed = true
         map?.removeOnCameraIdleListener(cameraIdleListener)
+        map?.removeOnCameraMoveStartedListener(cameraMoveStartedListener)
         map?.removeOnCameraMoveListener(cameraMoveListener)
         map?.removeOnMapClickListener(mapClickListener)
         mapView.removeOnLayoutChangeListener(layoutChangeListener)
@@ -517,6 +522,7 @@ private class LocalMapController(
         }
         lastAppliedCameraRevision = command.revision
         lastAppliedCameraCommand = command
+        zoomSteps.cameraMovedElsewhere()
         if (!command.animated) mapView.post { notifyViewportSettled() }
     }
 

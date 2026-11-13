@@ -572,6 +572,9 @@ export function createTransitMap(
   });
   map.on("webglcontextrestored", () => actions.setUnavailable(false));
   // Programmatic moves are reported too, as on mobile: a group tap zooms in and the ViewModel must see the new zoom.
+  map.on("movestart", (event) => {
+    if (event.originalEvent) pendingZoom = undefined;
+  });
   map.on("moveend", () => {
     const center = map.getCenter();
     const bounds = map.getBounds();
@@ -588,6 +591,7 @@ export function createTransitMap(
     renderUserLocation();
     if (state.camera && state.camera.revision !== cameraRevision) {
       cameraRevision = state.camera.revision;
+      pendingZoom = undefined;
       const target = { center: [state.camera.longitude, state.camera.latitude] as [number, number], zoom: state.camera.zoom };
       if (state.camera.animated && !reducedMotion.matches) map.easeTo(target);
       else map.jumpTo(target);

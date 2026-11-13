@@ -33,6 +33,11 @@ class MapZoomStepTracker internal constructor(
         }
     }
 
+    /** Another camera command or a user gesture moved the camera, so the old target is stale. */
+    fun cameraMovedElsewhere() {
+        pendingTarget = null
+    }
+
     companion object {
         const val ANIMATION_MILLIS = 250
         private val AnimationWindow: Duration = (ANIMATION_MILLIS + 150).milliseconds
