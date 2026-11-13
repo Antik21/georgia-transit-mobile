@@ -7,6 +7,7 @@ final class MapLibreJourneyLayers {
     private var renderedOverlay: MapJourneyOverlay?
     private var hasRendered = false
     private var fittedRevision: Int64?
+    private var pendingRevision: Int64?
     private var fitGeneration = 0
 
     func install(style: MLNStyle, below anchor: MLNStyleLayer) {
@@ -57,7 +58,7 @@ final class MapLibreJourneyLayers {
     }
 
     func render(_ overlay: MapJourneyOverlay?, style: MLNStyle) {
-        if overlay?.lines.isEmpty ?? true { fitGeneration += 1 }
+        if overlay?.lines.isEmpty ?? true { cancelPendingFit() }
         if hasRendered && Self.sameContent(overlay, renderedOverlay) { return }
         Self.updateSource(style: style, identifier: Self.linesSourceID, features: lineFeatures(overlay))
         Self.updateSource(style: style, identifier: Self.pointsSourceID, features: pointFeatures(overlay))
@@ -67,19 +68,27 @@ final class MapLibreJourneyLayers {
 
     /** Frames the plan once per user intent; a re-created view frames the visible plan again. */
     func fitIfNeeded(mapView: MLNMapView, overlay: MapJourneyOverlay?) {
-        if overlay?.fitSuspended == true {
-            fitGeneration += 1
-            return
-        }
-        guard let overlay, !overlay.lines.isEmpty, fittedRevision != overlay.fitRevision else { return }
-        fittedRevision = overlay.fitRevision
+        if overlay?.fitSuspended == true { return cancelPendingFit() }
+        guard let overlay, !overlay.lines.isEmpty else { return }
+        let revision = overlay.fitRevision
+        guard revision != fittedRevision, revision != pendingRevision else { return }
+        pendingRevision = revision
         fitGeneration += 1
         let generation = fitGeneration
         // Results resize the planner panel in the same frame, so frame after the map is re-laid out.
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) { [weak self, weak mapView] in
-            guard let self, let mapView, self.fitGeneration == generation, !mapView.bounds.isEmpty else { return }
+            guard let self, self.fitGeneration == generation else { return }
+            self.pendingRevision = nil
+            guard let mapView, !mapView.bounds.isEmpty else { return }
+            self.fittedRevision = revision
             self.fit(mapView: mapView, overlay: overlay)
         }
+    }
+
+    /// A cancelled fit stays owed, so the same plan is framed once picking or a relayout lets it run.
+    private func cancelPendingFit() {
+        fitGeneration += 1
+        pendingRevision = nil
     }
 
     private func fit(mapView: MLNMapView, overlay: MapJourneyOverlay) {

@@ -41,6 +41,7 @@ internal class JourneyMapLayers(private val metrics: DisplayMetrics) {
     private var renderedOverlay: MapJourneyOverlay? = null
     private var hasRendered = false
     private var fittedRevision: Long? = null
+    private var pendingRevision: Long? = null
     private var fitGeneration = 0L
 
     fun install(style: Style, belowLayerId: String) {
@@ -90,7 +91,7 @@ internal class JourneyMapLayers(private val metrics: DisplayMetrics) {
     }
 
     fun render(style: Style, overlay: MapJourneyOverlay?) {
-        if (overlay?.lines.isNullOrEmpty()) fitGeneration++
+        if (overlay?.lines.isNullOrEmpty()) cancelPendingFit()
         val content = overlay?.copy(fitRevision = 0L, fitSuspended = false)
         if (hasRendered && content == renderedOverlay) return
         style.getSourceAs<GeoJsonSource>(LINES_SOURCE_ID)?.setGeoJson(lineFeatures(content))
@@ -101,15 +102,26 @@ internal class JourneyMapLayers(private val metrics: DisplayMetrics) {
 
     /** Frames the plan once per user intent; a re-created view frames the visible plan again. */
     fun fitIfNeeded(map: MapLibreMap, overlay: MapJourneyOverlay?, view: View) {
-        if (overlay?.fitSuspended == true) {
-            fitGeneration++
-            return
-        }
-        if (overlay == null || overlay.lines.isEmpty() || fittedRevision == overlay.fitRevision) return
-        fittedRevision = overlay.fitRevision
+        if (overlay?.fitSuspended == true) return cancelPendingFit()
+        val revision = overlay?.fitRevision?.takeIf { overlay.lines.isNotEmpty() } ?: return
+        if (revision == fittedRevision || revision == pendingRevision) return
+        pendingRevision = revision
         // Results resize the planner panel in the same frame, so frame after the map is re-laid out.
         val generation = ++fitGeneration
-        view.postDelayed({ if (generation == fitGeneration && view.height > 0) fit(map, overlay) }, FIT_DELAY_MILLIS)
+        view.postDelayed({
+            if (generation != fitGeneration) return@postDelayed
+            pendingRevision = null
+            if (view.height > 0) {
+                fittedRevision = revision
+                fit(map, overlay)
+            }
+        }, FIT_DELAY_MILLIS)
+    }
+
+    /** A cancelled fit stays owed, so the same plan is framed once picking or a relayout lets it run. */
+    private fun cancelPendingFit() {
+        fitGeneration++
+        pendingRevision = null
     }
 
     private fun fit(map: MapLibreMap, overlay: MapJourneyOverlay) {
