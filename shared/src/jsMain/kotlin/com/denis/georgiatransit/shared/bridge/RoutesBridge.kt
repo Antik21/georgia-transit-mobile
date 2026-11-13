@@ -13,6 +13,7 @@ import com.denis.georgiatransit.shared.presentation.routes.NavigationEffect
 import com.denis.georgiatransit.shared.presentation.routes.RouteItemUiModel
 import com.denis.georgiatransit.shared.presentation.routes.RoutesViewModel
 import com.denis.georgiatransit.shared.presentation.routes.ViewState
+import com.denis.georgiatransit.shared.presentation.ui.contrastSafeRouteTextColor
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
@@ -134,7 +135,7 @@ private fun RouteItemUiModel.toJs(selectedIds: Set<RouteId>) = RouteChoice(
     name = name,
     direction = direction,
     color = colorArgb.toCssColor(),
-    textColor = textColorArgb.toCssColor(),
+    textColor = contrastSafeRouteTextColor(colorArgb, textColorArgb).toCssColor(),
     selected = id in selectedIds,
     mode = when (mode) {
         TransitMode.Bus -> "bus"

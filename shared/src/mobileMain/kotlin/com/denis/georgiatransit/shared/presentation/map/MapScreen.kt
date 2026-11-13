@@ -62,6 +62,7 @@ import com.denis.georgiatransit.shared.presentation.map.sections.JourneyMapPickT
 import com.denis.georgiatransit.shared.presentation.map.sections.JourneyPinPopup
 import com.denis.georgiatransit.shared.presentation.map.sections.JourneyPlannerPanel
 import com.denis.georgiatransit.shared.presentation.map.sections.MapCanvas
+import com.denis.georgiatransit.shared.presentation.map.sections.MapConnectionToast
 import com.denis.georgiatransit.shared.presentation.map.sections.MapContentPlaceholder
 import com.denis.georgiatransit.shared.presentation.map.sections.RouteGeometryLegend
 import com.denis.georgiatransit.shared.presentation.map.sections.StopArrivalsSheet
@@ -106,10 +107,12 @@ fun MapScreen(viewModel: MapViewModel, handleNavigation: suspend (NavigationEffe
         viewModel.dispatchAction(Action.RefreshLocation)
     }
     var platformCommand by remember { mutableStateOf<LocationPlatformCommand?>(null) }
+    var connectionNoticeId by remember { mutableStateOf(0) }
     viewModel.collectSideEffect { effect ->
         when (effect) {
             is NavigationEffect -> handleNavigation(effect)
             is SideEffect.HandleLocation -> platformCommand = effect.command
+            SideEffect.ShowConnectionError -> connectionNoticeId++
         }
     }
     PlatformLocationEffect(
@@ -117,11 +120,11 @@ fun MapScreen(viewModel: MapViewModel, handleNavigation: suspend (NavigationEffe
         onCommandConsumed = { platformCommand = null },
         onEvent = { viewModel.dispatchAction(Action.LocationEventReceived(it)) },
     )
-    Content(state = state, onAction = viewModel::dispatchAction)
+    Content(state = state, connectionNoticeId = connectionNoticeId, onAction = viewModel::dispatchAction)
 }
 
 @Composable
-private fun Content(state: ViewState, onAction: (Action) -> Unit) {
+private fun Content(state: ViewState, connectionNoticeId: Int, onAction: (Action) -> Unit) {
     val planner = state.journeyPlanner
     val mapPick = planner.mapPick
     NavigationBackHandler(
@@ -147,25 +150,32 @@ private fun Content(state: ViewState, onAction: (Action) -> Unit) {
         val panelMaxHeight = maxHeight * PLANNER_PANEL_HEIGHT_FRACTION
         Column(modifier = Modifier.fillMaxSize()) {
             val renderState = remember(state.renderState, planner) { state.renderState?.withJourneyPlanner(planner) }
-            MapArea(
-                renderState = renderState,
-                contentState = state.contentState,
-                baseLayerState = state.baseLayerState,
-                location = state.location,
-                isMapPicking = mapPick != null,
-                hasPin = planner.pin != null,
-                pinOnlySide = planner.missingSide(),
-                onMapEvent = { onAction(Action.MapEventReceived(it)) },
-                onMyLocationClick = { onAction(Action.MyLocationClicked) },
-                onRetryNearby = { onAction(Action.RetryNearby) },
-                onCenterSettled = { mapCenter = it },
-                onTapMap = { point -> onAction(JourneyPlannerAction.TapMap(point)) },
-                onDismissPin = { onAction(JourneyPlannerAction.DismissPin) },
-                onRouteFromHere = { onAction(JourneyPlannerAction.RouteFromHere) },
-                onRouteHere = { onAction(JourneyPlannerAction.RouteHere) },
-                onCancelMapPick = { onAction(JourneyPlannerAction.CancelMapPick) },
-                modifier = Modifier.fillMaxWidth().weight(1f),
-            )
+            Box(modifier = Modifier.fillMaxWidth().weight(1f)) {
+                MapArea(
+                    renderState = renderState,
+                    baseLayerState = state.baseLayerState,
+                    location = state.location,
+                    isMapPicking = mapPick != null,
+                    hasPin = planner.pin != null,
+                    pinOnlySide = planner.missingSide(),
+                    onMapEvent = { onAction(Action.MapEventReceived(it)) },
+                    onMyLocationClick = { onAction(Action.MyLocationClicked) },
+                    onCenterSettled = { mapCenter = it },
+                    onTapMap = { point -> onAction(JourneyPlannerAction.TapMap(point)) },
+                    onDismissPin = { onAction(JourneyPlannerAction.DismissPin) },
+                    onRouteFromHere = { onAction(JourneyPlannerAction.RouteFromHere) },
+                    onRouteHere = { onAction(JourneyPlannerAction.RouteHere) },
+                    onCancelMapPick = { onAction(JourneyPlannerAction.CancelMapPick) },
+                    modifier = Modifier.fillMaxSize(),
+                )
+                MapConnectionToast(
+                    noticeId = connectionNoticeId,
+                    // Clears the MapLibre logo and OSM attribution along the bottom edge.
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .padding(bottom = TransitSpacing.ExtraLarge + TransitSpacing.Medium),
+                )
+            }
             val bottomModifier = Modifier
                 .fillMaxWidth()
                 .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal + WindowInsetsSides.Bottom))
@@ -231,7 +241,6 @@ private fun Content(state: ViewState, onAction: (Action) -> Unit) {
 @Composable
 private fun MapArea(
     renderState: MapRenderState?,
-    contentState: MapContentState,
     baseLayerState: MapBaseLayerState,
     location: LocationState,
     isMapPicking: Boolean,
@@ -239,7 +248,6 @@ private fun MapArea(
     pinOnlySide: JourneyPlanSide?,
     onMapEvent: (MapPlatformEvent) -> Unit,
     onMyLocationClick: () -> Unit,
-    onRetryNearby: () -> Unit,
     onCenterSettled: (GeoPoint?) -> Unit,
     onTapMap: (GeoPoint) -> Unit,
     onDismissPin: () -> Unit,
@@ -254,7 +262,6 @@ private fun MapArea(
         renderState?.let {
             MapCanvas(
                 renderState = it,
-                contentState = contentState,
                 baseLayerState = baseLayerState,
                 locationActionLabel = locationActionLabel(location),
                 locationActionAutomationId = if (location.permission == LocationPermissionState.SettingsRequired) {
@@ -281,14 +288,9 @@ private fun MapArea(
                     }
                     onMapEvent(event)
                 },
-                onRetry = onRetryNearby,
                 modifier = Modifier.fillMaxSize(),
             )
-        } ?: MapContentPlaceholder(
-            contentState = contentState,
-            baseLayerState = baseLayerState,
-            modifier = Modifier.fillMaxSize(),
-        )
+        } ?: MapContentPlaceholder(baseLayerState = baseLayerState, modifier = Modifier.fillMaxSize())
         if (isMapPicking) {
             JourneyMapPickMarker(modifier = Modifier.align(Alignment.Center))
             JourneyMapPickTopBar(
@@ -439,11 +441,8 @@ private fun locationActionEnabled(permission: LocationPermissionState): Boolean 
 private fun Preview() {
     GeorgiaTransitTheme {
         Content(
-            state = ViewState(
-                cityName = "Tbilisi",
-                routesAvailable = true,
-                contentState = MapContentState.Empty,
-            ),
+            state = ViewState(cityName = "Tbilisi", routesAvailable = true),
+            connectionNoticeId = 0,
             onAction = {},
         )
     }

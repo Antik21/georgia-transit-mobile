@@ -1,0 +1,135 @@
+package com.denis.georgiatransit.shared.presentation.map
+
+import com.denis.georgiatransit.shared.data.repository.RuntimeTransitSession
+import com.denis.georgiatransit.shared.domain.model.CityCapabilities
+import com.denis.georgiatransit.shared.domain.model.CityId
+import com.denis.georgiatransit.shared.domain.model.GeoPoint
+import com.denis.georgiatransit.shared.domain.model.RouteId
+import com.denis.georgiatransit.shared.domain.model.TransitCity
+import com.denis.georgiatransit.shared.domain.model.TransitRoute
+import com.denis.georgiatransit.shared.domain.repository.ConnectionErrorNotices
+import com.denis.georgiatransit.shared.domain.repository.TransitRepository
+import com.denis.georgiatransit.shared.presentation.location.RuntimeLocationSession
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.TestScope
+import kotlinx.coroutines.test.resetMain
+import kotlinx.coroutines.test.runCurrent
+import kotlinx.coroutines.test.setMain
+import org.orbitmvi.orbit.test.Item
+import org.orbitmvi.orbit.test.OrbitTestContext
+import org.orbitmvi.orbit.test.test
+import kotlin.test.AfterTest
+import kotlin.test.Test
+import kotlin.test.assertNotEquals
+import kotlin.test.assertTrue
+
+@OptIn(ExperimentalCoroutinesApi::class)
+class MapConnectionNoticeViewModelTest {
+    private val city = TransitCity(
+        id = CityId("batumi"),
+        name = "Batumi",
+        center = GeoPoint(latitude = 41.64, longitude = 41.64),
+        capabilities = CityCapabilities(
+            stops = false,
+            vehicles = false,
+            arrivals = false,
+            routeShapes = false,
+            journeyPlanning = false,
+        ),
+        defaultZoom = 13.0,
+    )
+    private val route = TransitRoute(id = RouteId("opaque:1"), cityId = city.id, shortName = "1", name = "Route 1", colorArgb = 0xFF0057B8)
+
+    @AfterTest
+    fun resetMainDispatcher() {
+        Dispatchers.resetMain()
+    }
+
+    private fun runTest(block: suspend TestScope.() -> Unit) = kotlinx.coroutines.test.runTest {
+        Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+        block(this)
+    }
+
+    @Test
+    fun oneOutagePostsOneNoticeAndANewRouteSelectionCanPostAnother() = runTest {
+        val session = RuntimeTransitSession().also { it.restoreCitySelection(city, linkedSetOf()) }
+        val notices = ConnectionErrorNotices()
+        val viewModel = MapViewModel(
+            repository = RoutesOnlyRepository(listOf(route)),
+            session = session,
+            locationSession = RuntimeLocationSession(scope = this, nowMillis = { testScheduler.currentTime }),
+            connectionNotices = notices,
+        )
+
+        viewModel.test(this) {
+            runOnCreate()
+            this@runTest.runCurrent()
+
+            notices.onTransportFailure()
+            notices.onTransportFailure()
+            this@runTest.runCurrent()
+            awaitConnectionNotice()
+
+            assertTrue(session.selectRoutes(city.id, setOf(route.id)))
+            this@runTest.runCurrent()
+            // A duplicate notice from the first outage would surface before the selection state.
+            awaitStateWithoutNotice { it.selectedRouteNames == listOf("1") }
+
+            notices.onTransportFailure()
+            this@runTest.runCurrent()
+            awaitConnectionNotice()
+            cancelAndIgnoreRemainingItems()
+        }
+    }
+
+    @Test
+    fun aBootstrapFailureIsShownOnceAndTheRestoredSessionDoesNotRearmIt() = runTest {
+        val notices = ConnectionErrorNotices().also { it.onTransportFailure() }
+        val session = RuntimeTransitSession().also { it.restoreCitySelection(city, linkedSetOf(route.id)) }
+        val viewModel = MapViewModel(
+            repository = RoutesOnlyRepository(listOf(route)),
+            session = session,
+            locationSession = RuntimeLocationSession(scope = this, nowMillis = { testScheduler.currentTime }),
+            connectionNotices = notices,
+        )
+
+        viewModel.test(this) {
+            runOnCreate()
+            this@runTest.runCurrent()
+            awaitConnectionNotice()
+
+            notices.onTransportFailure()
+            this@runTest.runCurrent()
+            assertTrue(session.selectRoutes(city.id, emptySet()))
+            this@runTest.runCurrent()
+            awaitStateWithoutNotice { it.selectedRouteNames.isEmpty() }
+            cancelAndIgnoreRemainingItems()
+        }
+    }
+
+    private suspend fun OrbitTestContext<ViewState, SideEffect, MapViewModel>.awaitConnectionNotice() {
+        while (true) {
+            val item = awaitItem()
+            if (item is Item.SideEffectItem && item.value == SideEffect.ShowConnectionError) return
+        }
+    }
+
+    private suspend fun OrbitTestContext<ViewState, SideEffect, MapViewModel>.awaitStateWithoutNotice(
+        predicate: (ViewState) -> Boolean,
+    ) {
+        while (true) {
+            when (val item = awaitItem()) {
+                is Item.StateItem -> if (predicate(item.value)) return
+                is Item.SideEffectItem -> assertNotEquals<SideEffect>(SideEffect.ShowConnectionError, item.value)
+            }
+        }
+    }
+
+    private class RoutesOnlyRepository(private val routeList: List<TransitRoute>) : TransitRepository {
+        override fun cities(): List<TransitCity> = emptyList()
+
+        override fun routes(cityId: CityId): List<TransitRoute> = routeList.filter { it.cityId == cityId }
+    }
+}

@@ -107,6 +107,10 @@ class MapBridgeTest {
                     assertEquals(1, sheet.rows.size)
                     assertEquals("minutes", sheet.rows.single().timeKind)
                     assertEquals(4, sheet.rows.single().minutes)
+                    assertEquals("#0057b8", sheet.rows.single().routeColor)
+                    assertEquals("#ffffff", sheet.rows.single().routeTextColor)
+                    val passing = sheet.routes.single()
+                    assertEquals(listOf("10", "#0057b8", "#ffffff"), listOf(passing.label, passing.color, passing.textColor))
                     entry.dispose()
                     val count = emissions
                     entry.selectStop(target.id, target.sourceRevision)

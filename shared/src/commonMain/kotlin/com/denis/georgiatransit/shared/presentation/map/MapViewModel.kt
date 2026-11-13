@@ -11,6 +11,7 @@ import com.denis.georgiatransit.shared.domain.model.TransitLocale
 import com.denis.georgiatransit.shared.domain.model.TransitRoute
 import com.denis.georgiatransit.shared.domain.model.TransitStop
 import com.denis.georgiatransit.shared.domain.model.singleSelectableCity
+import com.denis.georgiatransit.shared.domain.repository.ConnectionErrorNotices
 import com.denis.georgiatransit.shared.domain.repository.JourneyPlanRepository
 import com.denis.georgiatransit.shared.domain.repository.TransitRepository
 import com.denis.georgiatransit.shared.domain.repository.TransitSession
@@ -39,6 +40,7 @@ class MapViewModel(
     private val bffStyleUrl: String? = null,
     journeyPlanRepository: JourneyPlanRepository = JourneyPlanRepository.Unconfigured,
     journeyPlanClock: LocationFreshnessClock = SystemLocationFreshnessClock,
+    private val connectionNotices: ConnectionErrorNotices = ConnectionErrorNotices(),
 ) : ViewModel(), ContainerHost<ViewState, SideEffect> {
     private var currentLocale = TransitLocale.English
     private val cameraController = MapCameraController()
@@ -70,6 +72,7 @@ class MapViewModel(
             canChangeCity = repository.cities().singleSelectableCity() == null,
         ),
         onCreate = {
+            viewModelScope.launch { connectionNotices.notices.collect { intent { postSideEffect(SideEffect.ShowConnectionError) } } }
             viewModelScope.launch {
                 repository.observeCities().collect { cities ->
                     val canChangeCity = cities.singleSelectableCity() == null
@@ -91,6 +94,7 @@ class MapViewModel(
                 val routeNames = selectedRouteProjection.routes.map { route -> route.displayLabel }
                 // Reconcile synchronously before creating a render state. This makes a city or
                 // selection replacement fail closed instead of briefly rendering old geometry.
+                if (change.userRequestedNewData) connectionNotices.rearm()
                 if (change.resetGeometry) syncRouteGeometry()
                 val renderState = city?.let { renderStateFor(it, location.fix, lastViewport?.zoom) }
                 val plannerStep = journeyPlanner.onContext(state.journeyPlanner, plannerContext(location), change.cityChanged)

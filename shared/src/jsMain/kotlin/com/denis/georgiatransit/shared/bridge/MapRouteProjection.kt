@@ -5,6 +5,7 @@ package com.denis.georgiatransit.shared.bridge
 import com.denis.georgiatransit.shared.presentation.map.MapPolyline
 import com.denis.georgiatransit.shared.presentation.map.RouteGeometryLegendState
 import com.denis.georgiatransit.shared.presentation.map.RouteGeometryLegendUi
+import com.denis.georgiatransit.shared.presentation.map.StopRouteBadgeUi
 
 @JsExport
 class RoutePoint(val latitude: Double, val longitude: Double)
@@ -29,6 +30,23 @@ class RouteLegend(
     val status: String,
     val focused: Boolean,
     val canRetry: Boolean,
+)
+
+@JsExport
+class StopRouteBadge(
+    val routeId: String,
+    val label: String,
+    val color: String,
+    val textColor: String,
+    val selected: Boolean,
+)
+
+internal fun StopRouteBadgeUi.toJs() = StopRouteBadge(
+    routeId = routeId.value,
+    label = routeLabel,
+    color = backgroundArgb.toCssColor(),
+    textColor = textArgb.toCssColor(),
+    selected = isSelected,
 )
 
 internal fun MapPolyline.toJs() = RoutePolyline(

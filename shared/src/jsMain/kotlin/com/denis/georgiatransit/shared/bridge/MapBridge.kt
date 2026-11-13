@@ -60,6 +60,8 @@ class ArrivalItem(
     val timeKind: String,
     val minutes: Int?,
     val source: String,
+    val routeColor: String? = null,
+    val routeTextColor: String? = null,
 )
 
 @JsExport
@@ -70,6 +72,7 @@ class ArrivalsState(
     val stale: Boolean,
     val refreshing: Boolean,
     val rows: Array<ArrivalItem>,
+    val routes: Array<StopRouteBadge> = emptyArray(),
 )
 
 @JsExport
@@ -160,6 +163,7 @@ class MapBridge internal constructor(
                 when (effect) {
                     is NavigationEffect -> onNavigation?.invoke(effect)
                     is SideEffect.HandleLocation -> deliverLocationCommand(effect.command)
+                    SideEffect.ShowConnectionError -> Unit
                 }
             }
         }
@@ -394,6 +398,7 @@ private fun StopArrivalsSheetUi.toJs(): ArrivalsState = ArrivalsState(
     },
     stale = isStale,
     refreshing = isRefreshing,
+    routes = passingRoutes.map { it.toJs() }.toTypedArray(),
     rows = rows.map { row ->
         ArrivalItem(
             route = row.routeShortName,
@@ -405,6 +410,8 @@ private fun StopArrivalsSheetUi.toJs(): ArrivalsState = ArrivalsState(
             },
             minutes = (row.time as? StopArrivalTimeUi.Minutes)?.value,
             source = row.source.name,
+            routeColor = row.routeBadge?.backgroundArgb?.toCssColor(),
+            routeTextColor = row.routeBadge?.textArgb?.toCssColor(),
         )
     }.toTypedArray(),
 )

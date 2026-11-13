@@ -10,6 +10,7 @@
   --primary: #8e1b2d;
   --primary-ink: #ffffff;
   --tint: #f8ecee;
+  --chip: #ecebe8;
   --map-background: #e7f1eb;
   --arrival: #196344;
   --focus: #a33647;
@@ -40,6 +41,7 @@
     --primary: light-dark(#8e1b2d, #ff9e9f);
     --primary-ink: light-dark(#ffffff, #36121a);
     --tint: light-dark(#f8ecee, #422832);
+    --chip: light-dark(#ecebe8, #36353a);
     --map-background: light-dark(#e7f1eb, #293a35);
     --arrival: light-dark(#196344, #7cddab);
     --focus: light-dark(#a33647, #ff9e9f);
@@ -57,6 +59,7 @@
     --primary: #ff9e9f;
     --primary-ink: #36121a;
     --tint: #422832;
+    --chip: #36353a;
     --map-background: #293a35;
     --arrival: #7cddab;
     --focus: #ff9e9f;
@@ -105,33 +108,7 @@ body { background: var(--background); color: var(--ink); }
 .transit-brand { display: flex; align-items: center; gap: 10px; flex: none; }
 .brand-name { font-size: 1.08rem; font-weight: 730; letter-spacing: -0.035em; }
 
-.brand-mark {
-  position: relative;
-  display: grid;
-  place-items: center;
-  inline-size: 35px;
-  block-size: 35px;
-  border-radius: 11px;
-  background: #8e1b2d;
-  color: #fff;
-}
-
-.brand-mark::before {
-  content: "";
-  inline-size: 17px;
-  block-size: 16px;
-  border: 2px solid currentColor;
-  border-radius: 4px;
-  box-shadow: -3px 7px 0 -5px currentColor, 3px 7px 0 -5px currentColor;
-}
-
-.brand-mark::after {
-  content: "";
-  position: absolute;
-  inset-block-start: 17px;
-  inline-size: 13px;
-  border-block-start: 2px solid currentColor;
-}
+.brand-logo { display: block; inline-size: 36px; block-size: 36px; border-radius: 50%; }
 
 .header-city-name, .city-switch-name {
   overflow: hidden;
@@ -222,11 +199,12 @@ body { background: var(--background); color: var(--ink); }
 
 .map-screen {
   display: grid;
-  grid-template-columns: clamp(300px, 35vw, 420px) minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr);
   min-block-size: 0;
 }
+.map-screen.has-panel { grid-template-columns: clamp(300px, 35vw, 420px) minmax(0, 1fr); }
 
-.map-region { grid-column: 2; grid-row: 1; min-inline-size: 0; position: relative; isolation: isolate; overflow: hidden; background: var(--map-background); }
+.map-region { grid-column: -2; grid-row: 1; outline: none; min-inline-size: 0; position: relative; isolation: isolate; overflow: hidden; background: var(--map-background); }
 .map-region > .map-canvas { position: absolute; inset: 0; }
 
 .map-overlay {
@@ -260,6 +238,24 @@ body { background: var(--background); color: var(--ink); }
 }
 
 .map-routes-button, .map-route-legends { pointer-events: auto; }
+.map-content-status {
+  position: absolute;
+  inset-block-end: 40px;
+  inset-inline: 12px;
+  z-index: 2;
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+  justify-self: center;
+  max-inline-size: 22rem;
+  margin-inline: auto;
+  padding: 10px 14px;
+  border: 1px solid var(--edge);
+  border-radius: 12px;
+  background: var(--surface);
+  box-shadow: var(--shadow);
+  text-align: center;
+}
 .map-vehicle-status {
   max-inline-size: 100%;
   margin: 0;
@@ -359,7 +355,12 @@ body { background: var(--background); color: var(--ink); }
 .transit-app .route-icon-button:hover:not(:disabled) { color: var(--primary); background: var(--tint); }
 .routes-content { display: grid; align-content: start; gap: 10px; min-block-size: 0; overflow: auto; overscroll-behavior: contain; }
 .routes-content > .secondary-button { justify-self: start; }
-.routes-recent { display: grid; gap: 6px; }
+.routes-recent { display: flex; align-items: center; gap: 10px; min-inline-size: 0; }
+.routes-recent > .routes-subheading { flex: none; max-inline-size: 140px; color: var(--ink); font-size: 0.95rem; }
+.recent-route-chips { display: flex; flex: 1 1 auto; gap: 4px; min-inline-size: 0; margin: 0; padding: 2px; overflow-x: auto; list-style: none; overscroll-behavior-inline: contain; }
+.transit-app .recent-route-chip { display: grid; place-items: center; min-block-size: 48px; padding: 0; border: 0; border-radius: 999px; background: transparent; color: var(--ink); font: inherit; }
+.recent-route-chip-label { display: grid; place-items: center; min-inline-size: 32px; min-block-size: 32px; padding-inline: 8px; border-radius: 999px; background: var(--chip); font-size: 0.86rem; font-weight: 700; white-space: nowrap; }
+.recent-route-chip:disabled .recent-route-chip-label { color: var(--muted); opacity: 0.55; }
 .routes-subheading { margin: 0; color: var(--muted); font-size: 0.85rem; }
 .route-options { display: grid; gap: 5px; margin: 0; padding: 2px; list-style: none; }
 .transit-app .route-option { border-color: var(--edge); border-radius: 10px; background: var(--raised); }
@@ -445,6 +446,11 @@ body { background: var(--background); color: var(--ink); }
 .arrival-details { display: grid; flex: 1 1 auto; min-inline-size: 0; gap: 3px; }
 .arrival-destination { overflow-wrap: anywhere; font-size: 0.9rem; font-weight: 650; }
 .arrival-source { color: var(--muted); font-size: 0.74rem; }
+.panel-subheading { margin: 0; color: var(--muted); font-size: 0.8rem; font-weight: 650; }
+.stop-routes { display: grid; gap: 8px; }
+.stop-route-chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.stop-route-chip { min-inline-size: 40px; padding: 6px 10px; border-radius: 16px; background: var(--tint); color: var(--primary); text-align: center; font-size: 0.84rem; font-weight: 760; }
+.stop-route-chip[data-selected="true"] { box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px currentColor; }
 .route-number { flex: none; min-inline-size: 34px; padding: 5px 7px; border-radius: 8px; background: var(--tint); color: var(--primary); text-align: center; font-size: 0.82rem; font-weight: 730; }
 .arrival-time { flex: none; max-inline-size: 34%; color: var(--ink); text-align: end; font-size: 0.86rem; font-weight: 730; font-variant-numeric: tabular-nums; }
 .arrival-time[data-kind="arriving"] { color: var(--arrival); }
@@ -577,7 +583,7 @@ body { background: var(--background); color: var(--ink); }
 
 @media (max-width: 680px) {
   .transit-header { min-block-size: 57px; padding-block: 6px; }
-  .map-screen { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1.16fr) minmax(0, 1fr); }
+  .map-screen.has-panel { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1.16fr) minmax(0, 1fr); }
   .map-region { grid-column: 1; grid-row: 1; }
   .map-panel { grid-column: 1; grid-row: 2; border-inline-end: 0; border-block-start: 1px solid var(--edge); }
   .city-screen { padding-block: 16px; }
