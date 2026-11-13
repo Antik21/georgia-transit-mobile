@@ -1,7 +1,8 @@
 import { getCopy, getLanguage } from "./copy";
 import { applyRouteColors, button, element, heading, icon, replacePreservingFocus, status } from "./dom";
-import type { ArrivalsState, Attribution, CityState, MapState, PlannerState, RouteChoice, RoutesState, StopItem } from "./contracts";
+import type { ArrivalsState, Attribution, CityState, MapState, PlannerState, RouteChoice, RoutesState } from "./contracts";
 import { renderPlannerPanel, type PlannerActions } from "./planner-ui";
+import appLogoUrl from "./assets/app-logo.webp";
 
 export interface ViewActions extends PlannerActions {
   selectCity(id: string): void;
@@ -9,7 +10,6 @@ export interface ViewActions extends PlannerActions {
   retryCities(): void;
   retryStartup(): void;
   changeCity(): void;
-  selectStop(id: string, sourceRevision: string): void;
   retryNearby(): void;
   dismissArrivals(): void;
   retryArrivals(): void;
@@ -36,9 +36,11 @@ export function createTransitView(root: HTMLElement, actions: ViewActions, langu
   const app = element("div", "transit-app");
   const header = element("header", "transit-header");
   const brand = element("div", "transit-brand");
-  const brandMark = element("span", "brand-mark");
-  brandMark.setAttribute("aria-hidden", "true");
-  brand.append(brandMark, element("span", "brand-name", copy.appName));
+  const brandLogo = element("img", "brand-logo");
+  brandLogo.src = appLogoUrl;
+  brandLogo.alt = "";
+  brandLogo.dataset.testid = "brand-logo";
+  brand.append(brandLogo, element("span", "brand-name", copy.appName));
   const cityName = element("span", "header-city-name");
   const changeCity = button("city-switch", "", actions.changeCity, "change-city");
   const changeCityName = element("span", "city-switch-name");
@@ -63,6 +65,7 @@ export function createTransitView(root: HTMLElement, actions: ViewActions, langu
   map.dataset.testid = "map-screen";
   const mapRegion = element("section", "map-region");
   mapRegion.setAttribute("aria-label", copy.map);
+  mapRegion.tabIndex = -1;
   const mapElement = element("div", "map-canvas");
   const mapOverlay = element("div", "map-overlay");
   const mapControls = element("div", "map-controls");
@@ -89,9 +92,14 @@ export function createTransitView(root: HTMLElement, actions: ViewActions, langu
   }, "my-location");
   locationButton.append(locationIcon());
   locationControls.append(locationStatus, locationButton);
-  mapRegion.append(mapElement, mapOverlay, mapControls, locationControls, mapCredits);
+  // Mirrors the mobile map overlay: nearby-stop loading and errors show on the map, never as a list.
+  const contentStatus = element("div", "map-content-status");
+  contentStatus.dataset.testid = "map-content-status";
+  mapRegion.append(mapElement, mapOverlay, mapControls, contentStatus, locationControls, mapCredits);
   const mapPanel = element("section", "map-panel");
+  mapPanel.dataset.testid = "map-panel";
   mapPanel.setAttribute("aria-labelledby", "map-panel-heading");
+  mapPanel.hidden = true;
   map.append(mapRegion, mapPanel);
 
   const routePicker = createRoutePicker(copy, actions);
@@ -99,7 +107,7 @@ export function createTransitView(root: HTMLElement, actions: ViewActions, langu
   root.replaceChildren(app);
 
   let screen: Screen = "startup";
-  // The panel's current subject: a stop's arrivals, the planner, or null for nearby stops.
+  // The panel's current subject: a stop's arrivals, the planner, or null when the panel is collapsed.
   let panelKey: string | null = null;
   let mapState: MapState | undefined;
   let planner: PlannerState | undefined;
@@ -198,23 +206,46 @@ export function createTransitView(root: HTMLElement, actions: ViewActions, langu
     const summaryText = vehicleSummaryText(copy, state?.vehicleStatus, state?.vehicleRoutes ?? []);
     if (vehicleSummary.textContent !== summaryText) vehicleSummary.textContent = summaryText;
 
+    renderContentStatus(state);
+
     const nextPanelKey = planner?.open ? "planner" : state?.arrivals?.stopId ?? null;
-    const previousArrivalStop = panelKey;
     const content = planner?.open ? renderPlannerPanel(planner, copy, actions, language)
-      : state?.arrivals ? renderArrivals(state.arrivals, copy, actions) : renderStops(state, copy, actions);
-    const panelHeading = content.querySelector<HTMLElement>("h1");
+      : state?.arrivals ? renderArrivals(state.arrivals, copy, actions) : null;
+    const panelHeading = content?.querySelector<HTMLElement>("h1") ?? null;
     if (panelHeading) panelHeading.id = "map-panel-heading";
-    if (nextPanelKey !== previousArrivalStop) {
+    const panelChanged = nextPanelKey !== panelKey;
+    const panelHadFocus = mapPanel.contains(document.activeElement);
+    mapPanel.hidden = !content;
+    map.classList.toggle("has-panel", Boolean(content));
+    if (!content) {
+      mapPanel.replaceChildren();
+      if (panelHadFocus) mapRegion.focus({ preventScroll: true });
+    } else if (panelChanged) {
       mapPanel.replaceChildren(content);
       mapPanel.scrollTop = 0;
-      const previousStop = Array.from(mapPanel.querySelectorAll<HTMLElement>("[data-stop-id]"))
-        .find((stop) => stop.dataset.stopId === previousArrivalStop);
-      (previousStop ?? panelHeading)?.focus({ preventScroll: true });
+      panelHeading?.focus({ preventScroll: true });
     } else {
       replacePreservingFocus(mapPanel, [content]);
     }
     panelKey = nextPanelKey;
-    setScreen("map", returningFromRoutes && !openRoutes.hidden ? openRoutes : panelHeading ?? undefined);
+    setScreen("map", returningFromRoutes && !openRoutes.hidden ? openRoutes : panelHeading ?? mapRegion);
+  }
+
+  function renderContentStatus(state: MapState | undefined) {
+    const message = stopStatus(copy, state?.content);
+    contentStatus.hidden = !message;
+    contentStatus.dataset.content = state?.content ?? "loading";
+    if (!message) {
+      contentStatus.replaceChildren();
+      return;
+    }
+    const children: HTMLElement[] = [status(message, !state || state.content === "loading")];
+    if (state?.content === "retryableError" || state?.content === "offline" || state?.content === "offlineStale") {
+      const retry = button("secondary-button", copy.retry, actions.retryNearby, "retry-nearby");
+      retry.dataset.focusKey = "retry-nearby";
+      children.push(retry);
+    }
+    replacePreservingFocus(contentStatus, children);
   }
 
   function renderLocation(location: MapState["location"]) {
@@ -353,7 +384,7 @@ function createRoutePicker(copy: Copy, actions: ViewActions) {
       if (available) {
         if (!query.trim() && state.recentRoutes.length) {
           const recent = element("section", "routes-recent");
-          recent.append(element("h2", "routes-subheading", copy.routesRecent), routeOptions(copy, state.recentRoutes, limitReached, isConfirming, actions, true));
+          recent.append(element("h2", "routes-subheading", copy.routesRecent), recentRouteChips(state.recentRoutes, limitReached, isConfirming, actions));
           children.push(recent);
         }
         if (state.routes.length) children.push(routeOptions(copy, state.routes, limitReached, isConfirming, actions));
@@ -366,13 +397,32 @@ function createRoutePicker(copy: Copy, actions: ViewActions) {
   };
 }
 
-function routeOptions(copy: Copy, routes: readonly RouteChoice[], limitReached: boolean, confirming: boolean, actions: ViewActions, recent = false) {
+// Same chip as the mobile RecentRoutesSection: the route colour fills it only while the route is selected.
+function recentRouteChips(routes: readonly RouteChoice[], limitReached: boolean, confirming: boolean, actions: ViewActions) {
+  const list = element("ul", "recent-route-chips");
+  for (const route of routes) {
+    const row = element("li", "");
+    const chip = button("recent-route-chip", "", () => actions.toggleRoute(route.id), "recent-route-option");
+    chip.dataset.routeId = route.id;
+    chip.dataset.focusKey = `recent-${route.id}`;
+    chip.disabled = confirming || (limitReached && !route.selected);
+    chip.setAttribute("aria-pressed", String(route.selected));
+    const label = element("span", "recent-route-chip-label", route.shortName);
+    if (route.selected) applyRouteColors(label, route.color, route.textColor);
+    chip.append(label);
+    row.append(chip);
+    list.append(row);
+  }
+  return list;
+}
+
+function routeOptions(copy: Copy, routes: readonly RouteChoice[], limitReached: boolean, confirming: boolean, actions: ViewActions) {
   const list = element("ul", "route-options");
   for (const route of routes) {
     const row = element("li", "");
-    const option = button("list-button route-option", "", () => actions.toggleRoute(route.id), recent ? "recent-route-option" : "route-option");
+    const option = button("list-button route-option", "", () => actions.toggleRoute(route.id), "route-option");
     option.dataset.routeId = route.id;
-    option.dataset.focusKey = `${recent ? "recent" : "route"}-${route.id}`;
+    option.dataset.focusKey = `route-${route.id}`;
     option.disabled = confirming || (limitReached && !route.selected);
     option.setAttribute("aria-pressed", String(route.selected));
     const badge = element("span", "route-number route-option-number", route.shortName);
@@ -522,40 +572,32 @@ function routeLineStatus(copy: Copy, state: string) {
   }
 }
 
-function renderStops(state: MapState | undefined, copy: Copy, actions: ViewActions) {
-  const panel = element("div", "panel-content");
-  panel.append(heading(copy.nearby));
-  const message = stopStatus(copy, state?.content);
-  if (message) panel.append(status(message, !state || state.content === "loading"));
-  if (state?.content === "retryableError" || state?.content === "offline" || state?.content === "offlineStale") {
-    panel.append(button("secondary-button", copy.retry, actions.retryNearby));
-  }
-
-  if (state?.stops.length) {
-    const stops = element("ul", "stop-list");
-    for (const stop of state.stops) stops.append(stopRow(stop, actions));
-    panel.append(stops);
-  }
-  return panel;
-}
-
-function stopRow(stop: StopItem, actions: ViewActions) {
-  const row = element("li", "stop-row");
-  const open = button("list-button stop-option", "", () => actions.selectStop(stop.id, stop.sourceRevision), "stop-option");
-  open.dataset.stopId = stop.id;
-  open.dataset.focusKey = `stop-${stop.id}`;
-  open.append(icon("stop-icon"), element("span", "list-name", stop.name), icon("chevron-right"));
-  row.append(open);
-  return row;
-}
-
 function renderArrivals(arrivals: ArrivalsState, copy: Copy, actions: ViewActions) {
   const panel = element("div", "panel-content");
   panel.dataset.testid = "arrivals-panel";
   const dismiss = button("back-button", "", actions.dismissArrivals, "dismiss-arrivals");
   dismiss.dataset.focusKey = "dismiss";
-  dismiss.append(icon("arrow-left"), element("span", "", copy.backToStops));
+  dismiss.append(icon("arrow-left"), element("span", "", copy.closeArrivals));
   panel.append(dismiss, heading(arrivals.stopName));
+  if (arrivals.routes.length) {
+    const routes = element("section", "stop-routes");
+    routes.setAttribute("aria-label", copy.stopRoutes);
+    routes.append(element("h2", "panel-subheading", copy.stopRoutes));
+    const chips = element("ul", "stop-route-chips");
+    for (const route of arrivals.routes) {
+      const chip = element("li", "stop-route-chip", route.label);
+      chip.dataset.testid = "stop-route-chip";
+      chip.dataset.routeId = route.routeId;
+      applyRouteColors(chip, route.color, route.textColor);
+      if (route.selected) {
+        chip.dataset.selected = "true";
+        chip.append(element("span", "visually-hidden", `. ${copy.stopRouteSelected}`));
+      }
+      chips.append(chip);
+    }
+    routes.append(chips);
+    panel.append(routes);
+  }
 
   const message = arrivalStatus(copy, arrivals.status);
   if (message) panel.append(status(message, arrivals.status === "loading"));
@@ -579,7 +621,12 @@ function renderArrivals(arrivals: ArrivalsState, copy: Copy, actions: ViewAction
           : copy.timeUnavailable;
       const time = element("span", "arrival-time", eta);
       time.dataset.kind = arrival.timeKind;
-      if (arrival.route) row.append(element("span", "route-number", arrival.route));
+      if (arrival.route) {
+        const badge = element("span", "route-number", arrival.route);
+        badge.dataset.testid = "arrival-route";
+        if (arrival.routeColor && arrival.routeTextColor) applyRouteColors(badge, arrival.routeColor, arrival.routeTextColor);
+        row.append(badge);
+      }
       row.append(detail, time);
       rows.append(row);
     }

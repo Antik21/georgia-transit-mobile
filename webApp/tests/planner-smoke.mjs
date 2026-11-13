@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { setTimeout as delay } from 'node:timers/promises';
-import { fallbackMapColor, fixtureControl, otherCityId, planRequests, plannerRouteColors } from './browser-fixtures.mjs';
+import { fallbackMapColor, fixtureControl, fixtureTileColor, otherCityId, planRequests, plannerRouteColors } from './browser-fixtures.mjs';
 
 const planPath = `/v1/cities/${otherCityId}/journeys/plan`;
 const requestKeys = ['from', 'locale', 'maxTransfers', 'to', 'transferBufferSeconds'];
@@ -9,7 +9,8 @@ const optionCount = 4;
 const labelColors = {
   optimal: 'rgb(0, 121, 107)', fastest: 'rgb(194, 65, 12)', leastWalking: 'rgb(29, 78, 216)', noTransfers: 'rgb(109, 40, 217)',
 };
-const busHaloColor = [255, 195, 0];
+// The retired static highlight; it must never come back next to the route-coloured pulse.
+const retiredHaloColor = [255, 195, 0];
 
 // Shared smoke helpers from smoke.mjs.
 export function plannerSmoke({ send, evaluate, waitFor, tap, visible, testId, mapContainsColor, analyzeMap, bffRequests }) {
@@ -79,34 +80,62 @@ export function plannerSmoke({ send, evaluate, waitFor, tap, visible, testId, ma
     await waitFor('The planner closes', `!${panel}`);
   }
 
-  // Connected rings of the highlight colour: one per highlighted bus.
-  function highlightedBuses() {
+  // Translucent route-coloured discs over the plain tiles: one pulsing halo per highlighted bus.
+  // Opaque route lines and their anti-aliased edges are thin, so only round blobs count.
+  function haloBlobs(color) {
     return analyzeMap(`
-      const [red, green, blue] = ${JSON.stringify(busHaloColor)};
+      const route = ${JSON.stringify(color)}, tile = ${JSON.stringify(fixtureTileColor)};
+      const delta = route.map((value, index) => value - tile[index]);
+      const length = Math.hypot(...delta);
       const step = 2, columns = Math.ceil(width / step), rows = Math.ceil(pixels.length / 4 / width / step);
       const mask = new Uint8Array(columns * rows);
       for (let y = 0; y < rows; y++) for (let x = 0; x < columns; x++) {
         const i = ((y * step) * width + x * step) * 4;
-        if (Math.abs(pixels[i] - red) <= 6 && Math.abs(pixels[i + 1] - green) <= 6 && Math.abs(pixels[i + 2] - blue) <= 6) mask[y * columns + x] = 1;
+        const offset = [0, 1, 2].map((index) => pixels[i + index] - tile[index]);
+        const alpha = offset.reduce((sum, value, index) => sum + value * delta[index], 0) / length / length;
+        if (alpha < 0.05 || alpha > 0.6) continue;
+        if (Math.hypot(...offset.map((value, index) => value - alpha * delta[index])) > 6) continue;
+        mask[y * columns + x] = 1;
       }
-      let rings = 0;
+      const blobs = [];
       for (let start = 0; start < mask.length; start++) {
         if (mask[start] !== 1) continue;
-        let size = 0;
+        let size = 0, minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
         const queue = [start];
         mask[start] = 2;
         while (queue.length) {
           const cell = queue.pop();
           size++;
           const x = cell % columns, y = Math.floor(cell / columns);
-          for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++) {
+          minX = Math.min(minX, x); maxX = Math.max(maxX, x); minY = Math.min(minY, y); maxY = Math.max(maxY, y);
+          for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
             const nx = x + dx, ny = y + dy, next = ny * columns + nx;
             if (nx >= 0 && ny >= 0 && nx < columns && ny < rows && mask[next] === 1) { mask[next] = 2; queue.push(next); }
           }
         }
-        if (size >= 10) rings++;
+        blobs.push({ size, width: maxX - minX + 1, height: maxY - minY + 1 });
       }
-      return rings;`);
+      return blobs;`);
+  }
+
+  async function highlightedBuses() {
+    const retired = await mapContainsColor(retiredHaloColor, 20);
+    let count = 0;
+    for (const color of Object.values(plannerRouteColors)) {
+      const blobs = await haloBlobs(color);
+      count += blobs.filter((blob) => blob.size >= 60 && blob.width >= 12 && blob.height >= 12
+        && blob.width / blob.height < 2.2 && blob.height / blob.width < 2.2).length;
+    }
+    return retired ? -1 : count;
+  }
+
+  async function haloAreas(samples) {
+    const areas = [];
+    for (let index = 0; index < samples; index++) {
+      areas.push((await haloBlobs(plannerRouteColors.orange)).filter((blob) => blob.size >= 60).reduce((sum, blob) => sum + blob.size, 0));
+      await delay(150);
+    }
+    return areas;
   }
 
   async function labelsAndItineraries() {
@@ -158,6 +187,17 @@ export function plannerSmoke({ send, evaluate, waitFor, tap, visible, testId, ma
       assert.equal(cards[2].spoken, 'Walk, then bus B12, then walk, then bus B7, then walk.');
       await waitFor('The selected option shows its two soonest buses on the card and the map',
         async () => await evaluate(`${nearestText} === 'Nearest buses: 3 min, 11 min'`) && await highlightedBuses() === 2);
+      const areas = await haloAreas(10);
+      assert.ok(Math.min(...areas) > 0 && Math.max(...areas) > Math.min(...areas) * 1.5,
+        `The planner bus halos must pulse like the fleet halo, got areas ${areas}`);
+      console.log('PASS The planner bus halos pulse in the route colour');
+      await send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: 'reduce' }] });
+      await delay(300);
+      const restingAreas = await haloAreas(4);
+      assert.ok(Math.min(...restingAreas) > 0 && Math.max(...restingAreas) - Math.min(...restingAreas) <= Math.max(...restingAreas) * 0.05,
+        `Reduced motion must keep the planner halos static, got areas ${restingAreas}`);
+      console.log('PASS Reduced motion freezes the planner bus halos');
+      await send('Emulation.setEmulatedMedia', { features: [] });
       assert.equal(planRequests.length, 1);
       assertPrivateRequest(planRequests[0]);
       assert.equal(bffRequests.filter((path) => path === planPath).length, 1);

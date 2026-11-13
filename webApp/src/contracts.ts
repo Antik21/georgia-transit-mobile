@@ -32,6 +32,16 @@ export interface ArrivalItem {
   readonly timeKind: string;
   readonly minutes: number | null | undefined;
   readonly source: string;
+  readonly routeColor: string | null | undefined;
+  readonly routeTextColor: string | null | undefined;
+}
+
+export interface StopRouteBadge {
+  readonly routeId: string;
+  readonly label: string;
+  readonly color: string;
+  readonly textColor: string;
+  readonly selected: boolean;
 }
 
 export interface ArrivalsState {
@@ -41,6 +51,7 @@ export interface ArrivalsState {
   readonly stale: boolean;
   readonly refreshing: boolean;
   readonly rows: readonly ArrivalItem[];
+  readonly routes: readonly StopRouteBadge[];
 }
 
 export interface MapCamera {

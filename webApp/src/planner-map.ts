@@ -3,6 +3,7 @@ import {
 } from "maplibre-gl";
 import type { PlannerBus, PlannerRoute, PlannerState } from "./contracts";
 import { drawVehicleBadge, systemTextScale, vehicleBadgeStyle } from "./vehicle-badge";
+import { pulsePaint } from "./vehicle-pulse";
 
 const lineSourceId = "transit-planner-lines";
 const pointSourceId = "transit-planner-points";
@@ -11,7 +12,6 @@ export const plannerBusLayerIds = ["transit-planner-bus-halo", "transit-planner-
 const busImagePrefix = "transit-planner-bus-";
 // Same artwork rules as the vehicle layer in map.ts: badges point east and flip past vertical.
 const eastwardArtworkBearing = 90;
-const busHaloColor = "#ffc300";
 export const plannerLineLayerIds = ["transit-planner-walk", "transit-planner-transit-casing", "transit-planner-transit"];
 export const plannerPointLayerId = "transit-planner-points";
 const longPressMillis = 500;
@@ -37,7 +37,8 @@ const lineLayers: AddLayerObject[] = [
 const busLayers: AddLayerObject[] = [
   {
     id: plannerBusLayerIds[0], type: "circle", source: busSourceId,
-    paint: { "circle-radius": 28, "circle-opacity": 0, "circle-stroke-color": busHaloColor, "circle-stroke-width": 3 },
+    // map.ts animates this halo together with the fleet pulse.
+    paint: pulsePaint(),
   },
   {
     id: plannerBusLayerIds[1], type: "symbol", source: busSourceId,
@@ -195,7 +196,7 @@ export function createPlannerMap(
         syncSource(pointSourceId, points, [pointLayer]);
         renderedPoints = pointsKey;
       }
-      const buses = busData(state?.buses ?? []);
+      const buses = busData(drawableBuses());
       const busesKey = JSON.stringify(buses.features);
       if (renderedBuses !== busesKey) {
         syncSource(busSourceId, buses, busLayers);
@@ -212,13 +213,18 @@ export function createPlannerMap(
     }
   }
 
+  function drawableBuses() {
+    return (state?.buses ?? []).filter((bus) => Number.isFinite(bus.latitude) && Number.isFinite(bus.longitude));
+  }
+
   function busData(buses: readonly PlannerBus[]) {
     return {
       type: "FeatureCollection" as const,
-      features: buses.filter((bus) => Number.isFinite(bus.latitude) && Number.isFinite(bus.longitude)).map((bus) => ({
+      features: buses.map((bus) => ({
         type: "Feature" as const,
         properties: {
           id: bus.id,
+          color: bus.color,
           image: busImage(bus),
           rotation: bus.bearing == null ? 0 : (((bus.bearing - eastwardArtworkBearing) % 360) + 360) % 360,
         },
@@ -311,6 +317,9 @@ export function createPlannerMap(
     },
     styleLost() {
       styleReady = false;
+    },
+    busCount() {
+      return drawableBuses().length;
     },
     /** True when the click ends a long press; any other map click dismisses an open pin. */
     consumeClick() {
