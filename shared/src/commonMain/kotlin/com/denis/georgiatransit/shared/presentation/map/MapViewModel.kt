@@ -94,10 +94,8 @@ class MapViewModel(
                 val routeNames = selectedRouteProjection.routes.map { route -> route.displayLabel }
                 // Reconcile synchronously before creating a render state. This makes a city or
                 // selection replacement fail closed instead of briefly rendering old geometry.
-                if (change.resetGeometry) {
-                    connectionNotices.rearm()
-                    syncRouteGeometry()
-                }
+                if (change.userRequestedNewData) connectionNotices.rearm()
+                if (change.resetGeometry) syncRouteGeometry()
                 val renderState = city?.let { renderStateFor(it, location.fix, lastViewport?.zoom) }
                 val plannerStep = journeyPlanner.onContext(state.journeyPlanner, plannerContext(location), change.cityChanged)
                 val vehicleLayer = if (change.resetVehicles) {

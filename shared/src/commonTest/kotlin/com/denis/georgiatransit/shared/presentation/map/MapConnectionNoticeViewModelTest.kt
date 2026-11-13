@@ -27,6 +27,21 @@ import kotlin.test.assertTrue
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class MapConnectionNoticeViewModelTest {
+    private val city = TransitCity(
+        id = CityId("batumi"),
+        name = "Batumi",
+        center = GeoPoint(latitude = 41.64, longitude = 41.64),
+        capabilities = CityCapabilities(
+            stops = false,
+            vehicles = false,
+            arrivals = false,
+            routeShapes = false,
+            journeyPlanning = false,
+        ),
+        defaultZoom = 13.0,
+    )
+    private val route = TransitRoute(id = RouteId("opaque:1"), cityId = city.id, shortName = "1", name = "Route 1", colorArgb = 0xFF0057B8)
+
     @AfterTest
     fun resetMainDispatcher() {
         Dispatchers.resetMain()
@@ -39,20 +54,6 @@ class MapConnectionNoticeViewModelTest {
 
     @Test
     fun oneOutagePostsOneNoticeAndANewRouteSelectionCanPostAnother() = runTest {
-        val city = TransitCity(
-            id = CityId("batumi"),
-            name = "Batumi",
-            center = GeoPoint(latitude = 41.64, longitude = 41.64),
-            capabilities = CityCapabilities(
-                stops = false,
-                vehicles = false,
-                arrivals = false,
-                routeShapes = false,
-                journeyPlanning = false,
-            ),
-            defaultZoom = 13.0,
-        )
-        val route = TransitRoute(id = RouteId("opaque:1"), cityId = city.id, shortName = "1", name = "Route 1", colorArgb = 0xFF0057B8)
         val session = RuntimeTransitSession().also { it.restoreCitySelection(city, linkedSetOf()) }
         val notices = ConnectionErrorNotices()
         val viewModel = MapViewModel(
@@ -79,6 +80,31 @@ class MapConnectionNoticeViewModelTest {
             notices.onTransportFailure()
             this@runTest.runCurrent()
             awaitConnectionNotice()
+            cancelAndIgnoreRemainingItems()
+        }
+    }
+
+    @Test
+    fun aBootstrapFailureIsShownOnceAndTheRestoredSessionDoesNotRearmIt() = runTest {
+        val notices = ConnectionErrorNotices().also { it.onTransportFailure() }
+        val session = RuntimeTransitSession().also { it.restoreCitySelection(city, linkedSetOf(route.id)) }
+        val viewModel = MapViewModel(
+            repository = RoutesOnlyRepository(listOf(route)),
+            session = session,
+            locationSession = RuntimeLocationSession(scope = this, nowMillis = { testScheduler.currentTime }),
+            connectionNotices = notices,
+        )
+
+        viewModel.test(this) {
+            runOnCreate()
+            this@runTest.runCurrent()
+            awaitConnectionNotice()
+
+            notices.onTransportFailure()
+            this@runTest.runCurrent()
+            assertTrue(session.selectRoutes(city.id, emptySet()))
+            this@runTest.runCurrent()
+            awaitStateWithoutNotice { it.selectedRouteNames.isEmpty() }
             cancelAndIgnoreRemainingItems()
         }
     }
