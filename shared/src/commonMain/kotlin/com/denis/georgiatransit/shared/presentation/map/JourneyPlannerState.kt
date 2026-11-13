@@ -158,7 +158,7 @@ sealed interface JourneyPlannerAction : Action {
     data object RouteHere : JourneyPlannerAction
     data object RouteFromHere : JourneyPlannerAction
     data object DismissPin : JourneyPlannerAction
-    /** A tap on empty map outside the planner: drops the pin, or clears the one already shown. */
+    /** A tap on empty map: drops the pin, or clears the one already shown; ignored while map picking. */
     data class TapMap(val point: GeoPoint) : JourneyPlannerAction
     data object SetOriginToMyLocation : JourneyPlannerAction
     data object SetDestinationToMyLocation : JourneyPlannerAction

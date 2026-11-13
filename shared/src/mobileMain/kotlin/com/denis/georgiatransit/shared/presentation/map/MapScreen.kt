@@ -269,6 +269,7 @@ private fun MapArea(
                 shownAnchor[0]?.let { anchor ->
                     JourneyPinPopup(
                         anchor = anchor,
+                        onlySide = planner.missingSide(),
                         onRouteFromHere = { onAction(JourneyPlannerAction.RouteFromHere) },
                         onRouteHere = { onAction(JourneyPlannerAction.RouteHere) },
                         cardScale = { cardScale },
@@ -338,6 +339,9 @@ private fun MapRealtimeVisibilityEffect(onVisibilityChanged: (Boolean) -> Unit) 
         }
     }
 }
+
+/** Inside the planner with one endpoint set, a dropped pin can only fill the other one. */
+private fun JourneyPlannerUi.missingSide(): JourneyPlanSide? = if (isOpen) journeyExpandedSideFor(origin, destination) else null
 
 private fun JourneyPlanSide.endpointIn(planner: JourneyPlannerUi) =
     if (this == JourneyPlanSide.Origin) planner.origin else planner.destination

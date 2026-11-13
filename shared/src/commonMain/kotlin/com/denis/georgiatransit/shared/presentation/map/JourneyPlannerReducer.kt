@@ -66,7 +66,7 @@ internal object JourneyPlannerReducer {
             } ?: finish(state, context)
             JourneyPlannerAction.DismissPin -> finish(state.copy(pin = null), context)
             is JourneyPlannerAction.TapMap -> when {
-                state.isOpen || state.mapPick != null -> finish(state, context)
+                state.mapPick != null -> finish(state, context)
                 state.pin != null || !context.available -> finish(state.copy(pin = null), context)
                 else -> finish(state.copy(pin = action.point), context)
             }
