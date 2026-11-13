@@ -4,6 +4,7 @@ import com.denis.georgiatransit.shared.data.cache.TransitCache
 import com.denis.georgiatransit.shared.data.cache.TransitCacheStore
 import com.denis.georgiatransit.shared.data.config.BffEndpointConfiguration
 import com.denis.georgiatransit.shared.data.network.TransitBffClient
+import com.denis.georgiatransit.shared.domain.repository.ConnectionErrorNotices
 import com.denis.georgiatransit.shared.data.network.createTransitHttpClient
 import com.denis.georgiatransit.shared.data.repository.BffJourneyPlanRepository
 import com.denis.georgiatransit.shared.data.repository.BffTransitRepository
@@ -42,7 +43,8 @@ internal fun appModule(
     single { TransitCache(get()) }
     single<RecentRouteHistory> { StoredRecentRouteHistory(get()) }
     single { createTransitHttpClient() }
-    single { TransitBffClient(httpClient = get(), endpoint = bffEndpointConfiguration) }
+    single { ConnectionErrorNotices() }
+    single { TransitBffClient(httpClient = get(), endpoint = bffEndpointConfiguration, connectionNotices = get()) }
     single<TransitRepository> { BffTransitRepository(client = get(), cache = get()) }
     single<JourneyPlanRepository> { BffJourneyPlanRepository(client = get()) }
     single<TransitSession> { RuntimeTransitSession(selectedCityStore = get()) }
@@ -69,6 +71,7 @@ internal fun appModule(
             realtimeTickerPolicy = get(),
             routeGeometryCoordinator = get(),
             journeyPlanRepository = get(),
+            connectionNotices = get(),
             bffStyleUrl = bffEndpointConfiguration?.mapStyleUrlOrNull(),
         )
     }

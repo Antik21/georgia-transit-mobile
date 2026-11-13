@@ -1,9 +1,7 @@
 package com.denis.georgiatransit.shared.presentation.map.sections
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.WindowInsetsSides
@@ -14,7 +12,6 @@ import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.windowInsetsPadding
-import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -29,7 +26,6 @@ import androidx.compose.ui.semantics.onClick
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import com.denis.georgiatransit.shared.presentation.map.MapBaseLayerState
-import com.denis.georgiatransit.shared.presentation.map.MapContentState
 import com.denis.georgiatransit.shared.presentation.map.MapPlatformEvent
 import com.denis.georgiatransit.shared.presentation.map.MapRenderState
 import com.denis.georgiatransit.shared.presentation.map.PlatformMap
@@ -40,28 +36,19 @@ import com.denis.georgiatransit.shared.presentation.ui.theme.TransitShapes
 import com.denis.georgiatransit.shared.presentation.ui.theme.TransitSpacing
 import georgiatransit.shared.generated.resources.Res
 import georgiatransit.shared.generated.resources.map_cluster_stops
-import georgiatransit.shared.generated.resources.map_content_empty
-import georgiatransit.shared.generated.resources.map_content_error
-import georgiatransit.shared.generated.resources.map_content_loading
-import georgiatransit.shared.generated.resources.map_content_offline
-import georgiatransit.shared.generated.resources.map_content_stale
-import georgiatransit.shared.generated.resources.map_content_unavailable
 import georgiatransit.shared.generated.resources.map_nearby_stops_title
 import georgiatransit.shared.generated.resources.map_preview_note
-import georgiatransit.shared.generated.resources.map_retry_action
 import kotlinx.collections.immutable.toPersistentList
 import org.jetbrains.compose.resources.stringResource
 
-/** Retains the current typed status when a renderer state has not been supplied yet. */
+/** Keeps the base-layer note visible while a renderer state has not been supplied yet. */
 @Composable
 internal fun MapContentPlaceholder(
-    contentState: MapContentState,
     baseLayerState: MapBaseLayerState,
     modifier: Modifier = Modifier,
 ) {
     Box(modifier = modifier.background(TransitColors.MapLand)) {
-        MapStatusOverlays(
-            contentState = contentState,
+        BaseLayerOverlay(
             baseLayerState = baseLayerState,
             modifier = Modifier
                 .align(Alignment.TopCenter)
@@ -76,14 +63,12 @@ internal fun MapContentPlaceholder(
 @Composable
 internal fun MapCanvas(
     renderState: MapRenderState,
-    contentState: MapContentState,
     baseLayerState: MapBaseLayerState,
     locationActionLabel: String,
     locationActionAutomationId: String,
     locationActionEnabled: Boolean,
     onMyLocationClick: () -> Unit,
     onMapEvent: (MapPlatformEvent) -> Unit,
-    onRetry: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val localizedRenderState = renderState.withLocalizedClusterLabels()
@@ -149,10 +134,8 @@ internal fun MapCanvas(
                 }
             }
         }
-        MapStatusOverlays(
-            contentState = contentState,
+        BaseLayerOverlay(
             baseLayerState = baseLayerState,
-            onRetry = onRetry,
             modifier = Modifier
                 .align(Alignment.TopCenter)
                 .windowInsetsPadding(
@@ -195,30 +178,13 @@ internal fun MapCanvas(
 }
 
 @Composable
-private fun MapStatusOverlays(
-    contentState: MapContentState,
-    baseLayerState: MapBaseLayerState,
-    onRetry: (() -> Unit)? = null,
-    modifier: Modifier = Modifier,
-) {
-    Column(
-        modifier = modifier,
-        verticalArrangement = Arrangement.spacedBy(TransitSpacing.ExtraSmall),
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
-        BaseLayerOverlay(baseLayerState)
-        MapContentOverlay(contentState = contentState, onRetry = onRetry)
-    }
-}
-
-@Composable
-private fun BaseLayerOverlay(baseLayerState: MapBaseLayerState) {
+private fun BaseLayerOverlay(baseLayerState: MapBaseLayerState, modifier: Modifier = Modifier) {
     val text = when (baseLayerState) {
         MapBaseLayerState.LocalPreview -> stringResource(Res.string.map_preview_note)
         MapBaseLayerState.BffStyle -> return
     }
     Surface(
-        modifier = Modifier.testTag(AutomationId.MapLocalPreview),
+        modifier = modifier.testTag(AutomationId.MapLocalPreview),
         color = MaterialTheme.colorScheme.surface.copy(alpha = 0.92f),
         shape = TransitShapes.Small,
         shadowElevation = TransitSpacing.ExtraSmall,
@@ -228,49 +194,6 @@ private fun BaseLayerOverlay(baseLayerState: MapBaseLayerState) {
             modifier = Modifier.padding(TransitSpacing.Small),
             style = MaterialTheme.typography.labelLarge,
         )
-    }
-}
-
-/** The surface is deliberately compact: pan and zoom remain available around it. */
-@Composable
-private fun MapContentOverlay(
-    contentState: MapContentState,
-    onRetry: (() -> Unit)? = null,
-    modifier: Modifier = Modifier,
-) {
-    val textAndId = when (contentState) {
-        MapContentState.Loading -> stringResource(Res.string.map_content_loading) to AutomationId.MapLoading
-        MapContentState.Empty -> stringResource(Res.string.map_content_empty) to AutomationId.MapEmpty
-        is MapContentState.RetryableError -> stringResource(Res.string.map_content_error) to AutomationId.MapError
-        MapContentState.Unavailable -> stringResource(Res.string.map_content_unavailable) to AutomationId.MapUnavailable
-        is MapContentState.Offline -> {
-            val text = stringResource(
-                if (contentState.isStale) Res.string.map_content_stale else Res.string.map_content_offline,
-            )
-            text to AutomationId.MapOffline
-        }
-        MapContentState.Ready -> return
-    }
-    Surface(
-        modifier = modifier.testTag(textAndId.second),
-        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.92f),
-        shape = TransitShapes.Small,
-        shadowElevation = TransitSpacing.ExtraSmall,
-    ) {
-        Column(
-            modifier = Modifier.padding(TransitSpacing.Small),
-            verticalArrangement = Arrangement.spacedBy(TransitSpacing.ExtraSmall),
-        ) {
-            Text(textAndId.first, style = MaterialTheme.typography.labelLarge)
-            if (contentState is MapContentState.RetryableError && onRetry != null) {
-                Button(
-                    onClick = onRetry,
-                    modifier = Modifier.testTag(AutomationId.MapRetry),
-                ) {
-                    Text(stringResource(Res.string.map_retry_action))
-                }
-            }
-        }
     }
 }
 

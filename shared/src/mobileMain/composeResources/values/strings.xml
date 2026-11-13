@@ -39,12 +39,6 @@
     <string name="location_failure_invalid">The location fix was not accurate or recent enough.</string>
     <string name="location_failure_unavailable">Your location could not be obtained.</string>
     <string name="map_preview_note">Preview basemap only — reviewed production map assets are not configured</string>
-    <string name="map_content_loading">Loading nearby stops…</string>
-    <string name="map_content_empty">No nearby stops are available for this view.</string>
-    <string name="map_content_error">Nearby stops could not be loaded.</string>
-    <string name="map_content_unavailable">Nearby stops are unavailable for this city.</string>
-    <string name="map_content_offline">Nearby stops are unavailable while offline.</string>
-    <string name="map_content_stale">Showing the last available nearby stops while offline.</string>
     <string name="map_routes_action">Choose routes</string>
     <string name="map_change_city_action">Change city</string>
     <string name="map_my_location_action">My location</string>
@@ -98,7 +92,6 @@
     <string name="map_vehicle_status_retryable">temporarily unavailable; showing older positions</string>
     <string name="map_vehicle_status_unavailable">unavailable</string>
     <string name="map_vehicle_status_mixed">mixed route availability</string>
-    <string name="map_retry_action">Try again</string>
     <string name="map_attribution_title">Data sources and attribution</string>
     <string name="map_openstreetmap_attribution">© OpenStreetMap</string>
     <string name="routes_title">Routes</string>
@@ -133,4 +126,5 @@
     <string name="routes_row_unselected">Not selected</string>
     <string name="routes_row_limit_reached">Selection limit reached</string>
     <string name="loading">Loading transit data…</string>
+    <string name="map_connection_error">Connection error</string>
 </resources>
