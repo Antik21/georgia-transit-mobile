@@ -94,12 +94,16 @@ internal fun JourneyOptionCard(
             verticalArrangement = Arrangement.spacedBy(TransitSpacing.ExtraSmall + 2.dp),
         ) {
             if (option.labels.isNotEmpty()) {
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(TransitSpacing.ExtraSmall)) {
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(TransitSpacing.ExtraSmall),
+                    verticalArrangement = Arrangement.spacedBy(TransitSpacing.ExtraSmall),
+                ) {
                     option.labels.forEach { label -> JourneyLabelPill(label) }
                 }
             }
             FlowRow(
                 horizontalArrangement = Arrangement.spacedBy(TransitSpacing.Small),
+                verticalArrangement = Arrangement.spacedBy(TransitSpacing.ExtraSmall),
                 itemVerticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(
@@ -161,6 +165,7 @@ private fun JourneyItinerary(legs: List<JourneyLegUi>) {
     FlowRow(
         modifier = Modifier.testTag(AutomationId.MapPlannerItinerary).clearAndSetSemantics { contentDescription = "$spoken." },
         horizontalArrangement = Arrangement.spacedBy(TransitSpacing.ExtraSmall),
+        verticalArrangement = Arrangement.spacedBy(TransitSpacing.ExtraSmall),
         itemVerticalAlignment = Alignment.CenterVertically,
     ) {
         legs.forEachIndexed { index, leg ->
