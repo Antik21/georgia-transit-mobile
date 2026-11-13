@@ -264,10 +264,9 @@ private class LocalMapController(
         latestState = renderState
         updateBaseStyle(renderState.bffStyleUrl)
         if (style != null) installAndRender(renderState)
-        map?.let { currentMap ->
-            zoomSteps.targetZoom(renderState.zoomStep, currentMap.cameraPosition.zoom)
-                ?.let { currentMap.animateCamera(CameraUpdateFactory.zoomTo(it), MapZoomStepTracker.ANIMATION_MILLIS) }
-        }
+        // Record the baseline even before getMapAsync completes, or the first tap becomes the baseline.
+        zoomSteps.targetZoom(renderState.zoomStep, map?.cameraPosition?.zoom ?: Double.NaN)
+            ?.let { map?.animateCamera(CameraUpdateFactory.zoomTo(it), MapZoomStepTracker.ANIMATION_MILLIS) }
     }
 
     fun setLifecycleResumed(resumed: Boolean) {

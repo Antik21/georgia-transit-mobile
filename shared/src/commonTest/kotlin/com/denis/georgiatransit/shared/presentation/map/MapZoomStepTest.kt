@@ -85,4 +85,12 @@ class MapZoomStepTest {
         tracker.cameraMovedElsewhere()
         assertEquals(14.0, tracker.targetZoom(MapZoomStep(totalDelta = 0.0), currentZoom = 15.0))
     }
+
+    @Test
+    fun aBaselineRecordedBeforeTheMapIsReadyLetsTheFirstTapZoom() {
+        val tracker = MapZoomStepTracker(minZoom = 0.0, maxZoom = 22.0, timeSource = TestTimeSource())
+
+        assertNull(tracker.targetZoom(null, currentZoom = Double.NaN))
+        assertEquals(14.0, tracker.targetZoom(MapZoomStep(totalDelta = 1.0), currentZoom = 13.0))
+    }
 }
