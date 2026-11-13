@@ -41,6 +41,7 @@ internal class JourneyMapLayers(private val metrics: DisplayMetrics) {
     private var renderedOverlay: MapJourneyOverlay? = null
     private var hasRendered = false
     private var fittedRevision: Long? = null
+    private var fitGeneration = 0L
 
     fun install(style: Style, belowLayerId: String) {
         style.addSource(GeoJsonSource(LINES_SOURCE_ID, FeatureCollection.fromFeatures(emptyList())))
@@ -89,6 +90,7 @@ internal class JourneyMapLayers(private val metrics: DisplayMetrics) {
     }
 
     fun render(style: Style, overlay: MapJourneyOverlay?) {
+        if (overlay?.lines.isNullOrEmpty()) fitGeneration++
         val content = overlay?.copy(fitRevision = 0L)
         if (hasRendered && content == renderedOverlay) return
         style.getSourceAs<GeoJsonSource>(LINES_SOURCE_ID)?.setGeoJson(lineFeatures(content))
@@ -102,7 +104,8 @@ internal class JourneyMapLayers(private val metrics: DisplayMetrics) {
         if (overlay == null || overlay.lines.isEmpty() || fittedRevision == overlay.fitRevision) return
         fittedRevision = overlay.fitRevision
         // Results resize the planner panel in the same frame, so frame after the map is re-laid out.
-        view.postDelayed({ if (fittedRevision == overlay.fitRevision && view.height > 0) fit(map, overlay) }, FIT_DELAY_MILLIS)
+        val generation = ++fitGeneration
+        view.postDelayed({ if (generation == fitGeneration && view.height > 0) fit(map, overlay) }, FIT_DELAY_MILLIS)
     }
 
     private fun fit(map: MapLibreMap, overlay: MapJourneyOverlay) {
