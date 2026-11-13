@@ -116,12 +116,14 @@ private final class LocalMapLibreView: UIView, MLNMapViewDelegate {
         guard !released else { return }
         pendingRenderState = renderState
         updateBaseStyle(renderState.bffStyleUrl)
+        if let style = mapView.style {
+            installSourcesAndLayersIfNeeded(style: style)
+            render(renderState, style: style)
+        }
+        // After render(): a camera command in the same frame would otherwise overwrite the zoom animation.
         if let target = zoomSteps.targetZoom(step: renderState.zoomStep, currentZoom: mapView.zoomLevel) {
             mapView.setZoomLevel(target.doubleValue, animated: true)
         }
-        guard let style = mapView.style else { return }
-        installSourcesAndLayersIfNeeded(style: style)
-        render(renderState, style: style)
     }
 
     private func updateBaseStyle(_ rawURL: String?) {
