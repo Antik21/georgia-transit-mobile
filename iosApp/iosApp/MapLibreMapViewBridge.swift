@@ -297,6 +297,11 @@ private final class LocalMapLibreView: UIView, MLNMapViewDelegate {
         attentionLayer.circleOpacity = NSExpression(forConstantValue: Self.attentionMinimumSizeOpacity)
         style.insertLayer(attentionLayer, below: vehiclesLayer)
 
+        // The base pin stays in place; this copy keeps the selected stop visible above vehicles.
+        let selectedStopPinLayer = stopPinLayer(source: stopsSource, identifier: Self.selectedStopPinLayerID)
+        selectedStopPinLayer.predicate = NSPredicate(format: "%K == YES", Self.stopPinSelectedProperty)
+        style.addLayer(selectedStopPinLayer)
+
         let userLocationLayer = MLNCircleStyleLayer(identifier: Self.userLocationLayerID, source: userLocationSource)
         userLocationLayer.circleColor = NSExpression(forConstantValue: UIColor(red: 0.08, green: 0.40, blue: 0.75, alpha: 1))
         userLocationLayer.circleRadius = NSExpression(forConstantValue: 7)
@@ -460,6 +465,7 @@ private final class LocalMapLibreView: UIView, MLNMapViewDelegate {
                         Self.accessibilityLabelProperty: marker.accessibilityLabel,
                         Self.stopPinProperty: pin,
                         Self.stopPinScaleProperty: marker.pinScale,
+                        Self.stopPinSelectedProperty: marker.isSelected,
                         Self.markerColorProperty: Self.transparentStopColor,
                         Self.markerRadiusProperty: marker.routeHighlight.markerRadius,
                         Self.markerStrokeColorProperty: Self.transparentStopColor,
@@ -498,6 +504,8 @@ private final class LocalMapLibreView: UIView, MLNMapViewDelegate {
         let point = recognizer.location(in: mapView)
         let pinHitRect = CGRect(x: point.x - 0.5, y: point.y - 0.5, width: 1, height: 1)
         let visibleStop = entityFeature(
+            in: pinHitRect, layerID: Self.selectedStopPinLayerID, kind: Self.stopFeatureKind
+        ) ?? entityFeature(
             in: pinHitRect, layerID: Self.stopPinLayerID(sourceID: Self.stopsSourceID), kind: Self.stopFeatureKind
         )
         if let stop = visibleStop {
@@ -589,8 +597,8 @@ private final class LocalMapLibreView: UIView, MLNMapViewDelegate {
         "\(sourceID)-pins"
     }
 
-    private func stopPinLayer(source: MLNShapeSource) -> MLNSymbolStyleLayer {
-        let layer = MLNSymbolStyleLayer(identifier: Self.stopPinLayerID(sourceID: source.identifier), source: source)
+    private func stopPinLayer(source: MLNShapeSource, identifier: String? = nil) -> MLNSymbolStyleLayer {
+        let layer = MLNSymbolStyleLayer(identifier: identifier ?? Self.stopPinLayerID(sourceID: source.identifier), source: source)
         layer.iconImageName = NSExpression(forKeyPath: Self.stopPinProperty)
         layer.iconScale = NSExpression(forKeyPath: Self.stopPinScaleProperty)
         layer.iconAnchor = NSExpression(forConstantValue: "bottom")
@@ -1038,6 +1046,7 @@ private final class LocalMapLibreView: UIView, MLNMapViewDelegate {
     private static let userLocationSourceID = "gt-user-location-source"
     private static let userAccuracySourceID = "gt-user-accuracy-source"
     private static let stopsLayerID = "gt-stops-layer"
+    private static let selectedStopPinLayerID = "gt-selected-stop-pins"
     private static let vehiclesLayerID = "gt-vehicles-layer"
     private static let attentionLayerID = "gt-vehicle-attention-layer"
     private static let polylinesLayerID = "gt-polylines-layer"
@@ -1060,6 +1069,7 @@ private final class LocalMapLibreView: UIView, MLNMapViewDelegate {
     private static let transparentStopColor = "rgba(0,0,0,0)"
     private static let stopPinProperty = "stopPin"
     private static let stopPinScaleProperty = "stopPinScale"
+    private static let stopPinSelectedProperty = "stopPinSelected"
     private static let markerColorProperty = "markerColor"
     private static let markerRadiusProperty = "markerRadius"
     private static let markerStrokeColorProperty = "markerStrokeColor"

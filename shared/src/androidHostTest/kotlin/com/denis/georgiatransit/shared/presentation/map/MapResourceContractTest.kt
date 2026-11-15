@@ -431,7 +431,7 @@ class MapResourceContractTest {
     }
 
     @Test
-    fun highlightedStopsKeepCommonStyleRevisionAndSingleStopLayerOnBothAdapters() {
+    fun highlightedStopsKeepCommonStyleRevisionAndSingleStopSourceOnBothAdapters() {
         val root = projectRoot()
         val androidOverlays = root.androidMapSource("MapOverlaySources.android.kt")
         val swift = root.resolve("iosApp/iosApp/MapLibreMapViewBridge.swift").readText()

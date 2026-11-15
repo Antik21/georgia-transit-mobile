@@ -19,12 +19,13 @@ import org.maplibre.android.style.layers.SymbolLayer
 
 internal const val STOP_PIN_PROPERTY = "stopPin"
 internal const val STOP_PIN_SCALE_PROPERTY = "stopPinScale"
+internal const val STOP_PIN_SELECTED_PROPERTY = "stopPinSelected"
 private const val ImagePixelRatio = 3
 
 internal fun stopPinLayerId(sourceId: String): String = "$sourceId-pins"
 
-internal fun stopPinLayer(sourceId: String): SymbolLayer =
-    SymbolLayer(stopPinLayerId(sourceId), sourceId).withProperties(
+internal fun stopPinLayer(sourceId: String, layerId: String = stopPinLayerId(sourceId)): SymbolLayer =
+    SymbolLayer(layerId, sourceId).withProperties(
         iconImage(Expression.get(STOP_PIN_PROPERTY)),
         iconAnchor("bottom"),
         iconPadding(0f),

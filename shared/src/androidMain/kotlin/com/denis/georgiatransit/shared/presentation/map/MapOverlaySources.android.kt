@@ -70,6 +70,7 @@ private fun ordinaryStopFeatures(renderState: MapRenderState): FeatureCollection
                     feature.addStringProperty(ACCESSIBILITY_LABEL_PROPERTY, marker.accessibilityLabel)
                     feature.addStringProperty(STOP_PIN_PROPERTY, marker.pinArtwork.imageId)
                     feature.addNumberProperty(STOP_PIN_SCALE_PROPERTY, marker.pinScale)
+                    feature.addBooleanProperty(STOP_PIN_SELECTED_PROPERTY, marker.isSelected)
                     feature.addStringProperty(MARKER_COLOR_PROPERTY, TRANSPARENT_STOP_COLOR)
                     feature.addNumberProperty(MARKER_RADIUS_PROPERTY, marker.routeHighlight.markerRadius)
                     feature.addStringProperty(MARKER_STROKE_COLOR_PROPERTY, TRANSPARENT_STOP_COLOR)

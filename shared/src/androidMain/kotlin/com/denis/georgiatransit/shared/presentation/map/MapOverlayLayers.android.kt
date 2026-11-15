@@ -70,6 +70,11 @@ internal fun installSourcesAndLayers(loadedStyle: Style, vehicleLayer: SymbolLay
     loadedStyle.addLayer(vehicleLayer)
     // The route-coloured pulse renders below the stable badge and is never hit-tested.
     loadedStyle.addLayerBelow(attentionLayer, VEHICLES_LAYER_ID)
+    // The base pin stays in place; this copy keeps the selected stop visible above vehicles.
+    loadedStyle.addLayer(
+        stopPinLayer(STOPS_SOURCE_ID, SELECTED_STOP_PIN_LAYER_ID)
+            .withFilter(Expression.eq(Expression.get(STOP_PIN_SELECTED_PROPERTY), Expression.literal(true))),
+    )
     loadedStyle.addLayer(
         CircleLayer(USER_LOCATION_LAYER_ID, USER_LOCATION_SOURCE_ID).withProperties(
             circleColor("#1565C0"),
@@ -91,6 +96,7 @@ internal fun Long.asMapColor(): String = "#%06X".format(this and 0xFFFFFF)
 internal fun Double.normalizedBearing(): Double = ((this % 360.0) + 360.0) % 360.0
 
 internal const val STOPS_SOURCE_ID = "gt-stops-source"
+internal const val SELECTED_STOP_PIN_LAYER_ID = "gt-selected-stop-pins"
 internal const val VEHICLES_SOURCE_ID = "gt-vehicles-source"
 internal const val ATTENTION_SOURCE_ID = "gt-vehicle-attention-source"
 internal const val POLYLINES_SOURCE_ID = "gt-polylines-source"
