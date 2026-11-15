@@ -129,15 +129,6 @@ export function plannerSmoke({ send, evaluate, waitFor, tap, visible, testId, ma
     return retired ? -1 : count;
   }
 
-  async function haloAreas(samples) {
-    const areas = [];
-    for (let index = 0; index < samples; index++) {
-      areas.push((await haloBlobs(plannerRouteColors.orange)).filter((blob) => blob.size >= 60).reduce((sum, blob) => sum + blob.size, 0));
-      await delay(150);
-    }
-    return areas;
-  }
-
   async function labelsAndItineraries() {
     return evaluate(`Array.from(${options}).map((option) => ({
       labels: Array.from(option.querySelectorAll('${testId('planner-label')}'))
@@ -185,19 +176,8 @@ export function plannerSmoke({ send, evaluate, waitFor, tap, visible, testId, ma
       assert.ok(cards.every((option) => option.walkSteps.length > 0 && option.walkSteps.every((count) => count === 1)),
         `Every walking step draws a walker on its dotted line: ${JSON.stringify(cards.map((option) => option.walkSteps))}`);
       assert.equal(cards[2].spoken, 'Walk, then bus B12, then walk, then bus B7, then walk.');
-      await waitFor('The selected option shows its two soonest buses on the card and the map',
-        async () => await evaluate(`${nearestText} === 'Nearest buses: 3 min, 11 min'`) && await highlightedBuses() === 2);
-      const areas = await haloAreas(10);
-      assert.ok(Math.min(...areas) > 0 && Math.max(...areas) > Math.min(...areas) * 1.5,
-        `The planner bus halos must pulse like the fleet halo, got areas ${areas}`);
-      console.log('PASS The planner bus halos pulse in the route colour');
-      await send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: 'reduce' }] });
-      await delay(300);
-      const restingAreas = await haloAreas(4);
-      assert.ok(Math.min(...restingAreas) > 0 && Math.max(...restingAreas) - Math.min(...restingAreas) <= Math.max(...restingAreas) * 0.05,
-        `Reduced motion must keep the planner halos static, got areas ${restingAreas}`);
-      console.log('PASS Reduced motion freezes the planner bus halos');
-      await send('Emulation.setEmulatedMedia', { features: [] });
+      await waitFor('The selected option shows arrival times without buses on the map',
+        async () => await evaluate(`${nearestText} === 'Nearest buses: 3 min, 11 min'`) && await highlightedBuses() === 0);
       assert.equal(planRequests.length, 1);
       assertPrivateRequest(planRequests[0]);
       assert.equal(bffRequests.filter((path) => path === planPath).length, 1);
@@ -205,9 +185,9 @@ export function plannerSmoke({ send, evaluate, waitFor, tap, visible, testId, ma
         () => mapContainsColor(plannerRouteColors.orange, 75));
 
       await tap(card('transfer'));
-      await waitFor('Selecting another option redraws its lines and shows the one bus that exists',
+      await waitFor('Selecting another option redraws its lines without buses',
         async () => await evaluate(`${pressed(card('transfer'))} && ${nearestText} === 'Nearest buses: 5 min'`)
-          && await mapContainsColor(plannerRouteColors.yellow, 75) && await highlightedBuses() === 1);
+          && await mapContainsColor(plannerRouteColors.yellow, 75) && await highlightedBuses() === 0);
       await tap(card('walk'));
       await waitFor('A walk-only option shows no buses',
         async () => await evaluate(`${pressed(card('walk'))} && !document.querySelector('${testId('planner-nearest')}')`)

@@ -27,7 +27,7 @@ class JourneyMapProjectionTest {
     }
 
     @Test
-    fun drawnPlanKeepsOnlyItsNearestBusesOnTheVehicleLayer() {
+    fun drawnPlanHidesAllBusesOnTheVehicleLayer() {
         val projected = base.withJourneyPlanner(planned(buses(bus("bus-1", 41.64), bus("bus-2", 41.65))))
 
         val overlay = checkNotNull(projected.journey)
@@ -35,16 +35,8 @@ class JourneyMapProjectionTest {
         assertEquals(origin, overlay.origin)
         assertEquals(destination, overlay.destination)
         assertEquals(7L, overlay.fitRevision)
-        assertEquals(listOf("bus-1", "bus-2"), projected.vehicles.map { it.stableId })
-        val first = projected.vehicles.first()
-        assertEquals(RouteId("10a"), first.routeId)
-        assertEquals(DirectionId("0"), first.directionId)
-        assertEquals("10A", first.routeLabel)
-        assertEquals(0xFF1565C0L, first.routeColorArgb)
-        assertEquals(0xFFFFFFFFL, first.routeTextColorArgb)
-        assertEquals(VehiclePositionKind.Gps, first.positionKind)
-        assertEquals(TransitFreshness.Network, first.freshness)
-        assertTrue(projected.vehicleSourceRevision < 0 && projected.vehicleBadgeRevision < 0)
+        assertTrue(projected.vehicles.isEmpty())
+        assertNotEquals(base.vehicleSourceRevision, projected.vehicleSourceRevision)
     }
 
     @Test
@@ -57,11 +49,11 @@ class JourneyMapProjectionTest {
     }
 
     @Test
-    fun movedBusChangesTheSourceRevisionButNotTheBadgeRevision() {
+    fun movedBusDoesNotChangeTheHiddenVehicleLayer() {
         val before = base.withJourneyPlanner(planned(buses(bus("bus-1", 41.64))))
         val after = base.withJourneyPlanner(planned(buses(bus("bus-1", 41.641))))
 
-        assertNotEquals(before.vehicleSourceRevision, after.vehicleSourceRevision)
+        assertEquals(before.vehicleSourceRevision, after.vehicleSourceRevision)
         assertEquals(before.vehicleBadgeRevision, after.vehicleBadgeRevision)
     }
 
@@ -80,7 +72,12 @@ class JourneyMapProjectionTest {
         val projected = base.withJourneyPlanner(planner)
 
         assertEquals(MapJourneyOverlay(origin = origin, fitRevision = 3), projected.journey)
-        assertEquals(base.vehicles, projected.vehicles)
+        assertTrue(projected.vehicles.isEmpty())
+    }
+
+    @Test
+    fun openPlannerWithoutEndpointsStillHidesSessionVehicles() {
+        assertTrue(base.withJourneyPlanner(JourneyPlannerUi(isOpen = true)).vehicles.isEmpty())
     }
 
     private fun planned(buses: JourneyBusesUi?) = JourneyPlannerUi(
