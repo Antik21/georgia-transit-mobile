@@ -51,7 +51,6 @@ import georgiatransit.shared.generated.resources.map_planner_location_approximat
 import georgiatransit.shared.generated.resources.map_planner_location_locating
 import georgiatransit.shared.generated.resources.map_planner_location_permission
 import georgiatransit.shared.generated.resources.map_planner_pick_on_map
-import georgiatransit.shared.generated.resources.map_planner_refreshing
 import georgiatransit.shared.generated.resources.map_planner_retry
 import georgiatransit.shared.generated.resources.map_planner_stale
 import georgiatransit.shared.generated.resources.map_planner_swap
@@ -176,7 +175,6 @@ private fun plannerStatusText(planner: JourneyPlannerUi): String? {
     val status = planner.status
     if (status is JourneyPlannerStatus.Results) {
         return when {
-            status.isRefreshing -> stringResource(Res.string.map_planner_refreshing)
             status.isStale -> stringResource(Res.string.map_planner_stale)
             else -> null
         }
@@ -208,7 +206,6 @@ private fun plannerStatusText(planner: JourneyPlannerUi): String? {
 }
 
 private fun JourneyPlannerStatus.isBusy(): Boolean = this == JourneyPlannerStatus.Loading ||
-    (this is JourneyPlannerStatus.Results && isRefreshing) ||
     (this is JourneyPlannerStatus.LocationNeeded && reason == JourneyLocationReason.Locating)
 
 private fun JourneyPlannerStatus.canRetry(): Boolean = (this is JourneyPlannerStatus.Error && retryable) ||
