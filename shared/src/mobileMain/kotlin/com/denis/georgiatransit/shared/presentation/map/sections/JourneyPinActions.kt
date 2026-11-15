@@ -89,6 +89,9 @@ internal fun JourneyPinPopup(
         val fitsBelow = below + card.height <= constraints.maxHeight - edge
         val cardY = if (fitsBelow) below else y - PIN_HEIGHT.roundToPx() - tailDown.height + 1 - card.height
         val cardX = (x - card.width / 2).coerceIn(edge, (constraints.maxWidth - card.width - edge).coerceAtLeast(edge))
+        // The whole tail base must meet the straight edge, clear of the rounded corners.
+        val tailInset = CARD_RADIUS.roundToPx() + (tailUp.width + 1) / 2
+        val showTail = x >= cardX + tailInset && x <= cardX + card.width - tailInset && cardY >= 0
         layout(constraints.maxWidth, constraints.maxHeight) {
             marker.place(x - marker.width / 2, y - marker.height / 2)
             // Grows out of the tail tip, which is where the anchor sits horizontally.
@@ -99,10 +102,12 @@ internal fun JourneyPinPopup(
                 scaleY = scale
                 transformOrigin = pivot
             }
-            if (fitsBelow) {
-                tailUp.place(x - tailUp.width / 2, y)
-            } else {
-                tailDown.place(x - tailDown.width / 2, cardY + card.height - 1)
+            if (showTail) {
+                if (fitsBelow) {
+                    tailUp.place(x - tailUp.width / 2, y)
+                } else {
+                    tailDown.place(x - tailDown.width / 2, cardY + card.height - 1)
+                }
             }
         }
     }

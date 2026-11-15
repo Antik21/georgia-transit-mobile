@@ -99,7 +99,7 @@ class MapBridgeStopsTest {
                     assertEquals(single.id, assertNotNull(latest?.arrivals, "A current tap must open arrivals").stopId)
                     val selected = assertNotNull(latest?.stopLayer).stops.single { it.id == single.id }
                     assertTrue(selected.selected)
-                    assertEquals(StopPinScale * 1.1, selected.scale, 1e-6)
+                    assertEquals(StopPinScale.toDouble(), selected.scale, 1e-6)
                     assertTrue(latest?.stopLayer?.revision != layer.revision)
                 } finally {
                     entry.dispose()

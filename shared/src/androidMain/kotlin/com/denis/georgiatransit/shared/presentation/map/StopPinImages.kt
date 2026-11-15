@@ -19,12 +19,13 @@ import org.maplibre.android.style.layers.SymbolLayer
 
 internal const val STOP_PIN_PROPERTY = "stopPin"
 internal const val STOP_PIN_SCALE_PROPERTY = "stopPinScale"
+internal const val STOP_PIN_SELECTED_PROPERTY = "stopPinSelected"
 private const val ImagePixelRatio = 3
 
 internal fun stopPinLayerId(sourceId: String): String = "$sourceId-pins"
 
-internal fun stopPinLayer(sourceId: String): SymbolLayer =
-    SymbolLayer(stopPinLayerId(sourceId), sourceId).withProperties(
+internal fun stopPinLayer(sourceId: String, layerId: String = stopPinLayerId(sourceId)): SymbolLayer =
+    SymbolLayer(layerId, sourceId).withProperties(
         iconImage(Expression.get(STOP_PIN_PROPERTY)),
         iconAnchor("bottom"),
         iconPadding(0f),
@@ -37,7 +38,10 @@ internal class StopPinImages {
     private val imageIds = mutableSetOf<String>()
 
     fun update(style: Style, stops: List<MapStopMarker>) {
-        val pins = stops.asSequence().map { it.routeHighlight.pinArtwork }.associateBy(StopPinArtwork::imageId)
+        // Keep both variants loaded so selection only changes the existing symbol's image.
+        val pins = stops.asSequence()
+            .flatMap { sequenceOf(it.routeHighlight.pinArtwork, it.routeHighlight.selectedPinArtwork) }
+            .associateBy(StopPinArtwork::imageId)
         (imageIds - pins.keys).forEach(style::removeImage)
         pins.forEach { (id, pin) ->
             if (id !in imageIds) style.addImage(id, pin.toBitmap())
@@ -94,7 +98,7 @@ private fun StopPinArtwork.drawRouteCard(canvas: Canvas, paint: Paint) {
 }
 
 private fun StopPinArtwork.drawPinBody(canvas: Canvas, paint: Paint) {
-    paint.color = Color.WHITE
+    paint.color = outlineArgb.toInt()
     val tip = Path().apply {
         moveTo(-5f, 20f)
         lineTo(5f, 20f)
