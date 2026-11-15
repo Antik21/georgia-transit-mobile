@@ -92,8 +92,11 @@ data class MapStopMarker(
     val isOutsideSelectedRoutes: Boolean = false,
     val representsGroup: Boolean = false,
 ) {
+    val pinArtwork: StopPinArtwork
+        get() = if (isSelected) routeHighlight.selectedPinArtwork else routeHighlight.pinArtwork
+
     val pinScale: Float
-        get() = StopPinScale * (if (isOutsideSelectedRoutes) 0.75f else 1f) * (if (isSelected) 1.1f else 1f)
+        get() = StopPinScale * (if (isOutsideSelectedRoutes) 0.75f else 1f)
 
     /** iOS-safe bridge key; [id] remains the authoritative typed identifier in common code. */
     val stableId: String get() = id.value

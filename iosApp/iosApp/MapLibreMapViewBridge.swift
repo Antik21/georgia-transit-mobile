@@ -237,14 +237,13 @@ private final class LocalMapLibreView: UIView, MLNMapViewDelegate {
     private func installSourcesAndLayersIfNeeded(style: MLNStyle) {
         guard !layersInstalled else { return }
         let stopsSource = MLNShapeSource(identifier: Self.stopsSourceID, shape: nil, options: nil)
-        let selectedStopSource = MLNShapeSource(identifier: Self.selectedStopSourceID, shape: nil, options: nil)
         let vehiclesSource = MLNShapeSource(identifier: Self.vehiclesSourceID, shape: nil, options: nil)
         let attentionSource = MLNShapeSource(identifier: Self.attentionSourceID, shape: nil, options: nil)
         let polylinesSource = MLNShapeSource(identifier: Self.polylinesSourceID, shape: nil, options: nil)
         let emphasizedPolylinesSource = MLNShapeSource(identifier: Self.emphasizedPolylinesSourceID, shape: nil, options: nil)
         let userLocationSource = MLNShapeSource(identifier: Self.userLocationSourceID, shape: nil, options: nil)
         let userAccuracySource = MLNShapeSource(identifier: Self.userAccuracySourceID, shape: nil, options: nil)
-        [stopsSource, selectedStopSource, vehiclesSource, attentionSource, polylinesSource, emphasizedPolylinesSource, userLocationSource, userAccuracySource]
+        [stopsSource, vehiclesSource, attentionSource, polylinesSource, emphasizedPolylinesSource, userLocationSource, userAccuracySource]
             .forEach(style.addSource)
 
         let polylinesLayer = MLNLineStyleLayer(identifier: Self.polylinesLayerID, source: polylinesSource)
@@ -298,14 +297,6 @@ private final class LocalMapLibreView: UIView, MLNMapViewDelegate {
         attentionLayer.circleOpacity = NSExpression(forConstantValue: Self.attentionMinimumSizeOpacity)
         style.insertLayer(attentionLayer, below: vehiclesLayer)
 
-        let selectedStopLayer = MLNCircleStyleLayer(identifier: Self.selectedStopLayerID, source: selectedStopSource)
-        selectedStopLayer.circleColor = NSExpression(forKeyPath: Self.markerColorProperty)
-        selectedStopLayer.circleRadius = NSExpression(forConstantValue: Self.selectedStopRadius)
-        selectedStopLayer.circleStrokeColor = NSExpression(forKeyPath: Self.markerStrokeColorProperty)
-        selectedStopLayer.circleStrokeWidth = NSExpression(forConstantValue: 2)
-        style.addLayer(selectedStopLayer)
-        style.addLayer(stopPinLayer(source: selectedStopSource))
-
         let userLocationLayer = MLNCircleStyleLayer(identifier: Self.userLocationLayerID, source: userLocationSource)
         userLocationLayer.circleColor = NSExpression(forConstantValue: UIColor(red: 0.08, green: 0.40, blue: 0.75, alpha: 1))
         userLocationLayer.circleRadius = NSExpression(forConstantValue: 7)
@@ -326,11 +317,6 @@ private final class LocalMapLibreView: UIView, MLNMapViewDelegate {
                 identifier: Self.stopsSourceID,
                 features: ordinaryStopFeatures(state.stops, sourceRevision: state.stopSourceRevision) +
                     clusterFeatures(state.stopClusters, sourceRevision: state.stopSourceRevision)
-            )
-            updateSource(
-                style: style,
-                identifier: Self.selectedStopSourceID,
-                features: selectedStopFeatures(state.stops, sourceRevision: state.stopSourceRevision)
             )
             lastStops = stops
             lastStopSourceRevision = state.stopSourceRevision
@@ -451,7 +437,7 @@ private final class LocalMapLibreView: UIView, MLNMapViewDelegate {
 
     private func ordinaryStopFeatures(_ markers: [MapStopMarker], sourceRevision: Int64) -> [[String: Any]] {
         markers
-            .filter { !$0.isSelected && !$0.stableId.isEmpty && isCoordinateValid($0.position) }
+            .filter { !$0.stableId.isEmpty && isCoordinateValid($0.position) }
             // Common metadata declares route-highlight priority; preserve it before the renderer cap.
             .sorted(by: { (first: MapStopMarker, second: MapStopMarker) in
                 if first.routeHighlight.isHighlighted != second.routeHighlight.isHighlighted {
@@ -459,9 +445,11 @@ private final class LocalMapLibreView: UIView, MLNMapViewDelegate {
                 }
                 return first.stableId < second.stableId
             })
-            .prefix(Self.maximumStopMarkers)
+            .enumerated()
+            .filter { $0.offset < Self.maximumStopMarkers || $0.element.isSelected }
+            .map(\.element)
             .map { marker in
-                let pin = marker.routeHighlight.pinArtwork.imageId
+                let pin = marker.pinArtwork.imageId
                 return feature(
                     id: marker.stableId,
                     coordinates: [marker.position.longitude, marker.position.latitude],
@@ -476,30 +464,6 @@ private final class LocalMapLibreView: UIView, MLNMapViewDelegate {
                         Self.markerRadiusProperty: marker.routeHighlight.markerRadius,
                         Self.markerStrokeColorProperty: Self.transparentStopColor,
                         Self.markerStrokeWidthProperty: marker.routeHighlight.markerStrokeWidth,
-                    ]
-                )
-            }
-    }
-
-    private func selectedStopFeatures(_ markers: [MapStopMarker], sourceRevision: Int64) -> [[String: Any]] {
-        markers
-            .filter { $0.isSelected && !$0.stableId.isEmpty && isCoordinateValid($0.position) }
-            .sorted { $0.stableId < $1.stableId }
-            .prefix(1)
-            .map { marker in
-                let pin = marker.routeHighlight.pinArtwork.imageId
-                return feature(
-                    id: marker.stableId,
-                    coordinates: [marker.position.longitude, marker.position.latitude],
-                    properties: [
-                        Self.featureIDProperty: marker.stableId,
-                        Self.featureKindProperty: Self.stopFeatureKind,
-                        Self.sourceRevisionProperty: String(sourceRevision),
-                        Self.accessibilityLabelProperty: marker.accessibilityLabel,
-                        Self.stopPinProperty: pin,
-                        Self.stopPinScaleProperty: marker.pinScale,
-                        Self.markerColorProperty: Self.transparentStopColor,
-                        Self.markerStrokeColorProperty: Self.transparentStopColor,
                     ]
                 )
             }
@@ -534,8 +498,6 @@ private final class LocalMapLibreView: UIView, MLNMapViewDelegate {
         let point = recognizer.location(in: mapView)
         let pinHitRect = CGRect(x: point.x - 0.5, y: point.y - 0.5, width: 1, height: 1)
         let visibleStop = entityFeature(
-            in: pinHitRect, layerID: Self.stopPinLayerID(sourceID: Self.selectedStopSourceID), kind: Self.stopFeatureKind
-        ) ?? entityFeature(
             in: pinHitRect, layerID: Self.stopPinLayerID(sourceID: Self.stopsSourceID), kind: Self.stopFeatureKind
         )
         if let stop = visibleStop {
@@ -641,10 +603,11 @@ private final class LocalMapLibreView: UIView, MLNMapViewDelegate {
     private func updateStopPinImages(style: MLNStyle, markers: [MapStopMarker]) {
         var retained: Set<String> = []
         for marker in markers {
-            let pin = marker.routeHighlight.pinArtwork
-            let id = pin.imageId
-            guard retained.insert(id).inserted, !stopPinImageNames.contains(id) else { continue }
-            style.setImage(stopPinImage(pin), forName: id)
+            for pin in [marker.routeHighlight.pinArtwork, marker.routeHighlight.selectedPinArtwork] {
+                let id = pin.imageId
+                guard retained.insert(id).inserted, !stopPinImageNames.contains(id) else { continue }
+                style.setImage(stopPinImage(pin), forName: id)
+            }
         }
         for obsolete in stopPinImageNames.subtracting(retained) {
             style.removeImage(forName: obsolete)
@@ -699,7 +662,7 @@ private final class LocalMapLibreView: UIView, MLNMapViewDelegate {
     }
 
     private func drawStopPinBody(_ pin: StopPinArtwork) {
-        UIColor.white.setFill()
+        UIColor(argb: pin.outlineArgb).setFill()
         let tip = UIBezierPath()
         tip.move(to: CGPoint(x: -5, y: 20))
         tip.addLine(to: CGPoint(x: 5, y: 20))
@@ -1010,7 +973,7 @@ private final class LocalMapLibreView: UIView, MLNMapViewDelegate {
                     position: RenderCoordinate($0.position),
                     accessibilityLabel: $0.accessibilityLabel,
                     isSelected: $0.isSelected,
-                    pinImageId: $0.routeHighlight.pinArtwork.imageId,
+                    pinImageId: $0.pinArtwork.imageId,
                     pinScale: $0.pinScale,
                     radius: $0.routeHighlight.markerRadius,
                     strokeWidth: $0.routeHighlight.markerStrokeWidth,
@@ -1068,7 +1031,6 @@ private final class LocalMapLibreView: UIView, MLNMapViewDelegate {
     }
 
     private static let stopsSourceID = "gt-stops-source"
-    private static let selectedStopSourceID = "gt-selected-stop-source"
     private static let vehiclesSourceID = "gt-vehicles-source"
     private static let attentionSourceID = "gt-vehicle-attention-source"
     private static let polylinesSourceID = "gt-polylines-source"
@@ -1076,7 +1038,6 @@ private final class LocalMapLibreView: UIView, MLNMapViewDelegate {
     private static let userLocationSourceID = "gt-user-location-source"
     private static let userAccuracySourceID = "gt-user-accuracy-source"
     private static let stopsLayerID = "gt-stops-layer"
-    private static let selectedStopLayerID = "gt-selected-stop-layer"
     private static let vehiclesLayerID = "gt-vehicles-layer"
     private static let attentionLayerID = "gt-vehicle-attention-layer"
     private static let polylinesLayerID = "gt-polylines-layer"
@@ -1108,7 +1069,6 @@ private final class LocalMapLibreView: UIView, MLNMapViewDelegate {
     private static let clusterFeatureKind = "cluster"
     private static let vehicleFeatureKind = "vehicle"
     private static let clusterColor = "#264653"
-    private static let selectedStopRadius = 9
     private static let clusterRadius = 12
     private static let defaultStopStrokeColor = "#FFFFFF"
     private static let defaultStopStrokeWidth = 2.0

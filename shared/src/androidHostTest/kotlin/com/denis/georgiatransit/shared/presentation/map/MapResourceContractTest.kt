@@ -431,13 +431,13 @@ class MapResourceContractTest {
     }
 
     @Test
-    fun highlightedStopsKeepCommonStyleRevisionAndSelectedTapPriorityOnBothAdapters() {
+    fun highlightedStopsKeepCommonStyleRevisionAndSingleStopLayerOnBothAdapters() {
         val root = projectRoot()
         val androidOverlays = root.androidMapSource("MapOverlaySources.android.kt")
         val swift = root.resolve("iosApp/iosApp/MapLibreMapViewBridge.swift").readText()
         val androidStops = androidOverlays.declarationSection(
             "private fun ordinaryStopFeatures",
-            "private fun selectedStopFeatures",
+            "private fun polylineFeatures",
         )
         val androidSources = androidOverlays.functionBody("fun render(")
         val androidTap = root.androidMapSource("MapHitTesting.android.kt").functionBody("internal fun MapLibreMap.hitTestEntity")
@@ -449,19 +449,17 @@ class MapResourceContractTest {
 
         assertCodePath(
             androidStops,
-            "!it.isSelected",
             "!it.routeHighlight.isHighlighted",
             "SOURCE_REVISION_PROPERTY, renderState.stopSourceRevision.toString()",
-            "marker.routeHighlight.pinArtwork.imageId",
+            "marker.pinArtwork.imageId",
             "marker.routeHighlight.markerRadius",
             "MARKER_STROKE_COLOR_PROPERTY, TRANSPARENT_STOP_COLOR",
             "marker.routeHighlight.markerStrokeWidth",
         )
         assertCodePath(
             iosStops,
-            "!$0.isSelected",
             "first.routeHighlight.isHighlighted",
-            "marker.routeHighlight.pinArtwork.imageId",
+            "marker.pinArtwork.imageId",
             "Self.sourceRevisionProperty: String(sourceRevision)",
             "Self.stopPinProperty: pin",
             "marker.routeHighlight.markerRadius",
@@ -472,23 +470,19 @@ class MapResourceContractTest {
             androidSources,
             "lastStopSourceRevision != renderState.stopSourceRevision",
             "ordinaryStopFeatures(renderState)",
-            "selectedStopFeatures(renderState)",
             "lastStopSourceRevision = renderState.stopSourceRevision",
         )
         assertCodePath(
             iosRender,
             "ordinaryStopFeatures(state.stops, sourceRevision: state.stopSourceRevision)",
-            "selectedStopFeatures(state.stops, sourceRevision: state.stopSourceRevision)",
         )
         assertCodePath(
             androidTap,
-            "stopPinLayerId(SELECTED_STOP_SOURCE_ID), FEATURE_KIND_STOP",
             "stopPinLayerId(STOPS_SOURCE_ID), FEATURE_KIND_STOP",
             "VEHICLES_LAYER_ID, FEATURE_KIND_VEHICLE",
         )
         assertCodePath(
             iosTap,
-            "Self.stopPinLayerID(sourceID: Self.selectedStopSourceID), kind: Self.stopFeatureKind",
             "Self.stopPinLayerID(sourceID: Self.stopsSourceID), kind: Self.stopFeatureKind",
             "Self.vehiclesLayerID, kind: Self.vehicleFeatureKind",
         )
@@ -723,23 +717,16 @@ class MapResourceContractTest {
         val iosSourceUpdates = swift.functionBody("private func render")
         val androidOrdinaryStopFactories = androidOverlays.declarationSection(
             "private fun ordinaryStopFeatures",
-            "private fun selectedStopFeatures",
+            "private fun polylineFeatures",
         )
         val androidOrdinaryStopFeature = androidOrdinaryStopFactories.functionBody(".map { marker ->")
         val androidClusterFeature = androidOrdinaryStopFactories.functionBody(".map { cluster ->")
-        val androidSelectedStopFeature = androidOverlays.declarationSection(
-            "private fun selectedStopFeatures",
-            "private fun polylineFeatures",
-        )
         val androidVehicleFeatures = androidVehicles.declarationSection(
             "private fun vehicleFeatures",
             "private fun updateBadgeImages",
         )
         val iosOrdinaryStopFeatures = swift.functionBody(
             "private func ordinaryStopFeatures(_ markers: [MapStopMarker], sourceRevision: Int64)",
-        )
-        val iosSelectedStopFeatures = swift.functionBody(
-            "private func selectedStopFeatures(_ markers: [MapStopMarker], sourceRevision: Int64)",
         )
         val iosClusterFeatures = swift.functionBody(
             "private func clusterFeatures(_ clusters: [MapStopCluster], sourceRevision: Int64)",
@@ -753,7 +740,6 @@ class MapResourceContractTest {
         assertTrue(androidCameraAdapter.contains("MapPlatformEvent.ViewportSettled"))
         assertCodePath(
             androidHitTest,
-            "stopPinLayerId(SELECTED_STOP_SOURCE_ID), FEATURE_KIND_STOP)",
             "stopPinLayerId(STOPS_SOURCE_ID), FEATURE_KIND_STOP)",
             "MapPlatformEvent.StopTapped",
             "MIN_VEHICLE_TARGET_DP / 2f",
@@ -777,11 +763,6 @@ class MapResourceContractTest {
             "SOURCE_REVISION_PROPERTY, renderState.stopSourceRevision.toString()",
         )
         assertCodePath(
-            androidSelectedStopFeature,
-            "FEATURE_KIND_PROPERTY, FEATURE_KIND_STOP",
-            "SOURCE_REVISION_PROPERTY, renderState.stopSourceRevision.toString()",
-        )
-        assertCodePath(
             androidVehicleFeatures,
             "FEATURE_KIND_PROPERTY, FEATURE_KIND_VEHICLE",
             "SOURCE_REVISION_PROPERTY, sourceRevision.toString()",
@@ -789,7 +770,6 @@ class MapResourceContractTest {
         assertCodePath(
             androidSourceUpdates,
             "ordinaryStopFeatures(renderState)",
-            "selectedStopFeatures(renderState)",
         )
         assertCodePath(
             androidVehicles.functionBody("fun render("),
@@ -799,7 +779,6 @@ class MapResourceContractTest {
             androidLayers,
             "CircleLayer(STOPS_LAYER_ID, STOPS_SOURCE_ID)",
             "addLayer(vehicleLayer)",
-            "CircleLayer(SELECTED_STOP_LAYER_ID, SELECTED_STOP_SOURCE_ID)",
         )
         assertCodePath(
             androidVehicles.declarationSection("fun layer(", "fun render("),
@@ -852,7 +831,6 @@ class MapResourceContractTest {
         assertTrue(iosBridge.contains("fun releaseMapView(view: UIView)"))
         assertCodePath(
             iosHitTest,
-            "in: pinHitRect, layerID: Self.stopPinLayerID(sourceID: Self.selectedStopSourceID)",
             "in: pinHitRect, layerID: Self.stopPinLayerID(sourceID: Self.stopsSourceID)",
             "MapPlatformEventStopTapped(stopId: stop.id, sourceRevision: stop.sourceRevision)",
             "Self.minimumVehicleTargetPoints / 2",
@@ -871,11 +849,6 @@ class MapResourceContractTest {
             "Self.sourceRevisionProperty: String(sourceRevision)",
         )
         assertCodePath(
-            iosSelectedStopFeatures,
-            "Self.featureKindProperty: Self.stopFeatureKind",
-            "Self.sourceRevisionProperty: String(sourceRevision)",
-        )
-        assertCodePath(
             iosClusterFeatures,
             "Self.featureKindProperty: Self.clusterFeatureKind",
             "Self.sourceRevisionProperty: String(sourceRevision)",
@@ -889,16 +862,12 @@ class MapResourceContractTest {
             iosSourceUpdates,
             "ordinaryStopFeatures(state.stops, sourceRevision: state.stopSourceRevision)",
             "clusterFeatures(state.stopClusters, sourceRevision: state.stopSourceRevision)",
-            "selectedStopFeatures(state.stops, sourceRevision: state.stopSourceRevision)",
             "vehicleFeatures(state.vehicles, sourceRevision: state.vehicleSourceRevision)",
         )
         assertCodePath(
             iosLayers,
             "MLNCircleStyleLayer(identifier: Self.stopsLayerID, source: stopsSource)",
             "MLNSymbolStyleLayer(identifier: Self.vehiclesLayerID, source: vehiclesSource)",
-            "MLNCircleStyleLayer(identifier: Self.selectedStopLayerID, source: selectedStopSource)",
-            "selectedStopLayer.circleColor = NSExpression(forKeyPath: Self.markerColorProperty)",
-            "stopPinLayer(source: selectedStopSource)",
         )
         assertTrue(
             swift.numericDeclaration("minimumVehicleTargetPoints") >= 44.0,

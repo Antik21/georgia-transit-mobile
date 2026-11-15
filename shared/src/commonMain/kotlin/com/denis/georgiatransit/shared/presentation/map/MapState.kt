@@ -118,9 +118,15 @@ data class StopRouteHighlightUi(
         glyphArgb = if (style != StopRouteHighlightStyle.None) textArgb else 0xFF344155L,
         routeBadges = pinBadges,
     )
+    val selectedPinArtwork = StopPinArtwork(
+        backgroundArgb = pinArtwork.backgroundArgb,
+        glyphArgb = pinArtwork.glyphArgb,
+        routeBadges = pinBadges,
+        outlineArgb = 0xFF27AE7AL,
+    )
     val matchingRouteCount: Int get() = matchingRouteIds.size
     val isHighlighted: Boolean get() = style != StopRouteHighlightStyle.None
-    /** Read directly by native adapters; the selected-stop layer remains a higher priority. */
+    /** Read directly by native adapters for stop geometry. */
     val markerRadius: Double get() = if (isHighlighted) HighlightedStopRadius else DefaultStopRadius
     val markerStrokeWidth: Double get() = if (isHighlighted) HighlightedStopStrokeWidth else DefaultStopStrokeWidth
 }

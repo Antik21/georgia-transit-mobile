@@ -15,6 +15,7 @@ class StopPinArtwork internal constructor(
     val backgroundArgb: Long,
     val glyphArgb: Long,
     routeBadges: List<StopPinBadge>,
+    val outlineArgb: Long = DefaultStopTextArgb,
 ) {
     val badges: List<StopPinBadge> = when (routeBadges.size) {
         0, 1 -> emptyList()
@@ -36,7 +37,7 @@ class StopPinArtwork internal constructor(
     val cardTop: Float = if (badges.isEmpty()) 0f else bodyTop - cardHeight
 
     val imageId: String = buildString {
-        append("gt-stop-pin-$backgroundArgb-$glyphArgb")
+        append("gt-stop-pin-$backgroundArgb-$glyphArgb-$outlineArgb")
         badges.forEach { badge ->
             append("-${badge.backgroundArgb}-${badge.textArgb}-${badge.label.length}:${badge.label}")
         }

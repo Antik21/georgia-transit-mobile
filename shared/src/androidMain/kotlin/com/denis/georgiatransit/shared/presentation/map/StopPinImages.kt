@@ -37,7 +37,10 @@ internal class StopPinImages {
     private val imageIds = mutableSetOf<String>()
 
     fun update(style: Style, stops: List<MapStopMarker>) {
-        val pins = stops.asSequence().map { it.routeHighlight.pinArtwork }.associateBy(StopPinArtwork::imageId)
+        // Keep both variants loaded so selection only changes the existing symbol's image.
+        val pins = stops.asSequence()
+            .flatMap { sequenceOf(it.routeHighlight.pinArtwork, it.routeHighlight.selectedPinArtwork) }
+            .associateBy(StopPinArtwork::imageId)
         (imageIds - pins.keys).forEach(style::removeImage)
         pins.forEach { (id, pin) ->
             if (id !in imageIds) style.addImage(id, pin.toBitmap())
@@ -94,7 +97,7 @@ private fun StopPinArtwork.drawRouteCard(canvas: Canvas, paint: Paint) {
 }
 
 private fun StopPinArtwork.drawPinBody(canvas: Canvas, paint: Paint) {
-    paint.color = Color.WHITE
+    paint.color = outlineArgb.toInt()
     val tip = Path().apply {
         moveTo(-5f, 20f)
         lineTo(5f, 20f)

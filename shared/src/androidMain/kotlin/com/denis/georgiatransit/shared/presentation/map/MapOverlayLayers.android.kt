@@ -23,7 +23,6 @@ import org.maplibre.geojson.Point
 /** The transit overlay stack in z-order; the whole stack is rebuilt after every base-style load. */
 internal fun installSourcesAndLayers(loadedStyle: Style, vehicleLayer: SymbolLayer, attentionLayer: CircleLayer) {
     loadedStyle.addSource(GeoJsonSource(STOPS_SOURCE_ID, FeatureCollection.fromFeatures(emptyList())))
-    loadedStyle.addSource(GeoJsonSource(SELECTED_STOP_SOURCE_ID, FeatureCollection.fromFeatures(emptyList())))
     loadedStyle.addSource(GeoJsonSource(VEHICLES_SOURCE_ID, FeatureCollection.fromFeatures(emptyList())))
     loadedStyle.addSource(GeoJsonSource(ATTENTION_SOURCE_ID, FeatureCollection.fromFeatures(emptyList())))
     loadedStyle.addSource(GeoJsonSource(POLYLINES_SOURCE_ID, FeatureCollection.fromFeatures(emptyList())))
@@ -72,15 +71,6 @@ internal fun installSourcesAndLayers(loadedStyle: Style, vehicleLayer: SymbolLay
     // The route-coloured pulse renders below the stable badge and is never hit-tested.
     loadedStyle.addLayerBelow(attentionLayer, VEHICLES_LAYER_ID)
     loadedStyle.addLayer(
-        CircleLayer(SELECTED_STOP_LAYER_ID, SELECTED_STOP_SOURCE_ID).withProperties(
-            circleColor(Expression.get(MARKER_COLOR_PROPERTY)),
-            circleRadius(SELECTED_STOP_RADIUS.toFloat()),
-            circleStrokeColor(Expression.get(MARKER_STROKE_COLOR_PROPERTY)),
-            circleStrokeWidth(2f),
-        ),
-    )
-    loadedStyle.addLayer(stopPinLayer(SELECTED_STOP_SOURCE_ID))
-    loadedStyle.addLayer(
         CircleLayer(USER_LOCATION_LAYER_ID, USER_LOCATION_SOURCE_ID).withProperties(
             circleColor("#1565C0"),
             circleRadius(7f),
@@ -101,7 +91,6 @@ internal fun Long.asMapColor(): String = "#%06X".format(this and 0xFFFFFF)
 internal fun Double.normalizedBearing(): Double = ((this % 360.0) + 360.0) % 360.0
 
 internal const val STOPS_SOURCE_ID = "gt-stops-source"
-internal const val SELECTED_STOP_SOURCE_ID = "gt-selected-stop-source"
 internal const val VEHICLES_SOURCE_ID = "gt-vehicles-source"
 internal const val ATTENTION_SOURCE_ID = "gt-vehicle-attention-source"
 internal const val POLYLINES_SOURCE_ID = "gt-polylines-source"
@@ -109,7 +98,6 @@ internal const val EMPHASIZED_POLYLINES_SOURCE_ID = "gt-emphasized-polylines-sou
 internal const val USER_LOCATION_SOURCE_ID = "gt-user-location-source"
 internal const val USER_ACCURACY_SOURCE_ID = "gt-user-accuracy-source"
 private const val STOPS_LAYER_ID = "gt-stops-layer"
-private const val SELECTED_STOP_LAYER_ID = "gt-selected-stop-layer"
 internal const val VEHICLES_LAYER_ID = "gt-vehicles-layer"
 internal const val ATTENTION_LAYER_ID = "gt-vehicle-attention-layer"
 private const val POLYLINES_LAYER_ID = "gt-polylines-layer"
@@ -130,4 +118,3 @@ internal const val ROUTE_OPACITY_PROPERTY = "routeOpacity"
 internal const val FEATURE_KIND_STOP = "stop"
 internal const val FEATURE_KIND_CLUSTER = "cluster"
 internal const val FEATURE_KIND_VEHICLE = "vehicle"
-private const val SELECTED_STOP_RADIUS = 9
