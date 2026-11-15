@@ -192,7 +192,7 @@ class JourneyPlannerBridgeTest {
     }
 
     @Test
-    fun theSelectedOptionCarriesLabelsAndItsTwoSoonestBuses() = runTest {
+    fun theSelectedOptionCarriesLabelsAndArrivalTimesWithoutMapBuses() = runTest {
         Dispatchers.setMain(StandardTestDispatcher(testScheduler))
         val store = ViewModelStore()
         val repository = Repository()
@@ -215,8 +215,7 @@ class JourneyPlannerBridgeTest {
                 assertEquals(listOf("#00796b", "#c2410c"), ride.labels.map { it.color })
                 assertEquals("bus", ride.legs[1].routeMode)
                 assertEquals(listOf(3, 11), ride.nearestEtas.toList())
-                assertEquals(listOf("demo:fixture:vehicle:v1", "demo:fixture:vehicle:v2"), state?.buses?.map { it.id })
-                assertEquals("#0057b8", state?.buses?.first()?.color)
+                assertTrue(state?.buses?.isEmpty() == true, "The planner does not show buses on the map")
                 assertTrue(state?.options?.last()?.labels?.isEmpty() == true)
 
                 entry.planner.selectOption("demo:fixture:journey:walk")

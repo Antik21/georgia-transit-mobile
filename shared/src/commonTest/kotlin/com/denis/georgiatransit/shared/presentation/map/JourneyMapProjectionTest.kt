@@ -80,6 +80,18 @@ class JourneyMapProjectionTest {
         assertTrue(base.withJourneyPlanner(JourneyPlannerUi(isOpen = true)).vehicles.isEmpty())
     }
 
+    @Test
+    fun closingPlannerAfterMapRecreationRestoresVehicleBadgeRevision() {
+        val hidden = base.withJourneyPlanner(JourneyPlannerUi(isOpen = true))
+        val restored = base.withJourneyPlanner(JourneyPlannerUi())
+
+        assertTrue(hidden.vehicles.isEmpty())
+        assertEquals(base.vehicles, restored.vehicles)
+        assertNotEquals(hidden.vehicleSourceRevision, restored.vehicleSourceRevision)
+        assertNotEquals(hidden.vehicleBadgeRevision, restored.vehicleBadgeRevision)
+        assertEquals(base.vehicleBadgeRevision, restored.vehicleBadgeRevision)
+    }
+
     private fun planned(buses: JourneyBusesUi?) = JourneyPlannerUi(
         isOpen = true,
         render = render,
