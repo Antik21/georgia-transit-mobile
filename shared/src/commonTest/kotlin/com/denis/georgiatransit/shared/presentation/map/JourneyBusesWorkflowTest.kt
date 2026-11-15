@@ -92,6 +92,7 @@ class JourneyBusesWorkflowTest {
         assertEquals(0, repository.arrivalCalls, "Without the arrivals capability nothing is polled")
         execute(workflow, results, context())
         assertEquals(1, repository.arrivalCalls)
+        assertEquals(0, repository.vehicleCalls, "The planner needs arrivals, not vehicle positions")
         execute(workflow, results, context(visible = false))
         execute(workflow, results, context())
         assertEquals(2, repository.arrivalCalls, "A hidden map stops polling and a visible one starts afresh")
