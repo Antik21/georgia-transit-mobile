@@ -164,6 +164,8 @@
     <string name="map_planner_location_approximate">მდებარეობა ზედმეტად მიახლოებითია. აირჩიეთ წერტილი რუკაზე.</string>
     <string name="map_planner_already_there">თქვენ უკვე ადგილზე ხართ: დაახლოებით %1$d მ ფეხით (≈ %2$d წთ).</string>
     <string name="map_planner_disclaimer">ყველა დრო მიახლოებითია და არ არის ოფიციალური განრიგი.</string>
+    <string name="map_planner_expand">მარშრუტის პანელის გაშლა</string>
+    <string name="map_planner_collapse">მარშრუტის პანელის ჩაკეცვა</string>
     <string name="map_planner_refreshing">ახლდება…</string>
     <string name="map_planner_stale">განახლება ვერ მოხერხდა. დრო შეიძლება მოძველებული იყოს.</string>
     <string name="map_planner_total">≈ %1$d წთ</string>

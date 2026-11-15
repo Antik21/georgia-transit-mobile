@@ -107,6 +107,39 @@ class JourneyPlannerViewModelTest {
     }
 
     @Test
+    fun repeatedlyPickingDestinationStartsLatestPlanAndDrawsItsResult() = runTest {
+        val pending = CompletableDeferred<Unit>()
+        val planner = FakePlanRepository { query ->
+            if (query.to == C) withContext(NonCancellable) { pending.await() }
+            page(if (query.to == C) "stale" else "latest")
+        }
+        val viewModel = viewModel(planner)
+
+        viewModel.test(this) {
+            runOnCreate()
+            start(viewModel)
+            planBetween(viewModel, A, B)
+            assertIs<Status.Results>(plannerState(viewModel).status)
+
+            viewModel.dispatchAction(JourneyPlannerAction.StartMapPick(JourneyPlanSide.Destination))
+            viewModel.dispatchAction(JourneyPlannerAction.ConfirmMapPick(C))
+            this@runTest.runCurrent()
+            assertEquals(Status.Loading, plannerState(viewModel).status)
+
+            viewModel.dispatchAction(JourneyPlannerAction.StartMapPick(JourneyPlanSide.Destination))
+            viewModel.dispatchAction(JourneyPlannerAction.ConfirmMapPick(B))
+            this@runTest.runCurrent()
+            pending.complete(Unit)
+            this@runTest.runCurrent()
+
+            assertEquals(listOf(B, C, B), planner.queries.map { it.to })
+            assertEquals(JourneyId("demo:fixture:journey:latest"), assertIs<Status.Results>(plannerState(viewModel).status).selectedId)
+            assertTrue(plannerState(viewModel).render.lines.isNotEmpty())
+            cancelAndIgnoreRemainingItems()
+        }
+    }
+
+    @Test
     fun visibleResultsReplanEveryMinuteAndStopWhenHiddenOrClosed() = runTest {
         val planner = FakePlanRepository()
         val viewModel = viewModel(planner)

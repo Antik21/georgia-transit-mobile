@@ -164,6 +164,8 @@
     <string name="map_planner_location_approximate">Местоположение определено слишком неточно. Выберите точку на карте.</string>
     <string name="map_planner_already_there">Вы уже на месте: около %1$d м пешком (≈ %2$d мин).</string>
     <string name="map_planner_disclaimer">Всё время примерное и не является официальным расписанием.</string>
+    <string name="map_planner_expand">Развернуть панель маршрута</string>
+    <string name="map_planner_collapse">Свернуть панель маршрута</string>
     <string name="map_planner_refreshing">Обновляем…</string>
     <string name="map_planner_stale">Не удалось обновить. Время может быть неактуальным.</string>
     <string name="map_planner_total">≈ %1$d мин</string>

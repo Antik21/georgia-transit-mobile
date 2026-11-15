@@ -17,7 +17,6 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
@@ -36,9 +35,13 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.intl.Locale
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
@@ -61,6 +64,7 @@ import com.denis.georgiatransit.shared.presentation.map.sections.JourneyMapPickP
 import com.denis.georgiatransit.shared.presentation.map.sections.JourneyMapPickTopBar
 import com.denis.georgiatransit.shared.presentation.map.sections.JourneyPinPopup
 import com.denis.georgiatransit.shared.presentation.map.sections.JourneyPlannerPanel
+import com.denis.georgiatransit.shared.presentation.map.sections.JourneyPlannerSheet
 import com.denis.georgiatransit.shared.presentation.map.sections.MapCanvas
 import com.denis.georgiatransit.shared.presentation.map.sections.MapConnectionToast
 import com.denis.georgiatransit.shared.presentation.map.sections.MapContentPlaceholder
@@ -146,8 +150,14 @@ private fun Content(state: ViewState, connectionNoticeId: Int, onAction: (Action
     var expandedSide by remember(planner.origin, planner.destination) {
         mutableStateOf(journeyExpandedSideFor(planner.origin, planner.destination))
     }
+    val density = LocalDensity.current
+    var sheetHeight by remember { mutableStateOf(0.dp) }
+    val mapOverlayHeight = if (planner.isOpen && mapPick == null) sheetHeight else 0.dp
     BoxWithConstraints(modifier = Modifier.fillMaxSize().testTag(AutomationId.MapScreen)) {
         val panelMaxHeight = maxHeight * PLANNER_PANEL_HEIGHT_FRACTION
+        val bottomModifier = Modifier
+            .fillMaxWidth()
+            .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal + WindowInsetsSides.Bottom))
         Column(modifier = Modifier.fillMaxSize()) {
             val renderState = remember(state.renderState, planner) { state.renderState?.withJourneyPlanner(planner) }
             Box(modifier = Modifier.fillMaxWidth().weight(1f)) {
@@ -156,6 +166,7 @@ private fun Content(state: ViewState, connectionNoticeId: Int, onAction: (Action
                     baseLayerState = state.baseLayerState,
                     location = state.location,
                     isMapPicking = mapPick != null,
+                    bottomOverlayHeight = mapOverlayHeight,
                     hasPin = planner.pin != null,
                     pinOnlySide = planner.missingSide(),
                     onMapEvent = { onAction(Action.MapEventReceived(it)) },
@@ -174,12 +185,9 @@ private fun Content(state: ViewState, connectionNoticeId: Int, onAction: (Action
                     // Clears the MapLibre logo and OSM attribution along the bottom edge.
                     modifier = Modifier
                         .align(Alignment.BottomCenter)
-                        .padding(bottom = TransitSpacing.ExtraLarge + TransitSpacing.Medium),
+                        .padding(bottom = mapOverlayHeight + TransitSpacing.ExtraLarge + TransitSpacing.Medium),
                 )
             }
-            val bottomModifier = Modifier
-                .fillMaxWidth()
-                .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal + WindowInsetsSides.Bottom))
             if (mapPick != null) {
                 JourneyMapPickPanel(
                     side = mapPick,
@@ -190,28 +198,7 @@ private fun Content(state: ViewState, connectionNoticeId: Int, onAction: (Action
                         .then(bottomModifier)
                         .padding(TransitSpacing.Medium),
                 )
-            } else if (planner.isOpen) {
-                JourneyPlannerPanel(
-                    planner = planner,
-                    expandedSide = expandedSide,
-                    onToggleSide = { side -> expandedSide = side.takeIf { it != expandedSide } },
-                    onClose = { onAction(JourneyPlannerAction.ClosePlanner) },
-                    onPickPoint = { side -> onAction(JourneyPlannerAction.StartMapPick(side)) },
-                    onUseMyLocation = { side ->
-                        if (side.endpointIn(planner) == JourneyEndpoint.CurrentLocation) expandedSide = null
-                        onAction(side.myLocationAction())
-                    },
-                    onSwap = { onAction(JourneyPlannerAction.Swap) },
-                    onClear = { onAction(JourneyPlannerAction.Clear) },
-                    onSelectOption = { id -> onAction(JourneyPlannerAction.SelectOption(id)) },
-                    onRetry = { onAction(JourneyPlannerAction.Retry) },
-                    modifier = Modifier
-                        .heightIn(max = panelMaxHeight)
-                        .background(MaterialTheme.colorScheme.surface)
-                        .then(bottomModifier)
-                        .padding(horizontal = TransitSpacing.Medium, vertical = TransitSpacing.Small),
-                )
-            } else {
+            } else if (!planner.isOpen) {
                 MapControls(
                     vehicleLayerState = state.vehicleLayerState,
                     vehicleRoutes = state.vehicleRoutes,
@@ -226,6 +213,34 @@ private fun Content(state: ViewState, connectionNoticeId: Int, onAction: (Action
                     onRoutes = { onAction(Action.RoutesClicked) },
                     modifier = bottomModifier.padding(TransitSpacing.Medium),
                 )
+            }
+        }
+        if (planner.isOpen && mapPick == null) {
+            Box(modifier = Modifier.align(Alignment.BottomCenter).onSizeChanged {
+                sheetHeight = with(density) { it.height.toDp() }
+            }) {
+                JourneyPlannerSheet(maxHeight = panelMaxHeight, onClose = { onAction(JourneyPlannerAction.ClosePlanner) }) { sheetModifier, headerModifier ->
+                    JourneyPlannerPanel(
+                        planner = planner,
+                        expandedSide = expandedSide,
+                        onToggleSide = { side -> expandedSide = side.takeIf { it != expandedSide } },
+                        onClose = { onAction(JourneyPlannerAction.ClosePlanner) },
+                        onPickPoint = { side -> onAction(JourneyPlannerAction.StartMapPick(side)) },
+                        onUseMyLocation = { side ->
+                            if (side.endpointIn(planner) == JourneyEndpoint.CurrentLocation) expandedSide = null
+                            onAction(side.myLocationAction())
+                        },
+                        onSwap = { onAction(JourneyPlannerAction.Swap) },
+                        onClear = { onAction(JourneyPlannerAction.Clear) },
+                        onSelectOption = { id -> onAction(JourneyPlannerAction.SelectOption(id)) },
+                        onRetry = { onAction(JourneyPlannerAction.Retry) },
+                        modifier = sheetModifier
+                            .background(MaterialTheme.colorScheme.surface)
+                            .then(bottomModifier)
+                            .padding(horizontal = TransitSpacing.Medium, vertical = TransitSpacing.Small),
+                        headerModifier = headerModifier,
+                    )
+                }
             }
         }
         state.stopArrivalsSheet?.let { sheet ->
@@ -245,6 +260,7 @@ private fun MapArea(
     baseLayerState: MapBaseLayerState,
     location: LocationState,
     isMapPicking: Boolean,
+    bottomOverlayHeight: Dp,
     hasPin: Boolean,
     pinOnlySide: JourneyPlanSide?,
     onMapEvent: (MapPlatformEvent) -> Unit,
@@ -265,6 +281,7 @@ private fun MapArea(
             MapCanvas(
                 renderState = it,
                 baseLayerState = baseLayerState,
+                bottomOverlayHeight = bottomOverlayHeight,
                 locationActionLabel = locationActionLabel(location),
                 locationActionAutomationId = if (location.permission == LocationPermissionState.SettingsRequired) {
                     AutomationId.MapLocationSettings

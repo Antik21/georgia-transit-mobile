@@ -17,6 +17,7 @@ import com.denis.georgiatransit.shared.domain.repository.TransitFailure
 import com.denis.georgiatransit.shared.domain.repository.TransitLoadResult
 import com.denis.georgiatransit.shared.presentation.location.LocationPermissionState
 import com.denis.georgiatransit.shared.presentation.location.LocationState
+import kotlinx.collections.immutable.persistentListOf
 import com.denis.georgiatransit.shared.presentation.map.JourneyPlannerStatus as Status
 
 internal data class JourneyPlannerContext(
@@ -202,7 +203,8 @@ internal object JourneyPlannerReducer {
                 state.copy(status = Status.Loading), context, resolution.query, point.takeIf { state.usesCurrentLocation },
             )
             is JourneyResolution.AlreadyThere ->
-                finish(state.copy(status = Status.AlreadyThere(resolution.walkMeters, resolution.walkMinutes)), context)
+                finish(state.copy(status = Status.AlreadyThere(resolution.walkMeters, resolution.walkMinutes),
+                    cameraFitRevision = state.cameraFitRevision + 1), context)
             JourneyResolution.NeedsCurrentLocation -> finish(
                 state.copy(status = Status.LocationNeeded(JourneyPlanSide.Origin, JourneyLocationReason.Locating)), context,
             )
@@ -267,10 +269,17 @@ internal object JourneyPlannerReducer {
         if (!state.isOpen) return JourneyPlanRenderUi()
         val current = (JourneyLocationGate.check(context.location, context.nowMillis) as? JourneyLocationGate.Pass)?.point
         val status = state.status as? Status.Results
+        val origin = state.origin.pointOrNull(current)
+        val destination = state.destination.pointOrNull(current)
+        val shortWalk = if (state.status is Status.AlreadyThere && origin != null && destination != null && origin != destination) {
+            persistentListOf(JourneyPlanLineUi(JourneyPlanLineKind.Walk, persistentListOf(origin, destination), JourneyWalkLineArgb))
+        } else {
+            persistentListOf()
+        }
         return JourneyPlanRenderUi(
-            lines = status?.options?.firstOrNull { it.id == status.selectedId }?.lines ?: JourneyPlanRenderUi().lines,
-            origin = state.origin.pointOrNull(current),
-            destination = state.destination.pointOrNull(current),
+            lines = status?.options?.firstOrNull { it.id == status.selectedId }?.lines ?: shortWalk,
+            origin = origin,
+            destination = destination,
         )
     }
 
