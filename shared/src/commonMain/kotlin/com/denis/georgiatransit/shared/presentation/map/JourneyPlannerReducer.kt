@@ -17,6 +17,7 @@ import com.denis.georgiatransit.shared.domain.repository.TransitFailure
 import com.denis.georgiatransit.shared.domain.repository.TransitLoadResult
 import com.denis.georgiatransit.shared.presentation.location.LocationPermissionState
 import com.denis.georgiatransit.shared.presentation.location.LocationState
+import kotlinx.collections.immutable.persistentListOf
 import com.denis.georgiatransit.shared.presentation.map.JourneyPlannerStatus as Status
 
 internal data class JourneyPlannerContext(
@@ -48,7 +49,7 @@ internal object JourneyPlannerReducer {
         if (state.mapPick != null) return finish(state, context)
         val status = state.status
         if (state.isOpen && status is Status.PickingPoint) {
-            return evaluate(state.with(status.side, JourneyEndpoint.MapPoint(point)).copy(pin = null), context)
+            return edit(state.with(status.side, JourneyEndpoint.MapPoint(point)).copy(pin = null), context)
         }
         return finish(state.copy(pin = point), context)
     }
@@ -58,11 +59,11 @@ internal object JourneyPlannerReducer {
             JourneyPlannerAction.RouteHere -> state.pin?.let { pin ->
                 val origin = state.origin.takeIf { state.isOpen }
                     ?: JourneyEndpoint.CurrentLocation.takeIf { context.location.permission is LocationPermissionState.Granted }
-                evaluate(state.copy(pin = null, origin = origin, destination = JourneyEndpoint.MapPoint(pin)), context)
+                selectPin(state.copy(pin = null, origin = origin, destination = JourneyEndpoint.MapPoint(pin)), context)
             } ?: finish(state, context)
             JourneyPlannerAction.RouteFromHere -> state.pin?.let { pin ->
                 val destination = state.destination.takeIf { state.isOpen }
-                evaluate(state.copy(pin = null, origin = JourneyEndpoint.MapPoint(pin), destination = destination), context)
+                selectPin(state.copy(pin = null, origin = JourneyEndpoint.MapPoint(pin), destination = destination), context)
             } ?: finish(state, context)
             JourneyPlannerAction.DismissPin -> finish(state.copy(pin = null), context)
             is JourneyPlannerAction.TapMap -> when {
@@ -77,15 +78,19 @@ internal object JourneyPlannerReducer {
             is JourneyPlannerAction.StartMapPick ->
                 finish(if (state.isOpen) state.copy(pin = null, mapPick = action.side) else state, context)
             is JourneyPlannerAction.ConfirmMapPick -> state.mapPick?.let { side ->
-                evaluate(state.with(side, JourneyEndpoint.MapPoint(action.point)).copy(pin = null, mapPick = null), context)
+                edit(state.with(side, JourneyEndpoint.MapPoint(action.point)).copy(pin = null, mapPick = null), context)
             } ?: finish(state, context)
             JourneyPlannerAction.CancelMapPick -> finish(state.copy(mapPick = null), context)
             JourneyPlannerAction.Swap -> if (!state.isOpen) finish(state, context) else {
-                evaluate(state.copy(origin = state.destination, destination = state.origin), context)
+                edit(state.copy(origin = state.destination, destination = state.origin), context)
             }
             JourneyPlannerAction.Clear -> if (!state.isOpen) finish(state, context) else {
-                finish(state.copy(pin = null, origin = null, destination = null, status = Status.EndpointsIncomplete), context)
+                edit(state.copy(pin = null, origin = null, destination = null), context)
             }
+            JourneyPlannerAction.FindRoute -> if (state.isOpen && !state.showingResults && state.origin != null && state.destination != null) {
+                evaluate(state.copy(showingResults = true), context, explicit = true)
+            } else finish(state, context)
+            JourneyPlannerAction.EditPoints -> if (state.isOpen) edit(state, context) else finish(state, context)
             is JourneyPlannerAction.SelectOption -> select(state, action, context)
             JourneyPlannerAction.Retry -> retry(state, context)
             JourneyPlannerAction.ClosePlanner -> finish(JourneyPlannerUi(cameraFitRevision = state.cameraFitRevision), context)
@@ -103,8 +108,8 @@ internal object JourneyPlannerReducer {
         val status = updated.status
         val point = (JourneyLocationGate.check(context.location, context.nowMillis) as? JourneyLocationGate.Pass)?.point
         return when {
-            !wasAvailable -> evaluate(updated, context)
-            status is Status.LocationNeeded && point != null -> evaluate(updated, context)
+            !wasAvailable -> if (updated.showingResults) evaluate(updated, context) else edit(updated, context)
+            updated.showingResults && status is Status.LocationNeeded && point != null -> evaluate(updated, context)
             status is Status.Results && point != null && updated.usesCurrentLocation &&
                 lastCurrentPoint != null && point.distanceMetersTo(lastCurrentPoint) > REPLAN_MOVED_METERS ->
                 refresh(updated, context)
@@ -114,8 +119,8 @@ internal object JourneyPlannerReducer {
 
     fun visibility(state: JourneyPlannerUi, context: JourneyPlannerContext): JourneyPlannerStep = when {
         !context.visible -> finish(state, context)
-        state.status == Status.Loading -> evaluate(state, context)
-        state.status is Status.Results -> refresh(state, context)
+        state.showingResults && state.status == Status.Loading -> evaluate(state, context)
+        state.showingResults && state.status is Status.Results -> refresh(state, context)
         else -> finish(state, context)
     }
 
@@ -173,6 +178,22 @@ internal object JourneyPlannerReducer {
     private val JourneyOptionUi.routeSequence: List<RouteId>
         get() = legs.filterIsInstance<JourneyLegUi.Ride>().map { it.route.routeId }
 
+    /** A pin selected over results replaces the endpoint and immediately plans again. */
+    private fun selectPin(candidate: JourneyPlannerUi, context: JourneyPlannerContext): JourneyPlannerStep =
+        if (candidate.isOpen && candidate.showingResults) evaluate(candidate, context, explicit = true) else edit(candidate, context)
+
+    private fun edit(candidate: JourneyPlannerUi, context: JourneyPlannerContext): JourneyPlannerStep {
+        val state = candidate.copy(isOpen = true, showingResults = false, buses = null, mapPick = null)
+        val status = when {
+            !context.available -> Status.Unavailable
+            state.origin == null && state.destination == null -> Status.EndpointsIncomplete
+            state.origin == null -> Status.PickingPoint(JourneyPlanSide.Origin)
+            state.destination == null -> Status.PickingPoint(JourneyPlanSide.Destination)
+            else -> Status.Idle
+        }
+        return finish(state.copy(status = status), context)
+    }
+
     private fun evaluate(
         candidate: JourneyPlannerUi, context: JourneyPlannerContext, explicit: Boolean = false,
     ): JourneyPlannerStep {
@@ -202,7 +223,8 @@ internal object JourneyPlannerReducer {
                 state.copy(status = Status.Loading), context, resolution.query, point.takeIf { state.usesCurrentLocation },
             )
             is JourneyResolution.AlreadyThere ->
-                finish(state.copy(status = Status.AlreadyThere(resolution.walkMeters, resolution.walkMinutes)), context)
+                finish(state.copy(status = Status.AlreadyThere(resolution.walkMeters, resolution.walkMinutes),
+                    cameraFitRevision = state.cameraFitRevision + 1), context)
             JourneyResolution.NeedsCurrentLocation -> finish(
                 state.copy(status = Status.LocationNeeded(JourneyPlanSide.Origin, JourneyLocationReason.Locating)), context,
             )
@@ -223,7 +245,7 @@ internal object JourneyPlannerReducer {
         var next = state.with(side, JourneyEndpoint.CurrentLocation)
         // At most one side may be "My location" (ADR 0023): choosing it moves it rather than duplicating it.
         if (next.endpoint(other) == JourneyEndpoint.CurrentLocation) next = next.with(other, null)
-        return evaluate(next, context, explicit = true)
+        return edit(next, context)
     }
 
     private fun picking(state: JourneyPlannerUi, side: JourneyPlanSide, context: JourneyPlannerContext): JourneyPlannerStep =
@@ -267,10 +289,17 @@ internal object JourneyPlannerReducer {
         if (!state.isOpen) return JourneyPlanRenderUi()
         val current = (JourneyLocationGate.check(context.location, context.nowMillis) as? JourneyLocationGate.Pass)?.point
         val status = state.status as? Status.Results
+        val origin = state.origin.pointOrNull(current)
+        val destination = state.destination.pointOrNull(current)
+        val shortWalk = if (state.status is Status.AlreadyThere && origin != null && destination != null && origin != destination) {
+            persistentListOf(JourneyPlanLineUi(JourneyPlanLineKind.Walk, persistentListOf(origin, destination), JourneyWalkLineArgb))
+        } else {
+            persistentListOf()
+        }
         return JourneyPlanRenderUi(
-            lines = status?.options?.firstOrNull { it.id == status.selectedId }?.lines ?: JourneyPlanRenderUi().lines,
-            origin = state.origin.pointOrNull(current),
-            destination = state.destination.pointOrNull(current),
+            lines = status?.options?.firstOrNull { it.id == status.selectedId }?.lines ?: shortWalk,
+            origin = origin,
+            destination = destination,
         )
     }
 

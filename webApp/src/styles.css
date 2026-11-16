@@ -562,8 +562,12 @@ body { background: var(--background); color: var(--ink); }
 }
 .transit-app .planner-option[aria-pressed="true"] { border: 2px solid var(--primary); background: var(--tint); }
 .planner-option-summary { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; }
+.planner-results-header { display: flex; align-items: center; gap: 6px; min-inline-size: 0; }
+.planner-endpoint-chip { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 8px; border-radius: 20px; background: var(--tint); font-size: 0.78rem; }
+.planner-header-arrow { flex: none; }
+.planner-find { inline-size: 100%; }
 .planner-option-total { font-size: 1.05rem; font-variant-numeric: tabular-nums; }
-.planner-option-arrival, .planner-option-timing { color: var(--muted); font-size: 0.8rem; }
+.planner-option-arrival { color: var(--muted); font-size: 0.8rem; }
 .planner-labels { display: flex; flex-wrap: wrap; gap: 4px; }
 .planner-label { padding: 2px 8px; border-radius: 999px; font-size: 0.72rem; font-weight: 700; line-height: 1.35; }
 .planner-itinerary-icons { display: flex; flex-wrap: wrap; align-items: center; gap: 3px 4px; }
@@ -571,11 +575,11 @@ body { background: var(--background); color: var(--ink); }
 .planner-route-pill { display: inline-flex; align-items: center; gap: 3px; padding: 1px 6px 1px 4px; border-radius: 7px; font-size: 0.78rem; font-weight: 730; }
 .planner-glyph { inline-size: 15px; block-size: 15px; flex: none; }
 .planner-glyph-walk { color: var(--muted); }
-.planner-nearest { color: var(--arrival); font-size: 0.78rem; font-weight: 650; }
 .planner-legs { display: grid; gap: 3px; }
 .planner-leg { display: flex; align-items: center; gap: 8px; font-size: 0.8rem; }
 .planner-leg-detail { display: grid; min-inline-size: 0; gap: 1px; }
 .planner-leg-wait { color: var(--muted); font-size: 0.74rem; }
+.planner-arrival-time { font-size: calc(0.74rem + 2px); font-weight: 500; }
 .planner-walk-icon { display: inline-flex; align-items: center; flex: none; inline-size: 34px; gap: 1px; }
 .planner-walk-icon::before, .planner-walk-icon::after { content: ""; flex: 1; border-block-start: 3px dotted #6b7280; }
 .planner-walk-icon .planner-glyph { inline-size: 14px; block-size: 14px; }

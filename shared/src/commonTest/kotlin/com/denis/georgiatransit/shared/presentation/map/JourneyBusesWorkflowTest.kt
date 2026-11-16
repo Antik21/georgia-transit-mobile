@@ -39,7 +39,7 @@ import kotlin.time.Instant
 @OptIn(ExperimentalCoroutinesApi::class)
 class JourneyBusesWorkflowTest {
     @Test
-    fun theTwoSoonestVehiclesOfTheLegRouteArePolledUntilTheSelectionChanges() = runTest {
+    fun selectedVehicleAndTheNextBusAreShownUntilTheSelectionChanges() = runTest {
         val repository = BusRepository()
         val workflow = JourneyBusesWorkflow(repository, vehicleIntervalMillis = 8_000)
         val updates = mutableListOf<JourneyBusesUpdate>()
@@ -47,7 +47,7 @@ class JourneyBusesWorkflowTest {
         workflow.sync(backgroundScope, key(OPTION_A)) { updates += it }
         runCurrent()
         val first = updates.last()
-        assertEquals(listOf(V1 to 3, V2 to 11), first.soonest, "Other routes, missing vehicles and later buses are ignored")
+        assertEquals(listOf(V1 to 3, V2 to 11), first.soonest)
         assertEquals(setOf(V1, V2, V3), first.positions.keys)
         val projected = JourneyBusesProjector.project(option(OPTION_A), first)
         assertEquals(listOf(V1, V2), projected.vehicles.map { it.id })
@@ -73,12 +73,47 @@ class JourneyBusesWorkflowTest {
         val workflow = JourneyBusesWorkflow(repository, vehicleIntervalMillis = 8_000)
         val updates = mutableListOf<JourneyBusesUpdate>()
 
-        workflow.sync(backgroundScope, key(OPTION_A, positions = false)) { updates += it }
+        workflow.sync(backgroundScope, key(OPTION_A, positions = false).copy(boarding = BOARDING.copy(plannedVehicleId = V2))) { updates += it }
         advanceTimeBy(30_000)
 
         assertEquals(listOf(V2 to 7), updates.last().soonest)
         assertEquals(0, repository.vehicleCalls)
         assertTrue(JourneyBusesProjector.project(option(OPTION_A), updates.last()).vehicles.isEmpty())
+    }
+
+    @Test
+    fun noVehicleOrWrongStopDoesNotProduceAnUnverifiedArrival() {
+        val wrongStop = arrival(V1, 1).copy(stopId = StopId("demo:fixture:stop:other"))
+        val arrivals = listOf(wrongStop, arrival(V2, 2))
+        assertTrue(JourneyBusesProjector.soonest(arrivals, BOARDING).isEmpty())
+        assertTrue(JourneyBusesProjector.soonest(listOf(arrival(V1, 3)), BOARDING.copy(plannedVehicleId = null)).isEmpty())
+    }
+
+    @Test
+    fun nextBusMustFollowThePlannedBusWithinFortyFiveMinutes() {
+        val otherStop = StopId("demo:fixture:stop:other")
+        val arrivals = listOf(
+            arrival(V2, 2), arrival(V1, 3), arrival(V3, 48), arrival(V3, 60),
+            arrival(VehicleId("demo:fixture:vehicle:wrongstop"), 4).copy(stopId = otherStop),
+            arrival(VehicleId("demo:fixture:vehicle:cancelled"), 4).copy(cancelled = true),
+        )
+        assertEquals(listOf(V1 to 3, V3 to 48), JourneyBusesProjector.soonest(arrivals, BOARDING))
+        assertEquals(listOf(V1 to 3), JourneyBusesProjector.soonest(listOf(arrival(V1, 3), arrival(V2, 49)), BOARDING))
+        assertEquals(listOf(V1 to 3, V2 to 3), JourneyBusesProjector.soonest(listOf(arrival(V2, 3), arrival(V1, 3)), BOARDING))
+    }
+
+    @Test
+    fun staleArrivalsClearTheCountdown() = runTest {
+        val repository = BusRepository()
+        val workflow = JourneyBusesWorkflow(repository, vehicleIntervalMillis = 8_000)
+        val updates = mutableListOf<JourneyBusesUpdate>()
+        workflow.sync(backgroundScope, key(OPTION_A, positions = false)) { updates += it }
+        runCurrent()
+        assertEquals(listOf(V1 to 3, V2 to 11), updates.last().soonest)
+        repository.stale = true
+        advanceTimeBy(JOURNEY_ARRIVALS_INTERVAL_MILLIS + 1)
+        runCurrent()
+        assertTrue(updates.last().soonest.isEmpty())
     }
 
     @Test
@@ -92,6 +127,7 @@ class JourneyBusesWorkflowTest {
         assertEquals(0, repository.arrivalCalls, "Without the arrivals capability nothing is polled")
         execute(workflow, results, context())
         assertEquals(1, repository.arrivalCalls)
+        assertEquals(0, repository.vehicleCalls, "The planner needs arrivals, not vehicle positions")
         execute(workflow, results, context(visible = false))
         execute(workflow, results, context())
         assertEquals(2, repository.arrivalCalls, "A hidden map stops polling and a visible one starts afresh")
@@ -143,6 +179,7 @@ class JourneyBusesWorkflowTest {
         ),
     ) : TransitRepository {
         var arrivalCalls = 0
+        var stale = false
         var vehicleCalls = 0
         var shapeCalls = 0
         override fun cities() = listOf(CITY)
@@ -150,7 +187,7 @@ class JourneyBusesWorkflowTest {
 
         override suspend fun arrivals(cityId: CityId, stopId: StopId, limit: Int, locale: TransitLocale): TransitLoadResult<ArrivalPage> {
             arrivalCalls++
-            return TransitLoadResult.Data(ArrivalPage(arrivals, ArrivalSource.OfficialRealtime, Instant.fromEpochMilliseconds(0), false),
+            return TransitLoadResult.Data(ArrivalPage(arrivals, ArrivalSource.OfficialRealtime, Instant.fromEpochMilliseconds(0), stale),
                 TransitFreshness.Network)
         }
 
@@ -170,12 +207,12 @@ class JourneyBusesWorkflowTest {
         val A = GeoPoint(41.64, 41.63)
         val ROUTE = RouteId("demo:fixture:route:blue")
         val DIRECTION = DirectionId("demo:fixture:direction:blue-technical")
-        val BOARDING = JourneyBoarding(StopId("demo:fixture:stop:a"), ROUTE)
         val OPTION_A = JourneyId("demo:fixture:journey:a")
         val OPTION_B = JourneyId("demo:fixture:journey:b")
         val V1 = VehicleId("demo:fixture:vehicle:v1")
         val V2 = VehicleId("demo:fixture:vehicle:v2")
         val V3 = VehicleId("demo:fixture:vehicle:v3")
+        val BOARDING = JourneyBoarding(StopId("demo:fixture:stop:a"), ROUTE, plannedVehicleId = V1)
         val CITY = TransitCity(
             id = CityId("batumi"), name = "Batumi", center = A,
             capabilities = CityCapabilities(stops = false, vehicles = true, arrivals = true, routeShapes = false, journeyPlanning = true),

@@ -8,6 +8,7 @@ import com.denis.georgiatransit.shared.domain.model.JourneyWaitBasis
 import com.denis.georgiatransit.shared.domain.model.TransitJourney
 import com.denis.georgiatransit.shared.domain.model.TransitJourneySegment
 import com.denis.georgiatransit.shared.domain.model.TransitRoute
+import com.denis.georgiatransit.shared.domain.model.WalkingEstimate
 import com.denis.georgiatransit.shared.presentation.location.LocationPermissionState
 import com.denis.georgiatransit.shared.presentation.location.LocationState
 import com.denis.georgiatransit.shared.presentation.location.MAX_FIX_AGE_MILLIS
@@ -16,7 +17,6 @@ import com.denis.georgiatransit.shared.presentation.ui.contrastSafeRouteTextColo
 import com.denis.georgiatransit.shared.presentation.ui.displayLabel
 import kotlinx.collections.immutable.toPersistentList
 import kotlin.math.ceil
-import kotlin.math.roundToInt
 import kotlin.time.Instant
 
 internal sealed interface JourneyLocationGate {
@@ -42,7 +42,9 @@ internal sealed interface JourneyLocationGate {
 /** Turns a plan page into display-ready options; routes come from the city catalogue for colours. */
 internal object JourneyPlanUiMapper {
     fun options(page: JourneyPage, routes: List<TransitRoute>): List<JourneyOptionUi> =
-        page.items.map { journey -> option(journey, routes) }
+        page.items.sortedBy { journey ->
+            journey.durationSeconds?.toLong() ?: (journey.arrivalAt - journey.departureAt).inWholeSeconds
+        }.map { journey -> option(journey, routes) }
 
     private fun option(journey: TransitJourney, routes: List<TransitRoute>): JourneyOptionUi {
         val segments = journey.segments
@@ -52,7 +54,7 @@ internal object JourneyPlanUiMapper {
             totalMinutes = journey.durationSeconds?.let(::minutesCeil) ?: minutesBetween(journey.departureAt, journey.arrivalAt),
             arrivalAt = journey.arrivalAt,
             transfers = journey.transfers,
-            walkingMeters = (journey.walkingDistanceMeters ?: segments.walkingMeters())?.roundToInt(),
+            walkingMeters = (journey.walkingDistanceMeters ?: segments.walkingMeters())?.let(WalkingEstimate::meters),
             timing = journey.timingQuality?.toUi() ?: segments.derivedTiming(),
             legs = segments.mapIndexedNotNull { index, segment ->
                 if (segment.mode == JourneySegmentMode.Transit) {
@@ -66,6 +68,7 @@ internal object JourneyPlanUiMapper {
             boarding = segments.firstOrNull { it.mode == JourneySegmentMode.Transit }?.let { ride ->
                 JourneyBoarding(
                     checkNotNull(ride.fromStopId), checkNotNull(ride.routeId), ride.directionId, ride.fromPosition, departureBearing(ride),
+                    plannedVehicleId = ride.vehicleId.takeIf { ride.waitBasis == JourneyWaitBasis.LiveVehicle },
                 )
             },
         )
@@ -76,10 +79,11 @@ internal object JourneyPlanUiMapper {
         val minutes = minutesBetween(segment.departureAt, segment.arrivalAt)
         if (role == JourneyWalkRole.Transfer && sameStop) return null
         if (segment.distanceMeters == 0.0 && minutes == 0) return null
+        val meters = segment.distanceMeters?.let(WalkingEstimate::meters)
         return JourneyLegUi.Walk(
             role = role,
-            meters = segment.distanceMeters?.roundToInt(),
-            minutes = minutes,
+            meters = meters,
+            minutes = meters?.let(WalkingEstimate::minutes) ?: minutes,
             isApproximate = segment.geometryApproximate != false,
         )
     }

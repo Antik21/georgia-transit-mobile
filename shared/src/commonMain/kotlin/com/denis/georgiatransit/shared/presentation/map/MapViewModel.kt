@@ -307,7 +307,7 @@ class MapViewModel(
                 requireVisibleMarker = true,
             )
             is MapPlatformEvent.VehicleTapped -> vehicleFeature.acceptTap(event.vehicleId, event.sourceRevision)
-            MapPlatformEvent.CameraMoveStarted, is MapPlatformEvent.MapTapped -> Unit
+            MapPlatformEvent.CameraMoveStarted, is MapPlatformEvent.MapTapped, is MapPlatformEvent.MapPointResolved -> Unit
             is MapPlatformEvent.MapLongPressed ->
                 updatePlanner { planner, context -> journeyPlanner.onLongPress(planner, event.point, context) }
         }

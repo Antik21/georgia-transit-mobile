@@ -87,6 +87,9 @@ class JourneyPlannerBridgeTest {
 
                 entry.planner.longPressMap(B.latitude, B.longitude)
                 settle()
+                assertTrue(queries.isEmpty(), "Choosing points must not start planning")
+                entry.planner.findRoute()
+                settle()
                 val results = assertNotNull(state)
                 assertEquals("results", results.status)
                 val option = results.options.single()
@@ -109,9 +112,12 @@ class JourneyPlannerBridgeTest {
                 settle()
                 assertSame(results.route, state?.route, "An unchanged route keeps its identity for the renderer")
 
+                entry.planner.editPoints()
                 entry.planner.swap()
                 settle()
                 assertEquals(B.latitude, state?.origin?.point?.latitude)
+                entry.planner.findRoute()
+                settle()
                 assertEquals(B, queries.last().from)
 
                 answer = TransitLoadResult.Failure(TransitFailure.CapabilityUnavailable("off", "req"))
@@ -131,10 +137,14 @@ class JourneyPlannerBridgeTest {
                 assertEquals("origin", state?.side)
                 entry.planner.useMyLocationFor("origin")
                 settle()
+                entry.planner.findRoute()
+                settle()
                 assertEquals("locationNeeded", state?.status)
                 assertEquals("permissionRequired", state?.reason)
                 entry.planner.pickPointFor("origin")
                 entry.planner.longPressMap(B.latitude, B.longitude)
+                settle()
+                entry.planner.findRoute()
                 settle()
                 assertEquals("unavailable", state?.status)
 
@@ -174,6 +184,8 @@ class JourneyPlannerBridgeTest {
                 settle()
                 entry.planner.longPressMap(B.latitude, B.longitude)
                 settle()
+                entry.planner.findRoute()
+                settle()
                 val before = revisions.maxOf(String::toLong)
                 // A renderer keeps its "already framed" revision across a re-subscribe; a restarted counter would reuse it.
                 var resubscribed: String? = null
@@ -192,7 +204,7 @@ class JourneyPlannerBridgeTest {
     }
 
     @Test
-    fun theSelectedOptionCarriesLabelsAndItsTwoSoonestBuses() = runTest {
+    fun theSelectedOptionCarriesLabelsAndArrivalTimesWithoutMapBuses() = runTest {
         Dispatchers.setMain(StandardTestDispatcher(testScheduler))
         val store = ViewModelStore()
         val repository = Repository()
@@ -209,14 +221,15 @@ class JourneyPlannerBridgeTest {
                 settle()
                 entry.planner.longPressMap(B.latitude, B.longitude)
                 settle()
+                entry.planner.findRoute()
+                settle()
 
                 val ride = assertNotNull(state).options.first()
                 assertEquals(listOf("optimal", "fastest"), ride.labels.map { it.key }, "Labels come in the fixed display order")
                 assertEquals(listOf("#00796b", "#c2410c"), ride.labels.map { it.color })
                 assertEquals("bus", ride.legs[1].routeMode)
                 assertEquals(listOf(3, 11), ride.nearestEtas.toList())
-                assertEquals(listOf("demo:fixture:vehicle:v1", "demo:fixture:vehicle:v2"), state?.buses?.map { it.id })
-                assertEquals("#0057b8", state?.buses?.first()?.color)
+                assertTrue(state?.buses?.isEmpty() == true, "The planner does not show buses on the map")
                 assertTrue(state?.options?.last()?.labels?.isEmpty() == true)
 
                 entry.planner.selectOption("demo:fixture:journey:walk")
@@ -263,7 +276,7 @@ class JourneyPlannerBridgeTest {
                 toPosition = GeoPoint(41.641, 41.631), distanceMeters = 300.0, geometryApproximate = true),
             TransitJourneySegment(at(6), at(17), JourneySegmentMode.Transit, routeId = ROUTE, directionId = DirectionId("demo:fixture:direction:blue"),
                 fromStopId = STOP_A, toStopId = STOP_B, geometry = "_p~iF~ps|U_ulLnnqC", intermediateStopCount = 5,
-                waitSeconds = 120, waitBasis = JourneyWaitBasis.LiveVehicle),
+                waitSeconds = 120, waitBasis = JourneyWaitBasis.LiveVehicle, vehicleId = VehicleId("demo:fixture:vehicle:v1")),
             TransitJourneySegment(at(17), at(21), JourneySegmentMode.Walk, fromStopId = STOP_B, fromPosition = GeoPoint(41.649, 41.639),
                 toPosition = B, distanceMeters = 220.0),
         )

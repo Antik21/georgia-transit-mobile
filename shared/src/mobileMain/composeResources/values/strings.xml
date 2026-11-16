@@ -128,7 +128,7 @@
     <string name="routes_row_unselected">Not selected</string>
     <string name="routes_row_limit_reached">Selection limit reached</string>
     <string name="loading">Loading transit data…</string>
-    <string name="map_planner_title">Route</string>
+    <string name="map_planner_title">Plan a route</string>
     <string name="map_planner_route_here">Route here</string>
     <string name="map_planner_route_from_here">Route from here</string>
     <string name="map_planner_build_route">Plan a route</string>
@@ -148,6 +148,7 @@
     <string name="map_planner_map_pick_body">Move the map under the marker to set the place.</string>
     <string name="map_planner_map_pick_confirm">Choose</string>
     <string name="map_planner_back">Back</string>
+    <string name="map_planner_find">Find route</string>
     <string name="map_planner_incomplete">Press and hold the map to choose a point.</string>
     <string name="map_planner_swap">Swap start and destination</string>
     <string name="map_planner_clear">Clear</string>
@@ -164,6 +165,8 @@
     <string name="map_planner_location_approximate">Your location is too approximate for a route. Pick a point on the map instead.</string>
     <string name="map_planner_already_there">You’re already there: about %1$d m on foot (≈ %2$d min).</string>
     <string name="map_planner_disclaimer">All times are approximate estimates, not an official timetable.</string>
+    <string name="map_planner_expand">Expand route panel</string>
+    <string name="map_planner_collapse">Collapse route panel</string>
     <string name="map_planner_refreshing">Updating…</string>
     <string name="map_planner_stale">Couldn’t update. Times may be out of date.</string>
     <string name="map_planner_total">≈ %1$d min</string>
@@ -172,11 +175,11 @@
     <string name="map_planner_walk_transfer">Walk to the transfer</string>
     <string name="map_planner_walk_egress">Walk to the destination</string>
     <string name="map_planner_walk_direct">Walk</string>
+    <string name="map_planner_transfer_wait">Transfer and wait</string>
     <string name="map_planner_meters">%1$d m</string>
     <string name="map_planner_minutes">%1$d min</string>
     <string name="map_planner_stops">%1$d stops</string>
-    <string name="map_planner_wait_live">wait %1$d min · live bus</string>
-    <string name="map_planner_wait_estimate">wait ≈ %1$d min · estimate</string>
+    <string name="map_planner_wait_estimate">wait ≈ %1$d min</string>
     <string name="map_planner_timing_live">Live buses</string>
     <string name="map_planner_timing_mixed">Partly live</string>
     <string name="map_planner_timing_estimated">Estimated</string>
@@ -184,7 +187,7 @@
     <string name="map_planner_label_fastest">Fastest</string>
     <string name="map_planner_label_least_walking">Least walking</string>
     <string name="map_planner_label_no_transfers">No transfers</string>
-    <string name="map_planner_nearest">Nearest buses: %1$s</string>
+    <string name="map_planner_arriving_in">In: %1$s min</string>
     <string name="map_planner_then">, then </string>
     <string name="map_planner_summary_walk">walk</string>
     <string name="map_planner_summary_bus">bus %1$s</string>

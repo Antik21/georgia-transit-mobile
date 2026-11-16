@@ -5,7 +5,7 @@ import "maplibre-gl/dist/maplibre-gl.css";
 import mapWorkerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?url&no-inline";
 import type { MapState, MapStopLayer, MapStopPin, PlannerState, VehicleLayer } from "./contracts";
 import {
-  createPlannerMap, plannerBusLayerIds, plannerLineLayerIds, plannerPointLayerId, type PlannerMapActions, type PlannerMapLabels,
+  createPlannerMap, plannerLineLayerIds, plannerPointLayerId, type PlannerMapActions, type PlannerMapLabels,
 } from "./planner-map";
 import { drawStopCluster, drawStopPin } from "./stop-pin";
 import { drawVehicleBadge, systemTextScale, vehicleBadgeStyle, type VehicleBadgeStyle } from "./vehicle-badge";
@@ -34,12 +34,11 @@ const maxStopMarkers = 1_000;
 const maxVehicleMarkers = 2_000;
 const maxBadgeImages = 256;
 const staleVehicleOpacity = 0.62;
-const dimmedVehicleOpacity = 0.4;
 // Badge artwork points east; MapLibre's icon-rotate is clockwise from north.
 const eastwardArtworkBearing = 90;
 const minVehicleTarget = 48;
 // Fleet and planner halos share one clock, so every highlighted bus pulses in the same rhythm.
-const pulseLayerIds = [attentionLayerId, plannerBusLayerIds[0]];
+const pulseLayerIds = [attentionLayerId];
 
 const localStyle: StyleSpecification = {
   version: 8,
@@ -51,7 +50,7 @@ const localStyle: StyleSpecification = {
 const layerOrder = [
   "transit-route-lines-base", "transit-route-lines-emphasized", ...plannerLineLayerIds,
   "transit-user-accuracy-fill", "transit-user-accuracy-line",
-  stopLayerId, clusterLayerId, plannerPointLayerId, attentionLayerId, vehicleLayerId, ...plannerBusLayerIds, selectedStopLayerId,
+  stopLayerId, clusterLayerId, plannerPointLayerId, attentionLayerId, vehicleLayerId, selectedStopLayerId,
   "transit-user-location",
 ];
 
@@ -85,10 +84,9 @@ function normalizedBearing(degrees: number) {
   return ((degrees % 360) + 360) % 360;
 }
 
-// The planner draws its highlighted buses itself; the rest of the fleet steps back while they are shown.
-function vehicleData(layer: VehicleLayer, imageIds: Map<string, string>, highlighted: ReadonlySet<string>) {
+function vehicleData(layer: VehicleLayer, imageIds: Map<string, string>) {
   const vehicles = layer.vehicles
-    .filter((vehicle) => Number.isFinite(vehicle.latitude) && Number.isFinite(vehicle.longitude) && !highlighted.has(vehicle.id))
+    .filter((vehicle) => Number.isFinite(vehicle.latitude) && Number.isFinite(vehicle.longitude))
     .slice(0, maxVehicleMarkers);
   // A deterministic bounded subset, as on mobile, keeps the pulse cost independent of fleet size.
   const attention = new Set(vehicles.filter((vehicle) => vehicle.id && vehicle.routeId).map((vehicle) => vehicle.id)
@@ -107,7 +105,7 @@ function vehicleData(layer: VehicleLayer, imageIds: Map<string, string>, highlig
           color: style.color,
           attention: attention.has(vehicle.id),
           rotation: vehicle.bearing == null ? 0 : normalizedBearing(vehicle.bearing - eastwardArtworkBearing),
-          opacity: (vehicle.stale ? staleVehicleOpacity : 1) * (highlighted.size ? dimmedVehicleOpacity : 1),
+          opacity: vehicle.stale ? staleVehicleOpacity : 1,
         },
         geometry: { type: "Point" as const, coordinates: [vehicle.longitude, vehicle.latitude] },
       };
@@ -240,7 +238,7 @@ export function createTransitMap(
   let renderedRouteRevision: string | undefined;
   let renderedUserLocation: string | undefined;
   let vehicles: VehicleLayer | undefined;
-  let highlightedVehicles: ReadonlySet<string> = new Set();
+  let plannerOpen = false;
   let renderedVehicleRevision: string | undefined;
   let renderedBadgeRevision: string | undefined;
   const badgeImageIds = new Map<string, string>();
@@ -248,7 +246,6 @@ export function createTransitMap(
   let textScale = systemTextScale();
   let mapVisible = true;
   let attentionCount = 0;
-  let plannerPulseCount = 0;
   let attentionTimer: ReturnType<typeof setTimeout> | undefined;
   const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
   let renderedStops: MapStopLayer | null | undefined;
@@ -407,7 +404,8 @@ export function createTransitMap(
       syncBadgeImages(vehicles);
       renderedBadgeRevision = vehicles.badgeRevision;
     }
-    const { attentionCount: nextAttentionCount, ...data } = vehicleData(vehicles, badgeImageIds, highlightedVehicles);
+    const visibleVehicles = plannerOpen ? { ...vehicles, vehicles: [] } : vehicles;
+    const { attentionCount: nextAttentionCount, ...data } = vehicleData(visibleVehicles, badgeImageIds);
     const source = map.getSource<GeoJSONSource>(vehicleSourceId);
     if (source) {
       source.setData(data);
@@ -447,7 +445,7 @@ export function createTransitMap(
   }
 
   function shouldAnimateAttention() {
-    return styleReady && mapVisible && attentionCount + plannerPulseCount > 0 && !reducedMotion.matches;
+    return styleReady && mapVisible && attentionCount > 0 && !reducedMotion.matches;
   }
 
   function renderAttentionFrame(now?: number) {
@@ -673,11 +671,8 @@ export function createTransitMap(
 
   function updatePlanner(state: PlannerState) {
     planner.update(state);
-    plannerPulseCount = planner.busCount();
-    refreshAttention();
-    const ids = new Set(state.buses.map((bus) => bus.id));
-    if (ids.size === highlightedVehicles.size && [...ids].every((id) => highlightedVehicles.has(id))) return;
-    highlightedVehicles = ids;
+    if (plannerOpen === state.open) return;
+    plannerOpen = state.open;
     renderedVehicleRevision = undefined;
     renderVehicles();
   }

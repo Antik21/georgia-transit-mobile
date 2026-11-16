@@ -26,7 +26,6 @@ internal class MapOverlaySources {
         ) {
             stopPinImages.update(loadedStyle, renderState.stops)
             loadedStyle.setSourceFeatures(STOPS_SOURCE_ID, ordinaryStopFeatures(renderState))
-            loadedStyle.setSourceFeatures(SELECTED_STOP_SOURCE_ID, selectedStopFeatures(renderState))
             lastStops = renderState.stops
             lastStopClusters = renderState.stopClusters
             lastStopSourceRevision = renderState.stopSourceRevision
@@ -59,18 +58,19 @@ internal class MapOverlaySources {
 private fun ordinaryStopFeatures(renderState: MapRenderState): FeatureCollection = FeatureCollection.fromFeatures(
     (
         renderState.stops.asSequence()
-            .filter { !it.isSelected && it.id.value.isNotBlank() && it.position.isMapCoordinate() }
+            .filter { it.id.value.isNotBlank() && it.position.isMapCoordinate() }
             // Common metadata declares route-highlight priority; preserve it before the renderer cap.
             .sortedWith(compareBy<MapStopMarker> { !it.routeHighlight.isHighlighted }.thenBy { it.id.value })
-            .take(MAX_STOP_MARKERS)
+            .filterIndexed { index, marker -> index < MAX_STOP_MARKERS || marker.isSelected }
             .map { marker ->
                 Feature.fromGeometry(marker.position.asMapPoint()).also { feature ->
                     feature.addStringProperty(FEATURE_ID_PROPERTY, marker.id.value)
                     feature.addStringProperty(FEATURE_KIND_PROPERTY, FEATURE_KIND_STOP)
                     feature.addStringProperty(SOURCE_REVISION_PROPERTY, renderState.stopSourceRevision.toString())
                     feature.addStringProperty(ACCESSIBILITY_LABEL_PROPERTY, marker.accessibilityLabel)
-                    feature.addStringProperty(STOP_PIN_PROPERTY, marker.routeHighlight.pinArtwork.imageId)
+                    feature.addStringProperty(STOP_PIN_PROPERTY, marker.pinArtwork.imageId)
                     feature.addNumberProperty(STOP_PIN_SCALE_PROPERTY, marker.pinScale)
+                    feature.addBooleanProperty(STOP_PIN_SELECTED_PROPERTY, marker.isSelected)
                     feature.addStringProperty(MARKER_COLOR_PROPERTY, TRANSPARENT_STOP_COLOR)
                     feature.addNumberProperty(MARKER_RADIUS_PROPERTY, marker.routeHighlight.markerRadius)
                     feature.addStringProperty(MARKER_STROKE_COLOR_PROPERTY, TRANSPARENT_STOP_COLOR)
@@ -95,26 +95,6 @@ private fun ordinaryStopFeatures(renderState: MapRenderState): FeatureCollection
                     }
                 }
         ).toList(),
-)
-
-private fun selectedStopFeatures(renderState: MapRenderState): FeatureCollection = FeatureCollection.fromFeatures(
-    renderState.stops.asSequence()
-        .filter { it.isSelected && it.id.value.isNotBlank() && it.position.isMapCoordinate() }
-        .sortedBy { it.id.value }
-        .take(1)
-        .map { marker ->
-            Feature.fromGeometry(marker.position.asMapPoint()).also { feature ->
-                feature.addStringProperty(FEATURE_ID_PROPERTY, marker.id.value)
-                feature.addStringProperty(FEATURE_KIND_PROPERTY, FEATURE_KIND_STOP)
-                feature.addStringProperty(SOURCE_REVISION_PROPERTY, renderState.stopSourceRevision.toString())
-                feature.addStringProperty(ACCESSIBILITY_LABEL_PROPERTY, marker.accessibilityLabel)
-                feature.addStringProperty(STOP_PIN_PROPERTY, marker.routeHighlight.pinArtwork.imageId)
-                feature.addNumberProperty(STOP_PIN_SCALE_PROPERTY, marker.pinScale)
-                feature.addStringProperty(MARKER_COLOR_PROPERTY, TRANSPARENT_STOP_COLOR)
-                feature.addStringProperty(MARKER_STROKE_COLOR_PROPERTY, TRANSPARENT_STOP_COLOR)
-            }
-        }
-        .toList(),
 )
 
 private fun polylineFeatures(

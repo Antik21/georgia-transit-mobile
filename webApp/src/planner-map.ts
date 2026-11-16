@@ -1,17 +1,10 @@
 import {
   LngLatBounds, Popup, type AddLayerObject, type GeoJSONSource, type GeoJSONSourceSpecification, type Map as MapLibreMap,
 } from "maplibre-gl";
-import type { PlannerBus, PlannerRoute, PlannerState } from "./contracts";
-import { drawVehicleBadge, systemTextScale, vehicleBadgeStyle } from "./vehicle-badge";
-import { pulsePaint } from "./vehicle-pulse";
+import type { PlannerRoute, PlannerState } from "./contracts";
 
 const lineSourceId = "transit-planner-lines";
 const pointSourceId = "transit-planner-points";
-const busSourceId = "transit-planner-buses";
-export const plannerBusLayerIds = ["transit-planner-bus-halo", "transit-planner-buses"];
-const busImagePrefix = "transit-planner-bus-";
-// Same artwork rules as the vehicle layer in map.ts: badges point east and flip past vertical.
-const eastwardArtworkBearing = 90;
 export const plannerLineLayerIds = ["transit-planner-walk", "transit-planner-transit-casing", "transit-planner-transit"];
 export const plannerPointLayerId = "transit-planner-points";
 const longPressMillis = 500;
@@ -32,24 +25,6 @@ const lineLayers: AddLayerObject[] = [
   {
     id: plannerLineLayerIds[2], type: "line", source: lineSourceId, filter: ["==", ["get", "kind"], "transit"], layout: lineLayout,
     paint: { "line-color": ["to-color", ["get", "color"]], "line-width": 6 },
-  },
-];
-const busLayers: AddLayerObject[] = [
-  {
-    id: plannerBusLayerIds[0], type: "circle", source: busSourceId,
-    // map.ts animates this halo together with the fleet pulse.
-    paint: pulsePaint(),
-  },
-  {
-    id: plannerBusLayerIds[1], type: "symbol", source: busSourceId,
-    layout: {
-      "icon-image": ["case", ["all", [">", ["get", "rotation"], 90], ["<", ["get", "rotation"], 270]],
-        ["concat", ["get", "image"], "-flipped"], ["get", "image"]],
-      "icon-rotate": ["get", "rotation"],
-      "icon-rotation-alignment": "map",
-      "icon-allow-overlap": true,
-      "icon-ignore-placement": true,
-    },
   },
 ];
 const pointLayer: AddLayerObject = {
@@ -114,8 +89,6 @@ export function createPlannerMap(
   let renderedRoute: PlannerRoute | undefined;
   let renderedPoints: string | undefined;
   let fittedRevision: string | undefined;
-  let renderedBuses: string | undefined;
-  const busImages = new Map<string, string>();
   let retryPending = false;
   let popup: Popup | undefined;
   let popupKey: string | undefined;
@@ -196,12 +169,6 @@ export function createPlannerMap(
         syncSource(pointSourceId, points, [pointLayer]);
         renderedPoints = pointsKey;
       }
-      const buses = busData(drawableBuses());
-      const busesKey = JSON.stringify(buses.features);
-      if (renderedBuses !== busesKey) {
-        syncSource(busSourceId, buses, busLayers);
-        renderedBuses = busesKey;
-      }
       // Only a new plan or another chosen option re-frames; refreshes leave the user's camera alone.
       if (route?.lines.length && state && fittedRevision !== state.cameraFitRevision) {
         fittedRevision = state.cameraFitRevision;
@@ -211,41 +178,6 @@ export function createPlannerMap(
       // MapLibre throws while a style it is (re)loading is not done; draw again once the style settles.
       retryWhenStyleSettles();
     }
-  }
-
-  function drawableBuses() {
-    return (state?.buses ?? []).filter((bus) => Number.isFinite(bus.latitude) && Number.isFinite(bus.longitude));
-  }
-
-  function busData(buses: readonly PlannerBus[]) {
-    return {
-      type: "FeatureCollection" as const,
-      features: buses.map((bus) => ({
-        type: "Feature" as const,
-        properties: {
-          id: bus.id,
-          color: bus.color,
-          image: busImage(bus),
-          rotation: bus.bearing == null ? 0 : (((bus.bearing - eastwardArtworkBearing) % 360) + 360) % 360,
-        },
-        geometry: { type: "Point" as const, coordinates: [bus.longitude, bus.latitude] },
-      })),
-    };
-  }
-
-  function busImage(bus: PlannerBus) {
-    const style = vehicleBadgeStyle({ label: bus.label, color: bus.color, textColor: bus.textColor, stale: false });
-    let id = busImages.get(style.key);
-    if (!id) {
-      id = `${busImagePrefix}${busImages.size}`;
-      const pixelRatio = window.devicePixelRatio || 1;
-      for (const flipped of [false, true]) {
-        map.addImage(flipped ? `${id}-flipped` : id, drawVehicleBadge(style, pixelRatio, systemTextScale(), flipped),
-          { pixelRatio: pixelRatio * 1.5 });
-      }
-      busImages.set(style.key, id);
-    }
-    return id;
   }
 
   function retryWhenStyleSettles() {
@@ -310,16 +242,10 @@ export function createPlannerMap(
       styleReady = true;
       renderedRoute = undefined;
       renderedPoints = undefined;
-      renderedBuses = undefined;
-      // A replaced style drops every image registered on the previous one.
-      busImages.clear();
       renderLayers();
     },
     styleLost() {
       styleReady = false;
-    },
-    busCount() {
-      return drawableBuses().length;
     },
     /** True when the click ends a long press; any other map click dismisses an open pin. */
     consumeClick() {

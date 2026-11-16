@@ -1,6 +1,7 @@
 package com.denis.georgiatransit.shared.presentation.map.sections
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -10,6 +11,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.Icon
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -17,6 +19,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
@@ -44,22 +48,13 @@ import georgiatransit.shared.generated.resources.map_planner_label_fastest
 import georgiatransit.shared.generated.resources.map_planner_label_least_walking
 import georgiatransit.shared.generated.resources.map_planner_label_no_transfers
 import georgiatransit.shared.generated.resources.map_planner_label_optimal
-import georgiatransit.shared.generated.resources.map_planner_meters
-import georgiatransit.shared.generated.resources.map_planner_minutes
-import georgiatransit.shared.generated.resources.map_planner_nearest
-import georgiatransit.shared.generated.resources.map_planner_stops
 import georgiatransit.shared.generated.resources.map_planner_summary_bus
 import georgiatransit.shared.generated.resources.map_planner_summary_ferry
 import georgiatransit.shared.generated.resources.map_planner_summary_metro
 import georgiatransit.shared.generated.resources.map_planner_summary_tram
 import georgiatransit.shared.generated.resources.map_planner_summary_walk
 import georgiatransit.shared.generated.resources.map_planner_then
-import georgiatransit.shared.generated.resources.map_planner_timing_estimated
-import georgiatransit.shared.generated.resources.map_planner_timing_live
-import georgiatransit.shared.generated.resources.map_planner_timing_mixed
 import georgiatransit.shared.generated.resources.map_planner_total
-import georgiatransit.shared.generated.resources.map_planner_wait_estimate
-import georgiatransit.shared.generated.resources.map_planner_wait_live
 import georgiatransit.shared.generated.resources.map_planner_walk_access
 import georgiatransit.shared.generated.resources.map_planner_walk_direct
 import georgiatransit.shared.generated.resources.map_planner_walk_egress
@@ -115,20 +110,12 @@ internal fun JourneyOptionCard(
                     stringResource(Res.string.map_planner_arrival, option.arrivalAt.localClock()),
                     style = MaterialTheme.typography.bodyMedium,
                 )
-                option.timing?.let { timing ->
-                    Text(timingLabel(timing), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
             }
-            JourneyItinerary(option.legs)
-            option.legs.forEach { leg -> JourneyLegRow(leg) }
-            if (nearestEtas.isNotEmpty()) {
-                val etas = nearestEtas.map { stringResource(Res.string.map_planner_minutes, it) }.joinToString(", ")
-                Text(
-                    stringResource(Res.string.map_planner_nearest, etas),
-                    modifier = Modifier.testTag(AutomationId.MapPlannerNearest),
-                    style = MaterialTheme.typography.labelLarge,
-                    color = MaterialTheme.colorScheme.primary,
-                )
+            if (isSelected) {
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                JourneyLegTimeline(option.legs, nearestEtas)
+            } else {
+                JourneyItinerary(option.legs)
             }
         }
     }
@@ -179,49 +166,30 @@ private fun JourneyItinerary(legs: List<JourneyLegUi>) {
 }
 
 @Composable
-private fun JourneyLegRow(leg: JourneyLegUi) {
-    Row(
-        modifier = Modifier.testTag(AutomationId.MapPlannerLeg),
-        horizontalArrangement = Arrangement.spacedBy(TransitSpacing.Small),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        when (leg) {
-            is JourneyLegUi.Walk -> {
-                Icon(
-                    WalkIcon,
-                    contentDescription = null,
-                    modifier = Modifier.size(GlyphSize),
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                val parts = listOfNotNull(
-                    leg.meters?.let { stringResource(Res.string.map_planner_meters, it) },
-                    stringResource(Res.string.map_planner_minutes, leg.minutes),
-                )
-                Text("${walkRoleText(leg.role)}: ${parts.joinToString(" · ")}", style = MaterialTheme.typography.bodySmall)
-            }
-            is JourneyLegUi.Ride -> {
-                JourneyRouteBadge(leg.route, withGlyph = false)
-                Column {
-                    val parts = listOfNotNull(
-                        leg.stopCount?.let { stringResource(Res.string.map_planner_stops, it) },
-                        stringResource(Res.string.map_planner_minutes, leg.rideMinutes),
-                    )
-                    Text(parts.joinToString(" · "), style = MaterialTheme.typography.bodySmall)
-                    leg.waitMinutes?.let { wait ->
-                        Text(
-                            stringResource(if (leg.waitIsLive) Res.string.map_planner_wait_live else Res.string.map_planner_wait_estimate, wait),
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                }
-            }
-        }
+internal fun WalkLegIcon() {
+    val color = MaterialTheme.colorScheme.onSurfaceVariant
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        WalkDots(color)
+        Icon(WalkIcon, contentDescription = null, modifier = Modifier.size(GlyphSize), tint = color)
+        WalkDots(color)
     }
 }
 
 @Composable
-private fun JourneyRouteBadge(route: JourneyRouteBadgeUi, withGlyph: Boolean) {
+private fun WalkDots(color: Color) {
+    Canvas(Modifier.size(width = 9.dp, height = GlyphSize)) {
+        drawLine(
+            color = color,
+            start = Offset(0f, size.height / 2),
+            end = Offset(size.width, size.height / 2),
+            strokeWidth = 1.5.dp.toPx(),
+            pathEffect = PathEffect.dashPathEffect(floatArrayOf(2.dp.toPx(), 2.dp.toPx())),
+        )
+    }
+}
+
+@Composable
+internal fun JourneyRouteBadge(route: JourneyRouteBadgeUi, withGlyph: Boolean) {
     Surface(shape = TransitShapes.ExtraSmall, color = Color(route.backgroundArgb)) {
         Row(
             modifier = Modifier.padding(horizontal = TransitSpacing.ExtraSmall + 2.dp, vertical = 2.dp),
@@ -247,16 +215,7 @@ private fun labelText(label: JourneyLabelUi): String = stringResource(
 )
 
 @Composable
-private fun timingLabel(timing: JourneyTimingUi): String = stringResource(
-    when (timing) {
-        JourneyTimingUi.Live -> Res.string.map_planner_timing_live
-        JourneyTimingUi.Mixed -> Res.string.map_planner_timing_mixed
-        JourneyTimingUi.Estimated -> Res.string.map_planner_timing_estimated
-    },
-)
-
-@Composable
-private fun walkRoleText(role: JourneyWalkRole): String = stringResource(
+internal fun walkRoleText(role: JourneyWalkRole): String = stringResource(
     when (role) {
         JourneyWalkRole.Access -> Res.string.map_planner_walk_access
         JourneyWalkRole.Transfer -> Res.string.map_planner_walk_transfer
@@ -265,7 +224,7 @@ private fun walkRoleText(role: JourneyWalkRole): String = stringResource(
     },
 )
 
-private fun TransitMode.summaryResource() = when (this) {
+internal fun TransitMode.summaryResource() = when (this) {
     TransitMode.Metro -> Res.string.map_planner_summary_metro
     TransitMode.Tram -> Res.string.map_planner_summary_tram
     TransitMode.Ferry -> Res.string.map_planner_summary_ferry
@@ -283,15 +242,15 @@ internal val PreviewJourneyOption = JourneyOptionUi(
     totalMinutes = 24,
     arrivalAt = Instant.fromEpochMilliseconds(1_763_037_000_000),
     transfers = 0,
-    walkingMeters = 420,
+    walkingMeters = 500,
     timing = JourneyTimingUi.Live,
     legs = listOf(
-        JourneyLegUi.Walk(JourneyWalkRole.Access, meters = 250, minutes = 4, isApproximate = true),
+        JourneyLegUi.Walk(JourneyWalkRole.Access, meters = 300, minutes = 4, isApproximate = true),
         JourneyLegUi.Ride(
             JourneyRouteBadgeUi(RouteId("10a"), "10A", 0xFF1565C0, 0xFFFFFFFF),
             stopCount = 7, rideMinutes = 14, waitMinutes = 3, waitIsLive = true,
         ),
-        JourneyLegUi.Walk(JourneyWalkRole.Egress, meters = 170, minutes = 3, isApproximate = true),
+        JourneyLegUi.Walk(JourneyWalkRole.Egress, meters = 200, minutes = 3, isApproximate = true),
     ),
     labels = listOf(JourneyLabelUi.Optimal, JourneyLabelUi.NoTransfers),
 )

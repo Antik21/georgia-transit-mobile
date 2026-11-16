@@ -339,7 +339,7 @@ class MapNearbyViewModelTest {
             )
             assertEquals(listOf(StopId("only-b")), replacementRender.stops.map { it.id })
             assertTrue(replacementRender.stops.single().routeHighlight.pinArtwork.badges.isEmpty())
-            assertEquals(StopPinScale * 0.75f * 1.1f, replacementRender.stops.single().pinScale)
+            assertEquals(StopPinScale * 0.75f, replacementRender.stops.single().pinScale)
             assertTrue(replacementRender.stopClusters.isEmpty())
             cancelAndIgnoreRemainingItems()
         }

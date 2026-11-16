@@ -16,12 +16,17 @@ trap cleanup EXIT HUP INT TERM
 
 docker volume create "$volume" >/dev/null
 
-# Simulate existing directories on a mounted disk with incompatible ownership and modes.
+# Simulate a disk whose setgid root passes special bits down to existing directories.
 docker run --rm --entrypoint sh --volume "${volume}:/app/storage" "$image" -eu -c '
+    chmod 02755 /app/storage
     mkdir -p /app/storage/control /app/storage/state
     chown root:root /app/storage/control /app/storage/state
-    chmod 0755 /app/storage/control
-    chmod 0770 /app/storage/state
+    chmod 02755 /app/storage/control
+    chmod 04770 /app/storage/state
+    # Reproduce the old failure using the same GNU tools as production.
+    chmod 0700 /app/storage/control
+    test "$(stat -c %a /app/storage/control)" = 2700
+    printf "%s\n" "Reproduced: chmod 0700 preserves directory setgid (2700)"
 '
 
 start_container() {
@@ -105,8 +110,9 @@ assert_private_state
 state_before_restart="$(snapshot_private_state)"
 docker exec --user root "$container" sh -eu -c '
     chown root:root /app/storage/control /app/storage/state
-    chmod 0755 /app/storage/control
-    chmod 0770 /app/storage/state
+    chmod 02755 /app/storage
+    chmod 06755 /app/storage/control
+    chmod 07770 /app/storage/state
 '
 docker rm --force "$container" >/dev/null
 container=""

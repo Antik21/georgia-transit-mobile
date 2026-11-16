@@ -33,6 +33,9 @@ builds the same versioned Dockerfile from pinned base inputs and starts it twice
 test volume. Render then independently rebuilds that Dockerfile for the production deploy.
 This exercises Render's injected `PORT`, the `/healthz` gate, initial control-document installation,
 POSIX ownership/modes, and reuse of durable control state.
+The disk fixtures include directory setuid/setgid/sticky bits. GNU `chmod 0700` preserves
+directory setuid/setgid, so the entrypoint uses `chmod 00700` on the storage root and its
+private directories to enforce exactly `0700` without modifying stored files.
 
 No `RENDER_DEPLOY_HOOK_URL`, API key, or other GitHub secret is required for this deployment path.
 The checked-in Blueprint and Batumi capability document contain no secrets. Future provider

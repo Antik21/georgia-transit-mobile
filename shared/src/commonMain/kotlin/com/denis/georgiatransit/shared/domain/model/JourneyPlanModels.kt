@@ -3,7 +3,6 @@ package com.denis.georgiatransit.shared.domain.model
 import kotlinx.serialization.Serializable
 import kotlin.math.PI
 import kotlin.math.atan2
-import kotlin.math.ceil
 import kotlin.math.cos
 import kotlin.math.roundToLong
 import kotlin.math.sin
@@ -64,10 +63,10 @@ object JourneyEndpointPolicy {
         if (!from.isValidCoordinate() || !to.isValidCoordinate()) return JourneyResolution.Invalid
         val distance = from.distanceMetersTo(to)
         if (distance < ALREADY_THERE_METERS) {
-            val walkMeters = distance * WALK_DETOUR_FACTOR
+            val walkMeters = WalkingEstimate.meters(distance * WALK_DETOUR_FACTOR)
             return JourneyResolution.AlreadyThere(
-                walkMeters = walkMeters.roundToLong().toInt(),
-                walkMinutes = ceil(walkMeters / WALK_SPEED_METERS_PER_SECOND / 60.0).toInt().coerceAtLeast(1),
+                walkMeters = walkMeters,
+                walkMinutes = WalkingEstimate.minutes(walkMeters),
             )
         }
         return JourneyResolution.Ready(
@@ -110,5 +109,4 @@ const val MAX_TRANSFER_BUFFER_SECONDS = 600L
 val DEFAULT_TRANSFER_BUFFER: Duration = 60.seconds
 // ADR 0022 phase-1 walking model: straight line × 1.3 at 1.3 m/s.
 private const val WALK_DETOUR_FACTOR = 1.3
-private const val WALK_SPEED_METERS_PER_SECOND = 1.3
 private const val EARTH_RADIUS_METERS = 6_371_008.8

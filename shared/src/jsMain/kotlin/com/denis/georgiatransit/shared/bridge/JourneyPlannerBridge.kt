@@ -98,6 +98,7 @@ class PlannerRoute(
 @JsExport
 class PlannerState(
     val open: Boolean,
+    val showingResults: Boolean,
     val status: String,
     val pin: PlannerPoint?,
     val origin: PlannerEndpoint,
@@ -173,6 +174,8 @@ class JourneyPlannerBridge internal constructor(
 
     fun swap() = dispatch(JourneyPlannerAction.Swap)
     fun clear() = dispatch(JourneyPlannerAction.Clear)
+    fun findRoute() = dispatch(JourneyPlannerAction.FindRoute)
+    fun editPoints() = dispatch(JourneyPlannerAction.EditPoints)
     fun selectOption(id: String) = dispatch(JourneyPlannerAction.SelectOption(JourneyId(id)))
 
     fun retry() = dispatch(JourneyPlannerAction.Retry)
@@ -187,6 +190,7 @@ private fun JourneyPlannerUi.toJs(route: PlannerRoute): PlannerState {
     val status = status
     return PlannerState(
         open = isOpen,
+        showingResults = showingResults,
         status = when (status) {
             JourneyPlannerStatus.Idle -> "idle"
             is JourneyPlannerStatus.PickingPoint -> "pickingPoint"

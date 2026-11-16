@@ -11,7 +11,7 @@ import org.maplibre.android.maps.MapLibreMap
 internal fun MapLibreMap.hitTestEntity(point: LatLng, density: Float): MapPlatformEvent? {
     val screenPoint = projection.toScreenLocation(point)
     val pinHitRect = RectF(screenPoint.x - 0.5f, screenPoint.y - 0.5f, screenPoint.x + 0.5f, screenPoint.y + 0.5f)
-    val visibleStop = findEntityFeature(pinHitRect, stopPinLayerId(SELECTED_STOP_SOURCE_ID), FEATURE_KIND_STOP)
+    val visibleStop = findEntityFeature(pinHitRect, SELECTED_STOP_PIN_LAYER_ID, FEATURE_KIND_STOP)
         ?: findEntityFeature(pinHitRect, stopPinLayerId(STOPS_SOURCE_ID), FEATURE_KIND_STOP)
     if (visibleStop != null) {
         return MapPlatformEvent.StopTapped(StopId(visibleStop.first), visibleStop.second)

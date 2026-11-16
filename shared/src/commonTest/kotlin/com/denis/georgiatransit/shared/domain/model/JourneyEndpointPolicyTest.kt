@@ -43,11 +43,22 @@ class JourneyEndpointPolicyTest {
         val there = assertIs<JourneyResolution.AlreadyThere>(
             JourneyEndpointPolicy.resolve(JourneyRequest(JourneyEndpoint.MapPoint(A), JourneyEndpoint.MapPoint(near)), null, TransitLocale.English),
         )
-        assertEquals(145, there.walkMeters)
-        assertEquals(2, there.walkMinutes)
+        assertEquals(200, there.walkMeters)
+        assertEquals(3, there.walkMinutes)
         assertIs<JourneyResolution.Ready>(
             JourneyEndpointPolicy.resolve(JourneyRequest(JourneyEndpoint.MapPoint(A), JourneyEndpoint.MapPoint(far)), null, TransitLocale.English),
         )
+    }
+
+    @Test
+    fun veryShortAlreadyThereWalkKeepsItsDistance() {
+        val near = GeoPoint(A.latitude + 0.0002, A.longitude)
+        val there = assertIs<JourneyResolution.AlreadyThere>(
+            JourneyEndpointPolicy.resolve(JourneyRequest(JourneyEndpoint.MapPoint(A), JourneyEndpoint.MapPoint(near)), null, TransitLocale.English),
+        )
+
+        assertEquals(29, there.walkMeters)
+        assertEquals(1, there.walkMinutes)
     }
 
     @Test

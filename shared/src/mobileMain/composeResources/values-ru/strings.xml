@@ -128,7 +128,7 @@
     <string name="routes_row_unselected">Не выбрано</string>
     <string name="routes_row_limit_reached">Достигнут лимит выбора</string>
     <string name="loading">Загружаем транспортные данные…</string>
-    <string name="map_planner_title">Маршрут</string>
+    <string name="map_planner_title">Построить маршрут</string>
     <string name="map_planner_route_here">Маршрут сюда</string>
     <string name="map_planner_route_from_here">Маршрут отсюда</string>
     <string name="map_planner_build_route">Построить маршрут</string>
@@ -148,6 +148,7 @@
     <string name="map_planner_map_pick_body">Переместите карту под маркер, чтобы указать нужное место.</string>
     <string name="map_planner_map_pick_confirm">Выбрать</string>
     <string name="map_planner_back">Назад</string>
+    <string name="map_planner_find">Найти маршрут</string>
     <string name="map_planner_incomplete">Нажмите и удерживайте карту, чтобы выбрать точку.</string>
     <string name="map_planner_swap">Поменять местами</string>
     <string name="map_planner_clear">Очистить</string>
@@ -164,6 +165,8 @@
     <string name="map_planner_location_approximate">Местоположение определено слишком неточно. Выберите точку на карте.</string>
     <string name="map_planner_already_there">Вы уже на месте: около %1$d м пешком (≈ %2$d мин).</string>
     <string name="map_planner_disclaimer">Всё время примерное и не является официальным расписанием.</string>
+    <string name="map_planner_expand">Развернуть панель маршрута</string>
+    <string name="map_planner_collapse">Свернуть панель маршрута</string>
     <string name="map_planner_refreshing">Обновляем…</string>
     <string name="map_planner_stale">Не удалось обновить. Время может быть неактуальным.</string>
     <string name="map_planner_total">≈ %1$d мин</string>
@@ -172,11 +175,11 @@
     <string name="map_planner_walk_transfer">Пешком до пересадки</string>
     <string name="map_planner_walk_egress">Пешком до места</string>
     <string name="map_planner_walk_direct">Пешком</string>
+    <string name="map_planner_transfer_wait">Пересадка и ожидание</string>
     <string name="map_planner_meters">%1$d м</string>
     <string name="map_planner_minutes">%1$d мин</string>
     <string name="map_planner_stops">%1$d ост.</string>
-    <string name="map_planner_wait_live">ожидание %1$d мин · автобус онлайн</string>
-    <string name="map_planner_wait_estimate">ожидание ≈ %1$d мин · оценка</string>
+    <string name="map_planner_wait_estimate">ожидание ≈ %1$d мин</string>
     <string name="map_planner_timing_live">Автобусы онлайн</string>
     <string name="map_planner_timing_mixed">Частично онлайн</string>
     <string name="map_planner_timing_estimated">Оценка</string>
@@ -184,7 +187,7 @@
     <string name="map_planner_label_fastest">Быстрее всего</string>
     <string name="map_planner_label_least_walking">Меньше пешком</string>
     <string name="map_planner_label_no_transfers">Без пересадок</string>
-    <string name="map_planner_nearest">Ближайшие: %1$s</string>
+    <string name="map_planner_arriving_in">Через: %1$s мин</string>
     <string name="map_planner_then">, затем </string>
     <string name="map_planner_summary_walk">пешком</string>
     <string name="map_planner_summary_bus">автобус %1$s</string>

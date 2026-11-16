@@ -79,10 +79,15 @@ internal fun JourneyEndpointBlock(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Box(
-                modifier = Modifier.size(36.dp).background(Color(if (isOrigin) ORIGIN_ARGB else DESTINATION_ARGB), CircleShape),
+                modifier = Modifier.size(36.dp).background(
+                    Color(if (endpoint is JourneyEndpoint.CurrentLocation) ORIGIN_ARGB else DESTINATION_ARGB), CircleShape,
+                ),
                 contentAlignment = Alignment.Center,
             ) {
-                Text(if (isOrigin) "A" else "B", color = Color.White, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                Icon(
+                    if (endpoint is JourneyEndpoint.CurrentLocation) MyLocationIcon else PlaceIcon,
+                    contentDescription = null, tint = Color.White, modifier = Modifier.size(20.dp),
+                )
             }
             Spacer(Modifier.width(TransitSpacing.Medium))
             EndpointSummary(isOrigin = isOrigin, endpoint = endpoint, modifier = Modifier.weight(1f))
@@ -96,7 +101,7 @@ internal fun JourneyEndpointBlock(
                 EndpointChoice(
                     icon = PlaceIcon,
                     label = Res.string.map_planner_pick_on_map,
-                    isChosen = endpoint !is JourneyEndpoint.CurrentLocation,
+                    isChosen = endpoint is JourneyEndpoint.MapPoint,
                     onClick = onPickPoint,
                     testTag = if (isOrigin) AutomationId.MapPlannerPickOrigin else AutomationId.MapPlannerPickDestination,
                 )
@@ -115,28 +120,18 @@ internal fun JourneyEndpointBlock(
 @Composable
 private fun EndpointSummary(isOrigin: Boolean, endpoint: JourneyEndpoint?, modifier: Modifier = Modifier) {
     val valueTag = if (isOrigin) AutomationId.MapPlannerOriginValue else AutomationId.MapPlannerDestinationValue
-    if (endpoint == null) {
-        Column(modifier = modifier) {
-            Text(
-                stringResource(if (isOrigin) Res.string.map_planner_origin else Res.string.map_planner_destination),
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            Text(
-                stringResource(Res.string.map_planner_not_set),
-                modifier = Modifier.testTag(valueTag),
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold,
-            )
-        }
-        return
-    }
-    val isMyLocation = endpoint is JourneyEndpoint.CurrentLocation
-    Row(modifier = modifier, verticalAlignment = Alignment.CenterVertically) {
-        Icon(if (isMyLocation) MyLocationIcon else PlaceIcon, contentDescription = null, modifier = Modifier.size(22.dp))
-        Spacer(Modifier.width(TransitSpacing.Small))
+    Column(modifier = modifier) {
         Text(
-            stringResource(if (isMyLocation) Res.string.map_planner_my_location else Res.string.map_planner_map_point),
+            stringResource(if (isOrigin) Res.string.map_planner_origin else Res.string.map_planner_destination),
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Text(
+            stringResource(when (endpoint) {
+                null -> Res.string.map_planner_not_set
+                JourneyEndpoint.CurrentLocation -> Res.string.map_planner_my_location
+                is JourneyEndpoint.MapPoint -> Res.string.map_planner_map_point
+            }),
             modifier = Modifier.testTag(valueTag),
             style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.SemiBold,
@@ -167,7 +162,7 @@ private fun EndpointChoice(icon: ImageVector, label: StringResource, isChosen: B
     }
 }
 
-private const val ORIGIN_ARGB = 0xFF2E7D32
+private const val ORIGIN_ARGB = 0xFFE9363C
 private const val DESTINATION_ARGB = 0xFF8E1B2D
 
 @Preview
