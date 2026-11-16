@@ -168,6 +168,10 @@ class JourneyPlannerReducerTest {
 
         assertIs<Status.AlreadyThere>(step.state.status)
         assertNull(step.query)
+        val line = step.state.render.lines.single()
+        assertEquals(JourneyPlanLineKind.Walk, line.kind)
+        assertEquals(listOf(A, GeoPoint(A.latitude + 0.0005, A.longitude)), line.points)
+        assertEquals(1, step.state.cameraFitRevision)
     }
 
     @Test

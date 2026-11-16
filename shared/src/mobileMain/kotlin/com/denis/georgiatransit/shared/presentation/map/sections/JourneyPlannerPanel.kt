@@ -1,9 +1,13 @@
 package com.denis.georgiatransit.shared.presentation.map.sections
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.CircularProgressIndicator
@@ -51,7 +55,6 @@ import georgiatransit.shared.generated.resources.map_planner_location_approximat
 import georgiatransit.shared.generated.resources.map_planner_location_locating
 import georgiatransit.shared.generated.resources.map_planner_location_permission
 import georgiatransit.shared.generated.resources.map_planner_pick_on_map
-import georgiatransit.shared.generated.resources.map_planner_refreshing
 import georgiatransit.shared.generated.resources.map_planner_retry
 import georgiatransit.shared.generated.resources.map_planner_stale
 import georgiatransit.shared.generated.resources.map_planner_swap
@@ -74,28 +77,35 @@ internal fun JourneyPlannerPanel(
     onSelectOption: (JourneyId) -> Unit,
     onRetry: () -> Unit,
     modifier: Modifier = Modifier,
+    headerModifier: Modifier = Modifier,
 ) {
     val status = planner.status
     Column(
         modifier = modifier.testTag(AutomationId.MapPlannerPanel),
         verticalArrangement = Arrangement.spacedBy(TransitSpacing.Small),
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(
-                stringResource(Res.string.map_planner_title),
-                modifier = Modifier.weight(1f),
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold,
+        Column(modifier = headerModifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
+            Box(
+                Modifier.size(width = 36.dp, height = 4.dp)
+                    .background(MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.45f), RoundedCornerShape(50)),
             )
-            Row(horizontalArrangement = Arrangement.spacedBy(TransitSpacing.Small)) {
-                // Swapping needs both points and clearing needs at least one, so the buttons appear only then.
-                if (planner.origin != null && planner.destination != null) {
-                    HeaderButton(SwapIcon, Res.string.map_planner_swap, onSwap, AutomationId.MapPlannerSwap)
+            Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    stringResource(Res.string.map_planner_title),
+                    modifier = Modifier.weight(1f),
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(TransitSpacing.Small)) {
+                    // Swapping needs both points and clearing needs at least one.
+                    if (planner.origin != null && planner.destination != null) {
+                        HeaderButton(SwapIcon, Res.string.map_planner_swap, onSwap, AutomationId.MapPlannerSwap)
+                    }
+                    if (planner.origin != null || planner.destination != null) {
+                        HeaderButton(TrashIcon, Res.string.map_planner_clear, onClear, AutomationId.MapPlannerClear)
+                    }
+                    HeaderButton(CloseIcon, Res.string.map_planner_close, onClose, AutomationId.MapPlannerClose)
                 }
-                if (planner.origin != null || planner.destination != null) {
-                    HeaderButton(TrashIcon, Res.string.map_planner_clear, onClear, AutomationId.MapPlannerClear)
-                }
-                HeaderButton(CloseIcon, Res.string.map_planner_close, onClose, AutomationId.MapPlannerClose)
             }
         }
         // Only the body scrolls, so the title and its actions stay reachable over long results.
@@ -176,7 +186,6 @@ private fun plannerStatusText(planner: JourneyPlannerUi): String? {
     val status = planner.status
     if (status is JourneyPlannerStatus.Results) {
         return when {
-            status.isRefreshing -> stringResource(Res.string.map_planner_refreshing)
             status.isStale -> stringResource(Res.string.map_planner_stale)
             else -> null
         }
@@ -208,7 +217,6 @@ private fun plannerStatusText(planner: JourneyPlannerUi): String? {
 }
 
 private fun JourneyPlannerStatus.isBusy(): Boolean = this == JourneyPlannerStatus.Loading ||
-    (this is JourneyPlannerStatus.Results && isRefreshing) ||
     (this is JourneyPlannerStatus.LocationNeeded && reason == JourneyLocationReason.Locating)
 
 private fun JourneyPlannerStatus.canRetry(): Boolean = (this is JourneyPlannerStatus.Error && retryable) ||

@@ -9,6 +9,7 @@ import android.util.DisplayMetrics
 import android.view.View
 import com.denis.georgiatransit.shared.domain.model.GeoPoint
 import org.maplibre.android.camera.CameraUpdateFactory
+import org.maplibre.android.camera.CameraPosition
 import org.maplibre.android.geometry.LatLng
 import org.maplibre.android.geometry.LatLngBounds
 import org.maplibre.android.maps.MapLibreMap
@@ -106,14 +107,14 @@ internal class JourneyMapLayers(private val metrics: DisplayMetrics) {
         val revision = overlay?.fitRevision?.takeIf { overlay.lines.isNotEmpty() } ?: return
         if (revision == fittedRevision || revision == pendingRevision) return
         pendingRevision = revision
-        // Results resize the planner panel in the same frame, so frame after the map is re-laid out.
+        // Allow the map to settle before framing the new plan.
         val generation = ++fitGeneration
         view.postDelayed({
             if (generation != fitGeneration) return@postDelayed
             pendingRevision = null
             if (view.height > 0) {
                 fittedRevision = revision
-                fit(map, overlay)
+                fit(map, overlay, view.height)
             }
         }, FIT_DELAY_MILLIS)
     }
@@ -124,7 +125,7 @@ internal class JourneyMapLayers(private val metrics: DisplayMetrics) {
         pendingRevision = null
     }
 
-    private fun fit(map: MapLibreMap, overlay: MapJourneyOverlay) {
+    private fun fit(map: MapLibreMap, overlay: MapJourneyOverlay, mapHeight: Int) {
         val points = (overlay.lines.flatMap { it.points } + listOfNotNull(overlay.origin, overlay.destination))
             .filter(GeoPoint::isMapCoordinate)
             .map { LatLng(it.latitude, it.longitude) }
@@ -133,10 +134,13 @@ internal class JourneyMapLayers(private val metrics: DisplayMetrics) {
         val padding = (FIT_PADDING_DP * metrics.density).toInt()
         val camera = map.getCameraForLatLngBounds(
             LatLngBounds.Builder().includes(points).build(),
-            intArrayOf(padding, padding, padding, padding),
+            intArrayOf(padding, padding, padding, padding + (mapHeight * PLANNER_OCCLUSION_FRACTION).toInt()),
         ) ?: return
-        val target = camera.target ?: return
-        val update = CameraUpdateFactory.newLatLngZoom(target, camera.zoom.coerceAtMost(MAX_FIT_ZOOM))
+        if (camera.target == null) return
+        // The fitted camera carries the asymmetric padding; discarding it centers the route under the sheet.
+        val update = CameraUpdateFactory.newCameraPosition(
+            CameraPosition.Builder(camera).zoom(camera.zoom.coerceAtMost(MAX_FIT_ZOOM)).build(),
+        )
         if (ValueAnimator.areAnimatorsEnabled()) map.animateCamera(update, FIT_DURATION_MILLIS) else map.moveCamera(update)
     }
 
@@ -219,6 +223,8 @@ private const val ORIGIN_COLOR = 0xFF2E7D32.toInt()
 private const val DESTINATION_COLOR = 0xFF8E1B2D.toInt()
 private const val ENDPOINT_DIAMETER_DP = 28f
 private const val ENDPOINT_STROKE_DP = 3f
+// Matches the expanded planner height in MapScreen.
+private const val PLANNER_OCCLUSION_FRACTION = 0.55f
 private const val FIT_PADDING_DP = 64f
 private const val FIT_DELAY_MILLIS = 250L
 private const val MAX_FIT_ZOOM = 17.0

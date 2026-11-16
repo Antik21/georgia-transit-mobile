@@ -105,7 +105,8 @@ final class MapLibreJourneyLayers {
             bounds.ne.latitude = max(bounds.ne.latitude, point.latitude)
             bounds.ne.longitude = max(bounds.ne.longitude, point.longitude)
         }
-        let padding = UIEdgeInsets(top: 64, left: 64, bottom: 64, right: 64)
+        // The planner overlays 55% of the map in its expanded position.
+        let padding = UIEdgeInsets(top: 64, left: 64, bottom: 64 + mapView.bounds.height * 0.55, right: 64)
         let animated = !UIAccessibility.isReduceMotionEnabled
         mapView.setVisibleCoordinateBounds(bounds, edgePadding: padding, animated: animated) { [weak mapView] in
             guard let mapView, mapView.zoomLevel > Self.maximumFitZoom else { return }

@@ -23,6 +23,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.onClick
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.unit.Dp
 import com.denis.georgiatransit.shared.presentation.map.MapBaseLayerState
 import com.denis.georgiatransit.shared.presentation.map.MapPlatformEvent
 import com.denis.georgiatransit.shared.presentation.map.MapRenderState
@@ -62,6 +63,7 @@ internal fun MapContentPlaceholder(
 internal fun MapCanvas(
     renderState: MapRenderState,
     baseLayerState: MapBaseLayerState,
+    bottomOverlayHeight: Dp,
     locationActionLabel: String,
     locationActionAutomationId: String,
     locationActionEnabled: Boolean,
@@ -159,7 +161,7 @@ internal fun MapCanvas(
                     start = TransitSpacing.Medium,
                     top = TransitSpacing.Medium,
                     end = TransitSpacing.Medium,
-                    bottom = TransitSpacing.ExtraLarge + TransitSpacing.Medium,
+                    bottom = bottomOverlayHeight + TransitSpacing.ExtraLarge + TransitSpacing.Medium,
                 ),
         )
         if (baseLayerState == MapBaseLayerState.BffStyle) {
@@ -169,6 +171,7 @@ internal fun MapCanvas(
                     .windowInsetsPadding(
                         WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal),
                     )
+                    .padding(bottom = bottomOverlayHeight)
                     .padding(TransitSpacing.ExtraSmall),
             )
         }
