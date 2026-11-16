@@ -50,7 +50,6 @@ internal fun JourneyPlannerSheet(
     val range = (maxPx - minPx).coerceAtLeast(0f)
     var collapsed by remember { mutableStateOf(false) }
     var dragging by remember { mutableStateOf(false) }
-    var nestedDragging by remember { mutableStateOf(false) }
     var beganCollapsed by remember { mutableStateOf(false) }
     var dragDistance by remember { mutableFloatStateOf(0f) }
     var dragOffset by remember { mutableFloatStateOf(0f) }
@@ -90,22 +89,7 @@ internal fun JourneyPlannerSheet(
     }
 
     val connection = remember(range) {
-        object : NestedScrollConnection {
-            override fun onPostScroll(consumed: Offset, available: Offset, source: NestedScrollSource): Offset {
-                if (source != NestedScrollSource.UserInput || available.y <= 0f) return Offset.Zero
-                nestedDragging = true
-                moveDrag(available.y)
-                return Offset(0f, available.y)
-            }
-
-            override suspend fun onPostFling(consumed: Velocity, available: Velocity): Velocity {
-                if (nestedDragging) {
-                    nestedDragging = false
-                    finishDrag()
-                }
-                return Velocity.Zero
-            }
-        }
+        JourneyPlannerNestedScrollConnection({ dragOffset }, ::moveDrag, ::finishDrag)
     }
     val dragState = rememberDraggableState { delta -> moveDrag(delta) }
     val headerModifier = Modifier
@@ -127,4 +111,36 @@ internal fun JourneyPlannerSheet(
         Modifier.height(with(density) { (maxPx - offset).coerceAtLeast(0f).toDp() }).nestedScroll(connection),
         headerModifier,
     )
+}
+
+/** Once the sheet takes a body drag, it also receives reverse movement until fully expanded. */
+internal class JourneyPlannerNestedScrollConnection(
+    private val sheetOffset: () -> Float,
+    private val moveSheet: (Float) -> Unit,
+    private val finishSheetDrag: () -> Unit,
+) : NestedScrollConnection {
+    private var dragging = false
+
+    override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
+        if (!dragging || source != NestedScrollSource.UserInput || available.y >= 0f) return Offset.Zero
+        val consumedY = available.y.coerceAtLeast(-sheetOffset().coerceAtLeast(0f))
+        if (consumedY == 0f) return Offset.Zero
+        moveSheet(consumedY)
+        return Offset(0f, consumedY)
+    }
+
+    override fun onPostScroll(consumed: Offset, available: Offset, source: NestedScrollSource): Offset {
+        if (source != NestedScrollSource.UserInput || available.y <= 0f) return Offset.Zero
+        dragging = true
+        moveSheet(available.y)
+        return Offset(0f, available.y)
+    }
+
+    override suspend fun onPostFling(consumed: Velocity, available: Velocity): Velocity {
+        if (dragging) {
+            dragging = false
+            finishSheetDrag()
+        }
+        return Velocity.Zero
+    }
 }
