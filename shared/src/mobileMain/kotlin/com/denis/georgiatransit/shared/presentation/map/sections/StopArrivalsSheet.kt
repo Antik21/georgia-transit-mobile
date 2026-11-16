@@ -30,6 +30,8 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionOnScreen
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.contentDescription
@@ -84,6 +86,7 @@ internal fun StopArrivalsSheet(
     sheet: StopArrivalsSheetUi,
     onDismiss: () -> Unit,
     onRetry: () -> Unit,
+    onTopPositioned: (Double) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val sheetState = rememberModalBottomSheetState()
@@ -110,6 +113,7 @@ internal fun StopArrivalsSheet(
             // ModalBottomSheet owns a separate Android semantics tree. Re-enable the bridge on
             // this in-sheet root so descendants retain their stable resource IDs on Android.
             modifier = Modifier.fillMaxWidth()
+                .onGloballyPositioned { onTopPositioned(it.positionOnScreen().y.toDouble()) }
                 .enableAutomationResourceIds()
                 .testTag(AutomationId.MapStopArrivalsSheet)
                 .padding(horizontal = TransitSpacing.Medium),

@@ -402,7 +402,11 @@ private final class LocalMapLibreView: UIView, MLNMapViewDelegate {
     }
 
     private func applyCameraIfNeeded(_ command: MapCameraCommand) {
-        guard lastAppliedCameraRevision != command.revision, isCoordinateValid(command.center), command.zoom.isFinite else { return }
+        guard lastAppliedCameraRevision != command.revision else {
+            applyViewportInsets(command.viewportInsets)
+            return
+        }
+        guard isCoordinateValid(command.center), command.zoom.isFinite else { return }
         let target = CLLocationCoordinate2D(latitude: command.center.latitude, longitude: command.center.longitude)
         let nextCamera = AppliedCamera(
             latitude: command.center.latitude,

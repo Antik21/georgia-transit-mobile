@@ -7,6 +7,21 @@ import kotlin.math.round
 
 /** Shared map viewport and sheet-inset normalization, independent of request state. */
 internal object MapViewportPolicy {
+    /** Layout owns occlusion; resizing a panel must not create a new focus command. */
+    fun insetsForLayout(
+        mapHeightPx: Int,
+        bottomOverlayHeightPx: Double,
+        mapTopPx: Double = 0.0,
+        modalTopPx: Double? = null,
+        fallback: MapViewportInsets = MapViewportInsets.None,
+    ): MapViewportInsets {
+        if (mapHeightPx <= 0) return fallback.normalized()
+        val modalHeight = modalTopPx?.takeIf(Double::isFinite)?.let { mapTopPx + mapHeightPx - it }
+            ?: (fallback.normalized().bottomOcclusionFraction * mapHeightPx)
+        val overlayHeight = bottomOverlayHeightPx.takeIf(Double::isFinite) ?: 0.0
+        return MapViewportInsets(maxOf(overlayHeight, modalHeight) / mapHeightPx).normalized()
+    }
+
     fun initialViewport(city: TransitCity): MapViewport = MapViewport(
         center = city.center,
         radiusMeters = initialRadiusMeters(city.defaultZoom),

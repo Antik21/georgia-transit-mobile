@@ -25,7 +25,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.Dp
-import com.denis.georgiatransit.shared.domain.model.GeoPoint
 import com.denis.georgiatransit.shared.presentation.location.LocationPermissionState
 import com.denis.georgiatransit.shared.presentation.location.LocationState
 import com.denis.georgiatransit.shared.presentation.map.sections.JourneyMapPickMarker
@@ -36,7 +35,7 @@ import com.denis.georgiatransit.shared.presentation.map.sections.MapContentPlace
 import com.denis.georgiatransit.shared.presentation.ui.automation.AutomationId
 import com.denis.georgiatransit.shared.presentation.ui.theme.TransitSpacing
 
-/** The native map with the planner overlays drawn above it: the centred pick marker or the tapped pin card. */
+/** The native map with planner overlays: the centred pick marker or the long-press pin card. */
 @Composable
 internal fun MapArea(
     renderState: MapRenderState?,
@@ -52,7 +51,6 @@ internal fun MapArea(
     onZoomClick: (MapZoomDirection) -> Unit,
     onCameraMovingChanged: (Boolean) -> Unit,
     onPointResolved: (MapPlatformEvent.MapPointResolved) -> Unit,
-    onTapMap: (GeoPoint) -> Unit,
     onDismissPin: () -> Unit,
     onRouteFromHere: () -> Unit,
     onRouteHere: () -> Unit,
@@ -85,10 +83,7 @@ internal fun MapArea(
                         }
                         is MapPlatformEvent.ViewportSettled -> onCameraMovingChanged(false)
                         is MapPlatformEvent.MapPointResolved -> onPointResolved(event)
-                        is MapPlatformEvent.MapTapped -> {
-                            pinAnchor = event.screen
-                            onTapMap(event.point)
-                        }
+                        is MapPlatformEvent.MapTapped -> if (currentHasPin) onDismissPin()
                         is MapPlatformEvent.MapLongPressed -> pinAnchor = event.screen
                         else -> Unit
                     }
@@ -108,7 +103,7 @@ internal fun MapArea(
             )
         } else {
             val visible = hasPin && pinAnchor != null
-            // The dismissing tap already moved pinAnchor, so the fade-out keeps the anchor it appeared at.
+            // Keep the last shown anchor while the card fades out after dismissal.
             val shownAnchor = remember { arrayOfNulls<MapScreenPoint>(1) }
             if (visible) shownAnchor[0] = pinAnchor
             AnimatedVisibility(visible = visible, enter = fadeIn(tween(PIN_FADE_MILLIS)), exit = fadeOut(tween(PIN_FADE_MILLIS))) {

@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -13,7 +14,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Button
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.IconButtonDefaults
@@ -251,9 +251,10 @@ internal fun JourneyPlannerPanel(
 @Composable
 private fun ResultsHeader(origin: JourneyEndpoint?, destination: JourneyEndpoint?, onEdit: () -> Unit) {
     Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-        IconButton(onClick = onEdit, modifier = Modifier.testTag(AutomationId.MapPlannerEdit)) {
-            Icon(BackArrowIcon, contentDescription = stringResource(Res.string.map_planner_back))
-        }
+        HeaderButton(
+            BackArrowIcon, Res.string.map_planner_back, onEdit, AutomationId.MapPlannerEdit,
+            modifier = Modifier.offset(x = -TransitSpacing.Small),
+        )
         EndpointChip(origin, Modifier.weight(1f))
         Text("→", modifier = Modifier.padding(horizontal = TransitSpacing.ExtraSmall))
         EndpointChip(destination, Modifier.weight(1f))
@@ -284,10 +285,16 @@ private fun EndpointChip(endpoint: JourneyEndpoint?, modifier: Modifier = Modifi
 }
 
 @Composable
-private fun HeaderButton(icon: ImageVector, label: StringResource, onClick: () -> Unit, testTag: String) {
+private fun HeaderButton(
+    icon: ImageVector,
+    label: StringResource,
+    onClick: () -> Unit,
+    testTag: String,
+    modifier: Modifier = Modifier,
+) {
     FilledTonalIconButton(
         onClick = onClick,
-        modifier = Modifier.size(44.dp).testTag(testTag),
+        modifier = modifier.size(44.dp).testTag(testTag),
         colors = IconButtonDefaults.filledTonalIconButtonColors(
             containerColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.06f),
             contentColor = MaterialTheme.colorScheme.onSurface,
