@@ -21,6 +21,10 @@ export function plannerSmoke({ send, evaluate, waitFor, tap, visible, testId, ma
   const card = (id) => `${testId('planner-option')}[data-option-id="batumi:fixture:journey:${id}"]`;
   const nearestText = `(document.querySelector('${testId('planner-nearest')}')?.textContent ?? '')`;
   const pressed = (selector) => `document.querySelector(${JSON.stringify(selector)})?.getAttribute('aria-pressed') === 'true'`;
+  async function findRoute() {
+    await waitFor('Both points are ready to plan', `document.querySelector('${testId('planner-find')}')?.disabled === false`);
+    await tap(testId('planner-find'));
+  }
 
   async function mapPoint(x, y) {
     return evaluate(`(() => {
@@ -57,6 +61,7 @@ export function plannerSmoke({ send, evaluate, waitFor, tap, visible, testId, ma
     await longPressAndChoose(0.35, 0.5, 'planner-route-here');
     await waitFor('The planner waits for the start point', pressed(testId('planner-pick-origin')));
     await longPress(0.65, 0.5);
+    await findRoute();
     await waitFor('The plan answers', `${options}.length === ${optionCount}`);
   }
 
@@ -76,6 +81,7 @@ export function plannerSmoke({ send, evaluate, waitFor, tap, visible, testId, ma
   }
 
   async function closePlanner() {
+    if (await evaluate(`Boolean(document.querySelector('${testId('planner-edit')}'))`)) await tap(testId('planner-edit'));
     await tap(testId('planner-close'));
     await waitFor('The planner closes', `!${panel}`);
   }
@@ -137,6 +143,11 @@ export function plannerSmoke({ send, evaluate, waitFor, tap, visible, testId, ma
       walks: option.querySelectorAll('${testId('planner-itinerary')} ${testId('planner-glyph-walk')}').length,
       walkSteps: Array.from(option.querySelectorAll('${testId('planner-leg-walk-icon')}'))
         .map((icon) => icon.querySelectorAll('${testId('planner-glyph-walk')}').length),
+      dottedWalks: Array.from(option.querySelectorAll('${testId('planner-leg-walk-icon')}')).map((icon) => ({
+        display: getComputedStyle(icon).display,
+        before: getComputedStyle(icon, '::before').borderTopStyle,
+        after: getComputedStyle(icon, '::after').borderTopStyle,
+      })),
       spoken: option.querySelector('${testId('planner-itinerary')} .visually-hidden')?.textContent,
     }))`);
   }
@@ -158,10 +169,12 @@ export function plannerSmoke({ send, evaluate, waitFor, tap, visible, testId, ma
         `${panel} && ${visible(testId('planner-pick-origin'))} && ${pressed(testId('planner-pick-origin'))}`);
       assert.equal(planRequests.length, 0, 'Without a granted location the planner waits for a start point');
       await longPress(0.7, 0.35);
+      assert.equal(planRequests.length, 0, 'Selecting both points does not start a request');
+      await findRoute();
       await waitFor('Choosing A by long press plans and shows the options',
         `${options}.length === ${optionCount} && ${optionText(0)}.includes('≈ 21 min') && ${optionText(0)}.includes('Walk to the stop: 300 m · 4 min')
-          && ${optionText(0)}.includes('6 stops · 11 min') && ${optionText(0)}.includes('wait 2 min · live bus')
-          && ${optionText(2)}.includes('Walk to the transfer') && ${optionText(2)}.includes('wait ≈ 4 min · estimate')
+          && ${optionText(0)}.includes('Walk to the destination: 300 m · 4 min')
+          && ${optionText(0)}.includes('6 stops · 11 min')
           && ${visible(testId('planner-disclaimer'))}`);
       assert.equal(await evaluate(`document.querySelectorAll('${testId('planner-mode')}').length`), 0, 'Mode chips are gone');
       const cards = await labelsAndItineraries();
@@ -171,13 +184,26 @@ export function plannerSmoke({ send, evaluate, waitFor, tap, visible, testId, ma
         [['leastWalking', 'Least walking', labelColors.leastWalking]],
         [],
       ], 'Labels keep their fixed order and colours; an unknown label is dropped');
-      assert.deepEqual(cards.map((option) => option.pills), [['B7'], ['B12'], ['B12', 'B7'], []]);
-      assert.deepEqual(cards.map((option) => option.walks), [2, 2, 3, 1]);
-      assert.ok(cards.every((option) => option.walkSteps.length > 0 && option.walkSteps.every((count) => count === 1)),
+      assert.deepEqual(cards.map((option) => option.pills), [[], ['B12'], ['B12', 'B7'], []]);
+      assert.deepEqual(cards.map((option) => option.walks), [0, 2, 3, 1]);
+      assert.ok(cards[0].walkSteps.length > 0 && cards[0].walkSteps.every((count) => count === 1),
         `Every walking step draws a walker on its dotted line: ${JSON.stringify(cards.map((option) => option.walkSteps))}`);
+      assert.ok(cards.every((option) => option.dottedWalks.every((icon) => icon.display === 'flex'
+        && icon.before === 'dotted' && icon.after === 'dotted')),
+      `Each walker has dotted lines on both sides: ${JSON.stringify(cards.map((option) => option.dottedWalks))}`);
+      assert.ok(!(await evaluate(`${optionText(1)}.includes('Estimated') || ${optionText(1)}.includes('estimate')`)),
+        'Estimated timing and waiting do not show an estimate label');
+      assert.ok(!(await evaluate(`Array.from(document.querySelectorAll('.planner-option-summary'))
+        .some((summary) => /Live buses|Partly live/.test(summary.textContent))`)),
+      'The card summary does not repeat live bus status');
+      assert.ok(!(await evaluate(`${optionText(0)}.includes('live bus')`)), 'The journey does not show technical live status');
       assert.equal(cards[2].spoken, 'Walk, then bus B12, then walk, then bus B7, then walk.');
-      await waitFor('The selected option shows arrival times without buses on the map',
-        async () => await evaluate(`${nearestText} === 'Nearest buses: 3 min, 11 min'`) && await highlightedBuses() === 0);
+      await waitFor('The planned and following bus arrivals are shown within the first ride',
+        async () => await evaluate(`${nearestText} === 'In: 3, 11 min'
+          && document.querySelector('${testId('planner-nearest')}')?.closest('.planner-leg-ride') !== null
+          && document.querySelector('${testId('planner-nearest')}')?.parentElement?.firstElementChild?.dataset.testid === 'planner-nearest'
+          && getComputedStyle(document.querySelector('${testId('planner-nearest')}')).fontWeight === '500'
+          && !${optionText(0)}.includes('wait ≈ 2 min')`) && await highlightedBuses() === 0);
       assert.equal(planRequests.length, 1);
       assertPrivateRequest(planRequests[0]);
       assert.equal(bffRequests.filter((path) => path === planPath).length, 1);
@@ -186,18 +212,23 @@ export function plannerSmoke({ send, evaluate, waitFor, tap, visible, testId, ma
 
       await tap(card('transfer'));
       await waitFor('Selecting another option redraws its lines without buses',
-        async () => await evaluate(`${pressed(card('transfer'))} && ${nearestText} === 'Nearest buses: 5 min'`)
+        async () => await evaluate(`${pressed(card('transfer'))} && !document.querySelector('${testId('planner-nearest')}')
+          && ${optionText(2)}.includes('Walk to the transfer') && ${optionText(2)}.includes('wait ≈ 4 min')`)
           && await mapContainsColor(plannerRouteColors.yellow, 75) && await highlightedBuses() === 0);
       await tap(card('walk'));
       await waitFor('A walk-only option shows no buses',
         async () => await evaluate(`${pressed(card('walk'))} && !document.querySelector('${testId('planner-nearest')}')`)
           && await highlightedBuses() === 0);
 
+      await tap(testId('planner-edit'));
       await tap(testId('planner-swap'));
-      await waitFor('Swap re-plans in the other direction', () => planRequests.length === 2);
+      assert.equal(planRequests.length, 1, 'Swapping points does not request a plan');
+      await findRoute();
+      await waitFor('Find route plans in the other direction', () => planRequests.length === 2);
       assert.deepEqual([planRequests[1].from, planRequests[1].to], [planRequests[0].to, planRequests[0].from]);
       await waitFor('Swapped options arrive', `${options}.length === ${optionCount}`);
 
+      await tap(testId('planner-edit'));
       await tap(testId('planner-clear'));
       await waitFor('Clear drops the options and the planned lines',
         async () => await evaluate(`${options}.length === 0 && ${statusText}.includes('Press and hold the map')`)
@@ -241,10 +272,10 @@ export function plannerSmoke({ send, evaluate, waitFor, tap, visible, testId, ma
       await longPressAndChoose(0.3, 0.65, 'planner-route-from-here');
       await waitFor('Route from here asks for the destination', pressed(testId('planner-pick-destination')));
       await longPress(0.7, 0.35);
+      await findRoute();
       await waitFor('A 501 answer shows the unavailable state', `${statusText}.includes("isn't available in this city")`);
       fixtureControl.planStatus = 200;
-      await tap(testId('planner-close'));
-      await waitFor('The close button leaves the planner', `!${panel}`);
+      await closePlanner();
     },
 
     /** With access granted, "Route here" starts at the device location; the BFF only sees a rounded point. */
@@ -252,13 +283,14 @@ export function plannerSmoke({ send, evaluate, waitFor, tap, visible, testId, ma
       const before = planRequests.length;
       await longPressAndChoose(0.15, 0.85, 'planner-route-here');
       await waitFor('Route here starts at my location when access is already granted',
-        `${panel} && document.querySelector('${testId('planner-origin-value')}')?.textContent === 'My location' && ${options}.length === ${optionCount}`);
+        `${panel} && document.querySelector('${testId('planner-origin-value')}')?.textContent === 'My location'`);
+      await findRoute();
+      await waitFor('The requested plan is shown', `${options}.length === ${optionCount}`);
       const request = planRequests.at(-1);
       assert.equal(planRequests.length, before + 1);
       assertPrivateRequest(request);
       assert.deepEqual(request.from, expected);
-      await tap(testId('planner-close'));
-      await waitFor('The planner closes', `!${panel}`);
+      await closePlanner();
     },
 
     /** A denied location still leaves point-to-point planning fully usable. */
@@ -267,15 +299,16 @@ export function plannerSmoke({ send, evaluate, waitFor, tap, visible, testId, ma
       await longPressAndChoose(0.3, 0.65, 'planner-route-here');
       await waitFor('Without access the start stays empty', `${panel} && ${pressed(testId('planner-pick-origin'))}`);
       await tap(testId('planner-my-location-origin'));
+      await findRoute();
       await waitFor('A denied My location explains itself and offers a map point',
         `${statusText}.includes('Allow location access') && ${visible(testId('planner-pick-instead'))}`);
       await tap(testId('planner-pick-instead'));
       await longPress(0.7, 0.35);
+      await findRoute();
       await waitFor('A map point plans despite the denied location', `${options}.length === ${optionCount}`);
       assert.equal(planRequests.length, before + 1);
       assertPrivateRequest(planRequests.at(-1));
-      await tap(testId('planner-close'));
-      await waitFor('The planner closes after the denied flow', `!${panel}`);
+      await closePlanner();
     },
   };
 }

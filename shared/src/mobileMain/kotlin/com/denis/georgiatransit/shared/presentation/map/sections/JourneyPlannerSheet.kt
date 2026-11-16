@@ -10,6 +10,7 @@ import androidx.compose.foundation.gestures.rememberDraggableState
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -38,9 +39,14 @@ import org.jetbrains.compose.resources.stringResource
 @Composable
 internal fun JourneyPlannerSheet(
     maxHeight: Dp,
+    floating: Boolean,
     onClose: () -> Unit,
     content: @Composable (Modifier, Modifier) -> Unit,
 ) {
+    if (!floating) {
+        content(Modifier.heightIn(max = maxHeight), Modifier)
+        return
+    }
     val density = LocalDensity.current
     val maxPx = with(density) { maxHeight.toPx() }
     val bottomInset = WindowInsets.safeDrawing.getBottom(density)

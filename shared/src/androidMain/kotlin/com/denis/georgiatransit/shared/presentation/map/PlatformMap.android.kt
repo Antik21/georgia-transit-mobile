@@ -1,5 +1,6 @@
 package com.denis.georgiatransit.shared.presentation.map
 
+import android.graphics.PointF
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.remember
@@ -9,6 +10,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import com.denis.georgiatransit.shared.domain.model.GeoPoint
 import org.maplibre.android.MapLibre
 import org.maplibre.android.maps.MapLibreMap
 import org.maplibre.android.maps.MapView
@@ -66,6 +68,7 @@ private class LocalMapController(
     private var latestState: MapRenderState? = null
     private var layersInstalled = false
     private var destroyed = false
+    private var lastPointRequestId: Long? = null
     private val camera = MapCameraAdapter(mapView, latestCommand = { latestState?.camera }, onEvent = onEvent)
     private val overlaySources = MapOverlaySources()
     private val vehicleBadges = VehicleBadgeLayer(mapView.resources)
@@ -110,6 +113,27 @@ private class LocalMapController(
         latestState = renderState
         styleLoader.request(renderState.bffStyleUrl)
         styleLoader.style?.let { installAndRender(it, renderState) } ?: camera.applyZoomStep(renderState.zoomStep)
+        renderState.pointRequest?.let(::resolvePointRequest)
+    }
+
+    private fun resolvePointRequest(request: MapPointRequest) {
+        if (lastPointRequestId == request.id) return
+        lastPointRequestId = request.id
+        mapView.post {
+            if (destroyed || latestState?.pointRequest != request) return@post
+            val currentMap = map
+            val point = if (currentMap != null && mapView.width > 0 && mapView.height > 0 &&
+                request.xFraction in 0.0..1.0 && request.yFraction in 0.0..1.0
+            ) {
+                val coordinate = currentMap.projection.fromScreenLocation(
+                    PointF((mapView.width * request.xFraction).toFloat(), (mapView.height * request.yFraction).toFloat()),
+                )
+                GeoPoint(coordinate.latitude, coordinate.longitude)
+            } else {
+                null
+            }
+            onEvent(MapPlatformEvent.MapPointResolved(request.id, point))
+        }
     }
 
     fun setLifecycleResumed(resumed: Boolean) {

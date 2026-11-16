@@ -67,6 +67,10 @@ data class MapViewport(
 @Immutable
 data class MapScreenPoint(val x: Float, val y: Float)
 
+/** One-shot request to project a point in the map view; coordinates are fractions of its bounds. */
+@Immutable
+data class MapPointRequest(val id: Long, val xFraction: Double, val yFraction: Double)
+
 /** Native map input is reduced to product-level viewport and revision-bound entity interactions. */
 sealed interface MapPlatformEvent {
     data class ViewportSettled(val viewport: MapViewport) : MapPlatformEvent
@@ -76,6 +80,8 @@ sealed interface MapPlatformEvent {
     data class MapLongPressed(val point: GeoPoint, val screen: MapScreenPoint? = null) : MapPlatformEvent
     /** A single tap that hit no stop or vehicle. */
     data class MapTapped(val point: GeoPoint, val screen: MapScreenPoint) : MapPlatformEvent
+    /** Response to a [MapPointRequest], resolved against the live map projection. */
+    data class MapPointResolved(val requestId: Long, val point: GeoPoint?) : MapPlatformEvent
     /** Any camera motion begins; the next [ViewportSettled] ends it. */
     data object CameraMoveStarted : MapPlatformEvent
 }
@@ -212,6 +218,8 @@ data class MapRenderState(
     val zoomStep: MapZoomStep? = null,
     /** The A→B planner overlay; null when neither a plan nor a long-press pin is shown. */
     val journey: MapJourneyOverlay? = null,
+    /** UI-owned one-shot map projection; does not move the camera. */
+    val pointRequest: MapPointRequest? = null,
 ) {
     /**
      * Converts arbitrary caller-owned iterables into persistent snapshots, which is the convenient

@@ -48,6 +48,8 @@ const view = createTransitView(root, {
   zoomIn: () => activeMap?.bridge.zoomIn(),
   zoomOut: () => activeMap?.bridge.zoomOut(),
   closePlanner: () => activeMap?.bridge.planner.close(),
+  editPlannerPoints: () => activeMap?.bridge.planner.editPoints(),
+  findPlannerRoute: () => activeMap?.bridge.planner.findRoute(),
   pickPointFor: (side) => activeMap?.bridge.planner.pickPointFor(side),
   useMyLocationFor: (side) => activeMap?.bridge.planner.useMyLocationFor(side),
   swapPlanner: () => activeMap?.bridge.planner.swap(),
@@ -59,6 +61,7 @@ const copy = getCopy(language);
 
 const telegram = connectTelegram(() => {
   if (activeRoutes) activeRoutes.cancel();
+  else if (activeMap?.planner?.showingResults) activeMap.bridge.planner.editPoints();
   else if (activeMap?.planner?.open) activeMap.bridge.planner.close();
   else activeMap?.bridge.dismissArrivals();
 });

@@ -34,15 +34,27 @@ internal data class JourneyBusesUpdate(
 )
 
 internal object JourneyBusesProjector {
-    const val COUNT = 2
+    private const val MAX_INTERVAL_MINUTES = 45
 
-    /** The two vehicles that reach the boarding stop first on the leg's route, soonest first. */
-    fun soonest(arrivals: List<TransitArrival>, boarding: JourneyBoarding): List<Pair<VehicleId, Int>> = arrivals
-        .filter { it.routeId == boarding.routeId && !it.cancelled }
-        .mapNotNull { arrival -> arrival.vehicleId?.let { id -> arrival.expectedInMinutes?.let { id to it } } }
-        .distinctBy { it.first }
-        .sortedBy { it.second }
-        .take(COUNT)
+    /** The first bus is the one in the plan; a later bus at the same stop and route may follow it. */
+    fun soonest(arrivals: List<TransitArrival>, boarding: JourneyBoarding): List<Pair<VehicleId, Int>> {
+        val plannedVehicleId = boarding.plannedVehicleId ?: return emptyList()
+        val candidates = arrivals.asSequence()
+            .filter { it.stopId == boarding.stopId && it.routeId == boarding.routeId && !it.cancelled }
+            .mapNotNull { arrival ->
+                val id = arrival.vehicleId ?: return@mapNotNull null
+                val minutes = arrival.expectedInMinutes?.takeIf { it >= 0 } ?: return@mapNotNull null
+                id to minutes
+            }
+            .sortedBy { it.second }
+            .distinctBy { it.first }
+            .toList()
+        val first = candidates.firstOrNull { it.first == plannedVehicleId } ?: return emptyList()
+        val second = candidates.firstOrNull { (id, minutes) ->
+            id != plannedVehicleId && minutes >= first.second && minutes - first.second <= MAX_INTERVAL_MINUTES
+        }
+        return listOfNotNull(first, second)
+    }
 
     fun project(option: JourneyOptionUi, update: JourneyBusesUpdate): JourneyBusesUi {
         val route = option.legs.filterIsInstance<JourneyLegUi.Ride>().first { it.route.routeId == option.boarding?.routeId }.route
@@ -104,8 +116,10 @@ internal class JourneyBusesWorkflow(
             launch {
                 while (true) {
                     val page = guarded { repository.arrivals(key.cityId, key.boarding.stopId, ARRIVALS_LIMIT, key.locale) }
-                    // A failed poll keeps the last known buses; there is no error state for this hint.
-                    if (page is TransitLoadResult.Data) soonest = JourneyBusesProjector.soonest(page.value.items, key.boarding)
+                    // A stale or failed response cannot support a current countdown.
+                    soonest = if (page is TransitLoadResult.Data && !page.value.stale) {
+                        JourneyBusesProjector.soonest(page.value.items, key.boarding)
+                    } else emptyList()
                     refreshPositions()
                     publish()
                     delay(arrivalsIntervalMillis)

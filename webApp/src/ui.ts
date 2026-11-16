@@ -128,7 +128,8 @@ export function createTransitView(root: HTMLElement, actions: ViewActions, langu
       actions.cancelRoutes();
     } else if (screen === "map" && planner?.open) {
       event.preventDefault();
-      actions.closePlanner();
+      if (planner.showingResults) actions.editPlannerPoints();
+      else actions.closePlanner();
     } else if (screen === "map" && panelKey) {
       event.preventDefault();
       actions.dismissArrivals();

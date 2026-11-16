@@ -35,6 +35,7 @@ enum MapLibreMapViewBridge {
 private final class LocalMapLibreView: UIView, MLNMapViewDelegate {
     private let mapView: MLNMapView
     private var pendingRenderState: MapRenderState?
+    private var lastPointRequestId: Int64?
     private var layersInstalled = false
     private var requestedBffStyleURL: URL?
     private var lastAppliedCameraRevision: Int64?
@@ -130,6 +131,27 @@ private final class LocalMapLibreView: UIView, MLNMapViewDelegate {
             render(renderState, style: style)
         }
         applyZoomStep(renderState.zoomStep)
+        if let request = renderState.pointRequest { resolvePointRequest(request) }
+    }
+
+    private func resolvePointRequest(_ request: MapPointRequest) {
+        guard lastPointRequestId != request.id else { return }
+        lastPointRequestId = request.id
+        DispatchQueue.main.async { [weak self] in
+            guard let self, !self.released, self.pendingRenderState?.pointRequest?.id == request.id else { return }
+            var point: GeoPoint?
+            if !self.mapView.bounds.isEmpty, (0...1).contains(request.xFraction), (0...1).contains(request.yFraction) {
+                let screenPoint = CGPoint(
+                    x: self.mapView.bounds.width * request.xFraction,
+                    y: self.mapView.bounds.height * request.yFraction
+                )
+                let coordinate = self.mapView.convert(screenPoint, toCoordinateFrom: self.mapView)
+                if CLLocationCoordinate2DIsValid(coordinate) {
+                    point = GeoPoint(latitude: coordinate.latitude, longitude: coordinate.longitude)
+                }
+            }
+            _ = self.onMapEvent(MapPlatformEventMapPointResolved(requestId: request.id, point: point))
+        }
     }
 
     /** After render(): a camera command applied later would overwrite the zoom, so taps wait for the first one. */

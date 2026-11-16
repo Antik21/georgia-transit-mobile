@@ -18,6 +18,7 @@ import com.denis.georgiatransit.shared.domain.model.TransitJourney
 import com.denis.georgiatransit.shared.domain.model.TransitJourneySegment
 import com.denis.georgiatransit.shared.domain.model.TransitLocale
 import com.denis.georgiatransit.shared.domain.model.TransitRoute
+import com.denis.georgiatransit.shared.domain.model.VehicleId
 import com.denis.georgiatransit.shared.domain.repository.TransitFailure
 import com.denis.georgiatransit.shared.domain.repository.TransitFreshness
 import com.denis.georgiatransit.shared.domain.repository.TransitLoadResult
@@ -59,20 +60,24 @@ class JourneyPlannerReducerTest {
         assertEquals(Status.PickingPoint(JourneyPlanSide.Origin), denied.state.status)
         assertNull(denied.location)
         assertEquals(JourneyEndpoint.CurrentLocation, granted.state.origin)
-        assertEquals(Status.Loading, granted.state.status)
-        assertEquals(A, assertNotNull(granted.query).from)
-        assertEquals(A, granted.currentPoint)
+        assertEquals(Status.Idle, granted.state.status)
+        assertNull(granted.query)
+        val submitted = JourneyPlannerReducer.action(granted.state, JourneyPlannerAction.FindRoute, context(location = fix(A)))
+        assertEquals(A, assertNotNull(submitted.query).from)
+        assertEquals(A, submitted.currentPoint)
     }
 
     @Test
-    fun pickingAPointByLongPressCompletesThePlanWithRoundedCoordinates() {
+    fun pickingAPointByLongPressWaitsForSubmission() {
         val picking = JourneyPlannerUi(isOpen = true, destination = JourneyEndpoint.MapPoint(B),
             status = Status.PickingPoint(JourneyPlanSide.Origin))
 
         val step = JourneyPlannerReducer.longPress(picking, GeoPoint(41.640049, 41.630051), context(location = denied()))
 
-        assertEquals(Status.Loading, step.state.status)
-        assertEquals(GeoPoint(41.64, 41.6301), assertNotNull(step.query).from)
+        assertEquals(Status.Idle, step.state.status)
+        assertNull(step.query)
+        val submitted = JourneyPlannerReducer.action(step.state, JourneyPlannerAction.FindRoute, context())
+        assertEquals(GeoPoint(41.64, 41.6301), assertNotNull(submitted.query).from)
         assertNull(step.state.pin)
         assertEquals(GeoPoint(41.640049, 41.630051), step.state.render.origin, "Markers keep the exact chosen point")
     }
@@ -99,7 +104,7 @@ class JourneyPlannerReducerTest {
     }
 
     @Test
-    fun confirmingTheCentredMarkerSetsThatSideAndPlans() {
+    fun confirmingTheCentredMarkerSetsThatSideWithoutPlanning() {
         val open = JourneyPlannerUi(isOpen = true, pin = A, destination = JourneyEndpoint.MapPoint(B),
             status = Status.PickingPoint(JourneyPlanSide.Origin))
 
@@ -112,8 +117,8 @@ class JourneyPlannerReducerTest {
         assertEquals(picking.state, ignored.state, "A long press must not compete with the centred marker")
         assertNull(step.state.mapPick)
         assertEquals(JourneyEndpoint.MapPoint(A), step.state.origin)
-        assertEquals(Status.Loading, step.state.status)
-        assertEquals(A, assertNotNull(step.query).from)
+        assertEquals(Status.Idle, step.state.status)
+        assertNull(step.query)
     }
 
     @Test
@@ -131,7 +136,7 @@ class JourneyPlannerReducerTest {
     }
 
     @Test
-    fun myLocationMovesInsteadOfDuplicatingAndAsksThroughTheExplicitFlow() {
+    fun myLocationMovesInsteadOfDuplicatingWithoutRequestingPermissionWhileEditing() {
         val open = JourneyPlannerUi(isOpen = true, origin = JourneyEndpoint.CurrentLocation,
             destination = JourneyEndpoint.MapPoint(B), status = Status.Loading)
 
@@ -140,7 +145,7 @@ class JourneyPlannerReducerTest {
         assertNull(step.state.origin)
         assertEquals(JourneyEndpoint.CurrentLocation, step.state.destination)
         assertEquals(Status.PickingPoint(JourneyPlanSide.Origin), step.state.status)
-        assertEquals(JourneyLocationRequest.Explicit, step.location)
+        assertNull(step.location)
     }
 
     @Test
@@ -164,7 +169,8 @@ class JourneyPlannerReducerTest {
         val planner = JourneyPlannerUi(pin = GeoPoint(A.latitude + 0.0005, A.longitude),
             origin = JourneyEndpoint.MapPoint(A), isOpen = true, status = Status.PickingPoint(JourneyPlanSide.Destination))
 
-        val step = JourneyPlannerReducer.action(planner, JourneyPlannerAction.RouteHere, context(location = denied()))
+        val edited = JourneyPlannerReducer.action(planner, JourneyPlannerAction.RouteHere, context(location = denied()))
+        val step = JourneyPlannerReducer.action(edited.state, JourneyPlannerAction.FindRoute, context(location = denied()))
 
         assertIs<Status.AlreadyThere>(step.state.status)
         assertNull(step.query)
@@ -175,7 +181,7 @@ class JourneyPlannerReducerTest {
     }
 
     @Test
-    fun swapExchangesBothSidesUnchangedAndReplans() {
+    fun swapExchangesBothSidesWithoutReplanning() {
         val planner = JourneyPlannerUi(isOpen = true, origin = JourneyEndpoint.CurrentLocation,
             destination = JourneyEndpoint.MapPoint(B), status = Status.Empty)
 
@@ -183,8 +189,20 @@ class JourneyPlannerReducerTest {
 
         assertEquals(JourneyEndpoint.MapPoint(B), step.state.origin)
         assertEquals(JourneyEndpoint.CurrentLocation, step.state.destination)
-        assertEquals(B, assertNotNull(step.query).from)
-        assertEquals(A, step.query?.to)
+        assertNull(step.query)
+        val submitted = JourneyPlannerReducer.action(step.state, JourneyPlannerAction.FindRoute, context(location = fix(A)))
+        assertEquals(B, assertNotNull(submitted.query).from)
+        assertEquals(A, submitted.query?.to)
+    }
+
+    @Test
+    fun repeatedFindWhileLoadingDoesNotStartAnotherRequest() {
+        val editing = JourneyPlannerUi(isOpen = true, origin = JourneyEndpoint.MapPoint(A), destination = JourneyEndpoint.MapPoint(B))
+        val first = JourneyPlannerReducer.action(editing, JourneyPlannerAction.FindRoute, context())
+        val repeated = JourneyPlannerReducer.action(first.state, JourneyPlannerAction.FindRoute, context())
+        assertNotNull(first.query)
+        assertNull(repeated.query)
+        assertEquals(Status.Loading, repeated.state.status)
     }
 
     @Test
@@ -331,6 +349,20 @@ class JourneyPlannerReducerTest {
     }
 
     @Test
+    fun boardingKeepsOnlyTheVehicleConfirmedByThePlan() {
+        val vehicle = VehicleId("demo:fixture:vehicle:one")
+        val original = journey("one")
+        fun option(basis: JourneyWaitBasis): JourneyOptionUi {
+            val segments = original.segments.map {
+                if (it.mode == JourneySegmentMode.Transit) it.copy(waitBasis = basis, vehicleId = vehicle) else it
+            }
+            return JourneyPlanUiMapper.options(JourneyPage(listOf(original.copy(segments = segments)), NOW), routes).single()
+        }
+        assertEquals(vehicle, option(JourneyWaitBasis.LiveVehicle).boarding?.plannedVehicleId)
+        assertNull(option(JourneyWaitBasis.HeadwayEstimate).boarding?.plannedVehicleId)
+    }
+
+    @Test
     fun labelsUseTheFixedDisplayOrderAndTheFirstServerOptionIsSelected() {
         val loading = JourneyPlannerUi(isOpen = true, origin = JourneyEndpoint.MapPoint(A),
             destination = JourneyEndpoint.MapPoint(B), status = Status.Loading)
@@ -345,6 +377,17 @@ class JourneyPlannerReducerTest {
         assertTrue(results.options[1].labels.isEmpty())
         val boarding = assertNotNull(results.options[0].boarding)
         assertEquals(STOP_A to ROUTE, boarding.stopId to boarding.routeId)
+    }
+
+    @Test
+    fun optionsAreOrderedByActualDurationAndFastestIsSelected() {
+        val slow = journey("slow").copy(durationSeconds = 1_201)
+        val fast = journey("fast").copy(durationSeconds = 1_141)
+        val loading = JourneyPlannerUi(isOpen = true, showingResults = true, status = Status.Loading)
+        val page = TransitLoadResult.Data(JourneyPage(listOf(slow, fast), NOW), TransitFreshness.Network)
+        val results = assertIs<Status.Results>(JourneyPlannerReducer.outcome(loading, page, context()).state.status)
+        assertEquals(listOf("demo:fixture:journey:fast", "demo:fixture:journey:slow"), results.options.map { it.id.value })
+        assertEquals(results.options.first().id, results.selectedId)
     }
 
     private fun retry(planner: JourneyPlannerUi, location: LocationState) =
