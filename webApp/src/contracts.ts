@@ -299,6 +299,7 @@ export interface PlannerRoute {
 
 export interface PlannerState {
   readonly open: boolean;
+  readonly showingResults: boolean;
   readonly status: string;
   readonly pin: PlannerPoint | null | undefined;
   readonly origin: PlannerEndpoint;
@@ -326,6 +327,8 @@ export interface PlannerEntry {
   pickPointFor(side: string): void;
   swap(): void;
   clear(): void;
+  findRoute(): void;
+  editPoints(): void;
   selectOption(id: string): void;
   retry(): void;
   close(): void;

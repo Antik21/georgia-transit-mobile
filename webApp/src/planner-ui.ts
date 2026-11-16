@@ -6,6 +6,8 @@ type Copy = ReturnType<typeof getCopy>;
 
 export interface PlannerActions {
   closePlanner(): void;
+  editPlannerPoints(): void;
+  findPlannerRoute(): void;
   pickPointFor(side: string): void;
   useMyLocationFor(side: string): void;
   swapPlanner(): void;
@@ -18,10 +20,21 @@ export interface PlannerActions {
 export function renderPlannerPanel(state: PlannerState, copy: Copy, actions: PlannerActions, language: string) {
   const panel = element("div", "panel-content planner-panel");
   panel.dataset.testid = "planner-panel";
-  const close = button("back-button", "", actions.closePlanner, "planner-close");
+  const close = button("back-button", "", state.showingResults ? actions.editPlannerPoints : actions.closePlanner,
+    state.showingResults ? "planner-edit" : "planner-close");
   close.dataset.focusKey = "planner-close";
   close.append(icon("arrow-left"), element("span", "", copy.plannerClose));
-  panel.append(close, heading(copy.plannerTitle), endpoints(state, copy, actions));
+  if (state.showingResults) {
+    const header = element("div", "planner-results-header");
+    header.append(close, element("span", "planner-endpoint-chip", endpointLabel(state.origin, copy)),
+      element("span", "planner-header-arrow", "→"), element("span", "planner-endpoint-chip", endpointLabel(state.destination, copy)));
+    panel.append(header);
+  } else {
+    panel.append(close, heading(copy.plannerTitle), endpoints(state, copy, actions));
+    const find = button("primary-button planner-find", copy.plannerFind, actions.findPlannerRoute, "planner-find");
+    find.disabled = state.origin.kind === "none" || state.destination.kind === "none" || state.status === "unavailable";
+    panel.append(find);
+  }
 
   const message = statusText(state, copy);
   if (message) {
@@ -42,9 +55,11 @@ export function renderPlannerPanel(state: PlannerState, copy: Copy, actions: Pla
     for (const option of state.options) list.append(optionCard(option, copy, actions, language));
     panel.append(list);
   }
-  const disclaimer = element("p", "planner-disclaimer", copy.plannerDisclaimer);
-  disclaimer.dataset.testid = "planner-disclaimer";
-  panel.append(disclaimer);
+  if (state.showingResults) {
+    const disclaimer = element("p", "planner-disclaimer", copy.plannerDisclaimer);
+    disclaimer.dataset.testid = "planner-disclaimer";
+    panel.append(disclaimer);
+  }
   return panel;
 }
 
@@ -110,12 +125,14 @@ function optionCard(option: PlannerOption, copy: Copy, actions: PlannerActions, 
     element("strong", "planner-option-total", format(copy.plannerTotal, option.totalMinutes)),
     element("span", "planner-option-arrival", copy.plannerArrival.replace("%1$s", clock(option.arrivalEpochMillis, language))),
   );
-  const timing = { live: copy.plannerTimingLive, mixed: copy.plannerTimingMixed, estimated: copy.plannerTimingEstimated }[option.timing ?? ""];
+  const timing = { live: copy.plannerTimingLive, mixed: copy.plannerTimingMixed }[option.timing ?? ""];
   if (timing) summary.append(element("span", "planner-option-timing", timing));
   const legs = element("span", "planner-legs");
   for (const leg of option.legs) legs.append(legRow(leg, copy));
-  card.append(summary, itinerary(option.legs, copy), legs);
-  if (option.nearestEtas.length) {
+  card.append(summary);
+  if (option.selected) card.append(legs);
+  else card.append(itinerary(option.legs, copy));
+  if (option.selected && option.nearestEtas.length) {
     const nearest = element("span", "planner-nearest",
       copy.plannerNearest.replace("%1$s", option.nearestEtas.map((minutes) => format(copy.plannerMinutes, minutes)).join(", ")));
     nearest.dataset.testid = "planner-nearest";
@@ -192,7 +209,8 @@ function legRow(leg: PlannerLeg, copy: Copy) {
     const role = { access: copy.plannerWalkAccess, transfer: copy.plannerWalkTransfer, egress: copy.plannerWalkEgress }[leg.role ?? ""]
       ?? copy.plannerWalkDirect;
     const parts = [leg.meters != null ? format(copy.plannerMeters, leg.meters) : null, format(copy.plannerMinutes, leg.minutes)];
-    const walkIcon = icon("planner-walk-icon");
+    const walkIcon = element("span", "planner-walk-icon");
+    walkIcon.setAttribute("aria-hidden", "true");
     walkIcon.dataset.testid = "planner-leg-walk-icon";
     walkIcon.append(glyph("walk"));
     row.append(walkIcon, element("span", "planner-leg-detail", `${role}: ${parts.filter(Boolean).join(" · ")}`));

@@ -562,6 +562,10 @@ body { background: var(--background); color: var(--ink); }
 }
 .transit-app .planner-option[aria-pressed="true"] { border: 2px solid var(--primary); background: var(--tint); }
 .planner-option-summary { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; }
+.planner-results-header { display: flex; align-items: center; gap: 6px; min-inline-size: 0; }
+.planner-endpoint-chip { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 8px; border-radius: 20px; background: var(--tint); font-size: 0.78rem; }
+.planner-header-arrow { flex: none; }
+.planner-find { inline-size: 100%; }
 .planner-option-total { font-size: 1.05rem; font-variant-numeric: tabular-nums; }
 .planner-option-arrival, .planner-option-timing { color: var(--muted); font-size: 0.8rem; }
 .planner-labels { display: flex; flex-wrap: wrap; gap: 4px; }

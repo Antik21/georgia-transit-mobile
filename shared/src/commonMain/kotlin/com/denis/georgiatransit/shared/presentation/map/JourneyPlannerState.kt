@@ -30,6 +30,8 @@ data class JourneyPlannerUi(
     val pin: GeoPoint? = null,
     val origin: JourneyEndpoint? = null,
     val destination: JourneyEndpoint? = null,
+    /** True after the user requests a plan, including loading and error states. */
+    val showingResults: Boolean = false,
     val status: JourneyPlannerStatus = JourneyPlannerStatus.Idle,
     val render: JourneyPlanRenderUi = JourneyPlanRenderUi(),
     /** The soonest buses for the selected option's first boarding; kept apart from [render] so they never re-frame the map. */
@@ -169,6 +171,8 @@ sealed interface JourneyPlannerAction : Action {
     data object CancelMapPick : JourneyPlannerAction
     data object Swap : JourneyPlannerAction
     data object Clear : JourneyPlannerAction
+    data object FindRoute : JourneyPlannerAction
+    data object EditPoints : JourneyPlannerAction
     data class SelectOption(val id: JourneyId) : JourneyPlannerAction
     data object Retry : JourneyPlannerAction
     data object ClosePlanner : JourneyPlannerAction

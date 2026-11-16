@@ -139,6 +139,7 @@ private fun Content(state: ViewState, connectionNoticeId: Int, onAction: (Action
                 when {
                     mapPick != null -> JourneyPlannerAction.CancelMapPick
                     planner.pin != null -> JourneyPlannerAction.DismissPin
+                    planner.showingResults -> JourneyPlannerAction.EditPoints
                     else -> JourneyPlannerAction.ClosePlanner
                 },
             )
@@ -219,12 +220,18 @@ private fun Content(state: ViewState, connectionNoticeId: Int, onAction: (Action
             Box(modifier = Modifier.align(Alignment.BottomCenter).onSizeChanged {
                 sheetHeight = with(density) { it.height.toDp() }
             }) {
-                JourneyPlannerSheet(maxHeight = panelMaxHeight, onClose = { onAction(JourneyPlannerAction.ClosePlanner) }) { sheetModifier, headerModifier ->
+                JourneyPlannerSheet(
+                    maxHeight = panelMaxHeight,
+                    floating = planner.showingResults,
+                    onClose = { onAction(JourneyPlannerAction.ClosePlanner) },
+                ) { sheetModifier, headerModifier ->
                     JourneyPlannerPanel(
                         planner = planner,
                         expandedSide = expandedSide,
                         onToggleSide = { side -> expandedSide = side.takeIf { it != expandedSide } },
                         onClose = { onAction(JourneyPlannerAction.ClosePlanner) },
+                        onEdit = { onAction(JourneyPlannerAction.EditPoints) },
+                        onFind = { onAction(JourneyPlannerAction.FindRoute) },
                         onPickPoint = { side -> onAction(JourneyPlannerAction.StartMapPick(side)) },
                         onUseMyLocation = { side ->
                             if (side.endpointIn(planner) == JourneyEndpoint.CurrentLocation) expandedSide = null

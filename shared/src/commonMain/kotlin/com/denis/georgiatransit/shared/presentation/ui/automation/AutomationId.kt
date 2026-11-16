@@ -69,6 +69,8 @@ object AutomationId {
     const val MapPlannerMyLocationDestination = "map.planner.destination.my-location"
     const val MapPlannerSwap = "map.planner.swap"
     const val MapPlannerClear = "map.planner.clear"
+    const val MapPlannerFind = "map.planner.find"
+    const val MapPlannerEdit = "map.planner.edit"
     const val MapPlannerStatus = "map.planner.status"
     const val MapPlannerRetry = "map.planner.retry"
     const val MapPlannerPickInstead = "map.planner.pick-instead"

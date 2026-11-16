@@ -128,7 +128,7 @@
     <string name="routes_row_unselected">Не выбрано</string>
     <string name="routes_row_limit_reached">Достигнут лимит выбора</string>
     <string name="loading">Загружаем транспортные данные…</string>
-    <string name="map_planner_title">Маршрут</string>
+    <string name="map_planner_title">Построить маршрут</string>
     <string name="map_planner_route_here">Маршрут сюда</string>
     <string name="map_planner_route_from_here">Маршрут отсюда</string>
     <string name="map_planner_build_route">Построить маршрут</string>
@@ -148,6 +148,7 @@
     <string name="map_planner_map_pick_body">Переместите карту под маркер, чтобы указать нужное место.</string>
     <string name="map_planner_map_pick_confirm">Выбрать</string>
     <string name="map_planner_back">Назад</string>
+    <string name="map_planner_find">Найти маршрут</string>
     <string name="map_planner_incomplete">Нажмите и удерживайте карту, чтобы выбрать точку.</string>
     <string name="map_planner_swap">Поменять местами</string>
     <string name="map_planner_clear">Очистить</string>
@@ -174,11 +175,12 @@
     <string name="map_planner_walk_transfer">Пешком до пересадки</string>
     <string name="map_planner_walk_egress">Пешком до места</string>
     <string name="map_planner_walk_direct">Пешком</string>
+    <string name="map_planner_transfer_wait">Пересадка и ожидание</string>
     <string name="map_planner_meters">%1$d м</string>
     <string name="map_planner_minutes">%1$d мин</string>
     <string name="map_planner_stops">%1$d ост.</string>
     <string name="map_planner_wait_live">ожидание %1$d мин · автобус онлайн</string>
-    <string name="map_planner_wait_estimate">ожидание ≈ %1$d мин · оценка</string>
+    <string name="map_planner_wait_estimate">ожидание ≈ %1$d мин</string>
     <string name="map_planner_timing_live">Автобусы онлайн</string>
     <string name="map_planner_timing_mixed">Частично онлайн</string>
     <string name="map_planner_timing_estimated">Оценка</string>
