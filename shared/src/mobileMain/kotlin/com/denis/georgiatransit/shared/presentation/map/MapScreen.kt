@@ -30,6 +30,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionOnScreen
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.intl.Locale
@@ -42,7 +44,6 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.navigationevent.NavigationEventInfo
 import androidx.navigationevent.compose.NavigationBackHandler
 import androidx.navigationevent.compose.rememberNavigationEventState
-import com.denis.georgiatransit.shared.domain.model.GeoPoint
 import com.denis.georgiatransit.shared.domain.model.JourneyEndpoint
 import com.denis.georgiatransit.shared.domain.model.RouteId
 import com.denis.georgiatransit.shared.domain.model.TransitAttribution
@@ -143,19 +144,32 @@ private fun Content(state: ViewState, connectionNoticeId: Int, onAction: (Action
     val density = LocalDensity.current
     var sheetHeight by remember { mutableStateOf(0.dp) }
     var mapHeightPx by remember { mutableIntStateOf(0) }
+    var mapTopPx by remember { mutableStateOf(0.0) }
+    var stopSheetTopPx by remember(state.stopArrivalsSheet?.stopId) { mutableStateOf<Double?>(null) }
     var pickPanelHeightPx by remember(mapPick) { mutableIntStateOf(0) }
     val mapOverlayHeight = when {
         mapPick != null -> with(density) { pickPanelHeightPx.toDp() }
         planner.isOpen -> sheetHeight
         else -> 0.dp
     }
+    val cameraInsets = MapViewportPolicy.insetsForLayout(
+        mapHeightPx = mapHeightPx,
+        bottomOverlayHeightPx = with(density) { mapOverlayHeight.toPx().toDouble() },
+        mapTopPx = mapTopPx,
+        modalTopPx = stopSheetTopPx,
+        fallback = state.renderState?.camera?.viewportInsets ?: MapViewportInsets.None,
+    )
     BoxWithConstraints(modifier = Modifier.fillMaxSize().testTag(AutomationId.MapScreen)) {
         val panelMaxHeight = maxHeight * PLANNER_PANEL_HEIGHT_FRACTION
         val bottomModifier = Modifier
             .fillMaxWidth()
             .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal + WindowInsetsSides.Bottom))
         Column(modifier = Modifier.fillMaxSize()) {
-            val renderState = remember(state.renderState, planner) { state.renderState?.withJourneyPlanner(planner) }
+            val renderState = remember(state.renderState, planner, cameraInsets) {
+                state.renderState?.withJourneyPlanner(planner)?.let { render ->
+                    render.copy(camera = render.camera.copy(viewportInsets = cameraInsets))
+                }
+            }
             Box(modifier = Modifier.fillMaxWidth().weight(1f)) {
                 MapArea(
                     renderState = renderState,
@@ -177,12 +191,14 @@ private fun Content(state: ViewState, connectionNoticeId: Int, onAction: (Action
                             onAction(JourneyPlannerAction.ConfirmMapPick(it))
                         }
                     },
-                    onTapMap = { point -> onAction(JourneyPlannerAction.TapMap(point)) },
                     onDismissPin = { onAction(JourneyPlannerAction.DismissPin) },
                     onRouteFromHere = { onAction(JourneyPlannerAction.RouteFromHere) },
                     onRouteHere = { onAction(JourneyPlannerAction.RouteHere) },
                     onCancelMapPick = { onAction(JourneyPlannerAction.CancelMapPick) },
-                    modifier = Modifier.fillMaxSize().onSizeChanged { mapHeightPx = it.height },
+                    modifier = Modifier.fillMaxSize().onGloballyPositioned {
+                        mapHeightPx = it.size.height
+                        mapTopPx = it.positionOnScreen().y.toDouble()
+                    },
                 )
                 MapConnectionToast(
                     noticeId = connectionNoticeId,
@@ -261,6 +277,7 @@ private fun Content(state: ViewState, connectionNoticeId: Int, onAction: (Action
                 sheet = sheet,
                 onDismiss = { onAction(Action.StopArrivalsDismissed) },
                 onRetry = { onAction(Action.RetryStopArrivals) },
+                onTopPositioned = { stopSheetTopPx = it },
             )
         }
     }

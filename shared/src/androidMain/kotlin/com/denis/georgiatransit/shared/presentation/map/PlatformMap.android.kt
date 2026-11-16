@@ -179,7 +179,7 @@ private class LocalMapController(
         attentionPulse.render(loadedStyle, renderState)
         journeyLayers.render(loadedStyle, renderState.journey)
         camera.applyIfNeeded(renderState.camera)
-        map?.let { journeyLayers.fitIfNeeded(it, renderState.journey, mapView) }
+        map?.let { journeyLayers.fitIfNeeded(it, renderState.journey, mapView, renderState.camera.viewportInsets) }
         camera.applyZoomStep(renderState.zoomStep)
         attentionPulse.refresh()
     }

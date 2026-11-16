@@ -23,6 +23,7 @@ internal class MapCameraAdapter(
     private var map: MapLibreMap? = null
     private var lastAppliedCameraRevision: Long? = null
     private var lastAppliedCameraCommand: MapCameraCommand? = null
+    private var lastBottomPadding: Double? = null
     private val zoomSteps = MapZoomStepTracker(MIN_ZOOM, MAX_ZOOM)
     private val cameraIdleListener = MapLibreMap.OnCameraIdleListener { notifyViewportSettled() }
     private val cameraMoveStartedListener = MapLibreMap.OnCameraMoveStartedListener { reason ->
@@ -31,7 +32,7 @@ internal class MapCameraAdapter(
     }
     private val layoutChangeListener = View.OnLayoutChangeListener { _, _, _, _, _, _, _, _, _ ->
         latestCommand()?.let { command ->
-            map?.moveCamera(CameraUpdateFactory.paddingTo(0.0, 0.0, 0.0, viewportBottomPadding(command)))
+            applyViewportInsets(command)
         }
     }
 
@@ -49,6 +50,7 @@ internal class MapCameraAdapter(
     fun reset() {
         lastAppliedCameraRevision = null
         lastAppliedCameraCommand = null
+        lastBottomPadding = null
     }
 
     fun destroy() {
@@ -60,7 +62,10 @@ internal class MapCameraAdapter(
     }
 
     fun applyIfNeeded(command: MapCameraCommand) {
-        if (lastAppliedCameraRevision == command.revision) return
+        if (lastAppliedCameraRevision == command.revision) {
+            applyViewportInsets(command)
+            return
+        }
         if (!command.center.isMapCoordinate() || !command.zoom.isFinite()) return
         if (mapView.height <= 0) {
             mapView.post { latestCommand()?.let(::applyIfNeeded) }
@@ -100,8 +105,20 @@ internal class MapCameraAdapter(
         }
         lastAppliedCameraRevision = command.revision
         lastAppliedCameraCommand = command
+        lastBottomPadding = viewportBottomPadding(command)
         zoomSteps.cameraMovedElsewhere()
         if (!command.animated) mapView.post { notifyViewportSettled() }
+    }
+
+    /** Change padding around the live camera; never reapply an old command after a user pan. */
+    private fun applyViewportInsets(command: MapCameraCommand) {
+        val currentMap = map ?: return
+        if (mapView.height <= 0 || lastAppliedCameraRevision == null) return
+        val bottom = viewportBottomPadding(command)
+        if (bottom == lastBottomPadding) return
+        lastBottomPadding = bottom
+        lastAppliedCameraCommand = command
+        currentMap.moveCamera(CameraUpdateFactory.paddingTo(0.0, 0.0, 0.0, bottom))
     }
 
     /**
