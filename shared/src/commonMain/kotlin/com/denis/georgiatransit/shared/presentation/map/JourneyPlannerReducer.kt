@@ -59,11 +59,11 @@ internal object JourneyPlannerReducer {
             JourneyPlannerAction.RouteHere -> state.pin?.let { pin ->
                 val origin = state.origin.takeIf { state.isOpen }
                     ?: JourneyEndpoint.CurrentLocation.takeIf { context.location.permission is LocationPermissionState.Granted }
-                edit(state.copy(pin = null, origin = origin, destination = JourneyEndpoint.MapPoint(pin)), context)
+                selectPin(state.copy(pin = null, origin = origin, destination = JourneyEndpoint.MapPoint(pin)), context)
             } ?: finish(state, context)
             JourneyPlannerAction.RouteFromHere -> state.pin?.let { pin ->
                 val destination = state.destination.takeIf { state.isOpen }
-                edit(state.copy(pin = null, origin = JourneyEndpoint.MapPoint(pin), destination = destination), context)
+                selectPin(state.copy(pin = null, origin = JourneyEndpoint.MapPoint(pin), destination = destination), context)
             } ?: finish(state, context)
             JourneyPlannerAction.DismissPin -> finish(state.copy(pin = null), context)
             is JourneyPlannerAction.TapMap -> when {
@@ -177,6 +177,10 @@ internal object JourneyPlannerReducer {
 
     private val JourneyOptionUi.routeSequence: List<RouteId>
         get() = legs.filterIsInstance<JourneyLegUi.Ride>().map { it.route.routeId }
+
+    /** A pin selected over results replaces the endpoint and immediately plans again. */
+    private fun selectPin(candidate: JourneyPlannerUi, context: JourneyPlannerContext): JourneyPlannerStep =
+        if (candidate.isOpen && candidate.showingResults) evaluate(candidate, context, explicit = true) else edit(candidate, context)
 
     private fun edit(candidate: JourneyPlannerUi, context: JourneyPlannerContext): JourneyPlannerStep {
         val state = candidate.copy(isOpen = true, showingResults = false, buses = null, mapPick = null)

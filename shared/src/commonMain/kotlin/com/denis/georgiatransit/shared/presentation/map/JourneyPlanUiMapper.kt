@@ -68,6 +68,7 @@ internal object JourneyPlanUiMapper {
             boarding = segments.firstOrNull { it.mode == JourneySegmentMode.Transit }?.let { ride ->
                 JourneyBoarding(
                     checkNotNull(ride.fromStopId), checkNotNull(ride.routeId), ride.directionId, ride.fromPosition, departureBearing(ride),
+                    plannedVehicleId = ride.vehicleId.takeIf { ride.waitBasis == JourneyWaitBasis.LiveVehicle },
                 )
             },
         )

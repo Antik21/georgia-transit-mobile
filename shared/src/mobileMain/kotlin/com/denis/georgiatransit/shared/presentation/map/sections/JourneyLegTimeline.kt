@@ -23,33 +23,38 @@ import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.denis.georgiatransit.shared.presentation.map.JourneyLegUi
 import com.denis.georgiatransit.shared.presentation.ui.automation.AutomationId
 import com.denis.georgiatransit.shared.presentation.ui.theme.TransitSpacing
 import georgiatransit.shared.generated.resources.Res
+import georgiatransit.shared.generated.resources.map_planner_arriving_in
 import georgiatransit.shared.generated.resources.map_planner_meters
 import georgiatransit.shared.generated.resources.map_planner_minutes
 import georgiatransit.shared.generated.resources.map_planner_stops
 import georgiatransit.shared.generated.resources.map_planner_transfer_wait
 import georgiatransit.shared.generated.resources.map_planner_wait_estimate
-import georgiatransit.shared.generated.resources.map_planner_wait_live
 import org.jetbrains.compose.resources.stringResource
 
 /** The line and stops are decorative; the descriptions remain available to screen readers. */
 @Composable
-internal fun JourneyLegTimeline(legs: List<JourneyLegUi>, modifier: Modifier = Modifier) {
+internal fun JourneyLegTimeline(legs: List<JourneyLegUi>, nearestEtas: List<Int>, modifier: Modifier = Modifier) {
+    val firstRide = legs.indexOfFirst { it is JourneyLegUi.Ride }
     Column(modifier = modifier.fillMaxWidth()) {
         legs.forEachIndexed { index, leg ->
             val transferWait = leg is JourneyLegUi.Ride && leg.waitMinutes != null &&
                 legs.take(index).any { it is JourneyLegUi.Ride }
             if (transferWait && leg is JourneyLegUi.Ride) JourneyTransferWait(leg)
-            JourneyTimelineRow(leg, isFirst = index == 0, isLast = index == legs.lastIndex, showWait = !transferWait)
+            JourneyTimelineRow(
+                leg, isFirst = index == 0, isLast = index == legs.lastIndex,
+                showWait = !transferWait, nearestEtas = nearestEtas.takeIf { index == firstRide }.orEmpty(),
+            )
         }
     }
 }
 
 @Composable
-private fun JourneyTimelineRow(leg: JourneyLegUi, isFirst: Boolean, isLast: Boolean, showWait: Boolean) {
+private fun JourneyTimelineRow(leg: JourneyLegUi, isFirst: Boolean, isLast: Boolean, showWait: Boolean, nearestEtas: List<Int>) {
     val lineColor = when (leg) {
         is JourneyLegUi.Walk -> MaterialTheme.colorScheme.onSurfaceVariant
         is JourneyLegUi.Ride -> Color(leg.route.backgroundArgb)
@@ -85,12 +90,24 @@ private fun JourneyTimelineRow(leg: JourneyLegUi, isFirst: Boolean, isLast: Bool
                         JourneyRouteBadge(leg.route, withGlyph = false)
                         Text(stringResource(leg.route.mode.summaryResource(), leg.route.label), style = MaterialTheme.typography.bodyMedium)
                     }
-                    leg.stopCount?.let { Text(stringResource(Res.string.map_planner_stops, it), style = MaterialTheme.typography.bodySmall) }
-                    leg.waitMinutes?.takeIf { showWait }?.let { wait ->
+                    if (nearestEtas.isNotEmpty()) {
                         Text(
-                            stringResource(if (leg.waitIsLive) Res.string.map_planner_wait_live else Res.string.map_planner_wait_estimate, wait),
-                            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            stringResource(Res.string.map_planner_arriving_in, nearestEtas.joinToString(", ")),
+                            modifier = Modifier.testTag(AutomationId.MapPlannerNearest),
+                            style = MaterialTheme.typography.bodySmall,
+                            fontSize = (MaterialTheme.typography.bodySmall.fontSize.value + 2f).sp,
+                            fontWeight = FontWeight.Medium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
+                    }
+                    leg.stopCount?.let { Text(stringResource(Res.string.map_planner_stops, it), style = MaterialTheme.typography.bodySmall) }
+                    if (nearestEtas.isEmpty()) {
+                        leg.waitMinutes?.takeIf { showWait }?.let { wait ->
+                            Text(
+                                stringResource(Res.string.map_planner_wait_estimate, wait),
+                                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
                     }
                 }
             }
@@ -118,7 +135,7 @@ private fun JourneyTransferWait(leg: JourneyLegUi.Ride) {
         Column(modifier = Modifier.weight(1f).padding(vertical = TransitSpacing.Small)) {
             Text(stringResource(Res.string.map_planner_transfer_wait), style = MaterialTheme.typography.bodyMedium,
                 fontWeight = FontWeight.SemiBold)
-            Text(stringResource(if (leg.waitIsLive) Res.string.map_planner_wait_live else Res.string.map_planner_wait_estimate, wait),
+            Text(stringResource(Res.string.map_planner_wait_estimate, wait),
                 style = MaterialTheme.typography.bodySmall, color = color)
         }
         Text("≈ ${stringResource(Res.string.map_planner_minutes, wait)}", style = MaterialTheme.typography.bodyMedium,

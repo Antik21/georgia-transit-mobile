@@ -87,6 +87,8 @@ data class JourneyBoarding(
     val stopPosition: GeoPoint? = null,
     /** Travel heading leaving the stop; picks the right branch where a route runs a street both ways. */
     val departureBearing: Double? = null,
+    /** A vehicle explicitly selected for this leg; the arrivals feed does not identify direction. */
+    val plannedVehicleId: VehicleId? = null,
 )
 
 @Immutable

@@ -21,9 +21,20 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.LayoutCoordinates
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.liveRegion
@@ -33,6 +44,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlin.math.roundToInt
 import com.denis.georgiatransit.shared.domain.model.GeoPoint
 import com.denis.georgiatransit.shared.domain.model.JourneyEndpoint
 import com.denis.georgiatransit.shared.domain.model.JourneyId
@@ -92,6 +104,32 @@ internal fun JourneyPlannerPanel(
     headerModifier: Modifier = Modifier,
 ) {
     val status = planner.status
+    val scrollState = rememberScrollState()
+    val density = LocalDensity.current
+    var viewportCoordinates by remember { mutableStateOf<LayoutCoordinates?>(null) }
+    var selectedCoordinates by remember { mutableStateOf<Pair<JourneyId, LayoutCoordinates>?>(null) }
+    var scrollToOption by remember { mutableStateOf<JourneyId?>(null) }
+    val selectedId = (status as? JourneyPlannerStatus.Results)?.selectedId
+    LaunchedEffect(scrollToOption, selectedId) {
+        val requested = scrollToOption ?: return@LaunchedEffect
+        if (requested != selectedId) return@LaunchedEffect
+        // Wait for the old card to collapse and the selected card to be laid out at its new height.
+        withFrameNanos { }
+        withFrameNanos { }
+        val viewport = viewportCoordinates
+        val selected = selectedCoordinates?.takeIf { it.first == requested }?.second
+        if (viewport != null && selected != null && viewport.isAttached && selected.isAttached) {
+            val top = viewport.localPositionOf(selected, Offset.Zero).y
+            val margin = with(density) { TransitSpacing.ExtraSmall.toPx() }
+            try {
+                scrollState.animateScrollTo((scrollState.value + top - margin).roundToInt().coerceAtLeast(0))
+            } finally {
+                if (scrollToOption == requested) scrollToOption = null
+            }
+        } else {
+            scrollToOption = null
+        }
+    }
     Column(
         modifier = modifier.testTag(AutomationId.MapPlannerPanel),
         verticalArrangement = Arrangement.spacedBy(TransitSpacing.Small),
@@ -129,7 +167,9 @@ internal fun JourneyPlannerPanel(
         }
         // Only the body scrolls, so the title and its actions stay reachable over long results.
         Column(
-            modifier = Modifier.weight(1f, fill = planner.showingResults).verticalScroll(rememberScrollState()),
+            modifier = Modifier.weight(1f, fill = planner.showingResults)
+                .onGloballyPositioned { viewportCoordinates = it }
+                .verticalScroll(scrollState),
             verticalArrangement = Arrangement.spacedBy(TransitSpacing.Small),
         ) {
             if (!planner.showingResults) {
@@ -169,13 +209,21 @@ internal fun JourneyPlannerPanel(
             }
             if (status is JourneyPlannerStatus.Results) {
                 status.options.forEach { option ->
-                    val isSelected = option.id == status.selectedId
-                    JourneyOptionCard(
-                        option = option,
-                        isSelected = isSelected,
-                        nearestEtas = planner.buses?.takeIf { isSelected && it.optionId == option.id }?.etaMinutes.orEmpty(),
-                        onSelect = { onSelectOption(option.id) },
-                    )
+                    key(option.id) {
+                        val isSelected = option.id == status.selectedId
+                        JourneyOptionCard(
+                            option = option,
+                            isSelected = isSelected,
+                            nearestEtas = planner.buses?.takeIf { isSelected && it.optionId == option.id }?.etaMinutes.orEmpty(),
+                            onSelect = {
+                                scrollToOption = option.id
+                                onSelectOption(option.id)
+                            },
+                            modifier = Modifier.onGloballyPositioned {
+                                if (isSelected) selectedCoordinates = option.id to it
+                            },
+                        )
+                    }
                 }
             }
             if (planner.showingResults) {

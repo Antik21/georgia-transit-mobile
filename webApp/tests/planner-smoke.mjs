@@ -174,7 +174,7 @@ export function plannerSmoke({ send, evaluate, waitFor, tap, visible, testId, ma
       await waitFor('Choosing A by long press plans and shows the options',
         `${options}.length === ${optionCount} && ${optionText(0)}.includes('≈ 21 min') && ${optionText(0)}.includes('Walk to the stop: 300 m · 4 min')
           && ${optionText(0)}.includes('Walk to the destination: 300 m · 4 min')
-          && ${optionText(0)}.includes('6 stops · 11 min') && ${optionText(0)}.includes('wait 2 min · live bus')
+          && ${optionText(0)}.includes('6 stops · 11 min')
           && ${visible(testId('planner-disclaimer'))}`);
       assert.equal(await evaluate(`document.querySelectorAll('${testId('planner-mode')}').length`), 0, 'Mode chips are gone');
       const cards = await labelsAndItineraries();
@@ -193,9 +193,17 @@ export function plannerSmoke({ send, evaluate, waitFor, tap, visible, testId, ma
       `Each walker has dotted lines on both sides: ${JSON.stringify(cards.map((option) => option.dottedWalks))}`);
       assert.ok(!(await evaluate(`${optionText(1)}.includes('Estimated') || ${optionText(1)}.includes('estimate')`)),
         'Estimated timing and waiting do not show an estimate label');
+      assert.ok(!(await evaluate(`Array.from(document.querySelectorAll('.planner-option-summary'))
+        .some((summary) => /Live buses|Partly live/.test(summary.textContent))`)),
+      'The card summary does not repeat live bus status');
+      assert.ok(!(await evaluate(`${optionText(0)}.includes('live bus')`)), 'The journey does not show technical live status');
       assert.equal(cards[2].spoken, 'Walk, then bus B12, then walk, then bus B7, then walk.');
-      await waitFor('The selected option shows arrival times without buses on the map',
-        async () => await evaluate(`${nearestText} === 'Nearest buses: 3 min, 11 min'`) && await highlightedBuses() === 0);
+      await waitFor('The confirmed bus arrival is shown within the first ride',
+        async () => await evaluate(`${nearestText} === 'In: 3 min'
+          && document.querySelector('${testId('planner-nearest')}')?.closest('.planner-leg-ride') !== null
+          && document.querySelector('${testId('planner-nearest')}')?.parentElement?.firstElementChild?.dataset.testid === 'planner-nearest'
+          && getComputedStyle(document.querySelector('${testId('planner-nearest')}')).fontWeight === '500'
+          && !${optionText(0)}.includes('wait ≈ 2 min')`) && await highlightedBuses() === 0);
       assert.equal(planRequests.length, 1);
       assertPrivateRequest(planRequests[0]);
       assert.equal(bffRequests.filter((path) => path === planPath).length, 1);
@@ -204,7 +212,7 @@ export function plannerSmoke({ send, evaluate, waitFor, tap, visible, testId, ma
 
       await tap(card('transfer'));
       await waitFor('Selecting another option redraws its lines without buses',
-        async () => await evaluate(`${pressed(card('transfer'))} && ${nearestText} === 'Nearest buses: 5 min'
+        async () => await evaluate(`${pressed(card('transfer'))} && !document.querySelector('${testId('planner-nearest')}')
           && ${optionText(2)}.includes('Walk to the transfer') && ${optionText(2)}.includes('wait ≈ 4 min')`)
           && await mapContainsColor(plannerRouteColors.yellow, 75) && await highlightedBuses() === 0);
       await tap(card('walk'));

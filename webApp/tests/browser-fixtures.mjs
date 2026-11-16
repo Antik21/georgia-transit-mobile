@@ -196,7 +196,7 @@ function journeyPlan({ from, to }) {
     routeId: `batumi:fixture:route:${name}`, directionId: `batumi:fixture:direction:${name}`,
     fromStopId: `batumi:fixture:stop:${stops[0]}`, toStopId: `batumi:fixture:stop:${stops[1]}`, fromPosition, toPosition,
     distanceMeters: 2100, geometry: coordinates(fromPosition, shift(fromPosition, 0, 0.002), toPosition), geometryApproximate: false,
-    intermediateStopCount, waitSeconds, waitBasis, ...(waitBasis === 'LIVE_VEHICLE' ? { vehicleId: `batumi:fixture:vehicle:${name}` } : {}),
+    intermediateStopCount, waitSeconds, waitBasis, ...(waitBasis === 'LIVE_VEHICLE' ? { vehicleId: 'batumi:fixture:vehicle:v1' } : {}),
   });
   const legs = (segments) => segments.filter((segment) => segment.mode === 'TRANSIT').map(({ routeId, directionId, fromStopId, toStopId, departureAt, arrivalAt }) =>
     ({ routeId, directionId, fromStopId, toStopId, departureAt, arrivalAt }));

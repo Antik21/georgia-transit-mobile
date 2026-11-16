@@ -179,7 +179,6 @@
     <string name="map_planner_meters">%1$d მ</string>
     <string name="map_planner_minutes">%1$d წთ</string>
     <string name="map_planner_stops">%1$d გაჩ.</string>
-    <string name="map_planner_wait_live">ლოდინი %1$d წთ · ავტობუსი ონლაინ</string>
     <string name="map_planner_wait_estimate">ლოდინი ≈ %1$d წთ</string>
     <string name="map_planner_timing_live">ავტობუსები ონლაინ</string>
     <string name="map_planner_timing_mixed">ნაწილობრივ ონლაინ</string>
@@ -188,7 +187,7 @@
     <string name="map_planner_label_fastest">ყველაზე სწრაფი</string>
     <string name="map_planner_label_least_walking">ყველაზე ნაკლები სიარული</string>
     <string name="map_planner_label_no_transfers">გადაჯდომის გარეშე</string>
-    <string name="map_planner_nearest">უახლოესი ავტობუსები: %1$s</string>
+    <string name="map_planner_arriving_in">მოვა: %1$s წთ-ში</string>
     <string name="map_planner_then">, შემდეგ </string>
     <string name="map_planner_summary_walk">ფეხით</string>
     <string name="map_planner_summary_bus">ავტობუსი %1$s</string>

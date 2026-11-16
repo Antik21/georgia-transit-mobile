@@ -14,7 +14,13 @@ class JourneyWalkingEstimateTest {
     @Test
     fun walkingDistancesRoundUpAndMinutesFollowTheDisplayedDistance() {
         val cases = listOf(
-            Triple(0.1, 100, 2),
+            Triple(0.1, 0, 0),
+            Triple(1.0, 1, 1),
+            Triple(34.2, 34, 1),
+            Triple(49.0, 49, 1),
+            Triple(49.9, 50, 1),
+            Triple(50.0, 100, 2),
+            Triple(50.1, 100, 2),
             Triple(100.0, 100, 2),
             Triple(112.0, 200, 3),
             Triple(200.1, 300, 4),

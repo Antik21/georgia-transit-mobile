@@ -48,21 +48,13 @@ import georgiatransit.shared.generated.resources.map_planner_label_fastest
 import georgiatransit.shared.generated.resources.map_planner_label_least_walking
 import georgiatransit.shared.generated.resources.map_planner_label_no_transfers
 import georgiatransit.shared.generated.resources.map_planner_label_optimal
-import georgiatransit.shared.generated.resources.map_planner_meters
-import georgiatransit.shared.generated.resources.map_planner_minutes
-import georgiatransit.shared.generated.resources.map_planner_nearest
-import georgiatransit.shared.generated.resources.map_planner_stops
 import georgiatransit.shared.generated.resources.map_planner_summary_bus
 import georgiatransit.shared.generated.resources.map_planner_summary_ferry
 import georgiatransit.shared.generated.resources.map_planner_summary_metro
 import georgiatransit.shared.generated.resources.map_planner_summary_tram
 import georgiatransit.shared.generated.resources.map_planner_summary_walk
 import georgiatransit.shared.generated.resources.map_planner_then
-import georgiatransit.shared.generated.resources.map_planner_timing_live
-import georgiatransit.shared.generated.resources.map_planner_timing_mixed
 import georgiatransit.shared.generated.resources.map_planner_total
-import georgiatransit.shared.generated.resources.map_planner_wait_estimate
-import georgiatransit.shared.generated.resources.map_planner_wait_live
 import georgiatransit.shared.generated.resources.map_planner_walk_access
 import georgiatransit.shared.generated.resources.map_planner_walk_direct
 import georgiatransit.shared.generated.resources.map_planner_walk_egress
@@ -118,26 +110,12 @@ internal fun JourneyOptionCard(
                     stringResource(Res.string.map_planner_arrival, option.arrivalAt.localClock()),
                     style = MaterialTheme.typography.bodyMedium,
                 )
-                option.timing?.let { timing ->
-                    timingLabel(timing)?.let { label ->
-                        Text(label, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
-                }
             }
             if (isSelected) {
                 HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-                JourneyLegTimeline(option.legs)
+                JourneyLegTimeline(option.legs, nearestEtas)
             } else {
                 JourneyItinerary(option.legs)
-            }
-            if (isSelected && nearestEtas.isNotEmpty()) {
-                val etas = nearestEtas.map { stringResource(Res.string.map_planner_minutes, it) }.joinToString(", ")
-                Text(
-                    stringResource(Res.string.map_planner_nearest, etas),
-                    modifier = Modifier.testTag(AutomationId.MapPlannerNearest),
-                    style = MaterialTheme.typography.labelLarge,
-                    color = MaterialTheme.colorScheme.primary,
-                )
             }
         }
     }
@@ -235,13 +213,6 @@ private fun labelText(label: JourneyLabelUi): String = stringResource(
         JourneyLabelUi.NoTransfers -> Res.string.map_planner_label_no_transfers
     },
 )
-
-@Composable
-private fun timingLabel(timing: JourneyTimingUi): String? = when (timing) {
-    JourneyTimingUi.Live -> stringResource(Res.string.map_planner_timing_live)
-    JourneyTimingUi.Mixed -> stringResource(Res.string.map_planner_timing_mixed)
-    JourneyTimingUi.Estimated -> null
-}
 
 @Composable
 internal fun walkRoleText(role: JourneyWalkRole): String = stringResource(

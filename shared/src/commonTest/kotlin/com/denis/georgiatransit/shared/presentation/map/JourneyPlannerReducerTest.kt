@@ -18,6 +18,7 @@ import com.denis.georgiatransit.shared.domain.model.TransitJourney
 import com.denis.georgiatransit.shared.domain.model.TransitJourneySegment
 import com.denis.georgiatransit.shared.domain.model.TransitLocale
 import com.denis.georgiatransit.shared.domain.model.TransitRoute
+import com.denis.georgiatransit.shared.domain.model.VehicleId
 import com.denis.georgiatransit.shared.domain.repository.TransitFailure
 import com.denis.georgiatransit.shared.domain.repository.TransitFreshness
 import com.denis.georgiatransit.shared.domain.repository.TransitLoadResult
@@ -345,6 +346,20 @@ class JourneyPlannerReducerTest {
         assertEquals("D1", ride.route.label)
         assertEquals(false, (options[0].legs[3] as JourneyLegUi.Ride).waitIsLive)
         assertEquals(JourneyTimingUi.Mixed, options[0].timing)
+    }
+
+    @Test
+    fun boardingKeepsOnlyTheVehicleConfirmedByThePlan() {
+        val vehicle = VehicleId("demo:fixture:vehicle:one")
+        val original = journey("one")
+        fun option(basis: JourneyWaitBasis): JourneyOptionUi {
+            val segments = original.segments.map {
+                if (it.mode == JourneySegmentMode.Transit) it.copy(waitBasis = basis, vehicleId = vehicle) else it
+            }
+            return JourneyPlanUiMapper.options(JourneyPage(listOf(original.copy(segments = segments)), NOW), routes).single()
+        }
+        assertEquals(vehicle, option(JourneyWaitBasis.LiveVehicle).boarding?.plannedVehicleId)
+        assertNull(option(JourneyWaitBasis.HeadwayEstimate).boarding?.plannedVehicleId)
     }
 
     @Test

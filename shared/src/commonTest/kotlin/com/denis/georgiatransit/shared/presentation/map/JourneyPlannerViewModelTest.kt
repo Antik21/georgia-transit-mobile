@@ -21,6 +21,7 @@ import com.denis.georgiatransit.shared.domain.model.TransitRoute
 import com.denis.georgiatransit.shared.domain.repository.JourneyPlanRepository
 import com.denis.georgiatransit.shared.domain.repository.RouteListRequest
 import com.denis.georgiatransit.shared.domain.repository.TransitFreshness
+import com.denis.georgiatransit.shared.domain.repository.TransitFailure
 import com.denis.georgiatransit.shared.domain.repository.TransitLoadResult
 import com.denis.georgiatransit.shared.domain.repository.TransitRepository
 import com.denis.georgiatransit.shared.presentation.location.LocationPlatformCommand
@@ -174,6 +175,69 @@ class JourneyPlannerViewModelTest {
             assertEquals(listOf(B, C, B), planner.queries.map { it.to })
             assertEquals(JourneyId("demo:fixture:journey:latest"), assertIs<Status.Results>(plannerState(viewModel).status).selectedId)
             assertTrue(plannerState(viewModel).render.lines.isNotEmpty())
+            cancelAndIgnoreRemainingItems()
+        }
+    }
+
+    @Test
+    fun replacingEndpointsOnResultsReplansImmediatelyAndRejectsAnOlderAnswer() = runTest {
+        val pending = CompletableDeferred<Unit>()
+        val planner = FakePlanRepository { query ->
+            if (query.from == A && query.to == C) withContext(NonCancellable) { pending.await() }
+            page(if (query.from == A && query.to == C) "stale" else "latest")
+        }
+        val viewModel = viewModel(planner)
+
+        viewModel.test(this) {
+            runOnCreate()
+            start(viewModel)
+            planBetween(viewModel, A, B)
+
+            longPress(viewModel, C)
+            viewModel.dispatchAction(JourneyPlannerAction.RouteHere)
+            this@runTest.runCurrent()
+            val loading = plannerState(viewModel)
+            assertTrue(loading.showingResults)
+            assertEquals(Status.Loading, loading.status)
+            assertTrue(loading.render.lines.isEmpty(), "The old route must not appear for the new endpoint")
+            assertEquals(listOf(B, C), planner.queries.map { it.to })
+
+            longPress(viewModel, B)
+            viewModel.dispatchAction(JourneyPlannerAction.RouteFromHere)
+            this@runTest.runCurrent()
+            assertEquals(B, planner.queries.last().from)
+            assertEquals(C, planner.queries.last().to)
+            pending.complete(Unit)
+            this@runTest.runCurrent()
+
+            val result = plannerState(viewModel)
+            assertTrue(result.showingResults)
+            assertEquals(JourneyId("demo:fixture:journey:latest"), assertIs<Status.Results>(result.status).selectedId)
+            assertEquals(B, result.render.origin)
+            assertEquals(C, result.render.destination)
+            cancelAndIgnoreRemainingItems()
+        }
+    }
+
+    @Test
+    fun failedReplanStaysOnResultsAndDoesNotShowThePreviousRoute() = runTest {
+        val planner = FakePlanRepository { query ->
+            if (query.to == C) TransitLoadResult.Failure(TransitFailure.Transport("unavailable")) else page("one")
+        }
+        val viewModel = viewModel(planner)
+        viewModel.test(this) {
+            runOnCreate()
+            start(viewModel)
+            planBetween(viewModel, A, B)
+            longPress(viewModel, C)
+            viewModel.dispatchAction(JourneyPlannerAction.RouteHere)
+            this@runTest.runCurrent()
+
+            val state = plannerState(viewModel)
+            assertTrue(state.showingResults)
+            assertIs<Status.Error>(state.status)
+            assertEquals(C, state.render.destination)
+            assertTrue(state.render.lines.isEmpty())
             cancelAndIgnoreRemainingItems()
         }
     }

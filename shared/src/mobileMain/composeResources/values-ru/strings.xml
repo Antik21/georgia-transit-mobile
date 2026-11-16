@@ -179,7 +179,6 @@
     <string name="map_planner_meters">%1$d м</string>
     <string name="map_planner_minutes">%1$d мин</string>
     <string name="map_planner_stops">%1$d ост.</string>
-    <string name="map_planner_wait_live">ожидание %1$d мин · автобус онлайн</string>
     <string name="map_planner_wait_estimate">ожидание ≈ %1$d мин</string>
     <string name="map_planner_timing_live">Автобусы онлайн</string>
     <string name="map_planner_timing_mixed">Частично онлайн</string>
@@ -188,7 +187,7 @@
     <string name="map_planner_label_fastest">Быстрее всего</string>
     <string name="map_planner_label_least_walking">Меньше пешком</string>
     <string name="map_planner_label_no_transfers">Без пересадок</string>
-    <string name="map_planner_nearest">Ближайшие: %1$s</string>
+    <string name="map_planner_arriving_in">Через: %1$s мин</string>
     <string name="map_planner_then">, затем </string>
     <string name="map_planner_summary_walk">пешком</string>
     <string name="map_planner_summary_bus">автобус %1$s</string>

@@ -179,7 +179,6 @@
     <string name="map_planner_meters">%1$d m</string>
     <string name="map_planner_minutes">%1$d min</string>
     <string name="map_planner_stops">%1$d stops</string>
-    <string name="map_planner_wait_live">wait %1$d min · live bus</string>
     <string name="map_planner_wait_estimate">wait ≈ %1$d min</string>
     <string name="map_planner_timing_live">Live buses</string>
     <string name="map_planner_timing_mixed">Partly live</string>
@@ -188,7 +187,7 @@
     <string name="map_planner_label_fastest">Fastest</string>
     <string name="map_planner_label_least_walking">Least walking</string>
     <string name="map_planner_label_no_transfers">No transfers</string>
-    <string name="map_planner_nearest">Nearest buses: %1$s</string>
+    <string name="map_planner_arriving_in">In: %1$s min</string>
     <string name="map_planner_then">, then </string>
     <string name="map_planner_summary_walk">walk</string>
     <string name="map_planner_summary_bus">bus %1$s</string>
