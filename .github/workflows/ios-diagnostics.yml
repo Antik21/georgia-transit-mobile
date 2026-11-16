@@ -1,0 +1,86 @@
+name: iOS diagnostics
+
+on:
+  push:
+    branches: [feature/ios-ci-diagnostics-macos26]
+
+permissions:
+  contents: read
+
+jobs:
+  ios:
+    name: iOS
+    runs-on: macos-26
+    steps:
+      - name: Check out source
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - name: Validate Apple Silicon runner
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(uname -m)" = "arm64"
+          xcodebuild -version
+      - name: Set up JDK 17
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5.7.0
+        with:
+          distribution: temurin
+          java-version: "17"
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@da187c8e6ffbd3802e00f2477aa5a822b25f2dda # v4.4.4
+        with:
+          cache-read-only: ${{ github.event_name == 'pull_request' || github.ref != 'refs/heads/main' }}
+          cache-cleanup: on-success
+          gradle-home-cache-excludes: caches/build-cache-1
+      - name: Provision the Gradle wrapper with retries
+        shell: bash
+        run: |
+          set -euo pipefail
+          for attempt in 1 2 3; do
+            if ./gradlew --no-daemon --version; then
+              exit 0
+            fi
+            if [ "$attempt" -eq 3 ]; then
+              exit 1
+            fi
+            sleep "$((attempt * 10))"
+          done
+      - name: Create an explicit iOS simulator destination
+        id: simulator
+        shell: bash
+        run: |
+          set -euo pipefail
+          runtime="$(xcrun simctl list runtimes -j | jq -r '.runtimes | map(select(.isAvailable and (.identifier | startswith("com.apple.CoreSimulator.SimRuntime.iOS-")))) | sort_by(.version | split(".") | map(tonumber)) | last.identifier')"
+          device_type="$(xcrun simctl list devicetypes -j | jq -r '.devicetypes | map(select(.name | startswith("iPhone"))) | first.identifier')"
+          test -n "$runtime" && test "$runtime" != "null"
+          test -n "$device_type" && test "$device_type" != "null"
+          simulator_udid="$(xcrun simctl create "Georgia Transit CI" "$device_type" "$runtime")"
+          xcrun simctl boot "$simulator_udid"
+          xcrun simctl bootstatus "$simulator_udid" -b
+          echo "runtime=$runtime" >> "$GITHUB_OUTPUT"
+          echo "udid=$simulator_udid" >> "$GITHUB_OUTPUT"
+      - name: Run iOS simulator tests and configuration checks
+        run: >-
+          ./gradlew --no-daemon --no-build-cache --stacktrace
+          :shared:iosSimulatorArm64Test
+          --device "${{ steps.simulator.outputs.udid }}"
+          :shared:checkXcodeProjectConfiguration
+      - name: Build both iOS simulator environments without signing
+        shell: bash
+        run: |
+          set -euo pipefail
+          for environment in Sandbox Prod; do
+            xcodebuild \
+              -project iosApp/iosApp.xcodeproj \
+              -scheme "$environment" \
+              -sdk iphonesimulator \
+              -configuration "$environment" \
+              -destination "platform=iOS Simulator,id=${{ steps.simulator.outputs.udid }}" \
+              CODE_SIGNING_ALLOWED=NO \
+              build
+          done
+      - name: Delete CI simulator
+        if: ${{ always() && steps.simulator.outputs.udid != '' }}
+        shell: bash
+        run: xcrun simctl delete "${{ steps.simulator.outputs.udid }}"
