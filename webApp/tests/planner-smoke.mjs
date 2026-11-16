@@ -198,8 +198,8 @@ export function plannerSmoke({ send, evaluate, waitFor, tap, visible, testId, ma
       'The card summary does not repeat live bus status');
       assert.ok(!(await evaluate(`${optionText(0)}.includes('live bus')`)), 'The journey does not show technical live status');
       assert.equal(cards[2].spoken, 'Walk, then bus B12, then walk, then bus B7, then walk.');
-      await waitFor('The confirmed bus arrival is shown within the first ride',
-        async () => await evaluate(`${nearestText} === 'In: 3 min'
+      await waitFor('The planned and following bus arrivals are shown within the first ride',
+        async () => await evaluate(`${nearestText} === 'In: 3, 11 min'
           && document.querySelector('${testId('planner-nearest')}')?.closest('.planner-leg-ride') !== null
           && document.querySelector('${testId('planner-nearest')}')?.parentElement?.firstElementChild?.dataset.testid === 'planner-nearest'
           && getComputedStyle(document.querySelector('${testId('planner-nearest')}')).fontWeight === '500'
