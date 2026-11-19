@@ -14,6 +14,7 @@ import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.intl.Locale
 import androidx.compose.ui.text.withLink
 import com.denis.georgiatransit.shared.domain.model.LocalizedText
+import com.denis.georgiatransit.shared.domain.model.TransitLocale
 import com.denis.georgiatransit.shared.domain.model.TransitAttribution
 import com.denis.georgiatransit.shared.presentation.ui.automation.AutomationId
 import com.denis.georgiatransit.shared.presentation.ui.theme.TransitColors
@@ -73,8 +74,5 @@ internal fun CityAttribution(attribution: List<TransitAttribution>, modifier: Mo
     }
 }
 
-private fun LocalizedText.mapAttributionDisplayName(languageTag: String): String = when (languageTag) {
-    "ka" -> ka
-    "ru" -> ru
-    else -> en
-}.ifBlank { en.ifBlank { ru.ifBlank { ka } } }
+private fun LocalizedText.mapAttributionDisplayName(languageTag: String): String =
+    forLocale(TransitLocale.fromLanguageTag(languageTag)).ifBlank { en.ifBlank { ru.ifBlank { ka } } }

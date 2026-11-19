@@ -242,7 +242,7 @@ class RoutesViewModel(
     }
 
     private fun onLocaleChanged(languageTag: String) = intent {
-        val locale = languageTag.toTransitLocale()
+        val locale = TransitLocale.fromLanguageTag(languageTag)
         if (locale == currentLocale) return@intent
         currentLocale = locale
         val routes = catalogRoutes.toRouteItems(locale, draftSelectedIds)
@@ -435,10 +435,4 @@ private fun List<RouteItemUiModel>.filterFor(query: String): List<RouteItemUiMod
             route.name.contains(normalizedQuery, ignoreCase = true) ||
             route.searchableDirections.any { it.contains(normalizedQuery, ignoreCase = true) }
     }
-}
-
-private fun String.toTransitLocale(): TransitLocale = when (this) {
-    "ka" -> TransitLocale.Georgian
-    "ru" -> TransitLocale.Russian
-    else -> TransitLocale.English
 }

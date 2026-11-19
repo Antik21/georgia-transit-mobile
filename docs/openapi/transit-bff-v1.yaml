@@ -381,7 +381,7 @@ components:
     StopId: {name: stopId, in: path, required: true, schema: {$ref: '#/components/schemas/StopId'}}
     RouteIdQuery: {name: routeId, in: query, required: true, schema: {$ref: '#/components/schemas/RouteId'}}
     DirectionIdQuery: {name: directionId, in: query, required: false, schema: {$ref: '#/components/schemas/DirectionId'}}
-    Locale: {name: locale, in: query, required: false, schema: {type: string, enum: [ka, en, ru], default: en}}
+    Locale: {name: locale, in: query, required: false, schema: {type: string, enum: [ka, en, ru, uk, de, fr, ar, hi, zh], default: en}}
     Mode: {name: mode, in: query, required: false, schema: {type: string, enum: [bus, metro, tram, ferry]}}
     IfNoneMatch: {name: If-None-Match, in: header, required: false, schema: {type: string}}
     Latitude: {name: lat, in: query, required: true, schema: {type: number, minimum: -90, maximum: 90}}
@@ -433,7 +433,17 @@ components:
     LocalizedText:
       type: object
       required: [ru, en, ka]
-      properties: {ru: {type: string}, en: {type: string}, ka: {type: string}}
+      description: Optional translations are present when available. Clients fall back to English for absent translations.
+      properties:
+        ru: {type: string}
+        en: {type: string}
+        ka: {type: string}
+        uk: {type: string}
+        de: {type: string}
+        fr: {type: string}
+        ar: {type: string}
+        hi: {type: string}
+        zh: {type: string}
     GeoPoint:
       type: object
       description: WGS84 coordinate.
@@ -622,7 +632,7 @@ components:
         departureAt: {$ref: '#/components/schemas/UtcTimestamp', description: Absent means now. Must be within five minutes in the past and two hours ahead.}
         maxTransfers: {type: integer, minimum: 0, maximum: 2, default: 2}
         transferBufferSeconds: {type: integer, minimum: 0, maximum: 600, default: 60}
-        locale: {type: string, enum: [ka, en, ru]}
+        locale: {type: string, enum: [ka, en, ru, uk, de, fr, ar, hi, zh]}
     Journey:
       type: object
       required: [id, departureAt, arrivalAt, transfers, legs]
@@ -672,7 +682,7 @@ components:
       properties:
         from: {$ref: '#/components/schemas/GeoPoint'}
         to: {$ref: '#/components/schemas/GeoPoint'}
-        locale: {type: string, enum: [ka, en, ru]}
+        locale: {type: string, enum: [ka, en, ru, uk, de, fr, ar, hi, zh]}
     WalkingEstimate:
       type: object
       description: Normalized direct walking result. It intentionally omits coordinates, geometry, and provider details.

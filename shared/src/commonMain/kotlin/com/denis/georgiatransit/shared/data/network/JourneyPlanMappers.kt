@@ -5,7 +5,6 @@ import com.denis.georgiatransit.shared.domain.model.JourneyLabel
 import com.denis.georgiatransit.shared.domain.model.JourneyPlanQuery
 import com.denis.georgiatransit.shared.domain.model.JourneyTimingQuality
 import com.denis.georgiatransit.shared.domain.model.JourneyWaitBasis
-import com.denis.georgiatransit.shared.domain.model.TransitLocale
 
 internal fun JourneyPlanQuery.toDto() = JourneyPlanRequestDto(
     from = from.toDto(),
@@ -13,11 +12,7 @@ internal fun JourneyPlanQuery.toDto() = JourneyPlanRequestDto(
     departureAt = departureAt?.toString(),
     maxTransfers = maxTransfers,
     transferBufferSeconds = transferBufferSeconds,
-    locale = when (locale) {
-        TransitLocale.Georgian -> "ka"
-        TransitLocale.English -> "en"
-        TransitLocale.Russian -> "ru"
-    },
+    locale = locale.languageTag,
 )
 
 /**

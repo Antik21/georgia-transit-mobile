@@ -104,7 +104,7 @@ class TransitBffClient(
     ): BffResponse<List<TransitRoute>> = get<List<RouteDto>>(
         path = listOf("v1", "cities", cityId.value, "routes"),
         query = listOfNotNull(
-            "locale" to locale.toWire(),
+            "locale" to locale.languageTag,
             mode?.let { "mode" to it.toWire() },
         ),
         ifNoneMatch = ifNoneMatch,
@@ -113,7 +113,7 @@ class TransitBffClient(
     suspend fun route(cityId: CityId, routeId: RouteId, locale: TransitLocale): TransitLoadResult<TransitRoute> =
         get<RouteDto>(
             path = listOf("v1", "cities", cityId.value, "routes", routeId.value),
-            query = listOf("locale" to locale.toWire()),
+            query = listOf("locale" to locale.languageTag),
         ).map { it.toDomain(cityId) }
 
     suspend fun directionStops(
@@ -123,7 +123,7 @@ class TransitBffClient(
         locale: TransitLocale,
     ): TransitLoadResult<List<TransitStop>> = get<List<StopDto>>(
         path = listOf("v1", "cities", cityId.value, "routes", routeId.value, "directions", directionId.value, "stops"),
-        query = listOf("locale" to locale.toWire()),
+        query = listOf("locale" to locale.languageTag),
     ).map { it.map(StopDto::toDomain) }
 
     suspend fun directionShape(cityId: CityId, routeId: RouteId, directionId: DirectionId): TransitLoadResult<TransitShape> =
@@ -154,7 +154,7 @@ class TransitBffClient(
                 "lon" to center.longitude.toString(),
                 "radiusMeters" to radiusMeters.toString(),
                 "limit" to limit.toString(),
-                "locale" to locale.toWire(),
+                "locale" to locale.languageTag,
             ),
         ).map { it.map(StopDto::toDomain) }
     }
@@ -163,7 +163,7 @@ class TransitBffClient(
         if (limit !in 1..100) return TransitLoadResult.Failure(TransitFailure.InvalidArgument("limit is invalid", null))
         return get<ArrivalPageDto>(
             path = listOf("v1", "cities", cityId.value, "stops", stopId.value, "arrivals"),
-            query = listOf("limit" to limit.toString(), "locale" to locale.toWire()),
+            query = listOf("limit" to limit.toString(), "locale" to locale.languageTag),
             timeoutMillis = RealtimeTimeoutMillis,
         ).map(ArrivalPageDto::toDomain)
     }
@@ -186,7 +186,7 @@ class TransitBffClient(
                 "toLat" to to.latitude.toString(),
                 "toLon" to to.longitude.toString(),
                 "departureAt" to departureAt.toString(),
-                "locale" to locale.toWire(),
+                "locale" to locale.languageTag,
                 "maxTransfers" to maxTransfers.toString(),
             ),
         ).map(JourneyPageDto::toDomain)
@@ -344,12 +344,6 @@ class TransitBffClient(
             query.transferBufferSeconds !in 0..600 -> TransitFailure.InvalidArgument("transferBufferSeconds is invalid", null)
             else -> null
         }
-
-    private fun TransitLocale.toWire(): String = when (this) {
-        TransitLocale.Georgian -> "ka"
-        TransitLocale.English -> "en"
-        TransitLocale.Russian -> "ru"
-    }
 
     private fun TransitMode.toWire(): String = when (this) {
         TransitMode.Bus -> BusModeWireValue

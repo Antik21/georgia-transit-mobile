@@ -19,17 +19,51 @@ import kotlin.time.Instant
 data class GeoPoint(val latitude: Double, val longitude: Double)
 
 @Serializable
-data class LocalizedText(val ru: String, val en: String, val ka: String) {
+data class LocalizedText(
+    val ru: String,
+    val en: String,
+    val ka: String,
+    val uk: String? = null,
+    val de: String? = null,
+    val fr: String? = null,
+    val ar: String? = null,
+    val hi: String? = null,
+    val zh: String? = null,
+) {
     fun forLocale(locale: TransitLocale): String = when (locale) {
         TransitLocale.Russian -> ru
         TransitLocale.English -> en
         TransitLocale.Georgian -> ka
+        TransitLocale.Ukrainian -> uk?.takeIf { it.isNotBlank() } ?: en
+        TransitLocale.German -> de?.takeIf { it.isNotBlank() } ?: en
+        TransitLocale.French -> fr?.takeIf { it.isNotBlank() } ?: en
+        TransitLocale.Arabic -> ar?.takeIf { it.isNotBlank() } ?: en
+        TransitLocale.Hindi -> hi?.takeIf { it.isNotBlank() } ?: en
+        TransitLocale.Chinese -> zh?.takeIf { it.isNotBlank() } ?: en
     }
 
     companion object { fun fromLegacy(value: String) = LocalizedText(value, value, value) }
 }
 
-@Serializable enum class TransitLocale { Russian, English, Georgian }
+@Serializable
+enum class TransitLocale(val languageTag: String) {
+    Russian("ru"),
+    English("en"),
+    Georgian("ka"),
+    Ukrainian("uk"),
+    German("de"),
+    French("fr"),
+    Arabic("ar"),
+    Hindi("hi"),
+    Chinese("zh");
+
+    companion object {
+        fun fromLanguageTag(value: String): TransitLocale {
+            val language = value.substringBefore('-').substringBefore('_')
+            return entries.firstOrNull { it.languageTag.equals(language, ignoreCase = true) } ?: English
+        }
+    }
+}
 @Serializable enum class TransitMode { Bus, Metro, Tram, Ferry }
 @Serializable enum class CityReadiness { DevelopmentFixture, ProductionReady, Unreviewed }
 @Serializable enum class CitySource { Fixture, ReviewedAdapter, UnreviewedAdapter }

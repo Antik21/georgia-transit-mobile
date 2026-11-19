@@ -34,6 +34,12 @@
 		0A0000110000000000000012 /* Sandbox.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Sandbox.xcconfig; sourceTree = "<group>"; };
 		0A0000110000000000000013 /* Prod.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Prod.xcconfig; sourceTree = "<group>"; };
 		0A0000120000000000000001 /* iosApp.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = iosApp.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		0A0000110000000000000014 /* uk */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = uk; path = "uk.lproj/InfoPlist.strings"; sourceTree = "<group>"; };
+		0A0000110000000000000015 /* de */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = de; path = "de.lproj/InfoPlist.strings"; sourceTree = "<group>"; };
+		0A0000110000000000000016 /* fr */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = fr; path = "fr.lproj/InfoPlist.strings"; sourceTree = "<group>"; };
+		0A0000110000000000000017 /* ar */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = ar; path = "ar.lproj/InfoPlist.strings"; sourceTree = "<group>"; };
+		0A0000110000000000000018 /* hi */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = hi; path = "hi.lproj/InfoPlist.strings"; sourceTree = "<group>"; };
+		0A0000110000000000000019 /* zh-Hans */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = "zh-Hans"; path = "zh-Hans.lproj/InfoPlist.strings"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -138,6 +144,12 @@
 				en,
 				ka,
 				ru,
+				uk,
+				de,
+				fr,
+				ar,
+				hi,
+				"zh-Hans",
 				Base,
 			);
 			mainGroup = 0A0000210000000000000001;
@@ -209,6 +221,12 @@
 				0A0000110000000000000006 /* en */,
 				0A0000110000000000000007 /* ka */,
 				0A0000110000000000000008 /* ru */,
+				0A0000110000000000000014 /* uk */,
+				0A0000110000000000000015 /* de */,
+				0A0000110000000000000016 /* fr */,
+				0A0000110000000000000017 /* ar */,
+				0A0000110000000000000018 /* hi */,
+				0A0000110000000000000019 /* zh-Hans */,
 			);
 			name = InfoPlist.strings;
 			sourceTree = "<group>";

@@ -74,7 +74,7 @@ class JourneyPlanEndpointTest {
             "{",
             """{"from":{"latitude":91.123456,"longitude":44.8253},"to":$to,"locale":"en"}""",
             """{"from":{"latitude":10.123456,"longitude":20.654321},"to":$to,"locale":"en"}""",
-            """{"from":$from,"to":$to,"locale":"fr"}""",
+            """{"from":$from,"to":$to,"locale":"es"}""",
             """{"from":$from,"to":$to,"mode":"FASTEST","locale":"en"}""",
             """{"from":$from,"to":$to,"maxTransfers":3,"locale":"en"}""",
             """{"from":$from,"to":$to,"transferBufferSeconds":601,"locale":"en"}""",

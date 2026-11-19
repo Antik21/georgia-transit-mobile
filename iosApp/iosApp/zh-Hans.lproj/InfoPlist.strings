@@ -1,0 +1,1 @@
+"NSLocationWhenInUseUsageDescription" = "Geo Transit 使用你的位置信息来居中显示地图和查找附近站点。如果你在规划路线时选择“我的位置”，应用会将你的大致位置发送到 Geo Transit 服务器以计算路线。";

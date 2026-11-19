@@ -9,6 +9,12 @@ data class LocalizedText(
     val ru: String,
     val en: String,
     val ka: String,
+    val uk: String? = null,
+    val de: String? = null,
+    val fr: String? = null,
+    val ar: String? = null,
+    val hi: String? = null,
+    val zh: String? = null,
 )
 
 @Serializable

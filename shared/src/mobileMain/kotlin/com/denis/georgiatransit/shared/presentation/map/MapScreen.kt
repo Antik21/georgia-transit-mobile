@@ -84,7 +84,7 @@ fun MapScreen(viewModel: MapViewModel, handleNavigation: suspend (NavigationEffe
     val state by viewModel.collectAsState()
     val language = Locale.current.language
     LaunchedEffect(language) {
-        viewModel.dispatchAction(Action.LocaleChanged(language.toTransitLocale()))
+        viewModel.dispatchAction(Action.LocaleChanged(TransitLocale.fromLanguageTag(language)))
     }
     val mapViewportInsets = if (state.stopArrivalsSheet == null) {
         MapViewportInsets.None
@@ -360,12 +360,6 @@ private fun JourneyPlanSide.myLocationAction(): JourneyPlannerAction = when (thi
 }
 
 private const val PLANNER_PANEL_HEIGHT_FRACTION = 0.55f
-
-private fun String.toTransitLocale(): TransitLocale = when (this) {
-    "ka" -> TransitLocale.Georgian
-    "ru" -> TransitLocale.Russian
-    else -> TransitLocale.English
-}
 
 @Composable
 internal fun locationActionLabel(location: LocationState): String = stringResource(

@@ -34,6 +34,31 @@ class BatumiThetaTransitProviderAdapterTest {
     }
 
     @Test
+    fun `reviewed stop name is shared by nearby and route stops and guarded by code and position`() {
+        val providerId = "615181c3384bd31f651a6811"
+        val stopId = "batumi:theta:stop:NjE1MTgxYzMzODRiZDMxZjY1MWE2ODEx"
+        val observed = fixture(wrapped = true).replace(
+            """"BusStopIdGeoGps":"s1","BusStopNumber":"A","BusStopNameGeoGps":"One","Lat":"41.64","Lon":41.65""",
+            """"BusStopIdGeoGps":"$providerId","BusStopNumber":"1047","BusStopNameGeoGps":"1047 ცირკი","Lat":"41.649527","Lon":41.636728""",
+        )
+        val catalog = BatumiThetaCatalogParser.parse(observed, Instant.EPOCH)
+        val stop = catalog.stops.single { it.id == stopId }
+        assertEquals(stop, catalog.stopsFor(catalog.routes.single().id).first())
+        assertEquals("Цирк", stop.name.ru)
+        assertEquals("ცირკი", stop.name.ka)
+        assertEquals("السيرك", stop.name.ar)
+
+        for (variant in listOf(
+            observed.replace(""""BusStopNumber":"1047"""", """"BusStopNumber":"5000""""),
+            observed.replace("41.649527", "41.651527"),
+        )) {
+            val renamed = BatumiThetaCatalogParser.parse(variant, Instant.EPOCH).stops.single { it.id == stopId }
+            assertEquals("1047 ცირკი", renamed.name.ru)
+            assertEquals(null, renamed.name.ar)
+        }
+    }
+
+    @Test
     fun `parser accepts root legacy aliases and rejects broken cross references`() {
         assertEquals(1, BatumiThetaCatalogParser.parse(fixture(wrapped = false), Instant.EPOCH).routes.size)
         assertFailsWith<ProviderNormalizedSchemaFailure> {
