@@ -49,9 +49,17 @@ data class BffConfig(
     val schemaInterlockEnabled: Boolean = false,
     val schemaDriftThreshold: Int = DefaultSchemaDriftThreshold,
     val schemaDriftWindowSeconds: Long = DefaultSchemaDriftWindowSeconds,
+    val zugdidiPreviewCsv: Path? = null,
+    val zugdidiStaticCsv: Path? = null,
 ) {
     init {
         require(host.isNotBlank()) { "BFF_HOST must not be blank" }
+        require(zugdidiPreviewCsv == null || mode == RuntimeMode.DEVELOPMENT && host in setOf("127.0.0.1", "::1")) {
+            "BFF_ZUGDIDI_PREVIEW_CSV requires development mode and a loopback BFF_HOST"
+        }
+        require(zugdidiStaticCsv == null || mode == RuntimeMode.PRODUCTION && capabilityControlPath != null) {
+            "BFF_ZUGDIDI_STATIC_CSV requires production mode and an operator capability document"
+        }
         require(port in 1..65_535) { "BFF_PORT must be between 1 and 65535" }
         require(directoryCacheTtlSeconds in 3_600L..21_600L) {
             "BFF_DIRECTORY_CACHE_TTL_SECONDS must be between 3600 and 21600"
@@ -136,6 +144,8 @@ data class BffConfig(
                         DefaultRealtimeSingleFlightSeconds,
                     ),
                     fixturesEnabled = parseBoolean(environment, "BFF_FIXTURES_ENABLED", false),
+                    zugdidiPreviewCsv = parseOptionalPath(environment, "BFF_ZUGDIDI_PREVIEW_CSV"),
+                    zugdidiStaticCsv = parseOptionalPath(environment, "BFF_ZUGDIDI_STATIC_CSV"),
                     capabilityControlPath = parseOptionalPath(environment, "BFF_CAPABILITY_CONTROL_PATH"),
                     capabilityControlStateDirectory = parseOptionalPath(
                         environment,

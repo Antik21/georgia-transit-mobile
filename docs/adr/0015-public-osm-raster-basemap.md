@@ -25,9 +25,10 @@ bulk download, prefetch, or offline feature. Access may be limited or withdrawn 
 - Send a stable `GeorgiaTransit` User-Agent with a public repository contact URL.
 - Cache successful tiles in the BFF and advertise a seven-day client cache lifetime. Do not add
   bulk download, region prefetch, or offline map support while this source is active.
-- Restrict tile coordinates to the Batumi/Adjara operating area and zooms 8–19, bound cache memory
-  by bytes, cap concurrency, and reject upstream cache misses after the global request budget is
-  exhausted. These controls prevent the public BFF from becoming an unrestricted tile relay.
+- Restrict tile coordinates to the Batumi/Adjara operating area and zooms 8–19. With the
+  operator-provisioned Zugdidi catalog, include its separately bounded regional coverage for the
+  stops and surrounding streets. Both areas share the same byte-bounded cache, concurrency cap,
+  and global upstream request budget. These controls prevent the public BFF from becoming an unrestricted tile relay.
 - Display and link `© OpenStreetMap contributors` through the MapLibre source attribution.
 - Keep the source configurable on the BFF. Mobile binaries contain neither the upstream URL nor a
   provider key, and the local source-free style remains the failure fallback.

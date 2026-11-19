@@ -101,6 +101,7 @@ private class LocalMapController(
             mapLibreMap.setPrefetchZoomDelta(0)
             map = mapLibreMap
             camera.attach(mapLibreMap)
+            camera.applyBounds(latestState?.cameraBounds)
             mapLibreMap.addOnCameraMoveListener(cameraMoveListener)
             mapLibreMap.addOnMapClickListener(mapClickListener)
             mapLibreMap.addOnMapLongClickListener(mapLongClickListener)
@@ -111,6 +112,7 @@ private class LocalMapController(
     fun update(renderState: MapRenderState) {
         if (destroyed) return
         latestState = renderState
+        camera.applyBounds(renderState.cameraBounds)
         styleLoader.request(renderState.bffStyleUrl)
         styleLoader.style?.let { installAndRender(it, renderState) } ?: camera.applyZoomStep(renderState.zoomStep)
         renderState.pointRequest?.let(::resolvePointRequest)

@@ -19,7 +19,10 @@ internal data class CityDto(
     val capabilities: CityCapabilitiesDto,
     val availability: CityAvailabilityDto,
     val attribution: List<AttributionLinkDto> = emptyList(),
+    val mapBounds: MapBoundsDto? = null,
 )
+
+@Serializable internal data class MapBoundsDto(val west: Double, val south: Double, val east: Double, val north: Double)
 
 @Serializable
 internal data class LocalizedTextDto(

@@ -81,7 +81,11 @@ data class City(
         source = CitySource.UNREVIEWED_ADAPTER,
     ),
     val attribution: List<AttributionLink> = emptyList(),
+    val mapBounds: MapBounds? = null,
 )
+
+@Serializable
+data class MapBounds(val west: Double, val south: Double, val east: Double, val north: Double)
 
 @Serializable
 data class GeoPoint(

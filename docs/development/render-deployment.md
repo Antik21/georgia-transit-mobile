@@ -1,8 +1,8 @@
 # Render production deployment
 
 The production BFF is defined by the repository-root [`render.yaml`](../../render.yaml). It creates
-one paid Docker web service in Frankfurt with a 1 GB persistent disk. The Blueprint intentionally
-serves Batumi only; fixtures, Tbilisi adapters, probes, and public metrics remain disabled. The map
+one paid Docker web service in Frankfurt with a 1 GB persistent disk. The initial deployment
+serves Batumi. Fixtures, Tbilisi adapters, probes, and public metrics remain disabled. The map
 proxy uses the public OpenStreetMap raster endpoint with visible attribution and requires no key.
 
 ## Before the first deployment
@@ -68,6 +68,21 @@ Render's shell requirements, while the JVM itself runs as the non-root `transit`
 rollback and schema-interlock recovery
 rules in [`bff-capability-control.md`](bff-capability-control.md); never edit history files directly.
 The service polls for a new document, so a deploy is not required for a kill switch.
+
+## Zugdidi static catalog
+
+The operator provisions the authorized ordered-stop CSV at `/app/storage/zugdidi/stops.csv`.
+Use a physical directory owned by `transit:transit` with mode `0700`. Write the CSV to a
+temporary file in that directory, verify its digest and contents, set ownership to
+`transit:transit` and mode to `0600`, then sync and atomically rename it to `stops.csv`.
+The entrypoint detects it at startup. Catalog replacement takes effect on the next instance start.
+
+Once the new instance is live with the CSV present, add a `zugdidi` entry to the complete
+capability document under a new revision while retaining the existing city entries. Use
+`PRODUCTION_READY` and `REVIEWED_ADAPTER`. Set `routes`, `stops`, and `routeGeometry` to
+`true` and the remaining capabilities to `false`. The service supplies regional raster coverage
+alongside Batumi and draws direct segments between the ordered coordinates. For rollback, disable
+Zugdidi in a new control revision before removing the file or reverting to an image without its adapter.
 
 ## Telegram web client
 

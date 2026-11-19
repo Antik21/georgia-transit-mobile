@@ -13,6 +13,7 @@ import com.denis.georgiatransit.shared.domain.model.JourneyId
 import com.denis.georgiatransit.shared.domain.model.JourneyPage
 import com.denis.georgiatransit.shared.domain.model.JourneySegmentMode
 import com.denis.georgiatransit.shared.domain.model.LocalizedText
+import com.denis.georgiatransit.shared.domain.model.MapBounds
 import com.denis.georgiatransit.shared.domain.model.ProviderId
 import com.denis.georgiatransit.shared.domain.model.RouteId
 import com.denis.georgiatransit.shared.domain.model.StopId
@@ -56,6 +57,7 @@ internal fun CityDto.toDomain(): TransitCity {
         defaultZoom = defaultZoom.requireFinite("defaultZoom"),
         availability = availability.toDomain(),
         attribution = attribution.map(AttributionLinkDto::toDomain),
+        mapBounds = mapBounds?.let { MapBounds(it.west, it.south, it.east, it.north) },
     )
 }
 

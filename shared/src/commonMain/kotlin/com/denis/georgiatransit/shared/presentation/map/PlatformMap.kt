@@ -3,6 +3,7 @@ package com.denis.georgiatransit.shared.presentation.map
 import androidx.compose.runtime.Immutable
 import com.denis.georgiatransit.shared.domain.model.DirectionId
 import com.denis.georgiatransit.shared.domain.model.GeoPoint
+import com.denis.georgiatransit.shared.domain.model.MapBounds
 import com.denis.georgiatransit.shared.domain.model.RouteId
 import com.denis.georgiatransit.shared.domain.model.StopId
 import com.denis.georgiatransit.shared.domain.model.VehicleId
@@ -220,6 +221,8 @@ data class MapRenderState(
     val journey: MapJourneyOverlay? = null,
     /** UI-owned one-shot map projection; does not move the camera. */
     val pointRequest: MapPointRequest? = null,
+    /** Optional service area for maps with local basemap coverage. */
+    val cameraBounds: MapBounds? = null,
 ) {
     /**
      * Converts arbitrary caller-owned iterables into persistent snapshots, which is the convenient

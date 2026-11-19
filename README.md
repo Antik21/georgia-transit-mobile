@@ -132,6 +132,26 @@ without affecting another city. A route-list 200 with a city or mode mismatch
 fails closed without replacing LKG or its timestamps. Stops, shapes, realtime
 vehicles, arrivals, and journeys are never durably stored.
 
+## Zugdidi Android preview
+
+Run the Transit BFF with the local ordered-stop CSV used for the Zugdidi preview.
+
+```sh
+BFF_PORT=18776 \
+BFF_ZUGDIDI_PREVIEW_CSV=/absolute/path/zugdidi-yandex-stops.csv \
+BFF_MAP_ENABLED=true \
+BFF_MAP_TILE_TEMPLATE='https://tile.openstreetmap.org/{z}/{x}/{y}.png' \
+BFF_MAP_ATTRIBUTION='<a href="https://www.openstreetmap.org/copyright">© OpenStreetMap contributors</a>' \
+BFF_MAP_PUBLIC_BASE_URL=http://10.0.2.2:18776 \
+./gradlew :transitBff:run
+```
+
+Build Android Sandbox with `-PSANDBOX_BFF_BASE_URL=http://10.0.2.2:18776`. The BFF derives
+route and direction labels from its [nine-language name directory](transitBff/src/main/resources/transit/zugdidi/names.json).
+The CSV supplies the ordered coordinates and the original lookup labels. The preview draws direct
+segments between stops and exposes static routes, stops, and route geometry. The input is local
+and accepted only by a loopback development BFF.
+
 ## Transit BFF
 
 `:transitBff` is a standalone JVM server module; it does not enter `shared`,
