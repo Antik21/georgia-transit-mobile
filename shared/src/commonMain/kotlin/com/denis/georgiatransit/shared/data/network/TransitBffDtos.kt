@@ -21,7 +21,18 @@ internal data class CityDto(
     val attribution: List<AttributionLinkDto> = emptyList(),
 )
 
-@Serializable internal data class LocalizedTextDto(val ru: String, val en: String, val ka: String)
+@Serializable
+internal data class LocalizedTextDto(
+    val ru: String,
+    val en: String,
+    val ka: String,
+    val uk: String? = null,
+    val de: String? = null,
+    val fr: String? = null,
+    val ar: String? = null,
+    val hi: String? = null,
+    val zh: String? = null,
+)
 @Serializable internal data class GeoPointDto(val latitude: Double, val longitude: Double)
 
 @Serializable

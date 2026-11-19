@@ -268,7 +268,7 @@ internal fun ErrorDto.toFailure() = when (code) {
     ErrorCodeDto.UpstreamTimeout -> com.denis.georgiatransit.shared.domain.repository.TransitFailure.UpstreamTimeout(message, requestId)
 }
 
-private fun LocalizedTextDto.toDomain() = LocalizedText(ru, en, ka)
+private fun LocalizedTextDto.toDomain() = LocalizedText(ru, en, ka, uk, de, fr, ar, hi, zh)
 private fun AttributionLinkDto.toDomain() = TransitAttribution(
     id = id.also { require(AttributionIdPattern.matches(it)) { "attribution id is invalid" } },
     label = label.toDomain(),

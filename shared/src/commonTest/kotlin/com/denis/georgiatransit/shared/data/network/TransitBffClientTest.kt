@@ -8,6 +8,7 @@ import com.denis.georgiatransit.shared.domain.model.RouteId
 import com.denis.georgiatransit.shared.domain.model.StopId
 import com.denis.georgiatransit.shared.domain.model.TransitLocale
 import com.denis.georgiatransit.shared.domain.model.TransitMode
+import com.denis.georgiatransit.shared.domain.model.TransitStop
 import com.denis.georgiatransit.shared.domain.repository.TransitFailure
 import com.denis.georgiatransit.shared.domain.repository.TransitLoadResult
 import io.ktor.client.HttpClient
@@ -36,6 +37,22 @@ import kotlin.test.assertTrue
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class TransitBffClientTest {
+    @Test
+    fun nearbyStopsUseTheAppLanguageAndReadReviewedNamesWithLegacyFallback() = runTest {
+        val client = TransitBffClient(mockHttpClient { request ->
+            assertEquals("ar", request.url.parameters["locale"])
+            jsonResponse(
+                """[{"id":"batumi:theta:stop:one","providerId":"one","code":"1047","name":{"ru":"Цирк","en":"Circus","ka":"ცირკი","ar":"السيرك"},"position":{"latitude":41.65,"longitude":41.64},"routeIds":[],"mode":"bus"}]""",
+            )
+        }, endpoint())
+        val locale = TransitLocale.fromLanguageTag("ar-EG")
+        val result = client.nearbyStops(CityId("batumi"), GeoPoint(41.65, 41.64), 100, 2, locale)
+        val name = assertIs<TransitLoadResult.Data<List<TransitStop>>>(result).value.single().name
+        assertEquals("السيرك", name.forLocale(locale))
+        assertEquals("Circus", name.forLocale(TransitLocale.fromLanguageTag("zh-Hans")))
+        assertEquals("ცირკი", name.forLocale(TransitLocale.fromLanguageTag("ka-GE")))
+    }
+
     @Test
     fun everyPublishedEndpointUsesOneSafePathSegmentEncodedQueriesAndEndpointTimeouts() = runTest {
         val requests = mutableListOf<HttpRequestData>()

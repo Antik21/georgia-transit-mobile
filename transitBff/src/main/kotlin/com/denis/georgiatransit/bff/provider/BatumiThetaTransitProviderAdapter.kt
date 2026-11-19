@@ -33,6 +33,7 @@ import com.denis.georgiatransit.bff.planning.GeoBounds
 import com.denis.georgiatransit.bff.planning.JourneyPlanQuery
 import com.denis.georgiatransit.bff.planning.PlanningBudget
 import com.denis.georgiatransit.bff.provider.batumi.BatumiJourneyPlanning
+import com.denis.georgiatransit.bff.provider.batumi.BatumiStopNames
 import com.denis.georgiatransit.bff.provider.batumi.BatumiServiceBounds
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.cio.CIO
@@ -776,11 +777,12 @@ internal object BatumiThetaCatalogParser {
         } }
         if (rawStopEntries.map(RawStop::rawId).toSet().size != rawStopEntries.size) invalid()
         val stopsByRawId = rawStopEntries.associate { raw ->
+            val id = BatumiIds.stop(raw.rawId)
             raw.rawId to Stop(
-                BatumiIds.stop(raw.rawId),
+                id,
                 BatumiIds.opaque(raw.rawId),
                 raw.code,
-                LocalizedText(raw.name, raw.name, raw.ka),
+                BatumiStopNames.find(id, raw.code, raw.position) ?: LocalizedText(raw.name, raw.name, raw.ka),
                 raw.position,
                 raw.memberships.map { routeIds.getValue(it.rawRouteId) }.sorted(),
                 TransitModeValues.Bus,

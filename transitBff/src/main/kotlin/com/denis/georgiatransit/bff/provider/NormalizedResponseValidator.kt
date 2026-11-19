@@ -327,6 +327,7 @@ object NormalizedResponseValidator {
 
     private fun localized(value: LocalizedText) {
         if (value.ru.isBlank() || value.en.isBlank() || value.ka.isBlank()) invalid()
+        if (listOfNotNull(value.uk, value.de, value.fr, value.ar, value.hi, value.zh).any(String::isBlank)) invalid()
     }
 
     private fun positionKind(value: PositionKind) {
