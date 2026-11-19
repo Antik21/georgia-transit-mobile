@@ -51,6 +51,8 @@ data class BffConfig(
     val schemaDriftWindowSeconds: Long = DefaultSchemaDriftWindowSeconds,
     val zugdidiPreviewCsv: Path? = null,
     val zugdidiStaticCsv: Path? = null,
+    val kutaisiOsmEnabled: Boolean = false,
+    val kutaisiAzry: KutaisiAzryConfig = KutaisiAzryConfig.Disabled,
 ) {
     init {
         require(host.isNotBlank()) { "BFF_HOST must not be blank" }
@@ -112,6 +114,12 @@ data class BffConfig(
         require(mode != RuntimeMode.PRODUCTION || !batumiTheta.isActivated || schemaInterlockEnabled) {
             "BFF_SCHEMA_INTERLOCK_ENABLED must be true for a production Batumi Theta activation"
         }
+        require(!(kutaisiOsmEnabled && kutaisiAzry.enabled)) {
+            "Only one Kutaisi provider adapter may be activated"
+        }
+        require(mode != RuntimeMode.PRODUCTION || !kutaisiAzry.enabled || schemaInterlockEnabled) {
+            "BFF_SCHEMA_INTERLOCK_ENABLED must be true for production Kutaisi AZRY activation"
+        }
         require(!(transitous.isActivated && ttc.isActivated)) {
             "Only one Tbilisi production provider adapter may be activated"
         }
@@ -146,6 +154,8 @@ data class BffConfig(
                     fixturesEnabled = parseBoolean(environment, "BFF_FIXTURES_ENABLED", false),
                     zugdidiPreviewCsv = parseOptionalPath(environment, "BFF_ZUGDIDI_PREVIEW_CSV"),
                     zugdidiStaticCsv = parseOptionalPath(environment, "BFF_ZUGDIDI_STATIC_CSV"),
+                    kutaisiOsmEnabled = parseBoolean(environment, "BFF_KUTAISI_OSM_ENABLED", false),
+                    kutaisiAzry = KutaisiAzryConfig.fromEnvironment(environment),
                     capabilityControlPath = parseOptionalPath(environment, "BFF_CAPABILITY_CONTROL_PATH"),
                     capabilityControlStateDirectory = parseOptionalPath(
                         environment,

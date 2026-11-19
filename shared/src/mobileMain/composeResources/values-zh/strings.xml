@@ -195,4 +195,20 @@
     <string name="map_planner_summary_tram">有轨电车 %1$s</string>
     <string name="map_planner_summary_ferry">渡轮 %1$s</string>
     <string name="map_connection_error">连接错误</string>
+
+    <string name="schedule_title">时刻表</string>
+    <string name="schedule_route">线路</string>
+    <string name="schedule_direction">方向</string>
+    <string name="schedule_date">日期</string>
+    <string name="schedule_previous_day">前一天</string>
+    <string name="schedule_next_day">后一天</string>
+    <string name="schedule_select_date">选择日期</string>
+    <string name="schedule_cancel">取消</string>
+    <string name="schedule_no_routes">没有提供行驶方向的线路。</string>
+    <string name="schedule_no_times">该日期尚未发布时刻表。</string>
+    <string name="schedule_error">无法加载时刻表。</string>
+    <string name="schedule_unavailable">时刻表不可用。</string>
+    <string name="schedule_local_times">计划到站时间（当地时间）</string>
+    <string name="schedule_stop_empty">没有计划到站时间</string>
+    <string name="schedule_following_day">%1$s（+%2$d 天）</string>
 </resources>

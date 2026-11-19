@@ -1,5 +1,9 @@
 package com.denis.georgiatransit.bff.map
 
+import com.denis.georgiatransit.bff.api.City
+import com.denis.georgiatransit.bff.api.CityCapabilities
+import com.denis.georgiatransit.bff.api.GeoPoint
+import com.denis.georgiatransit.bff.api.LocalizedText
 import com.denis.georgiatransit.bff.config.BffConfig
 import java.time.Clock
 import java.time.Duration
@@ -7,12 +11,18 @@ import java.time.Instant
 import java.time.ZoneId
 import java.time.ZoneOffset
 import kotlinx.coroutines.runBlocking
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.double
+import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertContentEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
+import kotlin.test.assertNotNull
 
 class MapProxyTest {
     @Test
@@ -38,6 +48,31 @@ class MapProxyTest {
             assertContentEquals(byteArrayOf(1, 2), proxy.tile(15, 20_194, 12_101))
             assertFailsWith<IllegalArgumentException> { proxy.tile(15, 0, 0) }
             assertEquals(2, fake.calls)
+        }
+    }
+
+    @Test
+    fun `city coverage matches the public raster bounds and leaves Batumi unchanged`() {
+        val city = City(
+            id = "kutaisi",
+            name = LocalizedText("Кутаиси", "Kutaisi", "ქუთაისი"),
+            center = GeoPoint(42.27, 42.70),
+            defaultZoom = 15.0,
+            capabilities = CityCapabilities(stops = true, routes = true, routeGeometry = true,
+                vehiclePositions = false, officialArrivals = false, tripPlanning = false),
+        )
+        val batumi = city.copy(id = "batumi")
+        MapProxy(config(), areas = setOf(MapArea.Batumi, MapArea.Zugdidi)).use { proxy ->
+            val (bounded, originalBatumi) = proxy.withCityCoverage(listOf(city, batumi))
+            val coverage = assertNotNull(bounded.mapBounds)
+            val sources = Json.parseToJsonElement(proxy.styleJson(kutaisiEnabled = true)).jsonObject.getValue("sources")
+            assertEquals(setOf("bff-raster", "zugdidi-raster", "kutaisi-raster"), sources.jsonObject.keys)
+            val styleBounds = sources.jsonObject.getValue("kutaisi-raster").jsonObject.getValue("bounds")
+                .jsonArray.map { it.jsonPrimitive.double }
+            assertEquals(styleBounds, listOf(coverage.west, coverage.south, coverage.east, coverage.north))
+            assertEquals(batumi, originalBatumi)
+            val disabled = city.copy(capabilities = city.capabilities.copy(stops = false))
+            assertEquals(listOf(disabled), proxy.withCityCoverage(listOf(disabled)))
         }
     }
 
@@ -71,6 +106,20 @@ class MapProxyTest {
         assertFailsWith<IllegalArgumentException> { MapProxy.validate(7, 78, 47) }
         assertFailsWith<IllegalArgumentException> { MapProxy.validate(8, 0, 0) }
         MapProxy.validate(8, 157, 95)
+    }
+
+    @Test
+    fun `Kutaisi tiles are served only while enabled and keep the original Batumi coverage`() = runBlocking {
+        val fake = FakeDownloader()
+        MapProxy(config(), fake).use { proxy ->
+            assertFailsWith<IllegalArgumentException> { proxy.tile(15, 20_271, 12_130) }
+            assertContentEquals(byteArrayOf(1, 2), proxy.tile(15, 20_271, 12_130, kutaisiEnabled = true))
+            assertFailsWith<IllegalArgumentException> { proxy.tile(15, 20_271, 12_130) }
+            assertFailsWith<IllegalArgumentException> { proxy.tile(15, 0, 0, kutaisiEnabled = true) }
+            assertContentEquals(byteArrayOf(1, 2), proxy.tile(8, 157, 95, kutaisiEnabled = true))
+            assertContentEquals(byteArrayOf(1, 2), proxy.tile(8, 157, 95))
+            assertEquals(2, fake.calls)
+        }
     }
 
     @Test

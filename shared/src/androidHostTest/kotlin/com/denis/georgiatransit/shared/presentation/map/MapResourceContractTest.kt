@@ -809,7 +809,12 @@ class MapResourceContractTest {
             androidCamera,
             "lastAppliedCameraRevision == command.revision",
             "viewportBottomPadding(command)",
+            "recordApplied(command)",
+        )
+        assertCodePath(
+            androidCameraAdapter.functionBody("private fun recordApplied"),
             "lastAppliedCameraRevision = command.revision",
+            "zoomSteps.cameraMovedElsewhere()",
         )
         assertCodePath(
             androidCameraAdapter.functionBody("private fun viewportBottomPadding"),

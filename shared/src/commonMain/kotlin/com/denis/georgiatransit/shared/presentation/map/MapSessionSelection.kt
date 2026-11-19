@@ -19,6 +19,8 @@ internal data class MapSessionChange(
     val vehicleSelectionChanged: Boolean,
     /** The first emission restores the session; it is not a new user request. */
     val initial: Boolean = false,
+    val routesAdded: Boolean = false,
+    val routeSelectionChanged: Boolean = false,
 ) {
     val selectionOverlayChanged: Boolean get() = vehicleSelectionChanged || routesCapabilityChanged
     val resetStops: Boolean get() = cityChanged || stopsCapabilityChanged
@@ -80,6 +82,8 @@ internal class MapSessionSelection(private val repository: TransitRepository) {
                 nextCity?.capabilities?.arrivals != previousCity?.capabilities?.arrivals,
             vehicleSelectionChanged = selectedIds != lastSelectedRouteIds || projection != previousProjection,
             initial = !observed,
+            routesAdded = selectedIds.any { it !in lastSelectedRouteIds },
+            routeSelectionChanged = selectedIds != lastSelectedRouteIds,
         )
         lastSelectedRouteIds = selectedIds.toSet()
         observed = true

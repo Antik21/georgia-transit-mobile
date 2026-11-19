@@ -52,6 +52,7 @@ internal fun CityDto.toDomain(): TransitCity {
             journeyPlanning = capabilities.tripPlanning,
             routes = capabilities.routes,
             officialArrivals = capabilities.officialArrivals,
+            schedules = capabilities.schedules,
         ),
         localizedName = name.toDomain(),
         defaultZoom = defaultZoom.requireFinite("defaultZoom"),
@@ -270,7 +271,7 @@ internal fun ErrorDto.toFailure() = when (code) {
     ErrorCodeDto.UpstreamTimeout -> com.denis.georgiatransit.shared.domain.repository.TransitFailure.UpstreamTimeout(message, requestId)
 }
 
-private fun LocalizedTextDto.toDomain() = LocalizedText(ru, en, ka, uk, de, fr, ar, hi, zh)
+internal fun LocalizedTextDto.toDomain() = LocalizedText(ru, en, ka, uk, de, fr, ar, hi, zh)
 private fun AttributionLinkDto.toDomain() = TransitAttribution(
     id = id.also { require(AttributionIdPattern.matches(it)) { "attribution id is invalid" } },
     label = label.toDomain(),
@@ -325,7 +326,7 @@ private fun String.requireCityId(): String {
 }
 
 /** Validates the BFF contract without splitting, deriving, or otherwise interpreting the ID. */
-private fun String.requirePublicId(field: String): String {
+internal fun String.requirePublicId(field: String): String {
     require(length <= MaxPublicIdLength && PublicIdPattern.matches(this)) { "$field is invalid" }
     return this
 }

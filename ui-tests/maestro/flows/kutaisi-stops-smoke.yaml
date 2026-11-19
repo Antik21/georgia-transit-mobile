@@ -1,0 +1,15 @@
+appId: com.denis.georgiatransit.sandbox
+---
+# Start the local BFF with only the Kutaisi capability control example.
+- launchApp:
+    clearState: true
+- extendedWaitUntil:
+    visible:
+      id: map.nearby-stop
+    timeout: 20000
+- assertVisible:
+    id: map.screen
+- assertVisible:
+    id: map.attribution.link.openstreetmap
+- assertNotVisible:
+    id: map.routes

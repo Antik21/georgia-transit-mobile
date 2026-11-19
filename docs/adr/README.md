@@ -44,5 +44,9 @@ The BFF-derived Batumi journey planner and its additive plan contract are record
 The journey endpoint model (current location or arbitrary A/B points) and the planning
 coordinate privacy boundary are recorded in
 [ADR 0023](0023-journey-endpoints-and-coordinate-boundary.md).
+The opt-in, ODbL-licensed Kutaisi stop catalog and bounded basemap source are recorded in
+[ADR 0024](0024-kutaisi-osm-stop-catalog.md).
 The Batumi stop-name directory and app locale contract are recorded in
 [ADR 0025](0025-batumi-stop-name-directory.md).
+The authorized AZRY adapter, date-based timetable contract and city capability gates are recorded
+in [ADR 0026](0026-kutaisi-azry-transit-feed.md).

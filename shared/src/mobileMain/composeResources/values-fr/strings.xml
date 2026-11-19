@@ -195,4 +195,20 @@
     <string name="map_planner_summary_tram">tramway %1$s</string>
     <string name="map_planner_summary_ferry">ferry %1$s</string>
     <string name="map_connection_error">Erreur de connexion</string>
+
+    <string name="schedule_title">Horaires</string>
+    <string name="schedule_route">Ligne</string>
+    <string name="schedule_direction">Direction</string>
+    <string name="schedule_date">Date</string>
+    <string name="schedule_previous_day">Jour précédent</string>
+    <string name="schedule_next_day">Jour suivant</string>
+    <string name="schedule_select_date">Choisir une date</string>
+    <string name="schedule_cancel">Annuler</string>
+    <string name="schedule_no_routes">Aucune ligne avec des directions renseignées.</string>
+    <string name="schedule_no_times">Aucun horaire n’a été publié pour cette date.</string>
+    <string name="schedule_error">Impossible de charger les horaires.</string>
+    <string name="schedule_unavailable">Les horaires sont indisponibles.</string>
+    <string name="schedule_local_times">Arrivées prévues en heure locale</string>
+    <string name="schedule_stop_empty">Aucune arrivée prévue</string>
+    <string name="schedule_following_day">%1$s (jour +%2$d)</string>
 </resources>

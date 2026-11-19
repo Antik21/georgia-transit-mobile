@@ -10,7 +10,6 @@ import org.maplibre.android.geometry.LatLng
 import org.maplibre.android.geometry.LatLngBounds
 import org.maplibre.android.maps.MapLibreMap
 import org.maplibre.android.maps.MapView
-import kotlin.math.abs
 import kotlin.math.atan2
 import kotlin.math.ceil
 import kotlin.math.cos
@@ -27,18 +26,22 @@ internal class MapCameraAdapter(
     private var lastAppliedCameraRevision: Long? = null
     private var lastAppliedCameraCommand: MapCameraCommand? = null
     private var lastBottomPadding: Double? = null
-    private var coverageBounds: MapBounds? = null
-    private var defaultMinZoom = MIN_ZOOM
     private val zoomSteps = MapZoomStepTracker(MIN_ZOOM, MAX_ZOOM)
-    private val cameraIdleListener = MapLibreMap.OnCameraIdleListener { notifyViewportSettled() }
+    private val coverage = MapCoverageConstraint(mapView)
+    private var coverageUpdatePosted = false
+    private val cameraMoveListener = MapLibreMap.OnCameraMoveListener { scheduleCoverageUpdate() }
+    private val cameraIdleListener = MapLibreMap.OnCameraIdleListener {
+        scheduleCoverageUpdate()
+        notifyViewportSettled()
+    }
     private val cameraMoveStartedListener = MapLibreMap.OnCameraMoveStartedListener { reason ->
-        if (reason == MapLibreMap.OnCameraMoveStartedListener.REASON_API_GESTURE) zoomSteps.cameraMovedElsewhere()
-        onEvent(MapPlatformEvent.CameraMoveStarted)
+        val gesture = reason == MapLibreMap.OnCameraMoveStartedListener.REASON_API_GESTURE
+        if (gesture) zoomSteps.cameraMovedElsewhere()
+        onEvent(if (gesture) MapPlatformEvent.UserCameraMoveStarted else MapPlatformEvent.CameraMoveStarted)
     }
     private val layoutChangeListener = View.OnLayoutChangeListener { _, _, _, _, _, _, _, _, _ ->
-        latestCommand()?.let { command ->
-            applyViewportInsets(command)
-        }
+        latestCommand()?.let(::applyViewportInsets)
+        scheduleCoverageUpdate()
     }
 
     init {
@@ -47,19 +50,13 @@ internal class MapCameraAdapter(
 
     fun attach(mapLibreMap: MapLibreMap) {
         map = mapLibreMap
-        defaultMinZoom = mapLibreMap.minZoomLevel
         mapLibreMap.addOnCameraIdleListener(cameraIdleListener)
+        mapLibreMap.addOnCameraMoveListener(cameraMoveListener)
         mapLibreMap.addOnCameraMoveStartedListener(cameraMoveStartedListener)
     }
 
     fun applyBounds(bounds: MapBounds?) {
-        val currentMap = map ?: return
-        if (bounds == coverageBounds) return
-        coverageBounds = bounds
-        currentMap.setLatLngBoundsForCameraTarget(
-            bounds?.let { LatLngBounds.from(it.north, it.east, it.south, it.west) },
-        )
-        if (bounds == null) currentMap.setMinZoomPreference(defaultMinZoom)
+        map?.let { coverage.update(it, bounds) }
     }
 
     /** A new style must re-apply the current command even when its revision is unchanged. */
@@ -71,11 +68,13 @@ internal class MapCameraAdapter(
 
     fun destroy() {
         map?.removeOnCameraIdleListener(cameraIdleListener)
+        map?.removeOnCameraMoveListener(cameraMoveListener)
         map?.removeOnCameraMoveStartedListener(cameraMoveStartedListener)
         mapView.removeOnLayoutChangeListener(layoutChangeListener)
         map = null
         reset()
     }
+
 
     fun applyIfNeeded(command: MapCameraCommand) {
         if (lastAppliedCameraRevision == command.revision) {
@@ -83,11 +82,18 @@ internal class MapCameraAdapter(
             return
         }
         if (!command.center.isMapCoordinate() || !command.zoom.isFinite()) return
-        if (mapView.height <= 0) {
+        if (mapView.width <= 0 || mapView.height <= 0) {
             mapView.post { latestCommand()?.let(::applyIfNeeded) }
             return
         }
         val currentMap = map ?: return
+        coverage.prepareCameraMove(currentMap)
+        command.routeBounds?.let { bounds ->
+            if (!fitRoute(currentMap, bounds, command)) return
+            coverage.constrain(currentMap)
+            recordApplied(command)
+            return
+        }
         val target = LatLng(command.center.latitude, command.center.longitude)
         val zoom = command.zoom.coerceIn(currentMap.minZoomLevel, MAX_ZOOM)
         val previousCommand = lastAppliedCameraCommand
@@ -120,6 +126,28 @@ internal class MapCameraAdapter(
                 ),
             )
         }
+        coverage.constrain(currentMap)
+        recordApplied(command)
+    }
+
+    private fun fitRoute(map: MapLibreMap, bounds: MapRouteBounds, command: MapCameraCommand): Boolean {
+        val area = LatLngBounds.Builder()
+            .include(LatLng(bounds.southwest.latitude, bounds.southwest.longitude))
+            .include(LatLng(bounds.northeast.latitude, bounds.northeast.longitude))
+            .build()
+        val padding = (ROUTE_FRAME_MARGIN_DP * mapView.resources.displayMetrics.density).toInt()
+            .coerceAtMost(minOf(mapView.width, mapView.height) / 4)
+        val camera = map.getCameraForLatLngBounds(
+            area,
+            intArrayOf(padding, padding, padding, padding + viewportBottomPadding(command).toInt()),
+        ) ?: return false
+        map.moveCamera(CameraUpdateFactory.newCameraPosition(
+            CameraPosition.Builder(camera).zoom(camera.zoom.coerceAtMost(MAX_ROUTE_FRAME_ZOOM)).build(),
+        ))
+        return true
+    }
+
+    private fun recordApplied(command: MapCameraCommand) {
         lastAppliedCameraRevision = command.revision
         lastAppliedCameraCommand = command
         lastBottomPadding = viewportBottomPadding(command)
@@ -143,14 +171,28 @@ internal class MapCameraAdapter(
      * Taps wait until the initial camera command is applied, which would otherwise overwrite their zoom.
      */
     fun applyZoomStep(step: MapZoomStep?) {
-        val currentMap = map
-        val readyZoom = currentMap?.takeIf { lastAppliedCameraRevision != null }?.cameraPosition?.zoom ?: Double.NaN
-        val requestedZoom = zoomSteps.targetZoom(step, readyZoom) ?: return
-        if (currentMap == null) return
-        val targetZoom = requestedZoom.coerceAtLeast(currentMap.minZoomLevel)
-        if (targetZoom != requestedZoom) zoomSteps.cameraMovedElsewhere()
-        if (targetZoom != readyZoom) {
-            currentMap.animateCamera(CameraUpdateFactory.zoomTo(targetZoom), MapZoomStepTracker.ANIMATION_MILLIS)
+        val readyZoom = map?.takeIf { lastAppliedCameraRevision != null }?.cameraPosition?.zoom ?: Double.NaN
+        val next = zoomSteps.targetZoom(step, readyZoom) ?: return
+        val current = map ?: return
+        val zoom = next.coerceAtLeast(current.minZoomLevel)
+        if (zoom != next) zoomSteps.cameraMovedElsewhere()
+        if (zoom == readyZoom) return
+        val update = CameraUpdateFactory.zoomTo(zoom)
+        if (coverage.isActive) {
+            current.moveCamera(update)
+            coverage.constrain(current)
+        } else {
+            current.animateCamera(update, MapZoomStepTracker.ANIMATION_MILLIS)
+        }
+    }
+
+    private fun scheduleCoverageUpdate() {
+        if (!coverage.isActive || lastAppliedCameraRevision == null || coverageUpdatePosted) return
+        coverageUpdatePosted = true
+        // Camera changes made here must run outside the SDK's camera callback.
+        mapView.postOnAnimation {
+            coverageUpdatePosted = false
+            map?.let(coverage::constrain)
         }
     }
 
@@ -173,16 +215,6 @@ internal class MapCameraAdapter(
         val position = currentMap.cameraPosition
         val target = position.target ?: return
         val region = currentMap.projection.visibleRegion
-        coverageBounds?.let { bounds ->
-            val coverage = position.constrainToCoverage(region, bounds, defaultMinZoom, currentMap.maxZoomLevel)
-            if (abs(currentMap.minZoomLevel - coverage.minimumZoom) > 0.001) {
-                currentMap.setMinZoomPreference(coverage.minimumZoom)
-            }
-            coverage.correctedCamera?.let { corrected ->
-                currentMap.moveCamera(CameraUpdateFactory.newCameraPosition(corrected))
-                return
-            }
-        }
         val center = GeoPoint(target.latitude, target.longitude)
         val radius = listOfNotNull(region.farLeft, region.farRight, region.nearLeft, region.nearRight)
             .maxOfOrNull { corner -> center.distanceMetersTo(GeoPoint(corner.latitude, corner.longitude)) }
@@ -212,5 +244,7 @@ private fun GeoPoint.distanceMetersTo(other: GeoPoint): Double {
 
 private const val MIN_ZOOM = 0.0
 private const val MAX_ZOOM = 22.0
+private const val ROUTE_FRAME_MARGIN_DP = 52
+private const val MAX_ROUTE_FRAME_ZOOM = 16.0
 private const val MAX_BOTTOM_OCCLUSION_FRACTION = 0.75
 private const val EARTH_RADIUS_METERS = 6_371_008.8

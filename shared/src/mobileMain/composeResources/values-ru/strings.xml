@@ -195,4 +195,19 @@
     <string name="map_planner_summary_tram">трамвай %1$s</string>
     <string name="map_planner_summary_ferry">паром %1$s</string>
     <string name="map_connection_error">Ошибка соединения</string>
+    <string name="schedule_title">Расписание</string>
+    <string name="schedule_route">Маршрут</string>
+    <string name="schedule_direction">Направление</string>
+    <string name="schedule_date">Дата</string>
+    <string name="schedule_previous_day">Предыдущий день</string>
+    <string name="schedule_next_day">Следующий день</string>
+    <string name="schedule_select_date">Выбрать дату</string>
+    <string name="schedule_cancel">Отмена</string>
+    <string name="schedule_no_routes">Нет доступных маршрутов с направлениями.</string>
+    <string name="schedule_no_times">Расписание на эту дату не опубликовано.</string>
+    <string name="schedule_error">Не удалось загрузить расписание.</string>
+    <string name="schedule_unavailable">Расписание недоступно.</string>
+    <string name="schedule_local_times">Плановые прибытия по местному времени</string>
+    <string name="schedule_stop_empty">Нет плановых прибытий</string>
+    <string name="schedule_following_day">%1$s (+%2$d дн.)</string>
 </resources>

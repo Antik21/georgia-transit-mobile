@@ -18,6 +18,7 @@ import com.denis.georgiatransit.bff.api.LocalizedText
 import com.denis.georgiatransit.bff.api.PositionKind
 import com.denis.georgiatransit.bff.api.PublicEntityType
 import com.denis.georgiatransit.bff.api.Route
+import com.denis.georgiatransit.bff.api.RouteSchedule
 import com.denis.georgiatransit.bff.api.Shape
 import com.denis.georgiatransit.bff.api.Stop
 import com.denis.georgiatransit.bff.api.EncodedPolylineShapeFormat
@@ -29,6 +30,8 @@ import com.denis.georgiatransit.bff.api.isValidAttributionId
 import com.denis.georgiatransit.bff.api.isValidCityId
 import com.denis.georgiatransit.bff.api.parsePublicId
 import java.time.Instant
+import java.time.LocalDate
+import java.time.ZoneId
 import java.net.URI
 
 private const val MaximumOpaqueValueLength = MaximumPublicIdLength
@@ -105,6 +108,23 @@ object NormalizedResponseValidator {
         directionForRoute(cityId, route, directionId)
         if (shape.format != EncodedPolylineShapeFormat || shape.precision !in 0..8 || shape.value.isBlank()) invalid()
         timestamp(shape.updatedAt)
+    }
+
+    fun routeSchedule(cityId: String, route: Route, directionId: String, date: LocalDate, schedule: RouteSchedule) {
+        val routeId = entityId(route.id, cityId, PublicEntityType.Route)
+        directionForRoute(cityId, route, directionId)
+        if (schedule.serviceDate != date.toString() || schedule.routeId != route.id ||
+            schedule.directionId != directionId
+        ) invalid()
+        val zone = try { ZoneId.of(schedule.timeZone) } catch (_: java.time.DateTimeException) { invalid() }
+        val start = date.atStartOfDay(zone).toInstant()
+        val end = date.plusDays(2).atStartOfDay(zone).toInstant()
+        schedule.stops.forEach { stop ->
+            if (entityId(stop.stopId, cityId, PublicEntityType.Stop).provider != routeId.provider) invalid()
+            localized(stop.name)
+            val times = stop.arrivalTimes.map(::timestamp)
+            if (times.any { it < start || it >= end } || times.zipWithNext().any { (a, b) -> a >= b }) invalid()
+        }
     }
 
     fun stops(city: City, stops: List<Stop>) {

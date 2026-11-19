@@ -25,10 +25,14 @@ import com.denis.georgiatransit.shared.presentation.map.MapScreen
 import com.denis.georgiatransit.shared.presentation.map.MapViewModel
 import com.denis.georgiatransit.shared.presentation.routes.RoutesScreen
 import com.denis.georgiatransit.shared.presentation.routes.RoutesViewModel
+import com.denis.georgiatransit.shared.presentation.schedule.ScheduleScreen
+import com.denis.georgiatransit.shared.presentation.schedule.ScheduleViewModel
 import kotlinx.serialization.modules.SerializersModule
 import kotlinx.serialization.modules.polymorphic
 import kotlinx.serialization.modules.subclass
 import org.koin.compose.koinInject
+import org.koin.compose.viewmodel.koinViewModel
+import org.koin.core.parameter.parametersOf
 
 @Composable
 internal fun Navigation3AppHost(initialDestination: Destination) {
@@ -37,6 +41,7 @@ internal fun Navigation3AppHost(initialDestination: Destination) {
     val navigationEventApplier = remember(session) { SessionNavigationEventApplier(session) }
     val selectedCity by session.selectedCity.collectAsState()
     val selectedCityId = selectedCity?.id
+    val schedulesAvailable = selectedCity?.capabilities?.schedules == true
     val validatedInitialStack = NavigationTransitionPolicy.restore(
         restoredStack = listOf(initialDestination),
         selectedCityId = selectedCityId,
@@ -47,7 +52,7 @@ internal fun Navigation3AppHost(initialDestination: Destination) {
     )
     val rawStack = backStack.toList()
     val currentStack = rawStack.filterIsInstance<Destination>()
-    val restoredStack = NavigationTransitionPolicy.restore(currentStack, selectedCityId)
+    val restoredStack = NavigationTransitionPolicy.restore(currentStack, selectedCityId, schedulesAvailable)
 
     // Navigation 3 can restore a saved stack before the runtime session is available. Do not
     // render that stack until it has been reconciled with the session prerequisite.
@@ -86,6 +91,8 @@ internal fun Navigation3AppHost(initialDestination: Destination) {
                 when (effect) {
                     com.denis.georgiatransit.shared.presentation.map.NavigationEffect.OpenRoutes ->
                         applyNavigation(NavigationEvent.OpenRoutes)
+                    com.denis.georgiatransit.shared.presentation.map.NavigationEffect.OpenSchedules ->
+                        applyNavigation(NavigationEvent.OpenSchedules)
                     com.denis.georgiatransit.shared.presentation.map.NavigationEffect.OpenCitySelection ->
                         applyNavigation(NavigationEvent.ChangeCity)
                 }
@@ -113,6 +120,13 @@ internal fun Navigation3AppHost(initialDestination: Destination) {
                         applyNavigation(NavigationEvent.RoutesDismissed)
                 }
             }
+        }
+        entry<Destination.Schedules> { destination ->
+            val viewModel: ScheduleViewModel = koinViewModel(
+                key = "schedules",
+                parameters = { parametersOf(destination.cityId) },
+            )
+            ScheduleScreen(viewModel) { applyNavigation(NavigationEvent.Back) }
         }
     }
 
@@ -143,6 +157,7 @@ private val navigationSavedStateConfiguration = SavedStateConfiguration {
             subclass(Destination.CitySelection::class, Destination.CitySelection.serializer())
             subclass(Destination.Map::class, Destination.Map.serializer())
             subclass(Destination.Routes::class, Destination.Routes.serializer())
+            subclass(Destination.Schedules::class, Destination.Schedules.serializer())
         }
     }
 }

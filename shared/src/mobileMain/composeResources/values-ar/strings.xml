@@ -195,4 +195,20 @@
     <string name="map_planner_summary_tram">ترام %1$s</string>
     <string name="map_planner_summary_ferry">عبّارة %1$s</string>
     <string name="map_connection_error">خطأ في الاتصال</string>
+
+    <string name="schedule_title">الجدول الزمني</string>
+    <string name="schedule_route">المسار</string>
+    <string name="schedule_direction">الاتجاه</string>
+    <string name="schedule_date">التاريخ</string>
+    <string name="schedule_previous_day">اليوم السابق</string>
+    <string name="schedule_next_day">اليوم التالي</string>
+    <string name="schedule_select_date">اختيار التاريخ</string>
+    <string name="schedule_cancel">إلغاء</string>
+    <string name="schedule_no_routes">لا توجد مسارات يمكن عرض اتجاهاتها.</string>
+    <string name="schedule_no_times">لم يُنشر جدول زمني لهذا التاريخ.</string>
+    <string name="schedule_error">تعذّر تحميل الجدول الزمني.</string>
+    <string name="schedule_unavailable">الجدول الزمني غير متاح.</string>
+    <string name="schedule_local_times">مواعيد الوصول المجدولة بالتوقيت المحلي</string>
+    <string name="schedule_stop_empty">لا توجد مواعيد وصول مجدولة</string>
+    <string name="schedule_following_day">%1$s (اليوم +%2$d)</string>
 </resources>

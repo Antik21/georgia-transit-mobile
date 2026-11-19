@@ -1,0 +1,86 @@
+appId: com.denis.georgiatransit.sandbox
+---
+# Run with the live Kutaisi and Batumi city capabilities enabled in the local BFF.
+- launchApp:
+    clearState: true
+- extendedWaitUntil:
+    visible:
+      id: city-selection.kutaisi
+    timeout: 20000
+- tapOn:
+    id: city-selection.kutaisi
+- tapOn:
+    id: city-selection.continue
+- tapOn:
+    id: map.schedules
+- extendedWaitUntil:
+    visible:
+      id: schedule.stop
+    timeout: 30000
+- tapOn:
+    id: schedule.direction
+- tapOn:
+    id: schedule.direction.option
+    index: 1
+- extendedWaitUntil:
+    visible:
+      id: schedule.stop
+    timeout: 20000
+- tapOn:
+    id: schedule.route
+- tapOn:
+    id: schedule.route.option
+    index: 1
+- extendedWaitUntil:
+    visible:
+      id: schedule.stop
+    timeout: 20000
+- tapOn:
+    id: schedule.date.next
+- extendedWaitUntil:
+    visible:
+      id: schedule.stop
+    timeout: 20000
+- tapOn:
+    id: schedule.date
+- assertVisible:
+    id: schedule.date.confirm
+- tapOn:
+    id: schedule.date.confirm
+- tapOn:
+    id: schedule.back
+- extendedWaitUntil:
+    visible:
+      id: map.schedules
+    timeout: 20000
+- assertNotVisible:
+    id: map.route-geometry.chip
+- tapOn:
+    id: map.change-city
+- tapOn:
+    id: city-selection.batumi
+- tapOn:
+    id: city-selection.continue
+- extendedWaitUntil:
+    visible:
+      id: map.routes
+    timeout: 20000
+- assertNotVisible:
+    id: map.schedules
+- tapOn:
+    id: map.routes
+- extendedWaitUntil:
+    visible:
+      id: routes.option
+    timeout: 20000
+- tapOn:
+    id: routes.option
+    index: 0
+- tapOn:
+    id: routes.confirm
+- extendedWaitUntil:
+    visible:
+      id: map.route-geometry.chip
+    timeout: 20000
+- assertNotVisible:
+    id: map.schedules

@@ -39,6 +39,7 @@ class OpenApiContractTest {
             "/v1/cities/{cityId}/routes/{routeId}/arrivals" to "ArrivalPage",
             "/v1/cities/{cityId}/routes/{routeId}/directions/{directionId}/stops" to "Stops",
             "/v1/cities/{cityId}/routes/{routeId}/directions/{directionId}/shape" to "Shape",
+            "/v1/cities/{cityId}/routes/{routeId}/directions/{directionId}/schedule" to "RouteSchedule",
             "/v1/cities/{cityId}/vehicles" to "VehiclePage",
             "/v1/cities/{cityId}/stops/nearby" to "Stops",
             "/v1/cities/{cityId}/stops/{stopId}/arrivals" to "ArrivalPage",
@@ -155,7 +156,7 @@ class OpenApiContractTest {
     }
 
     @Test
-    fun `OpenAPI city metadata carries seven capabilities and additive attribution`() {
+    fun `OpenAPI city metadata retains required capabilities with additive schedules and attribution`() {
         val schemas = loadOpenApi().map("components").map("schemas")
         val capabilities = schemas.map("CityCapabilities")
         assertEquals(
@@ -163,7 +164,7 @@ class OpenApiContractTest {
             capabilities["required"],
         )
         assertEquals(
-            setOf("routes", "stops", "routeGeometry", "vehiclePositions", "officialArrivals", "tripPlanning", "arrivals"),
+            setOf("routes", "stops", "routeGeometry", "vehiclePositions", "officialArrivals", "tripPlanning", "arrivals", "schedules"),
             capabilities.map("properties").keys,
         )
         assertEquals(

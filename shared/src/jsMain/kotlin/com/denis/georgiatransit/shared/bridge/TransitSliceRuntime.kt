@@ -157,6 +157,7 @@ class TransitSliceRuntime(bffBaseUrl: String, languageTag: String? = null) {
                 publishDestination("map")
             }
             Destination.Routes -> publishDestination("routes")
+            is Destination.Schedules -> error("Schedule navigation is only available in the mobile host")
         }
     }
 
@@ -193,6 +194,7 @@ class TransitSliceRuntime(bffBaseUrl: String, languageTag: String? = null) {
                 when (effect) {
                     MapNavigationEffect.OpenCitySelection -> navigate(NavigationEvent.ChangeCity)
                     MapNavigationEffect.OpenRoutes -> navigate(NavigationEvent.OpenRoutes)
+                    MapNavigationEffect.OpenSchedules -> Unit
                 }
             }
         }, locationSession = koin.get()) { map = null }.also { map = it }

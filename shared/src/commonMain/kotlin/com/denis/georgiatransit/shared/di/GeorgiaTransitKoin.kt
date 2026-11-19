@@ -4,6 +4,7 @@ import com.denis.georgiatransit.shared.data.cache.TransitCache
 import com.denis.georgiatransit.shared.data.cache.TransitCacheStore
 import com.denis.georgiatransit.shared.data.config.BffEndpointConfiguration
 import com.denis.georgiatransit.shared.data.network.TransitBffClient
+import com.denis.georgiatransit.shared.domain.model.CityId
 import com.denis.georgiatransit.shared.domain.repository.ConnectionErrorNotices
 import com.denis.georgiatransit.shared.data.network.createTransitHttpClient
 import com.denis.georgiatransit.shared.data.repository.BffJourneyPlanRepository
@@ -27,6 +28,7 @@ import com.denis.georgiatransit.shared.presentation.map.SystemVehicleRealtimeClo
 import com.denis.georgiatransit.shared.presentation.map.VehicleRealtimeClock
 import com.denis.georgiatransit.shared.presentation.map.VehicleRealtimeTickerPolicy
 import com.denis.georgiatransit.shared.presentation.routes.RoutesViewModel
+import com.denis.georgiatransit.shared.presentation.schedule.ScheduleViewModel
 import com.denis.georgiatransit.shared.presentation.splash.SplashViewModel
 import org.koin.core.context.startKoin
 import org.koin.dsl.module
@@ -76,6 +78,7 @@ internal fun appModule(
         )
     }
     factory { RoutesViewModel(repository = get(), session = get(), recentHistory = get()) }
+    factory { (cityId: CityId) -> ScheduleViewModel(cityId, repository = get(), session = get()) }
 }
 
 fun initGeorgiaTransitKoin(

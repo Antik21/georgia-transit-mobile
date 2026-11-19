@@ -20,6 +20,8 @@ enum class TelemetryProvider(val wireValue: String) {
     TTC("ttc"),
     BATUMI_THETA("batumi_theta"),
     ZUGDIDI_STATIC("zugdidi_static"),
+    KUTAISI_OSM("kutaisi_osm"),
+    KUTAISI_AZRY("kutaisi_azry"),
 }
 
 enum class TelemetryCapability(val wireValue: String) {
@@ -28,6 +30,7 @@ enum class TelemetryCapability(val wireValue: String) {
     ROUTE_GEOMETRY("route_geometry"),
     VEHICLE_POSITIONS("vehicle_positions"),
     ARRIVALS("arrivals"),
+    SCHEDULES("schedules"),
     TRIP_PLANNING("trip_planning"),
 }
 
@@ -40,6 +43,7 @@ enum class TelemetryOperation(val wireValue: String, val capability: TelemetryCa
     VEHICLES("vehicles", TelemetryCapability.VEHICLE_POSITIONS),
     GLOBAL_VEHICLES("global_vehicles", TelemetryCapability.VEHICLE_POSITIONS),
     ARRIVALS("arrivals", TelemetryCapability.ARRIVALS),
+    SCHEDULE("schedule", TelemetryCapability.SCHEDULES),
     JOURNEYS("journeys", TelemetryCapability.TRIP_PLANNING),
     WALKING_ESTIMATE("walking_estimate", TelemetryCapability.TRIP_PLANNING),
     JOURNEY_PLAN("journey_plan", TelemetryCapability.TRIP_PLANNING),
@@ -57,6 +61,7 @@ enum class HttpOperation(val wireValue: String) {
     VEHICLES("vehicles"),
     NEARBY_STOPS("nearby_stops"),
     ARRIVALS("arrivals"),
+    SCHEDULE("schedule"),
     JOURNEYS("journeys"),
     WALKING_ESTIMATE("walking_estimate"),
     JOURNEY_PLAN("journey_plan"),

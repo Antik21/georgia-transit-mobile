@@ -195,4 +195,20 @@
     <string name="map_planner_summary_tram">Straßenbahn %1$s</string>
     <string name="map_planner_summary_ferry">Fähre %1$s</string>
     <string name="map_connection_error">Verbindungsfehler</string>
+
+    <string name="schedule_title">Fahrplan</string>
+    <string name="schedule_route">Linie</string>
+    <string name="schedule_direction">Richtung</string>
+    <string name="schedule_date">Datum</string>
+    <string name="schedule_previous_day">Vorheriger Tag</string>
+    <string name="schedule_next_day">Nächster Tag</string>
+    <string name="schedule_select_date">Datum auswählen</string>
+    <string name="schedule_cancel">Abbrechen</string>
+    <string name="schedule_no_routes">Keine Linien mit Richtungsangaben verfügbar.</string>
+    <string name="schedule_no_times">Für dieses Datum wurde kein Fahrplan veröffentlicht.</string>
+    <string name="schedule_error">Der Fahrplan konnte nicht geladen werden.</string>
+    <string name="schedule_unavailable">Der Fahrplan ist nicht verfügbar.</string>
+    <string name="schedule_local_times">Planmäßige Ankünfte in Ortszeit</string>
+    <string name="schedule_stop_empty">Keine planmäßigen Ankünfte</string>
+    <string name="schedule_following_day">%1$s (Tag +%2$d)</string>
 </resources>

@@ -3,6 +3,7 @@ package com.denis.georgiatransit.shared.data.network
 import com.denis.georgiatransit.shared.data.config.BffEndpointConfiguration
 import com.denis.georgiatransit.shared.domain.model.CityId
 import com.denis.georgiatransit.shared.domain.model.DirectionId
+import com.denis.georgiatransit.shared.domain.model.DirectionSchedule
 import com.denis.georgiatransit.shared.domain.model.GeoPoint
 import com.denis.georgiatransit.shared.domain.model.RouteId
 import com.denis.georgiatransit.shared.domain.model.StopId
@@ -27,6 +28,9 @@ import io.ktor.serialization.kotlinx.json.json
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.runTest
+import kotlinx.datetime.LocalDate
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.toLocalDateTime
 import kotlinx.serialization.json.Json
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -101,6 +105,47 @@ class TransitBffClientTest {
         assertTimeouts(requests[5], 8_000L)
         assertTimeouts(requests[7], 8_000L)
         assertTimeouts(requests[8], 20_000L)
+    }
+
+    @Test
+    fun scheduleUsesServiceDateAndChecksThatTheResponseMatchesTheSelection() = runTest {
+        val date = LocalDate(2026, 11, 19)
+        val city = CityId("kutaisi")
+        val route = RouteId("kutaisi:provider:route:3")
+        val direction = DirectionId("kutaisi:provider:direction:outbound")
+        var responseDate = date
+        val client = TransitBffClient(mockHttpClient { request ->
+            assertTrue(request.url.encodedPath.endsWith("/schedule"))
+            assertEquals(date.toString(), request.url.parameters["date"])
+            assertEquals("ka", request.url.parameters["locale"])
+            jsonResponse(
+                """
+                {
+                  "routeId": "${route.value}", "directionId": "${direction.value}",
+                  "serviceDate": "$responseDate", "timeZone": "Asia/Tbilisi",
+                  "stops": [{
+                    "stopId": "kutaisi:provider:stop:1",
+                    "name": {"en": "Station", "ru": "Станция", "ka": "სადგური"},
+                    "arrivalTimes": ["2026-11-19T04:00:00Z", "2026-11-19T20:15:00Z"]
+                  }]
+                }
+                """.trimIndent(),
+            )
+        }, endpoint())
+
+        val schedule = assertIs<TransitLoadResult.Data<DirectionSchedule>>(
+            client.directionSchedule(city, route, direction, date, TransitLocale.Georgian),
+        ).value
+        assertEquals(date, schedule.serviceDate)
+        assertEquals(TimeZone.of("Asia/Tbilisi"), schedule.timeZone)
+        val times = schedule.stops.single().arrivalTimes.map { it.toLocalDateTime(schedule.timeZone).toString() }
+        assertEquals(listOf("2026-11-19T08:00", "2026-11-20T00:15"), times)
+
+        responseDate = LocalDate(2026, 11, 20)
+        val result = assertIs<TransitLoadResult.Failure>(
+            client.directionSchedule(city, route, direction, date, TransitLocale.Georgian),
+        )
+        assertIs<TransitFailure.Serialization>(result.error)
     }
 
     @Test
