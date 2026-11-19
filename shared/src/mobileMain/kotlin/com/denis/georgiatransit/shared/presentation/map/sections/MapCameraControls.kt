@@ -30,7 +30,7 @@ import georgiatransit.shared.generated.resources.map_zoom_in_action
 import georgiatransit.shared.generated.resources.map_zoom_out_action
 import org.jetbrains.compose.resources.stringResource
 
-/** Bottom-end map controls: the location action stacked above zoom in and zoom out. */
+/** The location action stacked above zoom in and zoom out. */
 @Composable
 internal fun MapCameraControls(
     locationActionLabel: String,

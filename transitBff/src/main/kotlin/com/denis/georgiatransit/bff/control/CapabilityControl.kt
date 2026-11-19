@@ -669,6 +669,7 @@ private fun CityCapabilities.capabilityEnabled(capability: TelemetryCapability):
     TelemetryCapability.ROUTE_GEOMETRY -> routeGeometry
     TelemetryCapability.VEHICLE_POSITIONS -> vehiclePositions
     TelemetryCapability.ARRIVALS -> arrivals
+    TelemetryCapability.SCHEDULES -> schedules
     TelemetryCapability.TRIP_PLANNING -> tripPlanning
 }
 
@@ -678,6 +679,7 @@ private fun CityCapabilities.disabled(capability: TelemetryCapability): CityCapa
     TelemetryCapability.ROUTE_GEOMETRY -> copy(routeGeometry = false)
     TelemetryCapability.VEHICLE_POSITIONS -> copy(vehiclePositions = false)
     TelemetryCapability.ARRIVALS -> copy(arrivals = false, officialArrivals = false)
+    TelemetryCapability.SCHEDULES -> copy(schedules = false)
     TelemetryCapability.TRIP_PLANNING -> copy(tripPlanning = false)
 }
 
@@ -694,7 +696,8 @@ private fun validateNoCapabilityExpansion(requested: CityCapabilities, intrinsic
         (requested.vehiclePositions && !intrinsic.vehiclePositions) ||
         (requested.officialArrivals && !intrinsic.officialArrivals) ||
         (requested.tripPlanning && !intrinsic.tripPlanning) ||
-        (requested.arrivals && !intrinsic.arrivals)
+        (requested.arrivals && !intrinsic.arrivals) ||
+        (requested.schedules && !intrinsic.schedules)
     ) {
         invalidControlDocument()
     }
@@ -708,6 +711,7 @@ private fun CityCapabilities.intersect(other: CityCapabilities): CityCapabilitie
     officialArrivals = officialArrivals && other.officialArrivals,
     tripPlanning = tripPlanning && other.tripPlanning,
     arrivals = arrivals && other.arrivals,
+    schedules = schedules && other.schedules,
 )
 
 private fun readControlDocument(path: Path): String =

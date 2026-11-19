@@ -86,6 +86,7 @@ data class CityCapabilities(
     val routes: Boolean = true,
     /** True only when arrivals come from a city's official provider. */
     val officialArrivals: Boolean = arrivals,
+    val schedules: Boolean = false,
 ) {
     val routeGeometry: Boolean get() = routeShapes
     val vehiclePositions: Boolean get() = vehicles

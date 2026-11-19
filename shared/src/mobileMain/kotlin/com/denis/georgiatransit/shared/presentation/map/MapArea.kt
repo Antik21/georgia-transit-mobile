@@ -76,7 +76,7 @@ internal fun MapArea(
                 onZoomClick = onZoomClick,
                 onMapEvent = { event ->
                     when (event) {
-                        MapPlatformEvent.CameraMoveStarted -> {
+                        MapPlatformEvent.CameraMoveStarted, MapPlatformEvent.UserCameraMoveStarted -> {
                             onCameraMovingChanged(true)
                             // The card is pinned to screen coordinates, so it cannot follow a moving map.
                             if (currentHasPin) onDismissPin()

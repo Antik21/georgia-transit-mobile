@@ -6,6 +6,7 @@ import com.denis.georgiatransit.bff.api.City
 import com.denis.georgiatransit.bff.api.GeoPoint
 import com.denis.georgiatransit.bff.api.JourneyPage
 import com.denis.georgiatransit.bff.api.Route
+import com.denis.georgiatransit.bff.api.RouteSchedule
 import com.denis.georgiatransit.bff.api.Shape
 import com.denis.georgiatransit.bff.api.Stop
 import com.denis.georgiatransit.bff.api.UpstreamTimeout
@@ -36,6 +37,7 @@ import com.denis.georgiatransit.bff.observability.TelemetryCapability
 import com.denis.georgiatransit.bff.observability.TelemetryOperation
 import java.security.MessageDigest
 import java.time.Instant
+import java.time.LocalDate
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.sync.Mutex
@@ -169,6 +171,19 @@ class TransitService(
         }
     }
 
+    suspend fun schedule(cityId: String, routeId: String, directionId: String, date: LocalDate, locale: String): RouteSchedule {
+        val snapshot = snapshot()
+        val effective = snapshot.city(cityId)
+        requireCapability(cityId, effective.city.capabilities.schedules, "Timetables")
+        val route = route(snapshot, cityId, routeId, locale)
+        return providerCall(
+            adapter = effective.adapter,
+            labels = telemetry(effective, TelemetryOperation.SCHEDULE),
+            loader = { effective.adapter.schedule(routeId, directionId, date, locale) },
+            validator = { NormalizedResponseValidator.routeSchedule(cityId, route, directionId, date, it) },
+        )
+    }
+
     suspend fun nearbyStops(
         cityId: String,
         origin: GeoPoint,
@@ -230,7 +245,7 @@ class TransitService(
                 labels = labels,
                 loader = {
                     effectiveCity.adapter.arrivals(stopId, limit, locale).let {
-                        ArrivalPage(it.items, it.source, it.observedAt.toString(), it.stale)
+                        it.toPage(effectiveCity)
                     }
                 },
                 validator = { NormalizedResponseValidator.arrivalPage(cityId, stopId, it) },
@@ -260,7 +275,7 @@ class TransitService(
                 labels = labels,
                 loader = {
                     effectiveCity.adapter.routeArrivals(routeId, limitPerStop, locale).let {
-                        ArrivalPage(it.items, it.source, it.observedAt.toString(), it.stale)
+                        it.toPage(effectiveCity)
                     }
                 },
                 validator = { NormalizedResponseValidator.routeArrivalPage(cityId, routeId, it) },

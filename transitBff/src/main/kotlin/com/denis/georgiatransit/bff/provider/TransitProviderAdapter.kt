@@ -7,6 +7,7 @@ import com.denis.georgiatransit.bff.api.Direction
 import com.denis.georgiatransit.bff.api.GeoPoint
 import com.denis.georgiatransit.bff.api.Journey
 import com.denis.georgiatransit.bff.api.Route
+import com.denis.georgiatransit.bff.api.RouteSchedule
 import com.denis.georgiatransit.bff.api.Shape
 import com.denis.georgiatransit.bff.api.Stop
 import com.denis.georgiatransit.bff.api.Vehicle
@@ -18,6 +19,7 @@ import com.denis.georgiatransit.bff.planning.GeoBounds
 import com.denis.georgiatransit.bff.planning.JourneyPlanQuery
 import com.denis.georgiatransit.bff.planning.PlanningBudget
 import java.time.Instant
+import java.time.LocalDate
 
 /**
  * The only boundary where a city-specific provider contract is allowed. Implementations must map
@@ -36,6 +38,9 @@ interface CityTransitProviderAdapter {
     suspend fun directionStops(routeId: String, directionId: String, locale: String): List<Stop>
 
     suspend fun shape(routeId: String, directionId: String): Shape
+
+    suspend fun schedule(routeId: String, directionId: String, date: LocalDate, locale: String): RouteSchedule =
+        throw ProviderCapabilityUnavailable("Timetables are not available")
 
     suspend fun stopDirectory(locale: String): List<Stop>
 

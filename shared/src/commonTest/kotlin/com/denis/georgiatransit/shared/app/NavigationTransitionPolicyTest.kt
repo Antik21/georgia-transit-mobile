@@ -35,6 +35,7 @@ class NavigationTransitionPolicyTest {
                 Destination.CitySelection -> citySelectionStack
                 Destination.Map -> mapStack
                 Destination.Routes -> routesStack
+                is Destination.Schedules -> mapStack
             }
 
             assertEquals(
@@ -70,6 +71,7 @@ class NavigationTransitionPolicyTest {
         val events = listOf(
             NavigationEvent.CityConfirmed,
             NavigationEvent.OpenRoutes,
+            NavigationEvent.OpenSchedules,
             NavigationEvent.RoutesConfirmed,
             NavigationEvent.RoutesDismissed,
             NavigationEvent.Back,
@@ -125,6 +127,27 @@ class NavigationTransitionPolicyTest {
             citySelectionStack,
             NavigationTransitionPolicy.transition(mapStack, selectedCityId = null, NavigationEvent.ChangeCity),
         )
+    }
+
+    @Test
+    fun schedulesRequireCapabilityAndRestoreOnlyForTheSameCity() {
+        val kutaisi = CityId("kutaisi")
+        val batumi = CityId("batumi")
+        val schedulesStack = listOf(Destination.Map, Destination.Schedules(kutaisi))
+        assertEquals(
+            schedulesStack,
+            NavigationTransitionPolicy.transition(mapStack, kutaisi, NavigationEvent.OpenSchedules, schedulesAvailable = true),
+        )
+        assertEquals(mapStack, NavigationTransitionPolicy.transition(mapStack, batumi, NavigationEvent.OpenSchedules))
+        assertEquals(
+            mapStack,
+            NavigationTransitionPolicy.transition(schedulesStack, kutaisi, NavigationEvent.Back, schedulesAvailable = true),
+        )
+        assertEquals(schedulesStack, NavigationTransitionPolicy.restore(schedulesStack, kutaisi, schedulesAvailable = true))
+        assertEquals(mapStack, NavigationTransitionPolicy.restore(schedulesStack, kutaisi))
+        assertEquals(mapStack, NavigationTransitionPolicy.restore(schedulesStack, batumi, schedulesAvailable = true))
+        assertEquals(citySelectionStack, NavigationTransitionPolicy.restore(schedulesStack, null, schedulesAvailable = true))
+        assertEquals(routesStack, NavigationTransitionPolicy.transition(mapStack, batumi, NavigationEvent.OpenRoutes))
     }
 
     private fun restoredDestinationPermutations(): List<List<Destination>> = buildList {

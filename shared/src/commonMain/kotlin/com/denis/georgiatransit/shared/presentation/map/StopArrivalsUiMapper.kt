@@ -82,7 +82,13 @@ internal class StopArrivalsUiMapper(
                     row = StopArrivalRowUi(
                         routeShortName = routeShortName,
                         headsign = headsign,
-                        time = arrival.expectedInMinutes.toUiTime(),
+                        time = if (arrival.source == ArrivalSource.Schedule && arrival.expectedInMinutes == null) {
+                            val minutes = arrival.scheduledAt?.let { (it - observedAt).inWholeMinutes }
+                                ?.takeIf { it in 0..1_440 }?.toInt()
+                            minutes?.let(StopArrivalTimeUi::Minutes) ?: StopArrivalTimeUi.Unavailable
+                        } else {
+                            arrival.expectedInMinutes.toUiTime()
+                        },
                         source = arrival.source.toUiSource(),
                         routeId = arrival.routeId,
                         routeBadge = routeBadge,

@@ -75,6 +75,7 @@ import georgiatransit.shared.generated.resources.location_failure_unavailable
 import georgiatransit.shared.generated.resources.map_change_city_action
 import georgiatransit.shared.generated.resources.map_my_location_action
 import georgiatransit.shared.generated.resources.map_routes_action
+import georgiatransit.shared.generated.resources.schedule_title
 import org.jetbrains.compose.resources.stringResource
 import org.orbitmvi.orbit.compose.collectAsState
 import org.orbitmvi.orbit.compose.collectSideEffect
@@ -95,7 +96,7 @@ fun MapScreen(viewModel: MapViewModel, handleNavigation: suspend (NavigationEffe
         viewModel.dispatchAction(Action.MapViewportInsetsChanged(mapViewportInsets))
     }
     MapRealtimeVisibilityEffect { visibleAndStarted ->
-        viewModel.dispatchAction(Action.RealtimeVisibilityChanged(visibleAndStarted))
+        viewModel.dispatchAction(Action.RealtimeVisibilityChanged(visibleAndStarted, routeBoundsSupported = true))
     }
     MapLocationRefreshEffect(state.location.permission is LocationPermissionState.Granted) {
         viewModel.dispatchAction(Action.RefreshLocation)
@@ -215,12 +216,14 @@ private fun Content(state: ViewState, connectionNoticeId: Int, onAction: (Action
                     routeGeometryLegends = state.routeGeometryLegends,
                     canChangeCity = state.canChangeCity,
                     routesAvailable = state.routesAvailable,
+                    schedulesAvailable = state.schedulesAvailable,
                     attribution = state.attribution,
                     onFocusRoute = { routeId -> onAction(Action.RouteGeometryFocused(routeId)) },
                     onRetryRoute = { routeId -> onAction(Action.RetryRouteGeometry(routeId)) },
                     onRemoveRoute = { routeId -> onAction(Action.RemoveRouteGeometry(routeId)) },
                     onChangeCity = { onAction(Action.ChangeCityClicked) },
                     onRoutes = { onAction(Action.RoutesClicked) },
+                    onSchedules = { onAction(Action.SchedulesClicked) },
                     modifier = bottomModifier.padding(TransitSpacing.Medium),
                 )
             }
@@ -290,12 +293,14 @@ private fun MapControls(
     routeGeometryLegends: List<RouteGeometryLegendUi>,
     canChangeCity: Boolean,
     routesAvailable: Boolean,
+    schedulesAvailable: Boolean,
     attribution: List<TransitAttribution>,
     onFocusRoute: (RouteId) -> Unit,
     onRetryRoute: (RouteId) -> Unit,
     onRemoveRoute: (RouteId) -> Unit,
     onChangeCity: () -> Unit,
     onRoutes: () -> Unit,
+    onSchedules: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Box(modifier = modifier) {
@@ -315,6 +320,12 @@ private fun MapControls(
                         modifier = Modifier.weight(1f).testTag(AutomationId.MapRoutes),
                     ) { Text(stringResource(Res.string.map_routes_action)) }
                 }
+            }
+            if (schedulesAvailable) {
+                OutlinedButton(
+                    onClick = onSchedules,
+                    modifier = Modifier.fillMaxWidth().testTag(AutomationId.MapSchedules),
+                ) { Text(stringResource(Res.string.schedule_title)) }
             }
             CityAttribution(attribution)
         }

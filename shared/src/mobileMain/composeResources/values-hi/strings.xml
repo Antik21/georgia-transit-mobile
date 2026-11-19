@@ -195,4 +195,20 @@
     <string name="map_planner_summary_tram">ट्राम %1$s</string>
     <string name="map_planner_summary_ferry">फ़ेरी %1$s</string>
     <string name="map_connection_error">कनेक्शन में गड़बड़ी</string>
+
+    <string name="schedule_title">समय-सारणी</string>
+    <string name="schedule_route">मार्ग</string>
+    <string name="schedule_direction">दिशा</string>
+    <string name="schedule_date">तारीख</string>
+    <string name="schedule_previous_day">पिछला दिन</string>
+    <string name="schedule_next_day">अगला दिन</string>
+    <string name="schedule_select_date">तारीख चुनें</string>
+    <string name="schedule_cancel">रद्द करें</string>
+    <string name="schedule_no_routes">दिशा की जानकारी वाले मार्ग उपलब्ध नहीं हैं।</string>
+    <string name="schedule_no_times">इस तारीख के लिए कोई समय-सारणी प्रकाशित नहीं हुई है।</string>
+    <string name="schedule_error">समय-सारणी लोड नहीं हो सकी।</string>
+    <string name="schedule_unavailable">समय-सारणी उपलब्ध नहीं है।</string>
+    <string name="schedule_local_times">स्थानीय समय में निर्धारित आगमन</string>
+    <string name="schedule_stop_empty">आगमन का कोई समय निर्धारित नहीं है</string>
+    <string name="schedule_following_day">%1$s (दिन +%2$d)</string>
 </resources>

@@ -1,5 +1,7 @@
 package com.denis.georgiatransit.bff.map
 
+import com.denis.georgiatransit.bff.api.City
+import com.denis.georgiatransit.bff.api.KnownCityIds
 import com.denis.georgiatransit.bff.api.MapBounds
 import com.denis.georgiatransit.bff.config.MapProxyActivationConfig
 import io.ktor.client.HttpClient
@@ -44,7 +46,8 @@ private const val MinimumMapZoom = 8
 private const val MaximumMapZoom = 19
 internal enum class MapArea(val west: Double, val south: Double, val east: Double, val north: Double) {
     Batumi(41.35, 41.30, 42.20, 41.95),
-    Zugdidi(41.48, 42.32, 42.07, 42.68);
+    Zugdidi(41.48, 42.32, 42.07, 42.68),
+    Kutaisi(42.57, 42.17, 42.77, 42.35);
 
     val bounds get() = MapBounds(west, south, east, north)
 }
@@ -69,10 +72,23 @@ internal class MapProxy(
     private val upstreamRequestTimes = ArrayDeque<Instant>()
     private val upstreamRateLock = Mutex()
 
-    fun styleJson(): String {
+    fun withCityCoverage(cities: List<City>): List<City> = cities.map { city ->
+        if (city.id == KnownCityIds.Kutaisi && city.capabilities.stops) city.copy(mapBounds = MapArea.Kutaisi.bounds)
+        else city
+    }
+
+    private fun activeAreas(kutaisiEnabled: Boolean): Set<MapArea> =
+        if (kutaisiEnabled) areas + MapArea.Kutaisi else areas
+
+    fun styleJson(kutaisiEnabled: Boolean = false): String {
+        val active = activeAreas(kutaisiEnabled)
         val base = requireNotNull(config.publicBaseUrl).toString().trimEnd('/')
-        val ids = areas.sortedBy(MapArea::ordinal).associateWith { area ->
-            if (area == MapArea.Batumi || areas.size == 1) "bff-raster" else "zugdidi-raster"
+        val ids = active.sortedBy(MapArea::ordinal).associateWith { area ->
+            when {
+                area == MapArea.Batumi || active.size == 1 -> "bff-raster"
+                area == MapArea.Zugdidi -> "zugdidi-raster"
+                else -> "kutaisi-raster"
+            }
         }
         val attribution = json(config.attribution ?: "")
         val sources = ids.entries.joinToString(",") { (area, id) ->
@@ -80,7 +96,7 @@ internal class MapProxy(
                 .let { source -> """"$id":$source""" }
         }
         val layers = buildList {
-            if (MapArea.Zugdidi in areas) {
+            if (MapArea.Zugdidi in active) {
                 add("""{"id":"map-background","type":"background","paint":{"background-color":"#E7F1EB"}}""")
             }
             ids.values.forEach { id -> add("""{"id":"$id","type":"raster","source":"$id"}""") }
@@ -88,8 +104,8 @@ internal class MapProxy(
         return """{"version":8,"sources":{$sources},"layers":[${layers.joinToString(",")}]}"""
     }
 
-    suspend fun tile(z: Int, x: Int, y: Int): ByteArray {
-        validate(z, x, y, areas)
+    suspend fun tile(z: Int, x: Int, y: Int, kutaisiEnabled: Boolean = false): ByteArray {
+        validate(z, x, y, activeAreas(kutaisiEnabled))
         val key = TileKey(z, x, y)
         val acquisition = lock.withLock {
             val cached = cache[key]

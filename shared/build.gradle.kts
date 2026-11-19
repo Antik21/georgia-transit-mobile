@@ -123,6 +123,7 @@ kotlin {
         }
         iosMain.dependencies { implementation(libs.ktor.client.darwin) }
         jsMain.dependencies {
+            implementation(npm("@js-joda/timezone", libs.versions.js.joda.timezone.get()))
             implementation(libs.ktor.client.js)
             implementation(libs.kotlin.dom.api.compat)
         }

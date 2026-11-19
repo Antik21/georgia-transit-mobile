@@ -56,6 +56,17 @@ class TransitBffMapperTest {
     }
 
     @Test
+    fun enabledTimetablesDoNotEnableTheJourneyPlanner() {
+        val capabilities = json.decodeFromString<CityDto>(
+            """{"id":"kutaisi","name":{"ru":"Кутаиси","en":"Kutaisi","ka":"ქუთაისი"},"center":{"latitude":42.27,"longitude":42.70},"defaultZoom":15,"capabilities":{"routes":true,"stops":true,"routeGeometry":true,"vehiclePositions":true,"officialArrivals":true,"tripPlanning":false,"arrivals":true,"schedules":true},"availability":{"readiness":"PRODUCTION_READY","source":"REVIEWED_ADAPTER"}}""",
+        ).toDomain().capabilities
+        assertEquals(true, capabilities.schedules)
+        assertEquals(true, capabilities.vehiclePositions)
+        assertEquals(true, capabilities.arrivals)
+        assertFalse(capabilities.tripPlanning)
+    }
+
+    @Test
     fun routeStopShapeVehicleArrivalAndJourneyDtosMapWithoutRebuildingOpaqueIds() {
         val routeId = "demo:fixture:route:blue"
         val directionId = "demo:fixture:direction:blue-outbound"

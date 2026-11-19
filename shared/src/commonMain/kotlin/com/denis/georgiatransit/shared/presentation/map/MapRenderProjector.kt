@@ -13,9 +13,11 @@ internal class MapRenderProjector(
 ) {
     fun project(
         city: TransitCity, fix: UserLocationFix?, viewportZoom: Double?,
-        stops: MapStopsProjector, geometry: RouteGeometrySnapshot,
+        stops: MapStopsProjector, geometry: RouteGeometrySnapshot, routeFrame: MapRouteFrameData,
     ): MapRenderState {
-        val command = camera.forCity(city, fix)
+        camera.forCity(city, fix)
+        camera.frameRoutesIfReady(routeFrame)
+        val command = checkNotNull(camera.command)
         return MapRenderState(
             camera = command,
             bffStyleUrl = bffStyleUrl,

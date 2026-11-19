@@ -83,6 +83,7 @@ class MapViewModel(
                 Triple(city, selectedIds, location)
             }.collect { (city, selectedIds, location) ->
                 val change = sessionSelection.update(city, selectedIds)
+                cameraController.onRouteSelection(city, selectedIds, change, lastViewport)
                 if (change.resetStops) stopTransitions.resetForCityChange()
                 if (city == null) cameraController.reset()
                 val locationStopKey = reconcileUserLocationStopRequest(city, location.fix?.point)
@@ -126,14 +127,9 @@ class MapViewModel(
 
     fun dispatchAction(action: Action) {
         when (action) {
-            Action.RoutesClicked -> intent {
-                if (currentCity?.capabilities?.routes == true) {
-                    postSideEffect(NavigationEffect.OpenRoutes)
-                }
-            }
-            Action.ChangeCityClicked -> intent {
-                if (state.canChangeCity) postSideEffect(NavigationEffect.OpenCitySelection)
-            }
+            Action.SchedulesClicked -> navigateWhen(NavigationEffect.OpenSchedules) { session.selectedCity.value?.capabilities?.schedules == true }
+            Action.RoutesClicked -> navigateWhen(NavigationEffect.OpenRoutes) { currentCity?.capabilities?.routes == true }
+            Action.ChangeCityClicked -> navigateWhen(NavigationEffect.OpenCitySelection) { state.canChangeCity }
             Action.MyLocationClicked, Action.RefreshLocation, is Action.LocationEventReceived -> intent {
                 locationActions.forAction(action, state.location.permission, realtimeVisibleAndStarted)
                     ?.let { postSideEffect(SideEffect.HandleLocation(it)) }
@@ -153,10 +149,15 @@ class MapViewModel(
             is Action.MapViewportInsetsChanged -> onMapViewportInsetsChanged(action.insets)
             Action.RetryStopArrivals -> retryStopArrivals()
             is Action.LocaleChanged -> onLocaleChanged(action.locale)
-            is Action.RealtimeVisibilityChanged -> onRealtimeVisibilityChanged(action.isVisibleAndStarted)
+            is Action.RealtimeVisibilityChanged -> onRealtimeVisibilityChanged(action)
             is JourneyPlannerAction -> updatePlanner { planner, context -> journeyPlanner.onAction(planner, action, context) }
         }
     }
+
+    private fun navigateWhen(effect: NavigationEffect, available: Syntax<ViewState, SideEffect>.() -> Boolean) = intent {
+        if (available()) postSideEffect(effect)
+    }
+
     /** Cancels non-cooperative polling/animation work before generation advances and markers clear. */
     private fun syncVehiclePresentationInputs() {
         vehicleFeature.updateInputs(currentCity, selectedVehicleRoutes, selectedRouteProjection,
@@ -168,10 +169,15 @@ class MapViewModel(
 
     private fun renderStateFor(city: TransitCity, fix: UserLocationFix?, viewportZoom: Double?): MapRenderState {
         syncVehiclePresentationInputs()
-        return renderProjector.project(city, fix, viewportZoom, stopProjector(), routeGeometrySnapshot)
+        return renderProjector.project(city, fix, viewportZoom, stopProjector(), routeGeometrySnapshot, MapRouteFrameData(
+            city, session.selectedRouteIds.value, selectedVehicleRoutes, routeGeometrySnapshot.polylines,
+            supplementalStops.selectedStops, realtimeVisibleAndStarted && session.selectedCity.value?.id == city.id,
+        ))
     }
 
-    private fun onRealtimeVisibilityChanged(isVisibleAndStarted: Boolean) {
+    private fun onRealtimeVisibilityChanged(action: Action.RealtimeVisibilityChanged) {
+        cameraController.routeBoundsSupported = action.routeBoundsSupported
+        val isVisibleAndStarted = action.isVisibleAndStarted
         if (realtimeVisibleAndStarted == isVisibleAndStarted) return
         realtimeVisibleAndStarted = isVisibleAndStarted
         syncVehiclePresentationInputs()
@@ -217,12 +223,7 @@ class MapViewModel(
         intent {
             val city = currentCity ?: return@intent
             reduce {
-                state.copy(
-                    renderState = renderStateFor(city, state.location.fix, lastViewport?.zoom),
-                    selectedStop = selectedStopUi(),
-                    // List items carry the source revision; stale ones are rejected on tap.
-                    nearbyStops = nearbyStopItems(),
-                )
+                stopProjector().publishTo(state, renderStateFor(city, state.location.fix, lastViewport?.zoom))
             }
         }
     }
@@ -240,14 +241,10 @@ class MapViewModel(
             routes = selectedVehicleRoutes,
             locale = locale,
             isCurrent = { key -> realtimeVisibleAndStarted && currentCity?.id == city.id &&
-                currentLocale == locale && key in selectedRouteStopKeys() },
+                currentLocale == locale && key in selectedVehicleRoutes.directionKeys() },
             onChanged = ::publishSupplementalStopChange,
         )
     }
-    private fun selectedRouteStopKeys(): List<SelectedRouteStopKey> = selectedVehicleRoutes.flatMap { route ->
-        route.directions.map { direction -> SelectedRouteStopKey(route.id, direction.id) }
-    }
-
     private fun onRouteGeometrySnapshot(snapshot: RouteGeometrySnapshot) {
         val geometryChanged = snapshot.polylineSourceRevision != routeGeometrySnapshot.polylineSourceRevision
         routeGeometrySnapshot = snapshot
@@ -307,6 +304,7 @@ class MapViewModel(
                 requireVisibleMarker = true,
             )
             is MapPlatformEvent.VehicleTapped -> vehicleFeature.acceptTap(event.vehicleId, event.sourceRevision)
+            MapPlatformEvent.UserCameraMoveStarted -> cameraController.cancelRouteFrame()
             MapPlatformEvent.CameraMoveStarted, is MapPlatformEvent.MapTapped, is MapPlatformEvent.MapPointResolved -> Unit
             is MapPlatformEvent.MapLongPressed ->
                 updatePlanner { planner, context -> journeyPlanner.onLongPress(planner, event.point, context) }

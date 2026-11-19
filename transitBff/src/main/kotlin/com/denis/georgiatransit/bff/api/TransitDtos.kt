@@ -30,6 +30,9 @@ data class CityCapabilities(
      * separate from [officialArrivals] so a client never labels aggregated data as official.
      */
     val arrivals: Boolean = officialArrivals,
+    @OptIn(ExperimentalSerializationApi::class)
+    @EncodeDefault(EncodeDefault.Mode.NEVER)
+    val schedules: Boolean = false,
 )
 
 /**

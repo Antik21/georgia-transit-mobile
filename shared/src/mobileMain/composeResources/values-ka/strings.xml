@@ -195,4 +195,19 @@
     <string name="map_planner_summary_tram">ტრამვაი %1$s</string>
     <string name="map_planner_summary_ferry">ბორანი %1$s</string>
     <string name="map_connection_error">კავშირის შეცდომა</string>
+    <string name="schedule_title">განრიგი</string>
+    <string name="schedule_route">მარშრუტი</string>
+    <string name="schedule_direction">მიმართულება</string>
+    <string name="schedule_date">თარიღი</string>
+    <string name="schedule_previous_day">წინა დღე</string>
+    <string name="schedule_next_day">შემდეგი დღე</string>
+    <string name="schedule_select_date">თარიღის არჩევა</string>
+    <string name="schedule_cancel">გაუქმება</string>
+    <string name="schedule_no_routes">მიმართულებების მქონე მარშრუტები მიუწვდომელია.</string>
+    <string name="schedule_no_times">ამ თარიღისთვის განრიგი არ გამოქვეყნებულა.</string>
+    <string name="schedule_error">განრიგი ვერ ჩაიტვირთა.</string>
+    <string name="schedule_unavailable">განრიგი მიუწვდომელია.</string>
+    <string name="schedule_local_times">დაგეგმილი მოსვლის დრო ადგილობრივი დროით</string>
+    <string name="schedule_stop_empty">დაგეგმილი მოსვლა არ არის</string>
+    <string name="schedule_following_day">%1$s (+%2$d დღე)</string>
 </resources>

@@ -128,9 +128,13 @@ class RoutesResourceContractTest {
         )
         assertCodePath(
             mapViewModel.functionBody("fun dispatchAction"),
-            "Action.RoutesClicked -> intent",
+            "Action.RoutesClicked -> navigateWhen(NavigationEffect.OpenRoutes)",
             "currentCity?.capabilities?.routes == true",
-            "NavigationEffect.OpenRoutes",
+        )
+        assertCodePath(
+            mapViewModel.functionBody("private fun navigateWhen"),
+            "if (available())",
+            "postSideEffect(effect)",
         )
     }
 

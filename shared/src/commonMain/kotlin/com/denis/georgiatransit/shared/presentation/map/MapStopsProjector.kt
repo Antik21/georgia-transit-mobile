@@ -20,12 +20,17 @@ internal class MapStopsProjector(
     private val locale: TransitLocale,
     private val sourceRevision: Long,
 ) {
+    private val selectedRoutesByStopId = selectedRouteStops
+        .groupBy(TransitStop::id, TransitStop::routeIds)
+        .mapValues { (_, routes) -> routes.flatten().distinct() }
+
     fun visibleMarkers(userLocation: GeoPoint?, zoom: Double): PersistentList<MapStopMarker> {
         val baseStops = (rawStops + userLocationStops + selectedRouteStops).distinctBy(TransitStop::id)
         val selectedFallback = selectedSnapshot
             ?.takeIf { selected -> selected.id == selectedStopId && baseStops.none { it.id == selected.id } }
         val selectedRouteIds = selection.byId.keys
-        val markers = (baseStops + listOfNotNull(selectedFallback)).map { stop ->
+        val markers = (baseStops + listOfNotNull(selectedFallback)).map { source ->
+            val stop = source.withSelectedRouteIds()
             MapStopMarker(
                 id = stop.id,
                 position = stop.position,
@@ -41,6 +46,13 @@ internal class MapStopsProjector(
             zoom = zoom,
         )
     }
+    fun publishTo(state: ViewState, render: MapRenderState): ViewState = state.copy(
+        renderState = render,
+        selectedStop = selectedStopUi(),
+        // List items carry the source revision; stale ones are rejected on tap.
+        nearbyStops = nearbyStopItems(),
+    )
+
     fun selectedStopUi(): SelectedStopUi? {
         val selected = selectedStopId ?: return null
         val stop = stopSnapshot(selected) ?: return null
@@ -48,9 +60,19 @@ internal class MapStopsProjector(
         return SelectedStopUi(selected, displayName)
     }
 
-    fun stopSnapshot(stopId: StopId): TransitStop? = rawStops.firstOrNull { it.id == stopId }
-        ?: selectedRouteStops.asSequence().firstOrNull { it.id == stopId }
-        ?: selectedSnapshot?.takeIf { it.id == stopId }
+    fun stopSnapshot(stopId: StopId): TransitStop? {
+        val stop = rawStops.firstOrNull { it.id == stopId }
+            ?: selectedRouteStops.firstOrNull { it.id == stopId }
+            ?: selectedSnapshot?.takeIf { it.id == stopId }
+        return stop?.withSelectedRouteIds()
+    }
+
+    // Nearby catalog entries may omit route membership supplied by the direction stop lists.
+    private fun TransitStop.withSelectedRouteIds(): TransitStop {
+        val selected = selectedRoutesByStopId[id] ?: return this
+        if (routeIds.containsAll(selected)) return this
+        return copy(routeIds = (routeIds + selected).distinct())
+    }
 
     /** Nearby results remain whole; this adds presentation metadata without route-stop I/O. */
     private fun routeHighlightFor(stop: TransitStop): StopRouteHighlightUi {
@@ -88,7 +110,7 @@ internal class MapStopsProjector(
             name = stop.displayName(locale),
             isSelected = stop.id == selectedStopId,
             sourceRevision = sourceRevision,
-            routeHighlight = routeHighlightFor(stop),
+            routeHighlight = routeHighlightFor(stop.withSelectedRouteIds()),
             position = stop.position,
         )
     }

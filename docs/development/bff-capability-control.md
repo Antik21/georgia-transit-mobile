@@ -33,6 +33,7 @@ city and returns `CAPABILITY_NOT_AVAILABLE` (501) before any provider call.
 | routes and route detail | `routes` |
 | direction stops | `stops` and `routes` |
 | route shape | `routeGeometry` and `routes` |
+| direction timetable | `schedules` and `routes` |
 | nearby stops | `stops` |
 | vehicles | `vehiclePositions` and `routes` |
 | arrivals | `arrivals` (`officialArrivals` only controls an official-source claim) |
@@ -78,15 +79,20 @@ default 30). It accepts at most 64 KiB of strict JSON with exactly this shape:
 }
 ```
 
-All fields are required for newly written documents. The decoder accepts an omitted
+The seven displayed capability fields are required for newly written documents.
+The additive `schedules` field defaults to false when omitted. The decoder accepts an omitted
 `arrivals` only for backward-compatible existing documents, where it is treated as the
 same value as `officialArrivals`; new documents must state it explicitly. Unknown keys, duplicate JSON keys, duplicate or blank
 city/revision values, non-boolean feature values, an unknown city, capability
 expansion, or an unsafe/adapter-mismatched source/readiness pair are rejected.
 Omitting a registered city disables it. A document may use an empty `cities`
-array to kill all cities deliberately. Kutaisi has no registered reviewed
-adapter in this repository and is therefore absent by default; attempting to
-name it is rejected rather than enabling it.
+array to disable all cities. Kutaisi is absent by default. Set
+`BFF_KUTAISI_OSM_ENABLED=true` to register the reviewed static adapter, then
+enable its `stops` capability in the operator document. For the full Kutaisi
+catalog, an operator can use the mutually exclusive AZRY activation and its
+[capability template](../../transitBff/kutaisi-azry-capability-control.example.json). See the
+[example](../../transitBff/kutaisi-osm-capability-control.example.json) and the
+[local runbook](kutaisi-integration.md).
 
 `schemaInterlockAcknowledgements` is an optional, explicit recovery-only top-level
 field. It may contain bounded normalized entries such as

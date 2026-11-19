@@ -31,6 +31,7 @@ data class MapCameraCommand(
     /** Semantic map occlusion; native adapters convert it to their own pixel/point padding. */
     val viewportInsets: MapViewportInsets = MapViewportInsets.None,
     val animated: Boolean = false,
+    val routeBounds: MapRouteBounds? = null,
 )
 
 /**
@@ -85,6 +86,7 @@ sealed interface MapPlatformEvent {
     data class MapPointResolved(val requestId: Long, val point: GeoPoint?) : MapPlatformEvent
     /** Any camera motion begins; the next [ViewportSettled] ends it. */
     data object CameraMoveStarted : MapPlatformEvent
+    data object UserCameraMoveStarted : MapPlatformEvent
 }
 
 /** A compact SDK-free map marker; labels and stop details stay in future product flows. */

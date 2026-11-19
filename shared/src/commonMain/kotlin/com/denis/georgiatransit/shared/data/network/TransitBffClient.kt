@@ -3,6 +3,7 @@ package com.denis.georgiatransit.shared.data.network
 import com.denis.georgiatransit.shared.data.config.BffEndpointConfiguration
 import com.denis.georgiatransit.shared.domain.model.ArrivalPage
 import com.denis.georgiatransit.shared.domain.model.CityId
+import com.denis.georgiatransit.shared.domain.model.DirectionSchedule
 import com.denis.georgiatransit.shared.domain.model.DirectionId
 import com.denis.georgiatransit.shared.domain.model.GeoPoint
 import com.denis.georgiatransit.shared.domain.model.JourneyPage
@@ -43,6 +44,7 @@ import kotlinx.coroutines.delay
 import kotlinx.io.IOException
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.json.Json
+import kotlinx.datetime.LocalDate
 import kotlin.math.max
 import kotlin.random.Random
 import kotlin.time.Instant
@@ -125,6 +127,17 @@ class TransitBffClient(
         path = listOf("v1", "cities", cityId.value, "routes", routeId.value, "directions", directionId.value, "stops"),
         query = listOf("locale" to locale.languageTag),
     ).map { it.map(StopDto::toDomain) }
+
+    suspend fun directionSchedule(
+        cityId: CityId,
+        routeId: RouteId,
+        directionId: DirectionId,
+        date: LocalDate,
+        locale: TransitLocale,
+    ): TransitLoadResult<DirectionSchedule> = get<DirectionScheduleDto>(
+        path = listOf("v1", "cities", cityId.value, "routes", routeId.value, "directions", directionId.value, "schedule"),
+        query = listOf("date" to date.toString(), "locale" to locale.languageTag),
+    ).map { it.toDomain(routeId, directionId, date) }
 
     suspend fun directionShape(cityId: CityId, routeId: RouteId, directionId: DirectionId): TransitLoadResult<TransitShape> =
         get<ShapeDto>(

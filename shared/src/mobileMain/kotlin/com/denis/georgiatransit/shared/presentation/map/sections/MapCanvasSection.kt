@@ -144,25 +144,32 @@ internal fun MapCanvas(
                 )
                 .padding(TransitSpacing.Medium),
         )
+        // At minimum zoom the route can reach the lower edge of a coverage-limited map.
+        val controlsModifier = if (renderState.cameraBounds != null) {
+            Modifier
+                .align(Alignment.TopEnd)
+                .windowInsetsPadding(
+                    WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal + WindowInsetsSides.Top),
+                )
+                .padding(TransitSpacing.Medium)
+        } else {
+            Modifier
+                .align(Alignment.BottomEnd)
+                .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal))
+                .padding(
+                    start = TransitSpacing.Medium,
+                    top = TransitSpacing.Medium,
+                    end = TransitSpacing.Medium,
+                    bottom = bottomOverlayHeight + TransitSpacing.ExtraLarge + TransitSpacing.Medium,
+                )
+        }
         MapCameraControls(
             locationActionLabel = locationActionLabel,
             locationActionAutomationId = locationActionAutomationId,
             locationActionEnabled = locationActionEnabled,
             onMyLocationClick = onMyLocationClick,
             onZoomClick = onZoomClick,
-            modifier = Modifier
-                .align(Alignment.BottomEnd)
-                .windowInsetsPadding(
-                    // This canvas ends above the screen controls, outside the bottom system inset.
-                    WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal),
-                )
-                // Reserve the bottom-right edge for the compact OSM attribution.
-                .padding(
-                    start = TransitSpacing.Medium,
-                    top = TransitSpacing.Medium,
-                    end = TransitSpacing.Medium,
-                    bottom = bottomOverlayHeight + TransitSpacing.ExtraLarge + TransitSpacing.Medium,
-                ),
+            modifier = controlsModifier,
         )
         if (baseLayerState == MapBaseLayerState.BffStyle) {
             OpenStreetMapAttribution(

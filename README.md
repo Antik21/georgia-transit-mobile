@@ -165,8 +165,10 @@ The synthetic `demo` city is enabled only with both `BFF_MODE=development` and
 `BFF_FIXTURES_ENABLED=true`; it is useful for local contract development, but
 is not real provider readiness. `/v1/cities` labels it
 `DEVELOPMENT_FIXTURE`/`FIXTURE` and always returns all seven granular capability
-booleans. Kutaisi remains absent because it has no reviewed adapter; an absent city returns
-`CITY_NOT_FOUND`. Batumi is available through its reviewed two-origin adapter only after explicit
+booleans. Kutaisi's opt-in OSM adapter serves static stops. The alternate AZRY adapter adds directions,
+geometry, timetables, GPS positions and stop predictions under the same capability control.
+See the [local Kutaisi runbook](docs/development/kutaisi-integration.md).
+An absent city returns `CITY_NOT_FOUND`. Batumi is available through its reviewed two-origin adapter only after explicit
 operator activation and capability-control approval. Trip planning is capability-gated for every
 configured city. In `production`, fixtures are rejected and startup fails closed when no reviewed
 adapter has been explicitly activated.

@@ -1,5 +1,7 @@
 package com.denis.georgiatransit.shared.data.network
 
+import kotlinx.serialization.EncodeDefault
+import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
@@ -47,6 +49,9 @@ internal data class CityCapabilitiesDto(
     val officialArrivals: Boolean,
     val tripPlanning: Boolean,
     val arrivals: Boolean = officialArrivals,
+    @OptIn(ExperimentalSerializationApi::class)
+    @EncodeDefault(EncodeDefault.Mode.NEVER)
+    val schedules: Boolean = false,
 )
 
 @Serializable

@@ -72,6 +72,7 @@ paths:
         Available while the BFF map proxy is activated. The style contains only
         an absolute configured BFF tile endpoint and the configured required attribution; it
         never reveals an upstream tile template, request host header, or credentials.
+        Kutaisi raster coverage is included while the city's effective stops capability is enabled.
       responses:
         '200':
           description: MapLibre style JSON.
@@ -82,6 +83,7 @@ paths:
     get:
       operationId: getMapTile
       summary: Return one BFF-proxied raster tile.
+      description: Tiles are limited to the Batumi area and, while its stops capability is enabled, the Kutaisi area.
       parameters:
         - {name: z, in: path, required: true, schema: {type: integer, minimum: 8, maximum: 19}}
         - {name: x, in: path, required: true, schema: {type: integer, minimum: 0}}
@@ -197,6 +199,29 @@ paths:
           content: {application/json: {schema: {$ref: '#/components/schemas/Shape'}, example: {format: encoded_polyline, precision: 5, value: '_p~iF~ps|U_ulLnnqC_mqNvxq`@', updatedAt: '2030-01-01T00:00:00Z'}}}
         '400': {$ref: '#/components/responses/InvalidArgument'}
         '404': {$ref: '#/components/responses/RouteNotFound'}
+        '501': {$ref: '#/components/responses/CapabilityNotAvailable'}
+        '502': {$ref: '#/components/responses/UpstreamBadResponse'}
+        '503': {$ref: '#/components/responses/UpstreamUnavailable'}
+        '504': {$ref: '#/components/responses/UpstreamTimeout'}
+        '500': {$ref: '#/components/responses/InternalError'}
+  /v1/cities/{cityId}/routes/{routeId}/directions/{directionId}/schedule:
+    get:
+      operationId: getDirectionSchedule
+      description: Timetable for one local service date. A date outside the provider's published window returns an empty stop list.
+      parameters:
+        - {$ref: '#/components/parameters/CityId'}
+        - {$ref: '#/components/parameters/RouteId'}
+        - {$ref: '#/components/parameters/DirectionId'}
+        - {$ref: '#/components/parameters/Locale'}
+        - {name: date, in: query, required: true, schema: {type: string, format: date}}
+      responses:
+        '200':
+          description: Ordered stops with planned arrival timestamps in UTC.
+          headers: {X-Request-ID: {$ref: '#/components/headers/RequestId'}}
+          content: {application/json: {schema: {$ref: '#/components/schemas/RouteSchedule'}}}
+        '400': {$ref: '#/components/responses/InvalidArgument'}
+        '404': {$ref: '#/components/responses/RouteNotFound'}
+        '429': {$ref: '#/components/responses/RateLimited'}
         '501': {$ref: '#/components/responses/CapabilityNotAvailable'}
         '502': {$ref: '#/components/responses/UpstreamBadResponse'}
         '503': {$ref: '#/components/responses/UpstreamUnavailable'}
@@ -451,6 +476,23 @@ components:
       properties:
         latitude: {type: number, minimum: -90, maximum: 90}
         longitude: {type: number, minimum: -180, maximum: 180}
+    RouteSchedule:
+      type: object
+      required: [routeId, directionId, serviceDate, timeZone, stops]
+      properties:
+        routeId: {$ref: '#/components/schemas/RouteId'}
+        directionId: {$ref: '#/components/schemas/DirectionId'}
+        serviceDate: {type: string, format: date}
+        timeZone: {type: string, example: Asia/Tbilisi}
+        stops:
+          type: array
+          items:
+            type: object
+            required: [stopId, name, arrivalTimes]
+            properties:
+              stopId: {$ref: '#/components/schemas/StopId'}
+              name: {$ref: '#/components/schemas/LocalizedText'}
+              arrivalTimes: {type: array, items: {$ref: '#/components/schemas/UtcTimestamp'}}
     CityCapabilities:
       type: object
       required: [routes, stops, routeGeometry, vehiclePositions, officialArrivals, tripPlanning, arrivals]
@@ -461,6 +503,7 @@ components:
         vehiclePositions: {type: boolean}
         officialArrivals: {type: boolean, description: True only for a city-provided official arrivals feed.}
         tripPlanning: {type: boolean}
+        schedules: {type: boolean, default: false, description: Availability of date-specific route timetables.}
         arrivals: {type: boolean, description: Generic arrivals/schedule availability; this may be true while officialArrivals is false.}
     CityReadiness:
       type: string

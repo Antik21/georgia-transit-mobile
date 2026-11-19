@@ -195,4 +195,20 @@
     <string name="map_planner_summary_tram">трамвай %1$s</string>
     <string name="map_planner_summary_ferry">пором %1$s</string>
     <string name="map_connection_error">Помилка з’єднання</string>
+
+    <string name="schedule_title">Розклад</string>
+    <string name="schedule_route">Маршрут</string>
+    <string name="schedule_direction">Напрямок</string>
+    <string name="schedule_date">Дата</string>
+    <string name="schedule_previous_day">Попередній день</string>
+    <string name="schedule_next_day">Наступний день</string>
+    <string name="schedule_select_date">Вибрати дату</string>
+    <string name="schedule_cancel">Скасувати</string>
+    <string name="schedule_no_routes">Немає маршрутів із зазначеними напрямками.</string>
+    <string name="schedule_no_times">На цю дату розклад не опубліковано.</string>
+    <string name="schedule_error">Не вдалося завантажити розклад.</string>
+    <string name="schedule_unavailable">Розклад недоступний.</string>
+    <string name="schedule_local_times">Прибуття за розкладом за місцевим часом</string>
+    <string name="schedule_stop_empty">Немає прибуттів за розкладом</string>
+    <string name="schedule_following_day">%1$s (день +%2$d)</string>
 </resources>

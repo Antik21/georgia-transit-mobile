@@ -195,4 +195,19 @@
     <string name="map_planner_summary_tram">tram %1$s</string>
     <string name="map_planner_summary_ferry">ferry %1$s</string>
     <string name="map_connection_error">Connection error</string>
+    <string name="schedule_title">Schedule</string>
+    <string name="schedule_route">Route</string>
+    <string name="schedule_direction">Direction</string>
+    <string name="schedule_date">Date</string>
+    <string name="schedule_previous_day">Previous day</string>
+    <string name="schedule_next_day">Next day</string>
+    <string name="schedule_select_date">Select date</string>
+    <string name="schedule_cancel">Cancel</string>
+    <string name="schedule_no_routes">No routes with directions are available.</string>
+    <string name="schedule_no_times">No timetable has been published for this date.</string>
+    <string name="schedule_error">Could not load the timetable.</string>
+    <string name="schedule_unavailable">The timetable is unavailable.</string>
+    <string name="schedule_local_times">Scheduled arrivals in local time</string>
+    <string name="schedule_stop_empty">No scheduled arrivals</string>
+    <string name="schedule_following_day">%1$s (+%2$d day)</string>
 </resources>
