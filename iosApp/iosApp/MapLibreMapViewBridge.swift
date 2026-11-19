@@ -39,6 +39,8 @@ private final class LocalMapLibreView: UIView, MLNMapViewDelegate {
     private var layersInstalled = false
     private var requestedBffStyleURL: URL?
     private var lastAppliedCameraRevision: Int64?
+    private var appliedCoverageBounds: MapBounds?
+    private lazy var defaultScreenBounds = mapView.maximumScreenBounds
     private var lastAppliedCamera: AppliedCamera?
     private let zoomSteps = MapZoomStepTracker(
         minZoom: LocalMapLibreView.minimumZoom,
@@ -125,6 +127,7 @@ private final class LocalMapLibreView: UIView, MLNMapViewDelegate {
     func update(renderState: MapRenderState) {
         guard !released else { return }
         pendingRenderState = renderState
+        applyCoverageBounds(renderState.cameraBounds)
         updateBaseStyle(renderState.bffStyleUrl)
         if let style = mapView.style {
             installSourcesAndLayersIfNeeded(style: style)
@@ -399,6 +402,18 @@ private final class LocalMapLibreView: UIView, MLNMapViewDelegate {
             let shape = try? MLNShape(data: data, encoding: String.Encoding.utf8.rawValue)
         else { return }
         source.shape = shape
+    }
+
+    private func applyCoverageBounds(_ bounds: MapBounds?) {
+        guard appliedCoverageBounds != bounds else { return }
+        let fallback = defaultScreenBounds
+        appliedCoverageBounds = bounds
+        mapView.maximumScreenBounds = bounds.map {
+            MLNCoordinateBounds(
+                sw: CLLocationCoordinate2D(latitude: $0.south, longitude: $0.west),
+                ne: CLLocationCoordinate2D(latitude: $0.north, longitude: $0.east)
+            )
+        } ?? fallback
     }
 
     private func applyCameraIfNeeded(_ command: MapCameraCommand) {

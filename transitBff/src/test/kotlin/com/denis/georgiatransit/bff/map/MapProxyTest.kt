@@ -28,6 +28,20 @@ class MapProxyTest {
     }
 
     @Test
+    fun `Zugdidi coverage adds a regional source and keeps Batumi tiles available`() = runBlocking {
+        val fake = FakeDownloader()
+        MapProxy(config(), fake, areas = setOf(MapArea.Batumi, MapArea.Zugdidi)).use { proxy ->
+            val style = proxy.styleJson()
+            assertTrue(style.contains("\"bounds\":[41.35,41.3,42.2,41.95]"))
+            assertTrue(style.contains("\"bounds\":[41.48,42.32,42.07,42.68]"))
+            assertContentEquals(byteArrayOf(1, 2), proxy.tile(8, 157, 95))
+            assertContentEquals(byteArrayOf(1, 2), proxy.tile(15, 20_194, 12_101))
+            assertFailsWith<IllegalArgumentException> { proxy.tile(15, 0, 0) }
+            assertEquals(2, fake.calls)
+        }
+    }
+
+    @Test
     fun `successful tiles are bounded cached by coordinate`() = runBlocking {
         val fake = FakeDownloader()
         MapProxy(config(), fake).use { proxy ->

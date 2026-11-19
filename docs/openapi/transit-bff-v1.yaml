@@ -495,6 +495,15 @@ components:
         capabilities: {$ref: '#/components/schemas/CityCapabilities'}
         availability: {$ref: '#/components/schemas/CityAvailability'}
         attribution: {type: array, items: {$ref: '#/components/schemas/AttributionLink'}}
+        mapBounds:
+          type: object
+          description: Optional service-area rectangle in WGS84 degrees for cities with a regional basemap.
+          required: [west, south, east, north]
+          properties:
+            west: {type: number, minimum: -180, maximum: 180}
+            south: {type: number, minimum: -90, maximum: 90}
+            east: {type: number, minimum: -180, maximum: 180}
+            north: {type: number, minimum: -90, maximum: 90}
     Direction:
       type: object
       required: [id, name, headsign]

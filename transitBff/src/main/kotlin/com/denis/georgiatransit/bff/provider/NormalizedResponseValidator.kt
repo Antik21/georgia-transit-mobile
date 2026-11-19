@@ -45,6 +45,14 @@ object NormalizedResponseValidator {
         if (!isValidCityId(city.id)) invalid()
         localized(city.name)
         point(city.center)
+        city.mapBounds?.let { bounds ->
+            point(GeoPoint(bounds.south, bounds.west))
+            point(GeoPoint(bounds.north, bounds.east))
+            if (bounds.south >= bounds.north || bounds.west >= bounds.east ||
+                city.center.latitude !in bounds.south..bounds.north ||
+                city.center.longitude !in bounds.west..bounds.east
+            ) invalid()
+        }
         finiteBetween(city.defaultZoom, 0.0, 22.0)
         if (city.capabilities.officialArrivals && !city.capabilities.arrivals) invalid()
         city.attribution.forEach(::attribution)

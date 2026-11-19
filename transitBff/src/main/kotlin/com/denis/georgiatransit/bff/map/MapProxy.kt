@@ -1,5 +1,6 @@
 package com.denis.georgiatransit.bff.map
 
+import com.denis.georgiatransit.bff.api.MapBounds
 import com.denis.georgiatransit.bff.config.MapProxyActivationConfig
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.cio.CIO
@@ -41,10 +42,13 @@ private const val MaximumConcurrentDownloads = 4
 private const val MaximumUpstreamRequestsPerMinute = 120
 private const val MinimumMapZoom = 8
 private const val MaximumMapZoom = 19
-private const val BatumiWestLongitude = 41.35
-private const val BatumiSouthLatitude = 41.30
-private const val BatumiEastLongitude = 42.20
-private const val BatumiNorthLatitude = 41.95
+internal enum class MapArea(val west: Double, val south: Double, val east: Double, val north: Double) {
+    Batumi(41.35, 41.30, 42.20, 41.95),
+    Zugdidi(41.48, 42.32, 42.07, 42.68);
+
+    val bounds get() = MapBounds(west, south, east, north)
+}
+
 internal const val MapTileCacheSeconds = 604_800
 private const val MapTileUserAgent =
     "GeorgiaTransit/1.0 (+https://github.com/Antik21/georgia-transit-mobile)"
@@ -55,6 +59,7 @@ internal class MapProxy(
     private val config: MapProxyActivationConfig,
     private val downloader: MapTileDownloader = HttpMapTileDownloader(),
     private val clock: Clock = Clock.systemUTC(),
+    private val areas: Set<MapArea> = setOf(MapArea.Batumi),
 ) : AutoCloseable {
     private val lock = Mutex()
     private val cache = LinkedHashMap<TileKey, CachedTile>(MaximumCachedTiles, 0.75f, true)
@@ -66,11 +71,25 @@ internal class MapProxy(
 
     fun styleJson(): String {
         val base = requireNotNull(config.publicBaseUrl).toString().trimEnd('/')
-        return """{"version":8,"sources":{"bff-raster":{"type":"raster","tiles":["$base/v1/map/tiles/{z}/{x}/{y}.png"],"tileSize":256,"minzoom":$MinimumMapZoom,"maxzoom":$MaximumMapZoom,"bounds":[$BatumiWestLongitude,$BatumiSouthLatitude,$BatumiEastLongitude,$BatumiNorthLatitude],"attribution":${json(config.attribution ?: "")}}},"layers":[{"id":"bff-raster","type":"raster","source":"bff-raster"}]}"""
+        val ids = areas.sortedBy(MapArea::ordinal).associateWith { area ->
+            if (area == MapArea.Batumi || areas.size == 1) "bff-raster" else "zugdidi-raster"
+        }
+        val attribution = json(config.attribution ?: "")
+        val sources = ids.entries.joinToString(",") { (area, id) ->
+            """{"type":"raster","tiles":["$base/v1/map/tiles/{z}/{x}/{y}.png"],"tileSize":256,"minzoom":$MinimumMapZoom,"maxzoom":$MaximumMapZoom,"bounds":[${area.west},${area.south},${area.east},${area.north}],"attribution":$attribution}"""
+                .let { source -> """"$id":$source""" }
+        }
+        val layers = buildList {
+            if (MapArea.Zugdidi in areas) {
+                add("""{"id":"map-background","type":"background","paint":{"background-color":"#E7F1EB"}}""")
+            }
+            ids.values.forEach { id -> add("""{"id":"$id","type":"raster","source":"$id"}""") }
+        }
+        return """{"version":8,"sources":{$sources},"layers":[${layers.joinToString(",")}]}"""
     }
 
     suspend fun tile(z: Int, x: Int, y: Int): ByteArray {
-        validate(z, x, y)
+        validate(z, x, y, areas)
         val key = TileKey(z, x, y)
         val acquisition = lock.withLock {
             val cached = cache[key]
@@ -139,17 +158,17 @@ internal class MapProxy(
     override fun close() = downloader.close()
 
     companion object {
-        fun validate(z: Int, x: Int, y: Int) {
+        fun validate(z: Int, x: Int, y: Int, areas: Set<MapArea> = setOf(MapArea.Batumi)) {
             if (z !in MinimumMapZoom..MaximumMapZoom) {
                 throw IllegalArgumentException("tile z must be between $MinimumMapZoom and $MaximumMapZoom")
             }
             val edge = 1 shl z
             if (x !in 0 until edge || y !in 0 until edge) throw IllegalArgumentException("tile coordinates are out of range")
-            val allowedX = longitudeTileX(BatumiWestLongitude, z)..longitudeTileX(BatumiEastLongitude, z)
-            val allowedY = latitudeTileY(BatumiNorthLatitude, z)..latitudeTileY(BatumiSouthLatitude, z)
-            if (x !in allowedX || y !in allowedY) {
-                throw IllegalArgumentException("tile coordinates are outside the Batumi map area")
+            val covered = areas.any { area ->
+                x in longitudeTileX(area.west, z)..longitudeTileX(area.east, z) &&
+                    y in latitudeTileY(area.north, z)..latitudeTileY(area.south, z)
             }
+            if (!covered) throw IllegalArgumentException("tile coordinates are outside the configured map area")
         }
 
         private fun longitudeTileX(longitude: Double, zoom: Int): Int {

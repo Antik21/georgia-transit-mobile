@@ -42,8 +42,10 @@ import com.denis.georgiatransit.bff.provider.TtcTransitProviderAdapter
 import com.denis.georgiatransit.bff.provider.BatumiThetaTransitProviderAdapter
 import com.denis.georgiatransit.bff.provider.BatumiThetaClient
 import com.denis.georgiatransit.bff.provider.BatumiBatBusAllBusesClient
+import com.denis.georgiatransit.bff.provider.zugdidi.ZugdidiStaticAdapter
 import com.denis.georgiatransit.bff.service.JourneyPlanService
 import com.denis.georgiatransit.bff.service.TransitService
+import com.denis.georgiatransit.bff.map.MapArea
 import com.denis.georgiatransit.bff.map.MapProxy
 import com.denis.georgiatransit.bff.map.MapProxyFailure
 import com.denis.georgiatransit.bff.map.MapTileCacheSeconds
@@ -140,12 +142,16 @@ fun main() {
 }
 
 fun Application.transitBffModule(config: BffConfig = BffConfig.fromEnvironment()) {
+    val zugdidi = (config.zugdidiStaticCsv ?: config.zugdidiPreviewCsv)?.let { csv ->
+        ZugdidiStaticAdapter(csv, production = config.zugdidiStaticCsv != null)
+    }
     val observability = BffObservability(
         config = config,
         allowedProviders = buildSet {
             if (config.mode == RuntimeMode.DEVELOPMENT && config.fixturesEnabled) {
                 add(KnownCityIds.Demo to TelemetryProvider.FIXTURE)
             }
+            zugdidi?.let { add(KnownCityIds.Zugdidi to it.telemetryProvider) }
             if (config.transitous.isActivated) add(KnownCityIds.Tbilisi to TelemetryProvider.TRANSITOUS)
             if (config.ttc.isActivated) add(KnownCityIds.Tbilisi to TelemetryProvider.TTC)
             if (config.batumiTheta.isActivated) add(KnownCityIds.Batumi to TelemetryProvider.BATUMI_THETA)
@@ -155,6 +161,7 @@ fun Application.transitBffModule(config: BffConfig = BffConfig.fromEnvironment()
         if (config.mode == RuntimeMode.DEVELOPMENT && config.fixturesEnabled) {
             add(DemoFixtureTransitProviderAdapter())
         }
+        zugdidi?.let(::add)
         // Construction is the final activation gate: no Transitous HTTP client exists before the
         // explicit policy/contact prerequisites pass. It performs no startup probe.
         if (config.transitous.isActivated) {
@@ -193,7 +200,8 @@ fun Application.transitBffModule(config: BffConfig = BffConfig.fromEnvironment()
         )
     }
     val capabilityControl = RuntimeCapabilityControl(
-        config = config,
+        // An explicit Zugdidi CSV opts into fixture visibility without registering the demo city.
+        config = if (config.zugdidiPreviewCsv == null) config else config.copy(fixturesEnabled = true),
         registry = registry,
         audit = environment.log::info,
         capabilityTelemetryObserver = observability::recordCapabilitySnapshot,
@@ -219,7 +227,13 @@ fun Application.transitBffModule(config: BffConfig = BffConfig.fromEnvironment()
         schemaDriftObserver = capabilityControl::observeSchemaDrift,
     )
     val journeyPlanService = JourneyPlanService(capabilityControl, observability)
-    val mapProxy = config.map.takeIf { it.isActivated }?.let(::MapProxy)
+    val mapProxy = config.map.takeIf { it.isActivated }?.let {
+        val areas = buildSet {
+            if (config.zugdidiPreviewCsv == null) add(MapArea.Batumi)
+            if (zugdidi != null) add(MapArea.Zugdidi)
+        }
+        MapProxy(it, areas = areas)
+    }
     val probeRunner = ProbeRunner(
         config = config,
         service = service,
@@ -280,7 +294,6 @@ fun Application.transitBffModule(config: BffConfig = BffConfig.fromEnvironment()
                 val y = call.parameters["y"]?.toIntOrNull()
                 if (z == null || x == null || y == null) throw InvalidArgument("tile coordinates must be integers")
                 try {
-                    MapProxy.validate(z, x, y)
                     val bytes = mapProxy.tile(z, x, y)
                     call.response.header(HttpHeaders.CacheControl, "public, max-age=$MapTileCacheSeconds")
                     call.respondBytes(bytes, ContentType.Image.PNG)

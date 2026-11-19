@@ -112,7 +112,17 @@ data class TransitCity(
     val defaultZoom: Double = 13.0,
     val availability: CityAvailability = CityAvailability(CityReadiness.Unreviewed, CitySource.UnreviewedAdapter),
     val attribution: List<TransitAttribution> = emptyList(),
+    val mapBounds: MapBounds? = null,
 )
+
+/** Service-area rectangle for maps with limited geographic coverage. */
+@Serializable
+data class MapBounds(val west: Double, val south: Double, val east: Double, val north: Double) {
+    init {
+        require(west in -180.0..180.0 && east in -180.0..180.0 && west < east)
+        require(south in -90.0..90.0 && north in -90.0..90.0 && south < north)
+    }
+}
 
 @Serializable
 data class TransitDirection(val id: DirectionId, val name: LocalizedText, val headsign: LocalizedText)
