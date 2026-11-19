@@ -10,6 +10,13 @@ identifiable User-Agent, seven-day caching, no prefetch/offline downloads, and a
 SLA. Any replacement provider still requires a separate review of cost, quota, attribution, privacy,
 and production rights.
 
+## Kotlin/JS time zones
+
+The shared JavaScript target uses `@js-joda/timezone` (BSD-3-Clause) to load IANA
+rules into the `@js-joda/core` runtime that Kotlinx Datetime already uses.
+The timezone package version is pinned in the Gradle catalog and must remain
+compatible with the core version selected by Kotlinx Datetime.
+
 ## Web client (`webApp`)
 
 `webApp/package.json` and its lockfile are the only npm declaration point, scoped to the browser
