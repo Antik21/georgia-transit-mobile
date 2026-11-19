@@ -19,6 +19,7 @@ internal class ContinuousSnapshotWorker<V>(
     private val onSuccess: (V, Long) -> Unit = { _, _ -> },
     private val onFailure: (Throwable, Long) -> Unit = { _, _ -> },
     private val isEnabled: () -> Boolean = { true },
+    private val nextPollInterval: () -> Duration = { pollInterval },
     private val loader: suspend () -> V,
 ) : AutoCloseable {
     init {
@@ -49,7 +50,7 @@ internal class ContinuousSnapshotWorker<V>(
                 firstAttempt.complete(Unit)
             }
             val elapsedNanos = System.nanoTime() - startedAt
-            val remainingMillis = ((pollInterval.toNanos() - elapsedNanos) / 1_000_000L).coerceAtLeast(1L)
+            val remainingMillis = ((nextPollInterval().toNanos() - elapsedNanos) / 1_000_000L).coerceAtLeast(1L)
             delay(remainingMillis)
         }
     }

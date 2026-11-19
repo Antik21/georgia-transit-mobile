@@ -50,3 +50,5 @@ The Batumi stop-name directory and app locale contract are recorded in
 [ADR 0025](0025-batumi-stop-name-directory.md).
 The authorized AZRY adapter, date-based timetable contract and city capability gates are recorded
 in [ADR 0026](0026-kutaisi-azry-transit-feed.md).
+The automatic ThetaMaps fallback for Batumi live positions is recorded in
+[ADR 0027](0027-batumi-theta-live-failover.md).
