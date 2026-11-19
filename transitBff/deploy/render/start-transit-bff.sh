@@ -7,8 +7,6 @@ readonly runtime_group="transit"
 readonly storage_root="${BFF_STORAGE_ROOT:-/app/storage}"
 readonly control_directory="${storage_root}/control"
 readonly state_directory="${storage_root}/state"
-readonly zugdidi_directory="${storage_root}/zugdidi"
-readonly zugdidi_file="${zugdidi_directory}/stops.csv"
 readonly control_file="${control_directory}/capabilities.json"
 readonly bundled_control_file="/app/config/batumi-capabilities.json"
 
@@ -67,16 +65,6 @@ else
     trap - EXIT HUP INT TERM
 fi
 
-if path_exists "$zugdidi_directory"; then
-    require_private_directory "$zugdidi_directory"
-    if path_exists "$zugdidi_file"; then
-        [ -f "$zugdidi_file" ] && [ ! -L "$zugdidi_file" ] || fail "Zugdidi catalog is not a physical regular file"
-        case "$(stat -c '%U:%G:%a' "$zugdidi_file")" in
-            "${runtime_user}:${runtime_group}:400"|"${runtime_user}:${runtime_group}:600") ;;
-            *) fail "Zugdidi catalog owner or mode is invalid" ;;
-        esac
-        export BFF_ZUGDIDI_STATIC_CSV="$zugdidi_file"
-    fi
-fi
+export BFF_ZUGDIDI_STATIC_CSV=/app/config/zugdidi-stops.csv
 
 exec gosu "$runtime_user:$runtime_group" /app/bin/transitBff

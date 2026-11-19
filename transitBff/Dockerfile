@@ -30,6 +30,7 @@ WORKDIR /app
 
 COPY --from=builder /workspace/transitBff/build/install/transitBff/ /app/
 COPY transitBff/batumi-theta-capability-control.example.json /app/config/batumi-capabilities.json
+COPY --chmod=0444 transitBff/data/zugdidi/stops.csv /app/config/zugdidi-stops.csv
 COPY transitBff/deploy/render/start-transit-bff.sh /usr/local/bin/start-transit-bff
 
 RUN chmod 0444 /app/config/batumi-capabilities.json && \

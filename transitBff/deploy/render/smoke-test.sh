@@ -68,6 +68,8 @@ wait_until_ready() {
             style="$(curl --fail --silent --show-error "http://${address}/v1/map/style.json")"
             printf '%s' "$style" | grep --quiet 'https://smoke.invalid/v1/map/tiles/{z}/{x}/{y}.png'
             printf '%s' "$style" | grep --quiet 'OpenStreetMap contributors'
+            # The raster source is registered only after the bundled catalog loads.
+            printf '%s' "$style" | grep --quiet '"zugdidi-raster"'
             return
         fi
         attempt=$((attempt + 1))
@@ -113,6 +115,11 @@ docker exec --user root "$container" sh -eu -c '
     chmod 02755 /app/storage
     chmod 06755 /app/storage/control
     chmod 07770 /app/storage/state
+    # An obsolete disk catalog must not shadow the image catalog during an upgrade.
+    install -d -o transit -g transit -m 0700 /app/storage/zugdidi
+    printf "obsolete catalog\n" > /app/storage/zugdidi/stops.csv
+    chown transit:transit /app/storage/zugdidi/stops.csv
+    chmod 0600 /app/storage/zugdidi/stops.csv
 '
 docker rm --force "$container" >/dev/null
 container=""
