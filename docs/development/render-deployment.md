@@ -71,18 +71,19 @@ The service polls for a new document, so a deploy is not required for a kill swi
 
 ## Zugdidi static catalog
 
-The operator provisions the authorized ordered-stop CSV at `/app/storage/zugdidi/stops.csv`.
-Use a physical directory owned by `transit:transit` with mode `0700`. Write the CSV to a
-temporary file in that directory, verify its digest and contents, set ownership to
-`transit:transit` and mode to `0600`, then sync and atomically rename it to `stops.csv`.
-The entrypoint detects it at startup. Catalog replacement takes effect on the next instance start.
+The ordered stops and coordinates sourced from Yandex Maps are versioned in
+[`transitBff/data/zugdidi/stops.csv`](../../transitBff/data/zugdidi/stops.csv). The Docker build
+copies the catalog to `/app/config/zugdidi-stops.csv`, which the BFF loads at startup. Merging
+catalog updates triggers the normal Render deploy after CI passes. An existing disk copy at
+`/app/storage/zugdidi/stops.csv` can stay in place for rollback to an older image.
 
-Once the new instance is live with the CSV present, add a `zugdidi` entry to the complete
-capability document under a new revision while retaining the existing city entries. Use
-`PRODUCTION_READY` and `REVIEWED_ADAPTER`. Set `routes`, `stops`, and `routeGeometry` to
-`true` and the remaining capabilities to `false`. The service supplies regional raster coverage
-alongside Batumi and draws direct segments between the ordered coordinates. For rollback, disable
-Zugdidi in a new control revision before removing the file or reverting to an image without its adapter.
+The persistent capability document controls city visibility across deploys. On a new disk, enable
+Zugdidi by adding a `zugdidi` entry to that document under a new revision while retaining the
+existing city entries. Use `PRODUCTION_READY` and `REVIEWED_ADAPTER`. Set `routes`, `stops`,
+and `routeGeometry` to `true` and the remaining capabilities to `false`. The service supplies
+regional raster coverage alongside Batumi and draws direct segments between the ordered
+coordinates. To roll back a catalog update, redeploy the previous image. Before reverting to an
+image without the Zugdidi adapter, disable Zugdidi in a new control revision.
 
 ## Telegram web client
 
