@@ -365,13 +365,9 @@ class JourneyPlannerReducerTest {
         val ride = options[0].legs[1] as JourneyLegUi.Ride
         assertEquals(6, ride.stopCount)
         assertEquals(2, ride.waitMinutes)
-        assertNull(ride.transferSlackMinutes)
         assertTrue(ride.waitIsLive)
         assertEquals("D1", ride.route.label)
-        val transferWithWalk = options[0].legs[3] as JourneyLegUi.Ride
-        assertEquals(false, transferWithWalk.waitIsLive)
-        assertEquals(3, transferWithWalk.transferSlackMinutes)
-        assertEquals(5, (options[1].legs[2] as JourneyLegUi.Ride).transferSlackMinutes)
+        assertEquals(false, (options[0].legs[3] as JourneyLegUi.Ride).waitIsLive)
         assertEquals(JourneyTimingUi.Mixed, options[0].timing)
     }
 
@@ -444,11 +440,11 @@ class JourneyPlannerReducerTest {
     private fun journey(id: String, transfer: Boolean = false, sameStop: Boolean = false): TransitJourney {
         val segments = buildList {
             add(walk(0, 4, null, STOP_A))
-            add(ride(6, 17, STOP_A, STOP_B, JourneyWaitBasis.LiveVehicle, waitSeconds = 120))
+            add(ride(6, 17, STOP_A, STOP_B, JourneyWaitBasis.LiveVehicle))
             if (transfer) {
                 val next = if (sameStop) STOP_B else STOP_C
                 if (!sameStop) add(walk(17, 19, STOP_B, next))
-                add(ride(22, 30, next, STOP_D, JourneyWaitBasis.HeadwayEstimate, waitSeconds = if (sameStop) 300 else 180))
+                add(ride(22, 30, next, STOP_D, JourneyWaitBasis.HeadwayEstimate))
             }
             add(walk(if (transfer) 30 else 17, if (transfer) 34 else 21, if (transfer) STOP_D else STOP_B, null))
         }
@@ -467,10 +463,10 @@ class JourneyPlannerReducerTest {
         fromPosition = A, toPosition = B, distanceMeters = 300.0, geometryApproximate = true,
     )
 
-    private fun ride(from: Int, to: Int, fromStop: StopId, toStop: StopId, basis: JourneyWaitBasis, waitSeconds: Int) = TransitJourneySegment(
+    private fun ride(from: Int, to: Int, fromStop: StopId, toStop: StopId, basis: JourneyWaitBasis) = TransitJourneySegment(
         departureAt = at(from), arrivalAt = at(to), mode = JourneySegmentMode.Transit, routeId = ROUTE,
         directionId = DirectionId("demo:fixture:direction:blue"), fromStopId = fromStop, toStopId = toStop,
-        geometry = "_p~iF~ps|U_ulLnnqC", intermediateStopCount = 5, waitSeconds = waitSeconds, waitBasis = basis,
+        geometry = "_p~iF~ps|U_ulLnnqC", intermediateStopCount = 5, waitSeconds = 101, waitBasis = basis,
     )
 
     private fun at(minute: Int) = Instant.fromEpochMilliseconds(NOW.toEpochMilliseconds() + minute * 60_000L)
