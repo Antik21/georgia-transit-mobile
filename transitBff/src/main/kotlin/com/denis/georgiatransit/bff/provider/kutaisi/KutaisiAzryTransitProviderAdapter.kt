@@ -29,6 +29,10 @@ import java.time.Clock
 import java.time.LocalDate
 import kotlin.time.Duration.Companion.seconds
 
+// In the production sample, 90% of observed coordinate changes were at most 32 seconds apart.
+// Allow that interval plus a 50% margin for snapshot expiry.
+private const val AzryVehicleSnapshotMaxAgeSeconds = 48
+
 internal class KutaisiAzryTransitProviderAdapter(
     private val feed: AzryFeed,
     private val clock: Clock = Clock.systemUTC(),
@@ -119,7 +123,7 @@ internal class KutaisiAzryTransitProviderAdapter(
         val unique = rows.groupBy(Vehicle::id).values.mapNotNull { matches ->
             matches.distinct().singleOrNull()
         }
-        return RealtimeVehicles(unique, receivedAt, maxAgeSeconds = 30, stale = false)
+        return RealtimeVehicles(unique, receivedAt, maxAgeSeconds = AzryVehicleSnapshotMaxAgeSeconds, stale = false)
     }
 
     override suspend fun arrivals(stopId: String, limit: Int, locale: String): RealtimeArrivals {
