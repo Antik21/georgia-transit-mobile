@@ -16,8 +16,9 @@ the current catalog. It switches back on the next valid BatBus response.
 
 Each ThetaMaps sweep uses a ten-second time budget and at most four concurrent
 requests. It accepts empty route arrays and publishes only a complete, valid
-generation. Sweeps are scheduled at least ten seconds apart and honor the
-provider's retry window. Capability control applies to both sources.
+generation. The next sweep can start at least ten seconds after the previous
+sweep starts, subject to the provider's retry window. BatBus is still probed
+before checking this window. Capability control applies to both sources.
 
 Both sources share the same vehicle identities, stop-chain ETA and 15-second
 fresh and 60-second expiration limits. Vehicles and arrivals are published

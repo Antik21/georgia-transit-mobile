@@ -27,17 +27,10 @@ internal class BatumiLiveFeed(
     private val isEnabled: () -> Boolean,
 ) {
     private var firstFailureAt: Instant? = null
-    private var thetaRetryAt: Instant? = null
-    private var fallbackAttempted = false
-
-    fun nextPeriod(primaryPeriod: Duration): Duration =
-        if (fallbackAttempted) maxOf(primaryPeriod, ThetaSweepPeriod) else primaryPeriod
+    private var nextThetaSweepAt: Instant = Instant.MIN
 
     fun enabled(): Boolean = isEnabled().also { enabled ->
-        if (!enabled) {
-            firstFailureAt = null
-            fallbackAttempted = false
-        }
+        if (!enabled) firstFailureAt = null
     }
 
     suspend fun load(catalog: BatumiCatalog): BatumiLiveGeneration {
@@ -49,7 +42,6 @@ internal class BatumiLiveFeed(
             val vehicles = BatumiAllBusesParser.parse(response, catalog, observedAt)
             validateEtaWorkload(catalog, vehicles)
             firstFailureAt = null
-            fallbackAttempted = false
             return BatumiLiveGeneration(BatumiLiveSource.BATBUS, vehicles, observedAt)
         } catch (failure: ProviderFailure) {
             // A malformed primary is unavailable, but cannot disable an independent validated source.
@@ -65,19 +57,21 @@ internal class BatumiLiveFeed(
             }
         }
 
-        fallbackAttempted = true
         try {
             return loadTheta(catalog)
         } catch (failure: ProviderRateLimited) {
-            thetaRetryAt = clock.instant().plusSeconds(failure.retryAfterSeconds.toLong())
+            val retryAt = clock.instant().plusSeconds(failure.retryAfterSeconds.toLong())
+            nextThetaSweepAt = maxOf(nextThetaSweepAt, retryAt)
             throw failure
         }
     }
 
     private suspend fun loadTheta(catalog: BatumiCatalog): BatumiLiveGeneration {
-        if (thetaRetryAt?.isAfter(clock.instant()) == true) {
+        val startedAt = clock.instant()
+        if (startedAt.isBefore(nextThetaSweepAt)) {
             throw ProviderUnavailable("Batumi fallback is waiting for the provider retry window")
         }
+        nextThetaSweepAt = startedAt.plus(ThetaSweepPeriod)
         val permits = Semaphore(ThetaParallelRequests)
         val entries = withTimeoutOrNull(ThetaSweepTimeout.toMillis()) {
             coroutineScope {

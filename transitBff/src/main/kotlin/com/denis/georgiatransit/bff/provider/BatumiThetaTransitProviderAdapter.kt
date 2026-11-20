@@ -154,7 +154,6 @@ internal class BatumiThetaTransitProviderAdapter(
                         recordGlobalFeedFailure(failure, durationNanos, onSchemaFailure)
                     },
                     isEnabled = liveFeed::enabled,
-                    nextPollInterval = { liveFeed.nextPeriod(cityFeedPollInterval) },
                     loader = {
                         val snapshot = catalog()
                         val generation = liveFeed.load(snapshot)

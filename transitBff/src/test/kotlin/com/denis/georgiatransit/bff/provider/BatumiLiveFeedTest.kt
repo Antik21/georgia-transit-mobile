@@ -57,6 +57,7 @@ class BatumiLiveFeedTest {
         fixture.secondRouteResponse = """{"data":null}"""
         assertFailsWith<ProviderNormalizedSchemaFailure> { fixture.feed.load(fixture.catalog) }
         fixture.secondRouteResponse = """{"data":[]}"""
+        fixture.clock.advance(10)
         val fallback = fixture.feed.load(fixture.catalog)
         assertEquals(2, fallback.vehiclesByRoute.size)
         assertEquals(1, fallback.vehiclesByRoute.values.count { it.isEmpty() })
@@ -74,6 +75,29 @@ class BatumiLiveFeedTest {
         fixture.clock.advance(10)
         assertFailsWith<ProviderUnavailable> { fixture.feed.load(fixture.catalog) }
         assertEquals(emptySet(), fixture.thetaCalls.toSet())
+        fixture.batBusAvailable = true
+        assertEquals(BatumiLiveSource.BATBUS, fixture.feed.load(fixture.catalog).source)
+    }
+
+    @Test
+    fun `fallback keeps ten seconds between theta sweeps when BatBus failure latency changes`() = runBlocking {
+        val fixture = LiveSources()
+        fixture.batBusAvailable = false
+        assertFailsWith<ProviderUnavailable> { fixture.feed.load(fixture.catalog) }
+        fixture.clock.advance(180)
+
+        fixture.batBusFailureLatencySeconds = 8
+        assertEquals(BatumiLiveSource.THETA, fixture.feed.load(fixture.catalog).source)
+        fixture.thetaCalls.clear()
+        fixture.batBusFailureLatencySeconds = 0
+        fixture.clock.advance(2)
+
+        assertFailsWith<ProviderUnavailable> { fixture.feed.load(fixture.catalog) }
+        assertEquals(emptySet(), fixture.thetaCalls.toSet())
+        fixture.clock.advance(8)
+        assertEquals(BatumiLiveSource.THETA, fixture.feed.load(fixture.catalog).source)
+        assertEquals(setOf("r1", "r2"), fixture.thetaCalls.toSet())
+
         fixture.batBusAvailable = true
         assertEquals(BatumiLiveSource.BATBUS, fixture.feed.load(fixture.catalog).source)
     }
@@ -137,6 +161,7 @@ private class LiveSources {
     ))
     val catalog = BatumiThetaCatalogParser.parse(catalogPayload, clock.instant())
     @Volatile var batBusAvailable = true
+    var batBusFailureLatencySeconds = 0L
     var thetaRateLimited = false
     val thetaCalls = ConcurrentLinkedQueue<String>()
     val primaryFailure = CompletableDeferred<Unit>()
@@ -146,6 +171,7 @@ private class LiveSources {
     val primary = object : BatumiAllBusesClient {
         override suspend fun getAllBuses(): String {
             if (!batBusAvailable) {
+                if (batBusFailureLatencySeconds > 0) clock.advance(batBusFailureLatencySeconds)
                 primaryFailure.complete(Unit)
                 throw ProviderUnavailable("Simulated outage")
             }
