@@ -9,7 +9,11 @@ appId: com.denis.georgiatransit.sandbox
     timeout: 20000
 - assertVisible:
     id: map.screen
-- assertVisible:
-    id: map.attribution.link.openstreetmap
+- assertNotVisible:
+    id: map.attribution
 - assertNotVisible:
     id: map.routes
+- assertVisible:
+    id: map.attribution.openstreetmap
+- assertNotVisible:
+    id: map.settings

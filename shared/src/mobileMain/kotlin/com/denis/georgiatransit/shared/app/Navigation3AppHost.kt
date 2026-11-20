@@ -75,9 +75,17 @@ internal fun Navigation3AppHost(initialDestination: Destination) {
     }
 
     val entries = entryProvider<NavKey> {
-        entry<Destination.CitySelection> {
+        entry<Destination.CitySelection>(metadata = slideFromBottomMetadata) {
             val viewModel: CitySelectionViewModel = navigationEntryViewModel("city-selection")
-            CitySelectionScreen(viewModel) { effect ->
+            val openedFromMap = remember { restoredStack.firstOrNull() == Destination.Map }
+            CitySelectionScreen(
+                viewModel = viewModel,
+                onBack = if (openedFromMap) {
+                    { applyNavigation(NavigationEvent.Back) }
+                } else {
+                    null
+                },
+            ) { effect ->
                 when (effect) {
                     com.denis.georgiatransit.shared.presentation.cityselection.NavigationEffect.OpenMap -> {
                         applyNavigation(NavigationEvent.CityConfirmed)
@@ -98,19 +106,7 @@ internal fun Navigation3AppHost(initialDestination: Destination) {
                 }
             }
         }
-        entry<Destination.Routes>(
-            metadata = metadata {
-                put(NavDisplay.TransitionKey) {
-                    slideInVertically(initialOffsetY = { it }) togetherWith ExitTransition.KeepUntilTransitionsFinished
-                }
-                put(NavDisplay.PopTransitionKey) {
-                    EnterTransition.None togetherWith slideOutVertically(targetOffsetY = { it })
-                }
-                put(NavDisplay.PredictivePopTransitionKey) {
-                    EnterTransition.None togetherWith slideOutVertically(targetOffsetY = { it })
-                }
-            },
-        ) {
+        entry<Destination.Routes>(metadata = slideFromBottomMetadata) {
             val viewModel: RoutesViewModel = navigationEntryViewModel("routes")
             RoutesScreen(viewModel) { effect ->
                 when (effect) {
@@ -148,6 +144,18 @@ internal fun Navigation3AppHost(initialDestination: Destination) {
             sceneStrategies = listOf(SinglePaneSceneStrategy()),
             entryProvider = entries,
         )
+    }
+}
+
+private val slideFromBottomMetadata = metadata {
+    put(NavDisplay.TransitionKey) {
+        slideInVertically(initialOffsetY = { it }) togetherWith ExitTransition.KeepUntilTransitionsFinished
+    }
+    put(NavDisplay.PopTransitionKey) {
+        EnterTransition.None togetherWith slideOutVertically(targetOffsetY = { it })
+    }
+    put(NavDisplay.PredictivePopTransitionKey) {
+        EnterTransition.None togetherWith slideOutVertically(targetOffsetY = { it })
     }
 }
 

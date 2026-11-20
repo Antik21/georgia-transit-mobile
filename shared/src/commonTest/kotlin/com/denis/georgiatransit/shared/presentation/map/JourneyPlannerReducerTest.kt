@@ -38,6 +38,29 @@ import com.denis.georgiatransit.shared.presentation.map.JourneyPlannerStatus as 
 
 class JourneyPlannerReducerTest {
     @Test
+    fun openPlannerClearsThePinAndOpensEmptyEndpointsWithoutRequestingLocation() {
+        val initial = JourneyPlannerUi(pin = B)
+        val unsupported = JourneyPlannerReducer.action(initial, JourneyPlannerAction.OpenPlanner, context(tripPlanning = false))
+        val opened = JourneyPlannerReducer.action(initial, JourneyPlannerAction.OpenPlanner, context(location = fix(A)))
+
+        assertFalse(unsupported.state.isOpen)
+        assertTrue(opened.state.isOpen)
+        assertEquals(Status.EndpointsIncomplete, opened.state.status)
+        assertNull(opened.state.pin)
+        assertNull(opened.state.origin)
+        assertNull(opened.state.destination)
+        assertNull(opened.query)
+        assertNull(opened.location)
+
+        val picking = JourneyPlannerReducer.action(
+            opened.state, JourneyPlannerAction.StartMapPick(JourneyPlanSide.Origin), context(),
+        ).state
+        val repeated = JourneyPlannerReducer.action(picking, JourneyPlannerAction.OpenPlanner, context())
+        assertEquals(picking, repeated.state)
+        assertFalse(JourneyPlannerReducer.action(picking, JourneyPlannerAction.ClosePlanner, context()).state.isOpen)
+    }
+
+    @Test
     fun longPressNeedsTheTripPlanningCapabilityAndOnlyDropsAPin() {
         val unavailable = JourneyPlannerReducer.longPress(JourneyPlannerUi(), B, context(tripPlanning = false))
         val available = JourneyPlannerReducer.longPress(JourneyPlannerUi(), B, context(location = denied()))

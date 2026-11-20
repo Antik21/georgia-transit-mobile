@@ -159,6 +159,7 @@ data class JourneyPlanRenderUi(
 
 /** Planner commands; the long press arrives as [MapPlatformEvent.MapLongPressed]. */
 sealed interface JourneyPlannerAction : Action {
+    data object OpenPlanner : JourneyPlannerAction
     data object RouteHere : JourneyPlannerAction
     data object RouteFromHere : JourneyPlannerAction
     data object DismissPin : JourneyPlannerAction

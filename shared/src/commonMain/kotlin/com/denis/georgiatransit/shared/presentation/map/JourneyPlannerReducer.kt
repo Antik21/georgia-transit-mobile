@@ -56,6 +56,9 @@ internal object JourneyPlannerReducer {
 
     fun action(state: JourneyPlannerUi, action: JourneyPlannerAction, context: JourneyPlannerContext): JourneyPlannerStep =
         when (action) {
+            JourneyPlannerAction.OpenPlanner -> if (context.available && !state.isOpen) {
+                edit(state.copy(pin = null), context)
+            } else finish(state, context)
             JourneyPlannerAction.RouteHere -> state.pin?.let { pin ->
                 val origin = state.origin.takeIf { state.isOpen }
                     ?: JourneyEndpoint.CurrentLocation.takeIf { context.location.permission is LocationPermissionState.Granted }

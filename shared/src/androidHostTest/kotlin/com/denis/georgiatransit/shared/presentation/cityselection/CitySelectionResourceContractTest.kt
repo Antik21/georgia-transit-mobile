@@ -42,7 +42,6 @@ class CitySelectionResourceContractTest {
             AutomationId.CityBatumi,
             AutomationId.CityKutaisi,
             AutomationId.CityContinue,
-            AutomationId.CityLocation,
         )
 
         assertEquals(cityIds.size, cityIds.toSet().size)
@@ -140,17 +139,14 @@ class CitySelectionResourceContractTest {
             assertTrue(resource.readText().contains("name=\"city_attribution_title\""), "$resource is missing attribution title")
         }
 
-        // Compose UI test APIs are not on this host source set. Parse the Row call's balanced
-        // delimiters rather than stopping at the first ')': onClick may be a lambda expression.
-        // This keeps the enabled binding tied to .selectable and proves attribution is outside
-        // that Row's content lambda.
+        // Compose UI test APIs are not on this host source set. Parse the ListItem call's
+        // balanced delimiters to verify attribution stays outside the selectable item.
         val catalogSection = projectRoot.resolve(
             "shared/src/mobileMain/kotlin/com/denis/georgiatransit/shared/presentation/cityselection/sections/CityCatalogSection.kt",
         ).readText()
         assertTrue(catalogSection.contains("withLink(LinkAnnotation.Url(item.url))"))
         val cityRow = catalogSection.functionBody("private fun CityRow")
-        val rowOpenParenthesis = Regex("""(?m)^\s*Row\(""").find(cityRow)?.range?.last
-            ?: error("CityRow must contain a Row invocation")
+        val rowOpenParenthesis = cityRow.indexOf("ListItem(").also { check(it >= 0) } + "ListItem".length
         val rowCloseParenthesis = cityRow.matchingDelimiter(rowOpenParenthesis, '(', ')')
         val selectableOpenParenthesis = cityRow.indexOf(".selectable(").also { check(it >= 0) } + ".selectable".length
         val selectableCloseParenthesis = cityRow.matchingDelimiter(selectableOpenParenthesis, '(', ')')
@@ -160,10 +156,8 @@ class CitySelectionResourceContractTest {
         assertTrue(selectable.contains("enabled = city.isEnabled"))
         assertTrue(selectable.contains("role = Role.RadioButton"))
 
-        val rowContentStart = cityRow.indexOf('{', rowCloseParenthesis).also { check(it >= 0) }
-        val rowContentEnd = cityRow.matchingDelimiter(rowContentStart, '{', '}')
         val attributionCall = cityRow.indexOf("CityAttribution(city)").also { check(it >= 0) }
-        assertTrue(attributionCall > rowContentEnd)
+        assertTrue(attributionCall > rowCloseParenthesis)
     }
 
     @Test

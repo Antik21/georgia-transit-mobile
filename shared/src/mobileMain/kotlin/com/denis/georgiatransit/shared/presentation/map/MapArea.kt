@@ -49,6 +49,7 @@ internal fun MapArea(
     onMapEvent: (MapPlatformEvent) -> Unit,
     onMyLocationClick: () -> Unit,
     onZoomClick: (MapZoomDirection) -> Unit,
+    onOpenPlanner: (() -> Unit)?,
     onCameraMovingChanged: (Boolean) -> Unit,
     onPointResolved: (MapPlatformEvent.MapPointResolved) -> Unit,
     onDismissPin: () -> Unit,
@@ -74,6 +75,7 @@ internal fun MapArea(
                 locationActionEnabled = locationActionEnabled(location.permission) && !location.isLocating,
                 onMyLocationClick = onMyLocationClick,
                 onZoomClick = onZoomClick,
+                onOpenPlanner = onOpenPlanner,
                 onMapEvent = { event ->
                     when (event) {
                         MapPlatformEvent.CameraMoveStarted, MapPlatformEvent.UserCameraMoveStarted -> {
