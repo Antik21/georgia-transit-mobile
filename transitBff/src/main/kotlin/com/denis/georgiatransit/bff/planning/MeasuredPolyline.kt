@@ -19,42 +19,37 @@ internal class MeasuredPolyline(val points: List<GeoPoint>) {
 
     val lengthMeters: Double get() = cumulative.last()
 
-    /**
-     * Projects [target] onto the part of the shape between [minAlong] and [maxAlong]. Searching
-     * forward only keeps loop and out-and-back shapes from snapping to the opposite carriageway.
-     */
-    fun projectForward(
-        target: GeoPoint,
-        minAlong: Double,
-        maxAlong: Double,
-        maxDistanceMeters: Double,
-        preferEarliest: Boolean = false,
-    ): Double? {
+    data class Projection(val along: Double, val offset: Double)
+
+    /** The closest projection for each pass of the shape within range of a stop. */
+    fun nearbyPasses(target: GeoPoint, maxDistanceMeters: Double): List<Projection> {
         val lonScale = MetersPerDegree * cos(target.latitude * PI / 180.0)
-        var bestAlong: Double? = null
-        var bestDistance = Double.MAX_VALUE
+        val passes = mutableListOf<Projection>()
+        var pass: Projection? = null
         for (index in 0 until points.size - 1) {
             val segmentStart = cumulative[index]
             val segmentEnd = cumulative[index + 1]
-            if (segmentEnd < minAlong || segmentStart > maxAlong || segmentEnd <= segmentStart) continue
+            if (segmentEnd <= segmentStart) continue
             val ax = (points[index].longitude - target.longitude) * lonScale
             val ay = (points[index].latitude - target.latitude) * MetersPerDegree
-            val dx = (points[index + 1].longitude - target.longitude) * lonScale - ax
-            val dy = (points[index + 1].latitude - target.latitude) * MetersPerDegree - ay
+            val bx = (points[index + 1].longitude - target.longitude) * lonScale
+            val by = (points[index + 1].latitude - target.latitude) * MetersPerDegree
+            val dx = bx - ax
+            val dy = by - ay
             val lengthSquared = dx * dx + dy * dy
-            val raw = if (lengthSquared <= 1e-6) 0.0 else ((-ax * dx - ay * dy) / lengthSquared).coerceIn(0.0, 1.0)
-            val tMin = ((minAlong - segmentStart) / (segmentEnd - segmentStart)).coerceIn(0.0, 1.0)
-            val tMax = ((maxAlong - segmentStart) / (segmentEnd - segmentStart)).coerceIn(0.0, 1.0)
-            val t = raw.coerceIn(tMin, tMax)
+            val t = ((-ax * dx - ay * dy) / lengthSquared).coerceIn(0.0, 1.0)
             val distance = hypot(ax + t * dx, ay + t * dy)
-            if (distance > maxDistanceMeters) continue
-            if (preferEarliest) return segmentStart + t * (segmentEnd - segmentStart)
-            if (distance < bestDistance) {
-                bestDistance = distance
-                bestAlong = segmentStart + t * (segmentEnd - segmentStart)
+            if (distance <= maxDistanceMeters && (pass == null || distance < pass.offset)) {
+                pass = Projection(segmentStart + t * (segmentEnd - segmentStart), distance)
+            }
+            // An out-of-range joint separates two visits even on consecutive shape edges.
+            if (hypot(bx, by) > maxDistanceMeters) {
+                pass?.let(passes::add)
+                pass = null
             }
         }
-        return bestAlong
+        pass?.let(passes::add)
+        return passes
     }
 
     fun slice(fromAlong: Double, toAlong: Double): List<GeoPoint> {
