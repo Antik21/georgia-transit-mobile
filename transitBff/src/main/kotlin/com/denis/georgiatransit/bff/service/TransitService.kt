@@ -415,7 +415,7 @@ class TransitService(
             // normalized-output validation. In particular, a half-open TTC probe must not close
             // after one successful HTTP sub-call if a later sub-call or its normalized result
             // makes the operation fail.
-            val providerResult = if (adapter is ProviderCircuitProtectedAdapter) {
+            val providerResult = if ((adapter as? ProviderCircuitProtectedAdapter)?.bypassServiceCircuit(labels.operation) == true) {
                 loader().also(validator)
             } else {
                 observability?.protectProviderCall(labels) { loader().also(validator) }

@@ -22,10 +22,14 @@ request to the fixed BatBus `getAllBuses` endpoint every five seconds for the wh
 validated generation atomically replaces the prior snapshot and feeds vehicles plus every stop and
 route arrival board. Failed refreshes retain the prior normalized generation: it becomes stale after
 15 seconds and unavailable after 60 seconds. Runtime capability control gates the poller, so
-disabling both Batumi vehicle positions and arrivals stops live-feed upstream egress. Raw payloads
-are neither logged nor cached. Upstream `Name` becomes a short-lived namespaced internal ID only; it
-is never shown as a bus/fleet number. The old route-specific client remains only as an injected
-test/manual fallback.
+disabling both Batumi vehicle positions and arrivals stops live-feed upstream egress. The worker
+uses ThetaMaps live positions after three minutes of unsuccessful BatBus refreshes. It surveys
+the entire catalog with at most four concurrent route requests and publishes the generation after
+all routes return valid arrays. Empty arrays are valid. The worker probes BatBus first on every
+iteration and returns to it when a valid bulk generation arrives. The same age limits apply to
+both sources. Transition logs use `batumi_live_source_changed`. The feed omits upstream payloads
+from logs and cache. Upstream `Name` becomes a short-lived namespaced vehicle ID.
+[Failover decision and loopback test](../adr/0027-batumi-theta-live-failover.md)
 
 `officialArrivals` remains false. `arrivals=true` means only that the BFF can sometimes supply a
 `CLIENT_ESTIMATE`; empty arrival lists are expected whenever status projection is unavailable.
@@ -87,8 +91,8 @@ credential. The acknowledgement does not approve a configurable BatBus URL or an
 
 Copy `transitBff/batumi-theta-capability-control.example.json` into that private control path with
 the ownership/mode requirements in the capability-control runbook. The operator can separately
-disable `vehiclePositions` or `arrivals` immediately; repeated malformed live responses also latch
-the corresponding schema-drift interlock and fail closed. Keep the production service at one
+disable `vehiclePositions` or `arrivals` immediately. Repeated malformed ThetaMaps live generations
+also latch the corresponding schema-drift interlock. Keep the production service at one
 instance until an aggregate request budget or single-feed-owner design is approved. Verify one
 catalog-backed routes, nearby-stops, shape, vehicle, and arrivals request without adding a live
 upstream request to CI or logging an upstream payload.
