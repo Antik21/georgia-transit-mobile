@@ -56,6 +56,8 @@ appId: com.denis.georgiatransit.sandbox
 - assertNotVisible:
     id: map.route-geometry.chip
 - tapOn:
+    id: map.settings
+- tapOn:
     id: map.change-city
 - tapOn:
     id: city-selection.batumi

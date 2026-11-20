@@ -23,6 +23,7 @@ internal object MapSessionStateReducer {
         vehicleLayerState = input.vehicleLayer,
         vehicleRoutes = input.vehicleRoutes,
         journeyPlanner = input.planner,
+        journeyPlanningAvailable = input.city?.capabilities?.tripPlanning == true,
     )
 }
 

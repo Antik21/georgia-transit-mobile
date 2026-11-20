@@ -11,6 +11,7 @@ internal fun CityId.citySelectionAutomationId(): String? = when (value) {
     "tbilisi" -> AutomationId.CityTbilisi
     "batumi" -> AutomationId.CityBatumi
     "kutaisi" -> AutomationId.CityKutaisi
+    "zugdidi" -> AutomationId.CityZugdidi
     else -> null
 }
 

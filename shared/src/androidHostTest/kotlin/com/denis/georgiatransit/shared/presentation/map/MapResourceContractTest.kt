@@ -108,6 +108,8 @@ class MapResourceContractTest {
             AutomationId.MapScreen,
             AutomationId.MapRoutes,
             AutomationId.MapChangeCity,
+            AutomationId.MapSettings,
+            AutomationId.MapSettingsSheet,
             AutomationId.MapMyLocation,
             AutomationId.MapLocationSettings,
             AutomationId.MapUserLocation,
@@ -117,7 +119,7 @@ class MapResourceContractTest {
             AutomationId.MapNearbyStop,
             AutomationId.MapVehicles,
             AutomationId.MapVehiclesLiveNonempty,
-            AutomationId.MapAttribution,
+            AutomationId.MapOpenStreetMapAttribution,
             AutomationId.MapStopArrivalsSheet,
             AutomationId.MapStopArrivalsHandle,
             AutomationId.MapStopArrivalsLoading,
@@ -146,7 +148,7 @@ class MapResourceContractTest {
         assertEquals("map.vehicles", AutomationId.MapVehicles)
         assertEquals("map.vehicles.live-nonempty", AutomationId.MapVehiclesLiveNonempty)
         assertEquals("map.connection.error", AutomationId.MapConnectionError)
-        assertEquals("map.attribution.link.transitous", AutomationId.mapAttributionLink("transitous"))
+        assertEquals("map.attribution.openstreetmap", AutomationId.MapOpenStreetMapAttribution)
         assertEquals("map.stop-arrivals.sheet", AutomationId.MapStopArrivalsSheet)
         assertEquals("map.stop-arrivals.handle", AutomationId.MapStopArrivalsHandle)
         assertEquals("map.stop-arrivals.row", AutomationId.MapStopArrivalsRow)
@@ -1066,6 +1068,7 @@ class MapResourceContractTest {
             "map_preview_note",
             "map_routes_action",
             "map_change_city_action",
+            "map_settings",
             "map_my_location_action",
             "map_selected_routes",
             "map_stop_arrivals_title",
@@ -1102,7 +1105,6 @@ class MapResourceContractTest {
             "map_vehicle_status_mixed",
             "map_cluster_stops",
             "map_connection_error",
-            "map_attribution_title",
         )
         const val ShellSmokeFlow = "ui-tests/maestro/flows/shell-smoke.yaml"
         const val LocationSettingsFallbackFlow = "ui-tests/maestro/flows/location-settings-fallback-smoke.yaml"

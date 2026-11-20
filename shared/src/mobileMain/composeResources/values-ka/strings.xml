@@ -94,7 +94,6 @@
     <string name="map_vehicle_status_retryable">დროებით მიუწვდომელია; ნაჩვენებია ძველი პოზიციები</string>
     <string name="map_vehicle_status_unavailable">მიუწვდომელია</string>
     <string name="map_vehicle_status_mixed">მარშრუტების ხელმისაწვდომობა განსხვავებულია</string>
-    <string name="map_attribution_title">მონაცემთა წყაროები და ატრიბუცია</string>
     <string name="map_openstreetmap_attribution">© OpenStreetMap</string>
     <string name="routes_title">მარშრუტები</string>
     <string name="routes_cancel_action">დახურვა</string>
@@ -210,4 +209,5 @@
     <string name="schedule_local_times">დაგეგმილი მოსვლის დრო ადგილობრივი დროით</string>
     <string name="schedule_stop_empty">დაგეგმილი მოსვლა არ არის</string>
     <string name="schedule_following_day">%1$s (+%2$d დღე)</string>
+    <string name="map_settings">პარამეტრები</string>
 </resources>

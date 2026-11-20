@@ -30,7 +30,9 @@ object NavigationTransitionPolicy {
 
         return when (val destination = restoredStack.lastOrNull()) {
             null -> listOf(Destination.Map)
-            Destination.CitySelection -> listOf(Destination.CitySelection)
+            Destination.CitySelection ->
+                if (restoredStack == listOf(Destination.Map, Destination.CitySelection)) restoredStack
+                else listOf(Destination.CitySelection)
             Destination.Map -> listOf(Destination.Map)
             Destination.Routes -> listOf(Destination.Map, Destination.Routes)
             is Destination.Schedules ->
@@ -76,7 +78,8 @@ object NavigationTransitionPolicy {
                 else -> safeStack
             }
 
-            NavigationEvent.ChangeCity -> listOf(Destination.CitySelection)
+            NavigationEvent.ChangeCity ->
+                if (safeStack.last() == Destination.Map) safeStack + Destination.CitySelection else safeStack
         }
     }
 }

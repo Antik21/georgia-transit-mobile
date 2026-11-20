@@ -152,6 +152,8 @@ appId: com.denis.georgiatransit
     id: map.screen
 # A new city starts with its own empty selection and cannot inherit demo's draft/commit.
 - tapOn:
+    id: map.settings
+- tapOn:
     id: map.change-city
 - assertVisible:
     id: city-selection.screen

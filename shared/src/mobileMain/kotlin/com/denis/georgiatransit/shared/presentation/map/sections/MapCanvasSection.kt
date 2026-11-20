@@ -69,6 +69,7 @@ internal fun MapCanvas(
     locationActionEnabled: Boolean,
     onMyLocationClick: () -> Unit,
     onZoomClick: (MapZoomDirection) -> Unit,
+    onOpenPlanner: (() -> Unit)?,
     onMapEvent: (MapPlatformEvent) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -144,33 +145,28 @@ internal fun MapCanvas(
                 )
                 .padding(TransitSpacing.Medium),
         )
-        // At minimum zoom the route can reach the lower edge of a coverage-limited map.
-        val controlsModifier = if (renderState.cameraBounds != null) {
-            Modifier
-                .align(Alignment.TopEnd)
-                .windowInsetsPadding(
-                    WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal + WindowInsetsSides.Top),
-                )
-                .padding(TransitSpacing.Medium)
-        } else {
-            Modifier
-                .align(Alignment.BottomEnd)
-                .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal))
-                .padding(
-                    start = TransitSpacing.Medium,
-                    top = TransitSpacing.Medium,
-                    end = TransitSpacing.Medium,
-                    bottom = bottomOverlayHeight + TransitSpacing.ExtraLarge + TransitSpacing.Medium,
-                )
-        }
+        val controlInsets = Modifier
+            .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal))
+            .padding(
+                start = TransitSpacing.Medium,
+                top = TransitSpacing.Medium,
+                end = TransitSpacing.Medium,
+                bottom = bottomOverlayHeight + TransitSpacing.Large,
+            )
         MapCameraControls(
             locationActionLabel = locationActionLabel,
             locationActionAutomationId = locationActionAutomationId,
             locationActionEnabled = locationActionEnabled,
             onMyLocationClick = onMyLocationClick,
             onZoomClick = onZoomClick,
-            modifier = controlsModifier,
+            modifier = Modifier.align(Alignment.BottomEnd).then(controlInsets),
         )
+        if (onOpenPlanner != null) {
+            MapPlannerLauncher(
+                onClick = onOpenPlanner,
+                modifier = Modifier.align(Alignment.BottomStart).then(controlInsets),
+            )
+        }
         if (baseLayerState == MapBaseLayerState.BffStyle) {
             OpenStreetMapAttribution(
                 modifier = Modifier

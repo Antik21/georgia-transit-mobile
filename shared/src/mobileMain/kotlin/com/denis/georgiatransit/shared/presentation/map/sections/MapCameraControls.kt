@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.size
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
@@ -26,6 +27,7 @@ import com.denis.georgiatransit.shared.presentation.ui.theme.GeorgiaTransitTheme
 import com.denis.georgiatransit.shared.presentation.ui.theme.TransitShapes
 import com.denis.georgiatransit.shared.presentation.ui.theme.TransitSpacing
 import georgiatransit.shared.generated.resources.Res
+import georgiatransit.shared.generated.resources.map_planner_build_route
 import georgiatransit.shared.generated.resources.map_zoom_in_action
 import georgiatransit.shared.generated.resources.map_zoom_out_action
 import org.jetbrains.compose.resources.stringResource
@@ -68,15 +70,52 @@ internal fun MapCameraControls(
 }
 
 @Composable
+internal fun MapPlannerLauncher(onClick: () -> Unit, modifier: Modifier = Modifier) {
+    MapControlButton(
+        label = stringResource(Res.string.map_planner_build_route),
+        automationId = AutomationId.MapPlannerOpen,
+        onClick = onClick,
+        modifier = modifier,
+    ) {
+        Icon(
+            imageVector = PlaceIcon,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.size(PlannerGlyphSize),
+        )
+    }
+}
+
+@Composable
 private fun ZoomButton(
     direction: MapZoomDirection,
     label: String,
     automationId: String,
     onClick: (MapZoomDirection) -> Unit,
 ) {
+    MapControlButton(label = label, automationId = automationId, onClick = { onClick(direction) }) {
+        val glyphColor = MaterialTheme.colorScheme.onSurface
+        Canvas(modifier = Modifier.size(GlyphSize)) {
+            val stroke = GlyphStroke.toPx()
+            drawLine(glyphColor, Offset(0f, center.y), Offset(size.width, center.y), stroke, StrokeCap.Round)
+            if (direction == MapZoomDirection.In) {
+                drawLine(glyphColor, Offset(center.x, 0f), Offset(center.x, size.height), stroke, StrokeCap.Round)
+            }
+        }
+    }
+}
+
+@Composable
+private fun MapControlButton(
+    label: String,
+    automationId: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    content: @Composable () -> Unit,
+) {
     Surface(
-        onClick = { onClick(direction) },
-        modifier = Modifier
+        onClick = onClick,
+        modifier = modifier
             .size(ControlSize)
             .testTag(automationId)
             .semantics {
@@ -88,15 +127,8 @@ private fun ZoomButton(
         contentColor = MaterialTheme.colorScheme.onSurface,
         shadowElevation = TransitSpacing.ExtraSmall,
     ) {
-        val glyphColor = MaterialTheme.colorScheme.onSurface
         Box(contentAlignment = Alignment.Center) {
-            Canvas(modifier = Modifier.size(GlyphSize)) {
-                val stroke = GlyphStroke.toPx()
-                drawLine(glyphColor, Offset(0f, center.y), Offset(size.width, center.y), stroke, StrokeCap.Round)
-                if (direction == MapZoomDirection.In) {
-                    drawLine(glyphColor, Offset(center.x, 0f), Offset(center.x, size.height), stroke, StrokeCap.Round)
-                }
-            }
+            content()
         }
     }
 }
@@ -104,6 +136,13 @@ private fun ZoomButton(
 private val ControlSize = 48.dp
 private val GlyphSize = 16.dp
 private val GlyphStroke = 2.dp
+private val PlannerGlyphSize = 28.dp
+
+@Preview
+@Composable
+private fun MapPlannerLauncherPreview() {
+    GeorgiaTransitTheme { MapPlannerLauncher(onClick = {}) }
+}
 
 @Preview
 @Composable

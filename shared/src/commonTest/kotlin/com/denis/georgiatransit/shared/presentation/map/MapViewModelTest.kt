@@ -20,7 +20,6 @@ import com.denis.georgiatransit.shared.presentation.location.LocationPlatformCom
 import com.denis.georgiatransit.shared.presentation.location.LocationPlatformEvent
 import com.denis.georgiatransit.shared.presentation.location.LocationPrecision
 import com.denis.georgiatransit.shared.presentation.location.RuntimeLocationSession
-import com.denis.georgiatransit.shared.presentation.ui.automation.AutomationId
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.StandardTestDispatcher
@@ -53,7 +52,7 @@ class MapViewModelTest {
     }
 
     @Test
-    fun selectedCityAttributionIsExposedToCommonMapStateWithStableAutomationSelectors() = runTest {
+    fun selectedCityAttributionIsExposedToCommonMapState() = runTest {
         val attribution = TransitAttribution(
             id = "transitous",
             label = LocalizedText(ru = "Источники", en = "Sources", ka = "წყაროები"),
@@ -70,6 +69,7 @@ class MapViewModelTest {
                 ViewState(
                     cityName = selectedCity.name,
                     routesAvailable = true,
+                    journeyPlanningAvailable = true,
                     renderState = renderState(
                         center = selectedCity.center,
                         zoom = selectedCity.defaultZoom,
@@ -79,9 +79,6 @@ class MapViewModelTest {
                     attribution = listOf(attribution),
                 ),
             )
-            assertEquals("map.attribution", AutomationId.MapAttribution)
-            assertEquals("map.attribution.openstreetmap", AutomationId.MapOpenStreetMapAttribution)
-            assertEquals("map.attribution.link.transitous", AutomationId.mapAttributionLink(attribution.id))
             cancelAndIgnoreRemainingItems()
         }
     }
@@ -139,6 +136,7 @@ class MapViewModelTest {
                 ViewState(
                     cityName = tbilisi.name,
                     routesAvailable = true,
+                    journeyPlanningAvailable = true,
                     renderState = renderState(center = tbilisi.center, zoom = 13.5, revision = 1),
                     contentState = MapContentState.Loading,
                 ),
@@ -149,6 +147,7 @@ class MapViewModelTest {
                 ViewState(
                     cityName = tbilisi.name,
                     routesAvailable = true,
+                    journeyPlanningAvailable = true,
                     renderState = renderState(
                         center = tbilisi.center,
                         zoom = 13.5,
@@ -162,6 +161,7 @@ class MapViewModelTest {
                 ViewState(
                     cityName = tbilisi.name,
                     routesAvailable = true,
+                    journeyPlanningAvailable = true,
                     renderState = renderState(
                         center = tbilisi.center,
                         zoom = tbilisi.defaultZoom,
@@ -185,6 +185,7 @@ class MapViewModelTest {
                 ViewState(
                     cityName = batumi.name,
                     routesAvailable = true,
+                    journeyPlanningAvailable = true,
                     renderState = renderState(
                         center = batumi.center,
                         zoom = 12.5,
@@ -212,6 +213,7 @@ class MapViewModelTest {
                 ViewState(
                     cityName = batumi.name,
                     routesAvailable = true,
+                    journeyPlanningAvailable = true,
                     renderState = renderState(center = fix.point, zoom = 15.0, revision = 2, userLocation = fix),
                     contentState = MapContentState.Loading,
                     location = locationSession.state.value,
@@ -223,7 +225,7 @@ class MapViewModelTest {
 
     @Test
     @OptIn(ExperimentalCoroutinesApi::class)
-    fun selectedCityCenterDrivesCameraAndUpdatesWhenCityChanges() = runTest {
+    fun selectedCityCenterAndJourneyPlanningCapabilityUpdateWhenCityChanges() = runTest {
         val repository = PreviewTransitRepository()
         val session = RuntimeTransitSession()
         val tbilisi = repository.cities().first { it.id.value == "tbilisi" }
@@ -237,6 +239,7 @@ class MapViewModelTest {
                 ViewState(
                     cityName = tbilisi.name,
                     routesAvailable = true,
+                    journeyPlanningAvailable = true,
                     renderState = renderState(center = tbilisi.center, zoom = tbilisi.defaultZoom, revision = 1),
                     contentState = MapContentState.Loading,
                 ),
@@ -247,6 +250,7 @@ class MapViewModelTest {
                 ViewState(
                     cityName = tbilisi.name,
                     routesAvailable = true,
+                    journeyPlanningAvailable = true,
                     renderState = renderState(
                         center = tbilisi.center,
                         zoom = tbilisi.defaultZoom,
@@ -260,6 +264,7 @@ class MapViewModelTest {
                 ViewState(
                     cityName = tbilisi.name,
                     routesAvailable = true,
+                    journeyPlanningAvailable = true,
                     renderState = renderState(
                         center = tbilisi.center,
                         zoom = tbilisi.defaultZoom,
@@ -277,6 +282,7 @@ class MapViewModelTest {
                 ViewState(
                     cityName = batumi.name,
                     routesAvailable = true,
+                    journeyPlanningAvailable = false,
                     renderState = renderState(
                         center = batumi.center,
                         zoom = batumi.defaultZoom,
@@ -307,6 +313,7 @@ class MapViewModelTest {
                 ViewState(
                     cityName = tbilisi.name,
                     routesAvailable = true,
+                    journeyPlanningAvailable = true,
                     renderState = renderState(center = fix.point, zoom = 15.0, revision = 2, userLocation = fix),
                     contentState = MapContentState.Loading,
                     location = locationSession.state.value,
@@ -551,6 +558,7 @@ class MapViewModelTest {
         return ViewState(
             cityName = city.name,
             routesAvailable = city.capabilities.routes,
+            journeyPlanningAvailable = city.capabilities.tripPlanning,
             renderState = renderState(
                 center = fix?.point ?: city.center,
                 zoom = if (fix == null) city.defaultZoom else 15.0,
@@ -647,6 +655,7 @@ class MapViewModelTest {
                 ViewState(
                     cityName = tbilisi.name,
                     routesAvailable = true,
+                    journeyPlanningAvailable = true,
                     renderState = renderState(
                         center = acceptedFix.point,
                         zoom = 15.0,

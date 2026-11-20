@@ -7,6 +7,8 @@ appId: com.denis.georgiatransit.sandbox
     visible:
       id: city-selection.kutaisi
     timeout: 20000
+- assertNotVisible:
+    id: city-selection.back
 - tapOn:
     id: city-selection.kutaisi
 - tapOn:
@@ -15,8 +17,8 @@ appId: com.denis.georgiatransit.sandbox
     visible:
       id: map.nearby-stop
     timeout: 20000
-- assertVisible:
-    id: map.attribution.link.azry
+- assertNotVisible:
+    id: map.attribution
 - longPressOn:
     id: map.nearby-stop
 - assertNotVisible:
@@ -37,6 +39,35 @@ appId: com.denis.georgiatransit.sandbox
       id: map.route-geometry.chip
     timeout: 20000
 - tapOn:
+    id: map.settings
+- assertVisible:
+    id: map.settings.sheet
+- assertNotVisible:
+    id: map.attribution
+- tapOn:
+    id: map.change-city
+- assertVisible:
+    id: city-selection.back
+- tapOn:
+    id: city-selection.batumi
+- runFlow:
+    when:
+      platform: Android
+    commands:
+      - pressKey: BACK
+- runFlow:
+    when:
+      platform: iOS
+    commands:
+      - tapOn:
+          id: city-selection.back
+- assertNotVisible:
+    id: city-selection.screen
+- assertVisible:
+    id: map.route-geometry.chip
+- tapOn:
+    id: map.settings
+- tapOn:
     id: map.change-city
 - tapOn:
     id: city-selection.batumi
@@ -46,8 +77,6 @@ appId: com.denis.georgiatransit.sandbox
     visible:
       id: map.routes
     timeout: 20000
-- assertNotVisible:
-    id: map.attribution.link.azry
 - assertNotVisible:
     id: map.route-geometry.chip
 - tapOn:
@@ -60,3 +89,9 @@ appId: com.denis.georgiatransit.sandbox
     id: routes.cancel
 - assertVisible:
     id: map.screen
+- tapOn:
+    id: map.settings
+- assertVisible:
+    id: map.settings.sheet
+- assertNotVisible:
+    id: map.attribution

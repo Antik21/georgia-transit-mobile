@@ -38,6 +38,29 @@ import com.denis.georgiatransit.shared.presentation.map.JourneyPlannerStatus as 
 
 class JourneyPlannerReducerTest {
     @Test
+    fun openPlannerClearsThePinAndOpensEmptyEndpointsWithoutRequestingLocation() {
+        val initial = JourneyPlannerUi(pin = B)
+        val unsupported = JourneyPlannerReducer.action(initial, JourneyPlannerAction.OpenPlanner, context(tripPlanning = false))
+        val opened = JourneyPlannerReducer.action(initial, JourneyPlannerAction.OpenPlanner, context(location = fix(A)))
+
+        assertFalse(unsupported.state.isOpen)
+        assertTrue(opened.state.isOpen)
+        assertEquals(Status.EndpointsIncomplete, opened.state.status)
+        assertNull(opened.state.pin)
+        assertNull(opened.state.origin)
+        assertNull(opened.state.destination)
+        assertNull(opened.query)
+        assertNull(opened.location)
+
+        val picking = JourneyPlannerReducer.action(
+            opened.state, JourneyPlannerAction.StartMapPick(JourneyPlanSide.Origin), context(),
+        ).state
+        val repeated = JourneyPlannerReducer.action(picking, JourneyPlannerAction.OpenPlanner, context())
+        assertEquals(picking, repeated.state)
+        assertFalse(JourneyPlannerReducer.action(picking, JourneyPlannerAction.ClosePlanner, context()).state.isOpen)
+    }
+
+    @Test
     fun longPressNeedsTheTripPlanningCapabilityAndOnlyDropsAPin() {
         val unavailable = JourneyPlannerReducer.longPress(JourneyPlannerUi(), B, context(tripPlanning = false))
         val available = JourneyPlannerReducer.longPress(JourneyPlannerUi(), B, context(location = denied()))
@@ -342,9 +365,13 @@ class JourneyPlannerReducerTest {
         val ride = options[0].legs[1] as JourneyLegUi.Ride
         assertEquals(6, ride.stopCount)
         assertEquals(2, ride.waitMinutes)
+        assertNull(ride.transferSlackMinutes)
         assertTrue(ride.waitIsLive)
         assertEquals("D1", ride.route.label)
-        assertEquals(false, (options[0].legs[3] as JourneyLegUi.Ride).waitIsLive)
+        val transferWithWalk = options[0].legs[3] as JourneyLegUi.Ride
+        assertEquals(false, transferWithWalk.waitIsLive)
+        assertEquals(3, transferWithWalk.transferSlackMinutes)
+        assertEquals(5, (options[1].legs[2] as JourneyLegUi.Ride).transferSlackMinutes)
         assertEquals(JourneyTimingUi.Mixed, options[0].timing)
     }
 
@@ -417,11 +444,11 @@ class JourneyPlannerReducerTest {
     private fun journey(id: String, transfer: Boolean = false, sameStop: Boolean = false): TransitJourney {
         val segments = buildList {
             add(walk(0, 4, null, STOP_A))
-            add(ride(6, 17, STOP_A, STOP_B, JourneyWaitBasis.LiveVehicle))
+            add(ride(6, 17, STOP_A, STOP_B, JourneyWaitBasis.LiveVehicle, waitSeconds = 120))
             if (transfer) {
                 val next = if (sameStop) STOP_B else STOP_C
                 if (!sameStop) add(walk(17, 19, STOP_B, next))
-                add(ride(22, 30, next, STOP_D, JourneyWaitBasis.HeadwayEstimate))
+                add(ride(22, 30, next, STOP_D, JourneyWaitBasis.HeadwayEstimate, waitSeconds = if (sameStop) 300 else 180))
             }
             add(walk(if (transfer) 30 else 17, if (transfer) 34 else 21, if (transfer) STOP_D else STOP_B, null))
         }
@@ -440,10 +467,10 @@ class JourneyPlannerReducerTest {
         fromPosition = A, toPosition = B, distanceMeters = 300.0, geometryApproximate = true,
     )
 
-    private fun ride(from: Int, to: Int, fromStop: StopId, toStop: StopId, basis: JourneyWaitBasis) = TransitJourneySegment(
+    private fun ride(from: Int, to: Int, fromStop: StopId, toStop: StopId, basis: JourneyWaitBasis, waitSeconds: Int) = TransitJourneySegment(
         departureAt = at(from), arrivalAt = at(to), mode = JourneySegmentMode.Transit, routeId = ROUTE,
         directionId = DirectionId("demo:fixture:direction:blue"), fromStopId = fromStop, toStopId = toStop,
-        geometry = "_p~iF~ps|U_ulLnnqC", intermediateStopCount = 5, waitSeconds = 101, waitBasis = basis,
+        geometry = "_p~iF~ps|U_ulLnnqC", intermediateStopCount = 5, waitSeconds = waitSeconds, waitBasis = basis,
     )
 
     private fun at(minute: Int) = Instant.fromEpochMilliseconds(NOW.toEpochMilliseconds() + minute * 60_000L)

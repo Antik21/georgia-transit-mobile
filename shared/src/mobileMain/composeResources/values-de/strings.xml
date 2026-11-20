@@ -94,7 +94,6 @@
     <string name="map_vehicle_status_retryable">vorübergehend nicht verfügbar. Ältere Positionen werden angezeigt</string>
     <string name="map_vehicle_status_unavailable">nicht verfügbar</string>
     <string name="map_vehicle_status_mixed">Verfügbarkeit je nach Linie</string>
-    <string name="map_attribution_title">Datenquellen und Urheberhinweise</string>
     <string name="map_openstreetmap_attribution">© OpenStreetMap</string>
     <string name="routes_title">Linien</string>
     <string name="routes_cancel_action">Schließen</string>
@@ -211,4 +210,5 @@
     <string name="schedule_local_times">Planmäßige Ankünfte in Ortszeit</string>
     <string name="schedule_stop_empty">Keine planmäßigen Ankünfte</string>
     <string name="schedule_following_day">%1$s (Tag +%2$d)</string>
+    <string name="map_settings">Einstellungen</string>
 </resources>

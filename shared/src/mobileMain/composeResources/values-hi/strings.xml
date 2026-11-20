@@ -94,7 +94,6 @@
     <string name="map_vehicle_status_retryable">फ़िलहाल उपलब्ध नहीं, पुराने स्थान दिख रहे हैं</string>
     <string name="map_vehicle_status_unavailable">उपलब्ध नहीं</string>
     <string name="map_vehicle_status_mixed">लाइन के अनुसार उपलब्धता अलग है</string>
-    <string name="map_attribution_title">डेटा स्रोत और श्रेय</string>
     <string name="map_openstreetmap_attribution">© OpenStreetMap</string>
     <string name="routes_title">लाइनें</string>
     <string name="routes_cancel_action">बंद करें</string>
@@ -211,4 +210,5 @@
     <string name="schedule_local_times">स्थानीय समय में निर्धारित आगमन</string>
     <string name="schedule_stop_empty">आगमन का कोई समय निर्धारित नहीं है</string>
     <string name="schedule_following_day">%1$s (दिन +%2$d)</string>
+    <string name="map_settings">सेटिंग्स</string>
 </resources>

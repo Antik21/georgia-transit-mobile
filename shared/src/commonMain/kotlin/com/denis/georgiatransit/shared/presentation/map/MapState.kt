@@ -59,6 +59,7 @@ data class ViewState(
     val vehicleRoutes: List<VehicleRouteAccessibilityUi> = emptyList(),
     val canChangeCity: Boolean = true,
     val journeyPlanner: JourneyPlannerUi = JourneyPlannerUi(),
+    val journeyPlanningAvailable: Boolean = false,
 )
 
 /** Product-level realtime availability. No transport or provider details reach the UI. */

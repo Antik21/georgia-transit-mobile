@@ -15,8 +15,10 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.material3.Button
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedIconButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -26,6 +28,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -46,18 +49,17 @@ import androidx.navigationevent.compose.NavigationBackHandler
 import androidx.navigationevent.compose.rememberNavigationEventState
 import com.denis.georgiatransit.shared.domain.model.JourneyEndpoint
 import com.denis.georgiatransit.shared.domain.model.RouteId
-import com.denis.georgiatransit.shared.domain.model.TransitAttribution
 import com.denis.georgiatransit.shared.domain.model.TransitLocale
 import com.denis.georgiatransit.shared.presentation.location.LocationFailure
 import com.denis.georgiatransit.shared.presentation.location.LocationPermissionState
 import com.denis.georgiatransit.shared.presentation.location.LocationPlatformCommand
 import com.denis.georgiatransit.shared.presentation.location.LocationState
 import com.denis.georgiatransit.shared.presentation.location.PlatformLocationEffect
-import com.denis.georgiatransit.shared.presentation.map.sections.CityAttribution
 import com.denis.georgiatransit.shared.presentation.map.sections.JourneyMapPickPanel
 import com.denis.georgiatransit.shared.presentation.map.sections.JourneyPlannerPanel
 import com.denis.georgiatransit.shared.presentation.map.sections.JourneyPlannerSheet
 import com.denis.georgiatransit.shared.presentation.map.sections.MapConnectionToast
+import com.denis.georgiatransit.shared.presentation.map.sections.MapSettingsSheet
 import com.denis.georgiatransit.shared.presentation.map.sections.RouteGeometryLegend
 import com.denis.georgiatransit.shared.presentation.map.sections.StopArrivalsSheet
 import com.denis.georgiatransit.shared.presentation.map.sections.VehicleAccessibility
@@ -72,10 +74,12 @@ import georgiatransit.shared.generated.resources.location_action_settings
 import georgiatransit.shared.generated.resources.location_failure_invalid
 import georgiatransit.shared.generated.resources.location_failure_timed_out
 import georgiatransit.shared.generated.resources.location_failure_unavailable
-import georgiatransit.shared.generated.resources.map_change_city_action
 import georgiatransit.shared.generated.resources.map_my_location_action
 import georgiatransit.shared.generated.resources.map_routes_action
+import georgiatransit.shared.generated.resources.map_settings
+import georgiatransit.shared.generated.resources.map_settings_gear
 import georgiatransit.shared.generated.resources.schedule_title
+import org.jetbrains.compose.resources.painterResource
 import org.jetbrains.compose.resources.stringResource
 import org.orbitmvi.orbit.compose.collectAsState
 import org.orbitmvi.orbit.compose.collectSideEffect
@@ -122,6 +126,8 @@ fun MapScreen(viewModel: MapViewModel, handleNavigation: suspend (NavigationEffe
 private fun Content(state: ViewState, connectionNoticeId: Int, onAction: (Action) -> Unit) {
     val planner = state.journeyPlanner
     val mapPick = planner.mapPick
+    val canOpenPlanner = state.journeyPlanningAvailable && !planner.isOpen && mapPick == null
+    var settingsOpen by rememberSaveable(state.canChangeCity) { mutableStateOf(false) }
     NavigationBackHandler(
         state = rememberNavigationEventState(NavigationEventInfo.None),
         isBackEnabled = planner.isOpen || planner.pin != null,
@@ -184,6 +190,9 @@ private fun Content(state: ViewState, connectionNoticeId: Int, onAction: (Action
                     onMapEvent = { onAction(Action.MapEventReceived(it)) },
                     onMyLocationClick = { onAction(Action.MyLocationClicked) },
                     onZoomClick = { onAction(Action.ZoomClicked(it)) },
+                    onOpenPlanner = if (canOpenPlanner) {
+                        { onAction(JourneyPlannerAction.OpenPlanner) }
+                    } else null,
                     onCameraMovingChanged = { moving ->
                         if (moving) pointPicker.motionStarted() else pointPicker.motionSettled()
                     },
@@ -214,14 +223,13 @@ private fun Content(state: ViewState, connectionNoticeId: Int, onAction: (Action
                     vehicleLayerState = state.vehicleLayerState,
                     vehicleRoutes = state.vehicleRoutes,
                     routeGeometryLegends = state.routeGeometryLegends,
-                    canChangeCity = state.canChangeCity,
+                    settingsAvailable = state.canChangeCity,
                     routesAvailable = state.routesAvailable,
                     schedulesAvailable = state.schedulesAvailable,
-                    attribution = state.attribution,
                     onFocusRoute = { routeId -> onAction(Action.RouteGeometryFocused(routeId)) },
                     onRetryRoute = { routeId -> onAction(Action.RetryRouteGeometry(routeId)) },
                     onRemoveRoute = { routeId -> onAction(Action.RemoveRouteGeometry(routeId)) },
-                    onChangeCity = { onAction(Action.ChangeCityClicked) },
+                    onSettings = { settingsOpen = true },
                     onRoutes = { onAction(Action.RoutesClicked) },
                     onSchedules = { onAction(Action.SchedulesClicked) },
                     modifier = bottomModifier.padding(TransitSpacing.Medium),
@@ -283,6 +291,15 @@ private fun Content(state: ViewState, connectionNoticeId: Int, onAction: (Action
                 onTopPositioned = { stopSheetTopPx = it },
             )
         }
+        if (settingsOpen) {
+            MapSettingsSheet(
+                onDismiss = { settingsOpen = false },
+                onChangeCity = {
+                    settingsOpen = false
+                    onAction(Action.ChangeCityClicked)
+                },
+            )
+        }
     }
 }
 
@@ -291,14 +308,13 @@ private fun MapControls(
     vehicleLayerState: VehicleLayerState,
     vehicleRoutes: List<VehicleRouteAccessibilityUi>,
     routeGeometryLegends: List<RouteGeometryLegendUi>,
-    canChangeCity: Boolean,
+    settingsAvailable: Boolean,
     routesAvailable: Boolean,
     schedulesAvailable: Boolean,
-    attribution: List<TransitAttribution>,
     onFocusRoute: (RouteId) -> Unit,
     onRetryRoute: (RouteId) -> Unit,
     onRemoveRoute: (RouteId) -> Unit,
-    onChangeCity: () -> Unit,
+    onSettings: () -> Unit,
     onRoutes: () -> Unit,
     onSchedules: () -> Unit,
     modifier: Modifier = Modifier,
@@ -307,12 +323,17 @@ private fun MapControls(
         VehicleAccessibility(layerState = vehicleLayerState, routes = vehicleRoutes)
         Column(verticalArrangement = Arrangement.spacedBy(TransitSpacing.Small)) {
             RouteGeometryLegend(routes = routeGeometryLegends, onFocus = onFocusRoute, onRetry = onRetryRoute, onRemove = onRemoveRoute)
-            Row(horizontalArrangement = Arrangement.spacedBy(TransitSpacing.Small)) {
-                if (canChangeCity) {
-                    OutlinedButton(
-                        onClick = onChangeCity,
-                        modifier = Modifier.weight(1f).testTag(AutomationId.MapChangeCity),
-                    ) { Text(stringResource(Res.string.map_change_city_action)) }
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(TransitSpacing.Small),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                if (settingsAvailable) {
+                    OutlinedIconButton(onClick = onSettings, modifier = Modifier.testTag(AutomationId.MapSettings)) {
+                        Icon(
+                            painter = painterResource(Res.drawable.map_settings_gear),
+                            contentDescription = stringResource(Res.string.map_settings),
+                        )
+                    }
                 }
                 if (routesAvailable) {
                     Button(
@@ -327,7 +348,6 @@ private fun MapControls(
                     modifier = Modifier.fillMaxWidth().testTag(AutomationId.MapSchedules),
                 ) { Text(stringResource(Res.string.schedule_title)) }
             }
-            CityAttribution(attribution)
         }
     }
 }

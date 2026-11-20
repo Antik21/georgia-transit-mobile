@@ -9,6 +9,7 @@
         <activity
             android:name=".DebugNetworkInspectorActivity"
             android:exported="false"
-            android:label="Network inspector" />
+            android:label="Network inspector"
+            android:screenOrientation="portrait" />
     </application>
 </manifest>
