@@ -9,14 +9,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.material3.Button
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -24,9 +18,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.semantics.heading
-import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import com.denis.georgiatransit.shared.domain.model.CityId
 import com.denis.georgiatransit.shared.domain.model.LocalizedText
@@ -34,15 +25,13 @@ import com.denis.georgiatransit.shared.domain.model.TransitAttribution
 import com.denis.georgiatransit.shared.presentation.cityselection.sections.CityCatalogSection
 import com.denis.georgiatransit.shared.presentation.location.LocationPlatformCommand
 import com.denis.georgiatransit.shared.presentation.location.PlatformLocationEffect
-import com.denis.georgiatransit.shared.presentation.map.sections.CloseIcon
 import com.denis.georgiatransit.shared.presentation.ui.automation.AutomationId
+import com.denis.georgiatransit.shared.presentation.ui.component.TransitTopAppBar
 import com.denis.georgiatransit.shared.presentation.ui.theme.GeorgiaTransitTheme
 import com.denis.georgiatransit.shared.presentation.ui.theme.TransitSpacing
 import georgiatransit.shared.generated.resources.Res
-import georgiatransit.shared.generated.resources.city_subtitle
+import georgiatransit.shared.generated.resources.city_open_map
 import georgiatransit.shared.generated.resources.city_title
-import georgiatransit.shared.generated.resources.continue_action
-import georgiatransit.shared.generated.resources.routes_cancel_action
 import org.jetbrains.compose.resources.stringResource
 import org.orbitmvi.orbit.compose.collectAsState
 import org.orbitmvi.orbit.compose.collectSideEffect
@@ -69,32 +58,16 @@ fun CitySelectionScreen(
     Content(state = state, onAction = viewModel::dispatchAction, onBack = onBack)
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun Content(state: ViewState, onAction: (Action) -> Unit, onBack: (() -> Unit)? = null) {
     Scaffold(
         modifier = Modifier.fillMaxSize().testTag(AutomationId.CityScreen),
         contentWindowInsets = WindowInsets.safeDrawing,
         topBar = {
-            TopAppBar(
-                title = {
-                    Text(
-                        text = stringResource(Res.string.city_title),
-                        modifier = Modifier.semantics { heading() },
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                },
-                navigationIcon = {
-                    if (onBack != null) {
-                        IconButton(onClick = onBack, modifier = Modifier.testTag(AutomationId.CityBack)) {
-                            Icon(CloseIcon, contentDescription = stringResource(Res.string.routes_cancel_action))
-                        }
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
-                ),
+            TransitTopAppBar(
+                title = stringResource(Res.string.city_title),
+                closeButtonModifier = Modifier.testTag(AutomationId.CityBack),
+                onClose = onBack,
             )
         },
     ) { innerPadding ->
@@ -111,7 +84,6 @@ private fun Content(state: ViewState, onAction: (Action) -> Unit, onBack: (() ->
                 ),
             verticalArrangement = Arrangement.spacedBy(TransitSpacing.Medium),
         ) {
-            Text(stringResource(Res.string.city_subtitle), color = MaterialTheme.colorScheme.onSurfaceVariant)
             CityCatalogSection(
                 catalog = state.catalog,
                 cities = state.cities,
@@ -124,7 +96,7 @@ private fun Content(state: ViewState, onAction: (Action) -> Unit, onBack: (() ->
                 onClick = { onAction(Action.ContinueClicked) },
                 enabled = state.canContinue,
                 modifier = Modifier.fillMaxWidth().testTag(AutomationId.CityContinue),
-            ) { Text(stringResource(Res.string.continue_action)) }
+            ) { Text(stringResource(Res.string.city_open_map)) }
         }
     }
 }

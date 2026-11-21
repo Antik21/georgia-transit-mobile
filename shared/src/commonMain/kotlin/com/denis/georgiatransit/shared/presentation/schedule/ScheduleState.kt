@@ -22,6 +22,7 @@ internal data class ViewState(
 
 internal sealed interface ScheduleContent {
     data object Loading : ScheduleContent
+    data object Retrying : ScheduleContent
     data object Unavailable : ScheduleContent
     data object NoRoutes : ScheduleContent
     data object NoTimes : ScheduleContent

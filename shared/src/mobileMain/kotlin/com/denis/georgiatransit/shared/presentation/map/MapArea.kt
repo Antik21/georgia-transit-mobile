@@ -12,7 +12,6 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.only
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.windowInsetsPadding
@@ -24,6 +23,8 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.unit.Dp
 import com.denis.georgiatransit.shared.presentation.location.LocationPermissionState
 import com.denis.georgiatransit.shared.presentation.location.LocationState
@@ -41,8 +42,10 @@ internal fun MapArea(
     renderState: MapRenderState?,
     baseLayerState: MapBaseLayerState,
     location: LocationState,
-    isMapPicking: Boolean,
+    mapPickSide: JourneyPlanSide?,
+    pickTarget: MapPickTarget?,
     pickRequest: MapPointRequest?,
+    onPickHeaderHeightChanged: (Int) -> Unit,
     bottomOverlayHeight: Dp,
     hasPin: Boolean,
     pinOnlySide: JourneyPlanSide?,
@@ -60,13 +63,16 @@ internal fun MapArea(
 ) {
     var pinAnchor by remember { mutableStateOf<MapScreenPoint?>(null) }
     val currentHasPin by rememberUpdatedState(hasPin)
+    var launcherBounds by remember { mutableStateOf<Rect?>(null) }
+    var pinCardBounds by remember(pinAnchor, hasPin) { mutableStateOf<Rect?>(null) }
+    val cardOverlapsLauncher = hasPin && launcherBounds?.let { launcher -> pinCardBounds?.overlaps(launcher) } == true
     Box(modifier = modifier) {
         renderState?.let {
             MapCanvas(
                 renderState = remember(it, pickRequest) { it.copy(pointRequest = pickRequest) },
                 baseLayerState = baseLayerState,
                 bottomOverlayHeight = bottomOverlayHeight,
-                locationActionLabel = locationActionLabel(location),
+                locationActionLabel = locationActionLabel(location.permission),
                 locationActionAutomationId = if (location.permission == LocationPermissionState.SettingsRequired) {
                     AutomationId.MapLocationSettings
                 } else {
@@ -75,7 +81,8 @@ internal fun MapArea(
                 locationActionEnabled = locationActionEnabled(location.permission) && !location.isLocating,
                 onMyLocationClick = onMyLocationClick,
                 onZoomClick = onZoomClick,
-                onOpenPlanner = onOpenPlanner,
+                onOpenPlanner = onOpenPlanner.takeUnless { cardOverlapsLauncher },
+                onPlannerLauncherPositioned = { launcherBounds = it },
                 onMapEvent = { event ->
                     when (event) {
                         MapPlatformEvent.CameraMoveStarted, MapPlatformEvent.UserCameraMoveStarted -> {
@@ -94,12 +101,16 @@ internal fun MapArea(
                 modifier = Modifier.fillMaxSize(),
             )
         } ?: MapContentPlaceholder(baseLayerState = baseLayerState, modifier = Modifier.fillMaxSize())
-        if (isMapPicking) {
-            JourneyMapPickMarker(modifier = Modifier.align(Alignment.Center).offset(y = -bottomOverlayHeight / 2))
+        if (mapPickSide != null) {
+            if (pickTarget != null) {
+                JourneyMapPickMarker(side = mapPickSide, target = pickTarget, modifier = Modifier.matchParentSize())
+            }
             JourneyMapPickTopBar(
+                side = mapPickSide,
                 onBack = onCancelMapPick,
                 modifier = Modifier
                     .align(Alignment.TopStart)
+                    .onSizeChanged { onPickHeaderHeightChanged(it.height) }
                     .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal))
                     .padding(TransitSpacing.Medium),
             )
@@ -118,6 +129,8 @@ internal fun MapArea(
                         onlySide = pinOnlySide,
                         onRouteFromHere = onRouteFromHere,
                         onRouteHere = onRouteHere,
+                        bottomOverlayHeight = bottomOverlayHeight,
+                        onCardPositioned = { pinCardBounds = it },
                         cardScale = { cardScale },
                     )
                 }

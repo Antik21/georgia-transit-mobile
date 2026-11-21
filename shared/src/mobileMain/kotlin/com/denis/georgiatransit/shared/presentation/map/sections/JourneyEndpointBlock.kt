@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
@@ -32,8 +33,13 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.denis.georgiatransit.shared.domain.model.GeoPoint
 import com.denis.georgiatransit.shared.domain.model.JourneyEndpoint
@@ -44,6 +50,8 @@ import com.denis.georgiatransit.shared.presentation.ui.theme.TransitShapes
 import com.denis.georgiatransit.shared.presentation.ui.theme.TransitSpacing
 import georgiatransit.shared.generated.resources.Res
 import georgiatransit.shared.generated.resources.map_planner_destination
+import georgiatransit.shared.generated.resources.map_planner_field_collapsed
+import georgiatransit.shared.generated.resources.map_planner_field_expanded
 import georgiatransit.shared.generated.resources.map_planner_map_point
 import georgiatransit.shared.generated.resources.map_planner_my_location
 import georgiatransit.shared.generated.resources.map_planner_not_set
@@ -68,29 +76,21 @@ internal fun JourneyEndpointBlock(
         if (isExpanded) MaterialTheme.colorScheme.primary.copy(alpha = 0.08f) else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.05f),
     )
     val chevronRotation by animateFloatAsState(if (isExpanded) 180f else 0f)
+    val expansion = stringResource(if (isExpanded) Res.string.map_planner_field_expanded else Res.string.map_planner_field_collapsed)
     Column(modifier = modifier.fillMaxWidth().clip(TransitShapes.Large).background(background)) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .heightIn(min = 64.dp)
                 .clickable(role = Role.Button, onClick = onToggle)
+                .semantics { stateDescription = expansion }
                 .testTag(if (isOrigin) AutomationId.MapPlannerOriginToggle else AutomationId.MapPlannerDestinationToggle)
                 .padding(horizontal = TransitSpacing.Medium, vertical = TransitSpacing.Small),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Box(
-                modifier = Modifier.size(36.dp).background(
-                    Color(if (endpoint is JourneyEndpoint.CurrentLocation) ORIGIN_ARGB else DESTINATION_ARGB), CircleShape,
-                ),
-                contentAlignment = Alignment.Center,
-            ) {
-                Icon(
-                    if (endpoint is JourneyEndpoint.CurrentLocation) MyLocationIcon else PlaceIcon,
-                    contentDescription = null, tint = Color.White, modifier = Modifier.size(20.dp),
-                )
-            }
+            JourneyEndpointBadge(side)
             Spacer(Modifier.width(TransitSpacing.Medium))
-            EndpointSummary(isOrigin = isOrigin, endpoint = endpoint, modifier = Modifier.weight(1f))
+            JourneyEndpointSummary(side = side, endpoint = endpoint, modifier = Modifier.weight(1f))
             Icon(ChevronDownIcon, contentDescription = null, modifier = Modifier.rotate(chevronRotation))
         }
         AnimatedVisibility(visible = isExpanded) {
@@ -118,7 +118,31 @@ internal fun JourneyEndpointBlock(
 }
 
 @Composable
-private fun EndpointSummary(isOrigin: Boolean, endpoint: JourneyEndpoint?, modifier: Modifier = Modifier) {
+internal fun JourneyEndpointBadge(side: JourneyPlanSide, modifier: Modifier = Modifier, minimumSize: Dp = 36.dp) {
+    Box(
+        modifier = modifier
+            .defaultMinSize(minWidth = minimumSize, minHeight = minimumSize)
+            .background(Color(side.markerArgb), CircleShape)
+            .padding(horizontal = TransitSpacing.ExtraSmall),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            side.markerLabel,
+            modifier = Modifier.clearAndSetSemantics {},
+            color = Color.White,
+            style = MaterialTheme.typography.labelLarge,
+        )
+    }
+}
+
+@Composable
+internal fun JourneyEndpointSummary(
+    side: JourneyPlanSide,
+    endpoint: JourneyEndpoint?,
+    modifier: Modifier = Modifier,
+    compact: Boolean = false,
+) {
+    val isOrigin = side == JourneyPlanSide.Origin
     val valueTag = if (isOrigin) AutomationId.MapPlannerOriginValue else AutomationId.MapPlannerDestinationValue
     Column(modifier = modifier) {
         Text(
@@ -133,8 +157,10 @@ private fun EndpointSummary(isOrigin: Boolean, endpoint: JourneyEndpoint?, modif
                 is JourneyEndpoint.MapPoint -> Res.string.map_planner_map_point
             }),
             modifier = Modifier.testTag(valueTag),
-            style = MaterialTheme.typography.titleMedium,
+            style = if (compact) MaterialTheme.typography.labelMedium else MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.SemiBold,
+            maxLines = if (compact) 2 else Int.MAX_VALUE,
+            overflow = TextOverflow.Ellipsis,
         )
     }
 }
@@ -161,9 +187,6 @@ private fun EndpointChoice(icon: ImageVector, label: StringResource, isChosen: B
         ) { content() }
     }
 }
-
-private const val ORIGIN_ARGB = 0xFFE9363C
-private const val DESTINATION_ARGB = 0xFF8E1B2D
 
 @Preview
 @Composable

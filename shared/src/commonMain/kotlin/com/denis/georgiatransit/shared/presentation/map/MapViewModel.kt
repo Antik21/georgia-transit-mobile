@@ -131,8 +131,9 @@ class MapViewModel(
             Action.RoutesClicked -> navigateWhen(NavigationEffect.OpenRoutes) { currentCity?.capabilities?.routes == true }
             Action.ChangeCityClicked -> navigateWhen(NavigationEffect.OpenCitySelection) { state.canChangeCity }
             Action.MyLocationClicked, Action.RefreshLocation, is Action.LocationEventReceived -> intent {
-                locationActions.forAction(action, state.location.permission, realtimeVisibleAndStarted)
-                    ?.let { postSideEffect(SideEffect.HandleLocation(it)) }
+                val update = locationActions.forAction(action, realtimeVisibleAndStarted)
+                update.command?.let { postSideEffect(SideEffect.HandleLocation(it)) }
+                if (update.showCameraError) postSideEffect(SideEffect.ShowLocationError)
             }
             is Action.ZoomClicked -> intent { cameraController.zoomBy(action.direction.delta).let { reduce { state.withZoomStep(it) } } }
             Action.RetryNearby -> retryNearby()

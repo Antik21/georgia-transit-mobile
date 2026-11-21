@@ -14,6 +14,7 @@ import com.denis.georgiatransit.shared.domain.model.TransitCity
 import com.denis.georgiatransit.shared.domain.model.TransitDirection
 import com.denis.georgiatransit.shared.domain.model.TransitLocale
 import com.denis.georgiatransit.shared.domain.model.TransitRoute
+import com.denis.georgiatransit.shared.domain.repository.TransitFailure
 import com.denis.georgiatransit.shared.domain.repository.TransitFreshness
 import com.denis.georgiatransit.shared.domain.repository.TransitLoadResult
 import com.denis.georgiatransit.shared.domain.repository.TransitRepository
@@ -80,6 +81,11 @@ class ScheduleViewModelTest {
             this@runTest.runCurrent()
             assertEquals(ScheduleContent.Loading, viewModel.container.stateFlow.value.content)
 
+            viewModel.dispatchAction(Action.RouteSelected(route.id))
+            this@runTest.runCurrent()
+            assertEquals(route.directions.last().id, viewModel.container.stateFlow.value.directionId)
+            assertEquals(2, repository.requests.size)
+
             viewModel.dispatchAction(Action.RouteSelected(otherRoute.id))
             this@runTest.runCurrent()
             viewModel.dispatchAction(Action.DateSelected(tomorrow))
@@ -98,6 +104,44 @@ class ScheduleViewModelTest {
             )
             assertEquals(ScheduleContent.NoTimes, viewModel.container.stateFlow.value.content)
             assertEquals(setOf(route.id), session.selectedRouteIds.value)
+            cancelAndIgnoreRemainingItems()
+        }
+    }
+
+    @Test
+    fun retryKeepsTheFailedRequestAndIgnoresAnotherTapWhileLoading() = runTest {
+        val session = RuntimeTransitSession().apply { selectCity(kutaisi) }
+        val failure = TransitLoadResult.Failure(TransitFailure.Transport("fixture"))
+        var response = CompletableDeferred<TransitLoadResult<DirectionSchedule>>(failure)
+        val repository = ScheduleRepository { request ->
+            if (request.date == tomorrow) response.await() else schedule(request.date)
+        }
+        val locale = TransitLocale.Russian
+        val direction = route.directions.last().id
+        val viewModel = ScheduleViewModel(kutaisi.id, repository, session, today)
+        viewModel.test(this) {
+            runOnCreate()
+            viewModel.dispatchAction(Action.LocaleChanged(locale))
+            this@runTest.runCurrent()
+            viewModel.dispatchAction(Action.DirectionSelected(direction))
+            this@runTest.runCurrent()
+            viewModel.dispatchAction(Action.DateSelected(tomorrow))
+            this@runTest.runCurrent()
+            val failed = viewModel.container.stateFlow.value
+            assertEquals(ScheduleContent.Error, failed.content)
+
+            response = CompletableDeferred()
+            viewModel.dispatchAction(Action.Retry)
+            this@runTest.runCurrent()
+            viewModel.dispatchAction(Action.Retry)
+            this@runTest.runCurrent()
+            assertEquals(failed.copy(content = ScheduleContent.Retrying), viewModel.container.stateFlow.value)
+            val requested = Request(route.id, direction, tomorrow, locale)
+            assertEquals(listOf(requested, requested), repository.requests.filter { it.date == tomorrow })
+
+            response.complete(failure)
+            this@runTest.runCurrent()
+            assertEquals(failed, viewModel.container.stateFlow.value)
             cancelAndIgnoreRemainingItems()
         }
     }

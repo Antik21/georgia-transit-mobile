@@ -1,0 +1,4 @@
+<resources>
+    <color name="launch_background">#18191B</color>
+    <bool name="launch_use_dark_system_icons">false</bool>
+</resources>

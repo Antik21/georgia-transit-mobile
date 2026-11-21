@@ -17,6 +17,9 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.layout.boundsInRoot
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.contentDescription
@@ -70,6 +73,7 @@ internal fun MapCanvas(
     onMyLocationClick: () -> Unit,
     onZoomClick: (MapZoomDirection) -> Unit,
     onOpenPlanner: (() -> Unit)?,
+    onPlannerLauncherPositioned: (Rect) -> Unit,
     onMapEvent: (MapPlatformEvent) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -164,7 +168,9 @@ internal fun MapCanvas(
         if (onOpenPlanner != null) {
             MapPlannerLauncher(
                 onClick = onOpenPlanner,
-                modifier = Modifier.align(Alignment.BottomStart).then(controlInsets),
+                modifier = Modifier.align(Alignment.BottomStart).then(controlInsets)
+                    .padding(end = MapControlSize + TransitSpacing.Small)
+                    .onGloballyPositioned { onPlannerLauncherPositioned(it.boundsInRoot()) },
             )
         }
         if (baseLayerState == MapBaseLayerState.BffStyle) {

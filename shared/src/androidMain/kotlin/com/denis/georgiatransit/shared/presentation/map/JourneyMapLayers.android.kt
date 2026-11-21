@@ -49,8 +49,10 @@ internal class JourneyMapLayers(private val metrics: DisplayMetrics) {
     fun install(style: Style, belowLayerId: String) {
         style.addSource(GeoJsonSource(LINES_SOURCE_ID, FeatureCollection.fromFeatures(emptyList())))
         style.addSource(GeoJsonSource(POINTS_SOURCE_ID, FeatureCollection.fromFeatures(emptyList())))
-        style.addImage(ORIGIN_IMAGE_ID, endpointBitmap("A", ORIGIN_COLOR))
-        style.addImage(DESTINATION_IMAGE_ID, endpointBitmap("B", DESTINATION_COLOR))
+        val origin = JourneyPlanSide.Origin
+        val destination = JourneyPlanSide.Destination
+        style.addImage(ORIGIN_IMAGE_ID, endpointBitmap(origin.markerLabel, origin.markerArgb.toInt()))
+        style.addImage(DESTINATION_IMAGE_ID, endpointBitmap(destination.markerLabel, destination.markerArgb.toInt()))
         val kind = Expression.get(KIND_PROPERTY)
         style.addLayerBelow(
             LineLayer(WALK_LAYER_ID, LINES_SOURCE_ID)
@@ -221,8 +223,6 @@ private const val WALK_COLOR = "#6B7280"
 private const val CASING_COLOR = "#FFFFFF"
 private const val CASING_COLOR_INT = 0xFFFFFFFF.toInt()
 private const val PIN_COLOR = "#263238"
-private const val ORIGIN_COLOR = 0xFF2E7D32.toInt()
-private const val DESTINATION_COLOR = 0xFF8E1B2D.toInt()
 private const val ENDPOINT_DIAMETER_DP = 28f
 private const val ENDPOINT_STROKE_DP = 3f
 private const val FIT_PADDING_DP = 64f

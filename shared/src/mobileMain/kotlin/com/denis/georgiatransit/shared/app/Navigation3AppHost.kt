@@ -117,7 +117,7 @@ internal fun Navigation3AppHost(initialDestination: Destination) {
                 }
             }
         }
-        entry<Destination.Schedules> { destination ->
+        entry<Destination.Schedules>(metadata = slideFromBottomMetadata) { destination ->
             val viewModel: ScheduleViewModel = koinViewModel(
                 key = "schedules",
                 parameters = { parametersOf(destination.cityId) },

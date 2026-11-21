@@ -94,6 +94,8 @@ internal object JourneyPlanUiMapper {
         rideMinutes = minutesBetween(segment.departureAt, segment.arrivalAt),
         waitMinutes = segment.waitSeconds?.let(::minutesCeil),
         waitIsLive = segment.waitBasis == JourneyWaitBasis.LiveVehicle,
+        fromStopId = segment.fromStopId,
+        toStopId = segment.toStopId,
     )
 
     private fun badge(segment: TransitJourneySegment, routes: List<TransitRoute>): JourneyRouteBadgeUi {

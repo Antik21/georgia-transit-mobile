@@ -1,10 +1,9 @@
 package com.denis.georgiatransit.shared.presentation.splash
 
-import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.tooling.preview.Preview
@@ -13,7 +12,6 @@ import com.denis.georgiatransit.shared.presentation.ui.automation.AutomationId
 import com.denis.georgiatransit.shared.presentation.ui.component.ErrorState
 import com.denis.georgiatransit.shared.presentation.ui.component.LoadingState
 import com.denis.georgiatransit.shared.presentation.ui.theme.GeorgiaTransitTheme
-import com.denis.georgiatransit.shared.presentation.ui.theme.TransitColors
 import georgiatransit.shared.generated.resources.Res
 import georgiatransit.shared.generated.resources.bootstrap_error_configuration_invalid
 import georgiatransit.shared.generated.resources.bootstrap_error_configuration_unavailable
@@ -68,10 +66,12 @@ private fun SplashError(
 
 @Composable
 private fun SplashSurface(modifier: Modifier = Modifier, content: @Composable () -> Unit) {
-    Box(
-        modifier = modifier.fillMaxSize().background(TransitColors.LaunchBackground),
-        contentAlignment = Alignment.Center,
-    ) { content() }
+    Surface(
+        modifier = modifier.fillMaxSize(),
+        color = MaterialTheme.colorScheme.background,
+        contentColor = MaterialTheme.colorScheme.onBackground,
+        content = content,
+    )
 }
 
 @Preview

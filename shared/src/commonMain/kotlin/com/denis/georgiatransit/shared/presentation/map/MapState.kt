@@ -6,6 +6,7 @@ import com.denis.georgiatransit.shared.domain.model.RouteId
 import com.denis.georgiatransit.shared.domain.model.TransitAttribution
 import com.denis.georgiatransit.shared.domain.model.StopId
 import com.denis.georgiatransit.shared.domain.model.TransitLocale
+import com.denis.georgiatransit.shared.domain.model.TransitMode
 import com.denis.georgiatransit.shared.presentation.location.LocationPlatformCommand
 import com.denis.georgiatransit.shared.presentation.location.LocationPlatformEvent
 import com.denis.georgiatransit.shared.presentation.location.LocationState
@@ -103,6 +104,7 @@ data class NearbyStopUi(
     val sourceRevision: Long = 0L,
     val routeHighlight: StopRouteHighlightUi = StopRouteHighlightUi(),
     val position: GeoPoint? = null,
+    val catalogName: String? = null,
 )
 
 /** Common marker metadata; adapters receive values only and never infer route membership. */
@@ -148,6 +150,7 @@ data class StopRouteBadgeUi(
     val colorAvailability: RouteColorAvailability,
     /** Only committed Map selection gets this marker; draft changes stay in Routes. */
     val isSelected: Boolean,
+    val mode: TransitMode,
 )
 
 /** A selected-stop snapshot that is safe to render without exposing opaque provider identifiers. */
@@ -244,6 +247,7 @@ enum class MapZoomDirection(val delta: Double) { In(1.0), Out(-1.0) }
 sealed interface SideEffect {
     data class HandleLocation(val command: LocationPlatformCommand) : SideEffect
     data object ShowConnectionError : SideEffect
+    data object ShowLocationError : SideEffect
 }
 
 sealed interface NavigationEffect : SideEffect {

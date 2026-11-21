@@ -102,6 +102,10 @@ class StopArrivalsMapViewModelTest {
                 ),
                 sheet.rows.map(StopArrivalRowUi::source),
             )
+            assertEquals(
+                listOf(TransitMode.Bus, TransitMode.Tram, TransitMode.Tram, TransitMode.Bus),
+                sheet.rows.map { it.routeBadge?.mode },
+            )
             assertTrue(sheet.rows.all { it.headsign == "Airport" })
             assertFalse(
                 sheet.passingRouteShortNames.orEmpty().joinToString().contains("tbilisi:fixture:route"),
@@ -564,7 +568,7 @@ class StopArrivalsMapViewModelTest {
             ),
         )
         val routeA = route(city.id, "route:10", "10")
-        val routeB = route(city.id, "route:37", "37")
+        val routeB = route(city.id, "route:37", "37").copy(mode = TransitMode.Tram)
         val stopA = stop(city.id, "stop:central", "TB-001", listOf(routeA.id, routeB.id))
         val stopB = stop(
             city.id,

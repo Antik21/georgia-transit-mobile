@@ -87,7 +87,7 @@ internal class StopArrivalsUiMapper(
                                 ?.takeIf { it in 0..1_440 }?.toInt()
                             minutes?.let(StopArrivalTimeUi::Minutes) ?: StopArrivalTimeUi.Unavailable
                         } else {
-                            arrival.expectedInMinutes.toUiTime()
+                            arrival.expectedInMinutes.toUiTime(arrival.source)
                         },
                         source = arrival.source.toUiSource(),
                         routeId = arrival.routeId,
@@ -117,9 +117,9 @@ internal class StopArrivalsUiMapper(
         else -> StopArrivalsSheetState.Ready
     }
 
-    private fun Int?.toUiTime(): StopArrivalTimeUi = when {
+    private fun Int?.toUiTime(source: ArrivalSource): StopArrivalTimeUi = when {
         this == null -> StopArrivalTimeUi.Unavailable
-        this == 0 -> StopArrivalTimeUi.Arriving
+        this == 0 && source != ArrivalSource.Schedule -> StopArrivalTimeUi.Arriving
         else -> StopArrivalTimeUi.Minutes(this)
     }
 
@@ -139,6 +139,7 @@ internal class StopArrivalsUiMapper(
     fun routeDetailsFor(routeIds: List<RouteId>): RouteDetails {
         val requestedIds = routeIds.toSet()
         val projectedPassingRoutes = RouteSelectionProjector.resolve(catalogRoutes, requestedIds)
+        val catalogById = catalogRoutes.associateBy(TransitRoute::id)
         val selectedStyles = selection.byId
         val badges = projectedPassingRoutes.routes.map { passingRoute ->
             val selected = selectedStyles[passingRoute.routeId]
@@ -150,13 +151,13 @@ internal class StopArrivalsUiMapper(
                 textArgb = styledRoute.textArgb,
                 colorAvailability = styledRoute.colorAvailability,
                 isSelected = selected != null,
+                mode = catalogById.getValue(passingRoute.routeId).mode,
             )
         }
-        val knownIds = catalogRoutes.mapTo(mutableSetOf(), TransitRoute::id)
         return RouteDetails(
             badges = badges,
             shortNames = badges.map(StopRouteBadgeUi::routeLabel),
-            hasUnavailableDetails = routeIds.any { it !in knownIds } || badges.size != requestedIds.size,
+            hasUnavailableDetails = routeIds.any { it !in catalogById } || badges.size != requestedIds.size,
         )
     }
 

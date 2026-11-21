@@ -22,16 +22,24 @@ import com.denis.georgiatransit.shared.presentation.ui.automation.AutomationId
 import com.denis.georgiatransit.shared.presentation.ui.theme.TransitShapes
 import com.denis.georgiatransit.shared.presentation.ui.theme.TransitSpacing
 import georgiatransit.shared.generated.resources.Res
+import georgiatransit.shared.generated.resources.location_failure_unavailable
 import georgiatransit.shared.generated.resources.map_connection_error
 import kotlinx.coroutines.delay
+import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.stringResource
 
-/** Shows a short, non-interactive notice each time [noticeId] advances; 0 means none yet. */
+internal data class MapToastNotice(val id: Int, val kind: MapToastKind)
+
+internal enum class MapToastKind(val message: StringResource, val automationId: String) {
+    ConnectionError(Res.string.map_connection_error, AutomationId.MapConnectionError),
+    LocationError(Res.string.location_failure_unavailable, AutomationId.MapLocationError),
+}
+
 @Composable
-internal fun MapConnectionToast(noticeId: Int, modifier: Modifier = Modifier) {
+internal fun MapToast(notice: MapToastNotice?, modifier: Modifier = Modifier) {
+    if (notice == null) return
     var visible by remember { mutableStateOf(false) }
-    LaunchedEffect(noticeId) {
-        if (noticeId == 0) return@LaunchedEffect
+    LaunchedEffect(notice.id) {
         visible = true
         delay(TOAST_DURATION_MILLIS)
         visible = false
@@ -39,7 +47,7 @@ internal fun MapConnectionToast(noticeId: Int, modifier: Modifier = Modifier) {
     AnimatedVisibility(visible = visible, modifier = modifier, enter = fadeIn(), exit = fadeOut()) {
         Surface(
             modifier = Modifier
-                .testTag(AutomationId.MapConnectionError)
+                .testTag(notice.kind.automationId)
                 .semantics { liveRegion = LiveRegionMode.Polite },
             color = MaterialTheme.colorScheme.inverseSurface,
             contentColor = MaterialTheme.colorScheme.inverseOnSurface,
@@ -47,7 +55,7 @@ internal fun MapConnectionToast(noticeId: Int, modifier: Modifier = Modifier) {
             shadowElevation = TransitSpacing.ExtraSmall,
         ) {
             Text(
-                text = stringResource(Res.string.map_connection_error),
+                text = stringResource(notice.kind.message),
                 modifier = Modifier.padding(horizontal = TransitSpacing.Medium, vertical = TransitSpacing.Small),
                 style = MaterialTheme.typography.labelLarge,
             )
