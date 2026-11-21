@@ -18,14 +18,12 @@ import androidx.compose.ui.unit.sp
 object TransitColors {
     val Primary = Color(0xFF8E1B2D)
     val Accent = Color(0xFFFF6B5F)
+    // The platform launch backgrounds use this same light/dark pair.
     val Background = Color(0xFFF7F7F5)
     val Dark = Color(0xFF18191B)
     val SecondaryGray = Color(0xFFA8ADB4)
     val LightOutline = Color(0xFF7C8188)
     val Success = Color(0xFF27AE7A)
-
-    /** Matches the native launch background so launch handoff has no visible seam. */
-    val LaunchBackground = Background
 
     // Map-specific colors are functional tokens rather than part of the brand palette.
     val MapWater = Color(0xFFB9DFE7)

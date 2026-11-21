@@ -15,8 +15,16 @@ final class MapLibreJourneyLayers {
         let pointsSource = MLNShapeSource(identifier: Self.pointsSourceID, shape: nil, options: nil)
         style.addSource(linesSource)
         style.addSource(pointsSource)
-        style.setImage(Self.endpointImage(letter: "A", color: Self.originColor), forName: Self.originImageName)
-        style.setImage(Self.endpointImage(letter: "B", color: Self.destinationColor), forName: Self.destinationImageName)
+        let origin = JourneyPlanSide.origin
+        let destination = JourneyPlanSide.destination
+        style.setImage(
+            Self.endpointImage(letter: origin.markerLabel, color: UIColor(argb: origin.markerArgb)),
+            forName: Self.originImageName
+        )
+        style.setImage(
+            Self.endpointImage(letter: destination.markerLabel, color: UIColor(argb: destination.markerArgb)),
+            forName: Self.destinationImageName
+        )
 
         let walk = MLNLineStyleLayer(identifier: Self.walkLayerID, source: linesSource)
         walk.predicate = NSPredicate(format: "%K == %@", Self.kindProperty, Self.kindWalk)
@@ -214,8 +222,6 @@ final class MapLibreJourneyLayers {
     private static let kindTransit = "transit"
     private static let kindPin = "pin"
     private static let kindEndpoint = "endpoint"
-    private static let originColor = UIColor(red: 0x2E / 255, green: 0x7D / 255, blue: 0x32 / 255, alpha: 1)
-    private static let destinationColor = UIColor(red: 0x8E / 255, green: 0x1B / 255, blue: 0x2D / 255, alpha: 1)
     private static let endpointDiameter: CGFloat = 28
     private static let maximumFitZoom = 17.0
 }

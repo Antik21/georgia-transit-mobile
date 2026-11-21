@@ -144,6 +144,28 @@ class RouteGeometryCoordinatorTest {
     }
 
     @Test
+    fun routeWithoutALineCannotReplaceTheVisibleFocus() = runCoordinatorTest {
+        val repository = ControlledShapeRepository()
+        val coordinator = RouteGeometryCoordinator(repository)
+        val unavailable = route(1)
+        val working = route(2)
+        val snapshots = mutableListOf<RouteGeometrySnapshot>()
+
+        coordinator.update(this, cityId, true, listOf(unavailable, working), true, snapshots::add)
+        runCurrent()
+        repository.calls.filter { it.routeId == working.id }.forEach { repository.complete(it, goodShape()) }
+        runCurrent()
+
+        val visible = snapshots.last()
+        assertEquals(listOf(working.id), visible.legends.filter(RouteGeometryLegendUi::isFocused).map { it.routeId })
+        assertFalse(visible.legends.first().canFocus)
+        assertTrue(visible.legends.last().canFocus)
+        coordinator.focus(unavailable.id)
+        assertEquals(visible, snapshots.last())
+        coordinator.clear()
+    }
+
+    @Test
     fun partialAndInvalidDirectionKeepTheOtherDirectionVisibleAndRetryOnlyTheMissingOne() = runCoordinatorTest {
         val repository = ControlledShapeRepository()
         val coordinator = RouteGeometryCoordinator(repository)

@@ -1361,7 +1361,7 @@ private func mapColor(_ argb: Int64) -> String {
     String(format: "#%06llX", UInt64(argb) & 0x00FF_FFFF)
 }
 
-private extension UIColor {
+extension UIColor {
     convenience init(argb: Int64) {
         self.init(
             red: CGFloat((argb >> 16) & 0xFF) / 255,

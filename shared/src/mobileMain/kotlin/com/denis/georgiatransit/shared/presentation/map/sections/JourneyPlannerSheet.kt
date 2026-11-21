@@ -20,19 +20,23 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.Velocity
+import androidx.compose.ui.unit.constrainHeight
 import androidx.compose.ui.unit.dp
 import com.denis.georgiatransit.shared.presentation.ui.theme.TransitSpacing
 import georgiatransit.shared.generated.resources.Res
 import georgiatransit.shared.generated.resources.map_planner_collapse
 import georgiatransit.shared.generated.resources.map_planner_expand
+import kotlin.math.roundToInt
 import org.jetbrains.compose.resources.stringResource
 
 /** Overlays the map; closing requires a separate drag from the collapsed anchor. */
@@ -40,6 +44,7 @@ import org.jetbrains.compose.resources.stringResource
 internal fun JourneyPlannerSheet(
     maxHeight: Dp,
     floating: Boolean,
+    compact: Boolean,
     onClose: () -> Unit,
     content: @Composable (Modifier, Modifier) -> Unit,
 ) {
@@ -51,9 +56,11 @@ internal fun JourneyPlannerSheet(
     val maxPx = with(density) { maxHeight.toPx() }
     val bottomInset = WindowInsets.safeDrawing.getBottom(density)
     var headerPx by remember { mutableIntStateOf(0) }
+    var compactHeightPx by remember { mutableIntStateOf(0) }
+    val expandedPx = if (compact && compactHeightPx > 0) minOf(compactHeightPx.toFloat(), maxPx) else maxPx
     val minPx = with(density) { headerPx + (TransitSpacing.Small * 2).toPx() + bottomInset }
-        .coerceIn(0f, maxPx)
-    val range = (maxPx - minPx).coerceAtLeast(0f)
+        .coerceIn(0f, expandedPx)
+    val range = expandedPx - minPx
     var collapsed by remember { mutableStateOf(false) }
     var dragging by remember { mutableStateOf(false) }
     var beganCollapsed by remember { mutableStateOf(false) }
@@ -113,10 +120,21 @@ internal fun JourneyPlannerSheet(
             indication = null,
             onClickLabel = toggleLabel,
         ) { collapsed = !collapsed }
-    content(
-        Modifier.height(with(density) { (maxPx - offset).coerceAtLeast(0f).toDp() }).nestedScroll(connection),
-        headerModifier,
-    )
+    val heightModifier = if (compact) {
+        Modifier.clipToBounds()
+            .layout { measurable, constraints ->
+                // Keep measuring the full panel so collapsing it never changes the expanded height.
+                val panel = measurable.measure(constraints)
+                val maxOffset = (panel.height - minPx).coerceAtLeast(0f)
+                val visibleHeight = constraints.constrainHeight(panel.height - offset.coerceAtMost(maxOffset).roundToInt())
+                layout(panel.width, visibleHeight) { panel.placeRelative(0, 0) }
+            }
+            .heightIn(max = maxHeight)
+            .onSizeChanged { compactHeightPx = it.height }
+    } else {
+        Modifier.height(with(density) { (expandedPx - offset).coerceAtLeast(0f).toDp() })
+    }
+    content(heightModifier.nestedScroll(connection), headerModifier)
 }
 
 /** Once the sheet takes a body drag, it also receives reverse movement until fully expanded. */

@@ -112,6 +112,7 @@ internal class MapStopsProjector(
             sourceRevision = sourceRevision,
             routeHighlight = routeHighlightFor(stop.withSelectedRouteIds()),
             position = stop.position,
+            catalogName = stop.name.forLocale(locale).trim().takeIf(String::isNotEmpty),
         )
     }
 

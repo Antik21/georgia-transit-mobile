@@ -132,15 +132,29 @@ appId: com.denis.georgiatransit
           id: routes.option
           index: 0
           enabled: true
-      - eraseText
-      - inputText: "1"
+      - tapOn:
+          id: routes.show-selected
+      - assertVisible:
+          id: routes.selected-sheet
+      - tapOn:
+          id: routes.selected-close
+      - assertNotVisible:
+          id: routes.selected-sheet
+      - tapOn:
+          id: routes.show-selected
+      - assertVisible:
+          id: routes.selected-sheet
       - tapOn:
           id: routes.option
           index: 0
       - assertNotVisible:
+          id: routes.selected-sheet
+      - assertNotVisible:
           id: routes.selection-warning
-      - eraseText
-      - inputText: "11"
+      - assertVisible:
+          id: routes.option
+          index: 0
+          enabled: true
       - tapOn:
           id: routes.option
           index: 0

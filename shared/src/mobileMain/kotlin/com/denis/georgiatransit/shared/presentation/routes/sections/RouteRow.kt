@@ -28,27 +28,20 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import com.denis.georgiatransit.shared.domain.model.TransitMode
 import com.denis.georgiatransit.shared.presentation.routes.RouteItemUiModel
 import com.denis.georgiatransit.shared.presentation.ui.automation.AutomationId
+import com.denis.georgiatransit.shared.presentation.ui.component.displayName
+import com.denis.georgiatransit.shared.presentation.ui.component.routeTitle
 import com.denis.georgiatransit.shared.presentation.ui.contrastSafeRouteTextColor
 import com.denis.georgiatransit.shared.presentation.ui.theme.TransitShapes
 import com.denis.georgiatransit.shared.presentation.ui.theme.TransitSpacing
 import georgiatransit.shared.generated.resources.Res
-import georgiatransit.shared.generated.resources.routes_mode_bus
-import georgiatransit.shared.generated.resources.routes_mode_ferry
-import georgiatransit.shared.generated.resources.routes_mode_metro
-import georgiatransit.shared.generated.resources.routes_mode_tram
 import georgiatransit.shared.generated.resources.routes_row_description
 import georgiatransit.shared.generated.resources.routes_row_description_short
 import georgiatransit.shared.generated.resources.routes_row_description_with_direction
 import georgiatransit.shared.generated.resources.routes_row_limit_reached
 import georgiatransit.shared.generated.resources.routes_row_selected
 import georgiatransit.shared.generated.resources.routes_row_unselected
-import georgiatransit.shared.generated.resources.routes_title_bus
-import georgiatransit.shared.generated.resources.routes_title_ferry
-import georgiatransit.shared.generated.resources.routes_title_metro
-import georgiatransit.shared.generated.resources.routes_title_tram
 import org.jetbrains.compose.resources.stringResource
 
 @Composable
@@ -148,24 +141,3 @@ internal fun RouteRow(
         }
     }
 }
-
-@Composable
-private fun TransitMode.displayName(): String = stringResource(
-    when (this) {
-        TransitMode.Bus -> Res.string.routes_mode_bus
-        TransitMode.Metro -> Res.string.routes_mode_metro
-        TransitMode.Tram -> Res.string.routes_mode_tram
-        TransitMode.Ferry -> Res.string.routes_mode_ferry
-    },
-)
-
-@Composable
-private fun TransitMode.routeTitle(number: String): String = stringResource(
-    when (this) {
-        TransitMode.Bus -> Res.string.routes_title_bus
-        TransitMode.Metro -> Res.string.routes_title_metro
-        TransitMode.Tram -> Res.string.routes_title_tram
-        TransitMode.Ferry -> Res.string.routes_title_ferry
-    },
-    number,
-)

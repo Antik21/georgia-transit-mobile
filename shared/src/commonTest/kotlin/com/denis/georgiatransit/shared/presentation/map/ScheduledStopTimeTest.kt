@@ -46,14 +46,29 @@ class ScheduledStopTimeTest {
             cancelled = false,
             source = ArrivalSource.Schedule,
         )
-        val page = ArrivalPage(listOf(scheduled), ArrivalSource.Schedule, observed, stale = false)
+        val scheduledNow = scheduled.copy(scheduledAt = observed, expectedInMinutes = 0)
+        val scheduledNowWithoutCountdown = scheduledNow.copy(expectedInMinutes = null)
+        val liveNow = scheduledNow.copy(realtime = true, source = ArrivalSource.OfficialRealtime)
+        val page = ArrivalPage(
+            listOf(scheduled, scheduledNow, scheduledNowWithoutCountdown, liveNow),
+            ArrivalSource.Schedule,
+            observed,
+            stale = false,
+        )
         val mapper = StopArrivalsUiMapper(
             stop, TransitLocale.English, listOf(route), RouteSelectionProjection(), page, TransitFreshness.Network,
         )
-        val row = mapper.withArrivalPage(
+        val rows = mapper.withArrivalPage(
             StopArrivalsSheetUi(stop.id, "Central"), page, TransitFreshness.Network,
-        ).rows.single()
-        assertEquals(StopArrivalTimeUi.Minutes(8), row.time)
-        assertEquals(ArrivalSourceUi.Schedule, row.source)
+        ).rows
+        assertEquals(
+            listOf(
+                ArrivalSourceUi.Schedule to StopArrivalTimeUi.Minutes(0),
+                ArrivalSourceUi.Schedule to StopArrivalTimeUi.Minutes(0),
+                ArrivalSourceUi.OfficialRealtime to StopArrivalTimeUi.Arriving,
+                ArrivalSourceUi.Schedule to StopArrivalTimeUi.Minutes(8),
+            ),
+            rows.map { it.source to it.time },
+        )
     }
 }

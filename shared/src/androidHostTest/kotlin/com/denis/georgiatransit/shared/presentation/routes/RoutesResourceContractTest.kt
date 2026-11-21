@@ -42,7 +42,7 @@ class RoutesResourceContractTest {
     fun routeScreenUsesStableSelectorsKeyedRowsAndOneCheckableSemanticTargetPerRow() {
         val screen = routeSource("RoutesScreen.kt")
         val catalog = routeSource("sections/RouteCatalogSection.kt")
-        val header = routeSource("sections/RoutesHeaderSection.kt")
+        val limitNotice = routeSource("sections/RoutesSelectionLimitNotice.kt")
         val rowSource = routeSource("sections/RouteRow.kt")
         val automation = listOf(
             AutomationId.RoutesScreen,
@@ -56,15 +56,19 @@ class RoutesResourceContractTest {
             AutomationId.RoutesRetry,
             AutomationId.RoutesOption,
             AutomationId.RoutesCancel,
+            AutomationId.RoutesCloseTop,
             AutomationId.RoutesSelectionCount,
             AutomationId.RoutesSelectionWarning,
+            AutomationId.RoutesShowSelected,
+            AutomationId.RoutesSelectedSheet,
+            AutomationId.RoutesSelectedClose,
             AutomationId.RoutesConfirm,
         )
 
         assertEquals(automation.size, automation.toSet().size)
         assertTrue(automation.all { it.startsWith("routes.") })
         assertFalse(catalog.contains("ViewState"), "Child sections receive only the immutable state slices they render.")
-        assertTrue(catalog.contains("items(visibleRoutes, key = { it.id.value })"))
+        assertTrue(catalog.contains("itemsIndexed(visibleRoutes, key = { _, route -> route.id.value })"))
         assertTrue(catalog.contains("rememberSaveable(cityId?.value, saver = LazyListState.Saver)"))
         assertCodePath(
             rowSource.functionBody("internal fun RouteRow"),
@@ -86,20 +90,20 @@ class RoutesResourceContractTest {
             "selectable(",
             "enabled = isToggleEnabled",
         )
-        assertTrue(header.contains("RouteSelectionPolicy.MaximumSelectedRoutes"))
-        assertTrue(header.contains("testTag(AutomationId.RoutesSelectionCount)"))
-        assertTrue(header.contains("testTag(AutomationId.RoutesSelectionWarning)"))
-        assertTrue(header.contains("modifier: Modifier = Modifier"))
-        assertTrue(header.contains("modifier = modifier"))
-        assertTrue(header.contains("semantics { heading() }"))
+        assertTrue(limitNotice.contains("RouteSelectionPolicy.MaximumSelectedRoutes"))
+        assertTrue(limitNotice.contains("testTag(AutomationId.RoutesSelectionWarning)"))
+        assertCodePath(screen, "TransitTopAppBar(", "testTag(AutomationId.RoutesCloseTop)", "Action.CancelClicked")
+        assertCodePath(screen, "testTag(AutomationId.RoutesConfirm)", "routes_confirm_action, state.selectedIds.size", "testTag(AutomationId.RoutesSelectionCount)")
         assertTrue(screen.contains("testTag(AutomationId.RoutesScreen)"))
-        assertTrue(screen.contains("testTag(AutomationId.RoutesConfirm)"))
     }
 
     @Test
     fun modesAndDirectionAreLocalizedAndTheMapRouteActionIsCapabilityGated() {
         val root = projectRoot()
         val routeRow = routeSource("sections/RouteRow.kt")
+        val routeTitle = root.resolve(
+            "shared/src/mobileMain/kotlin/com/denis/georgiatransit/shared/presentation/ui/component/TransitRouteTitle.kt",
+        ).readText()
         val mapScreen = root.resolve(
             "shared/src/mobileMain/kotlin/com/denis/georgiatransit/shared/presentation/map/MapScreen.kt",
         ).readText()
@@ -115,7 +119,7 @@ class RoutesResourceContractTest {
             "route.mode.routeTitle(route.shortName)",
         )
         assertCodePath(
-            routeRow.functionBody("private fun TransitMode.displayName"),
+            routeTitle.functionBody("internal fun TransitMode.displayName"),
             "TransitMode.Bus -> Res.string.routes_mode_bus",
             "TransitMode.Metro -> Res.string.routes_mode_metro",
             "TransitMode.Tram -> Res.string.routes_mode_tram",
@@ -309,16 +313,16 @@ class RoutesResourceContractTest {
         val DateTimeConversions = "HIklMSLNpzZsQBbhAaCYyjmdeRTrDFc".toSet()
         val NoArgumentConversions = setOf('%', 'n')
         val RouteResourceKeys = setOf(
-            "routes_cancel_action",
+            "close_action",
             "routes_confirm_action",
-            "routes_selection_count",
             "routes_selection_limit_warning",
+            "routes_show_selected",
+            "routes_selected_title",
             "routes_loading",
             "routes_empty",
             "routes_empty_search",
             "routes_error",
             "routes_offline",
-            "routes_offline_unavailable",
             "routes_unavailable",
             "routes_retry",
             "routes_search_label",

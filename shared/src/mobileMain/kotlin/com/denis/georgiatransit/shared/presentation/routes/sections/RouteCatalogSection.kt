@@ -1,11 +1,14 @@
 package com.denis.georgiatransit.shared.presentation.routes.sections
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Icon
@@ -15,13 +18,17 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.unit.dp
 import com.denis.georgiatransit.shared.domain.model.CityId
 import com.denis.georgiatransit.shared.domain.model.RouteId
 import com.denis.georgiatransit.shared.domain.repository.TransitFreshness
@@ -42,7 +49,6 @@ import georgiatransit.shared.generated.resources.routes_empty_search
 import georgiatransit.shared.generated.resources.routes_error
 import georgiatransit.shared.generated.resources.routes_loading
 import georgiatransit.shared.generated.resources.routes_offline
-import georgiatransit.shared.generated.resources.routes_offline_unavailable
 import georgiatransit.shared.generated.resources.routes_retry
 import georgiatransit.shared.generated.resources.routes_search_label
 import georgiatransit.shared.generated.resources.routes_search_placeholder
@@ -57,6 +63,7 @@ internal fun RouteCatalogSection(
     searchQuery: String,
     routes: List<RouteItemUiModel>,
     visibleRoutes: List<RouteItemUiModel>,
+    recentRoutes: List<RouteItemUiModel>,
     selectedIds: Set<RouteId>,
     isSelectionLimitReached: Boolean,
     onSearchChanged: (String) -> Unit,
@@ -75,6 +82,7 @@ internal fun RouteCatalogSection(
             searchQuery = searchQuery,
             routes = routes,
             visibleRoutes = visibleRoutes,
+            recentRoutes = recentRoutes,
             selectedIds = selectedIds,
             isSelectionLimitReached = isSelectionLimitReached,
             isStaleOffline = catalog.freshness == TransitFreshness.StaleOffline,
@@ -91,7 +99,7 @@ internal fun RouteCatalogSection(
         )
 
         is CatalogState.OfflineNoCache -> ErrorState(
-            title = stringResource(Res.string.routes_offline_unavailable),
+            title = stringResource(Res.string.routes_error),
             retryLabel = stringResource(Res.string.routes_retry).takeIf { catalog.canRetry },
             onRetry = onRetry.takeIf { catalog.canRetry },
             retryModifier = Modifier.testTag(AutomationId.RoutesRetry),
@@ -119,6 +127,7 @@ private fun RouteList(
     searchQuery: String,
     routes: List<RouteItemUiModel>,
     visibleRoutes: List<RouteItemUiModel>,
+    recentRoutes: List<RouteItemUiModel>,
     selectedIds: Set<RouteId>,
     isSelectionLimitReached: Boolean,
     isStaleOffline: Boolean,
@@ -129,44 +138,98 @@ private fun RouteList(
     // The city key resets the list only for another city; Navigation 3 keeps this saveable state
     // when the same route entry is recreated.
     val listState = rememberSaveable(cityId?.value, saver = LazyListState.Saver) { LazyListState() }
-    Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(TransitSpacing.Small)) {
-        if (isStaleOffline) {
-            Text(
-                text = stringResource(Res.string.routes_offline),
-                modifier = Modifier.testTag(AutomationId.RoutesOffline),
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                style = MaterialTheme.typography.bodyMedium,
-            )
+    val focusManager = LocalFocusManager.current
+    var selectedSheetOpen by rememberSaveable(cityId?.value) { mutableStateOf(false) }
+    val canShowSelected = isSelectionLimitReached && searchQuery.isNotBlank() && visibleRoutes.none { it.id in selectedIds }
+    val showSelected: (() -> Unit)? = if (canShowSelected) {
+        {
+            focusManager.clearFocus()
+            selectedSheetOpen = true
         }
-        RouteSearchField(searchQuery, onSearchChanged)
-        when {
-            routes.isEmpty() -> EmptyState(
-                title = stringResource(Res.string.routes_empty),
-                modifier = Modifier.weight(1f).testTag(AutomationId.RoutesEmpty),
-            )
+    } else null
+    BoxWithConstraints(modifier = modifier) {
+        val scrollSelectionLimitNotice = maxHeight < MinimumHeightForPinnedSelectionLimit
+        val scrollSelectedAction = scrollSelectionLimitNotice && canShowSelected
+        Column(modifier = Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(TransitSpacing.Small)) {
+            if (isStaleOffline) {
+                Text(
+                    text = stringResource(Res.string.routes_offline),
+                    modifier = Modifier.testTag(AutomationId.RoutesOffline),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+            }
+            RouteSearchField(searchQuery, onSearchChanged)
+            if (isSelectionLimitReached && !scrollSelectionLimitNotice) {
+                RoutesSelectionLimitNotice(onShowSelected = showSelected)
+            }
+            when {
+                routes.isEmpty() -> EmptyState(
+                    title = stringResource(Res.string.routes_empty),
+                    modifier = Modifier.weight(1f).testTag(AutomationId.RoutesEmpty),
+                )
 
-            visibleRoutes.isEmpty() -> EmptyState(
-                title = stringResource(Res.string.routes_empty_search),
-                modifier = Modifier.weight(1f).testTag(AutomationId.RoutesEmpty),
-            )
+                visibleRoutes.isEmpty() && !scrollSelectedAction -> EmptyState(
+                    title = stringResource(Res.string.routes_empty_search),
+                    modifier = Modifier.weight(1f).testTag(AutomationId.RoutesEmpty),
+                )
 
-            else -> LazyColumn(
-                state = listState,
-                modifier = Modifier.weight(1f).testTag(AutomationId.RoutesList),
-                verticalArrangement = Arrangement.spacedBy(TransitSpacing.Small),
-            ) {
-                items(visibleRoutes, key = { it.id.value }) { route ->
-                    RouteRow(
-                        route = route,
-                        selected = route.id in selectedIds,
-                        selectionLimitReached = isSelectionLimitReached,
-                        onClick = { onRouteToggled(route.id) },
-                    )
+                else -> LazyColumn(
+                    state = listState,
+                    modifier = Modifier.weight(1f).testTag(AutomationId.RoutesList),
+                    verticalArrangement = Arrangement.spacedBy(TransitSpacing.Small),
+                ) {
+                    if (scrollSelectedAction) {
+                        item(key = RouteListSection.SelectionLimit) {
+                            RoutesSelectionLimitNotice(onShowSelected = showSelected)
+                        }
+                    }
+                    if (visibleRoutes.isEmpty()) {
+                        item(key = RouteListSection.EmptySearch) {
+                            EmptyState(
+                                title = stringResource(Res.string.routes_empty_search),
+                                modifier = Modifier.testTag(AutomationId.RoutesEmpty),
+                                compact = true,
+                            )
+                        }
+                    }
+                    if (searchQuery.isBlank() && recentRoutes.isNotEmpty()) {
+                        item(key = RouteListSection.Recent) {
+                            RecentRoutesSection(recentRoutes, selectedIds, isSelectionLimitReached, onRouteToggled)
+                        }
+                    }
+                    itemsIndexed(visibleRoutes, key = { _, route -> route.id.value }) { index, route ->
+                        RouteRow(
+                            route = route,
+                            selected = route.id in selectedIds,
+                            selectionLimitReached = isSelectionLimitReached,
+                            onClick = { onRouteToggled(route.id) },
+                        )
+                        if (index == 0 && isSelectionLimitReached && scrollSelectionLimitNotice && !scrollSelectedAction) {
+                            RoutesSelectionLimitNotice(modifier = Modifier.padding(top = TransitSpacing.Small))
+                        }
+                    }
                 }
             }
         }
     }
+    if (selectedSheetOpen) {
+        SelectedRoutesSheet(
+            routes = routes.filter { it.id in selectedIds },
+            onDismiss = { selectedSheetOpen = false },
+            onRemove = { routeId ->
+                if (selectedSheetOpen) {
+                    selectedSheetOpen = false
+                    onRouteToggled(routeId)
+                }
+            },
+        )
+    }
 }
+
+private enum class RouteListSection { Recent, SelectionLimit, EmptySearch }
+
+private val MinimumHeightForPinnedSelectionLimit = 200.dp
 
 @Composable
 private fun RouteSearchField(query: String, onQueryChanged: (String) -> Unit) {

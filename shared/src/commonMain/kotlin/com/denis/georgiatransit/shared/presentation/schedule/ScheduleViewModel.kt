@@ -63,6 +63,7 @@ internal class ScheduleViewModel(
 
         val updated = when (action) {
             is Action.RouteSelected -> {
+                if (action.routeId == state.routeId) return@intent
                 val route = state.routes.firstOrNull { it.id == action.routeId } ?: return@intent
                 state.copy(routeId = route.id, directionId = route.directions.first().id)
             }
@@ -78,7 +79,8 @@ internal class ScheduleViewModel(
             is Action.LocaleChanged -> state
         }
         if (updated == state && !(action == Action.Retry && state.content == ScheduleContent.Error)) return@intent
-        reduce { updated.copy(content = ScheduleContent.Loading) }
+        val loading = if (action == Action.Retry) ScheduleContent.Retrying else ScheduleContent.Loading
+        reduce { updated.copy(content = loading) }
         if (updated.route == null) loadRoutes(updated) else loadSchedule(updated)
     }
 

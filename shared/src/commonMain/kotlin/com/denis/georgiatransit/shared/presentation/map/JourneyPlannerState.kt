@@ -13,7 +13,10 @@ import kotlinx.collections.immutable.PersistentList
 import kotlinx.collections.immutable.persistentListOf
 import kotlin.time.Instant
 
-enum class JourneyPlanSide { Origin, Destination }
+enum class JourneyPlanSide(val markerLabel: String, val markerArgb: Long) {
+    Origin("A", 0xFF2E7D32L),
+    Destination("B", 0xFF8E1B2DL),
+}
 
 /** Why "My location" cannot be used yet; every reason still allows picking a map point instead. */
 enum class JourneyLocationReason { PermissionRequired, Locating, Approximate }
@@ -128,6 +131,8 @@ sealed interface JourneyLegUi {
         val rideMinutes: Int,
         val waitMinutes: Int?,
         val waitIsLive: Boolean,
+        val fromStopId: StopId? = null,
+        val toStopId: StopId? = null,
     ) : JourneyLegUi
 }
 
