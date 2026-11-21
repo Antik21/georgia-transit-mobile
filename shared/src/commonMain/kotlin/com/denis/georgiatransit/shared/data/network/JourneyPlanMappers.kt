@@ -20,7 +20,7 @@ internal fun JourneyPlanQuery.toDto() = JourneyPlanRequestDto(
  * failing the whole answer; a page whose every option is malformed is still a contract failure.
  */
 internal fun JourneyPageDto.toPlanDomain(): JourneyPage {
-    val journeys = items.mapNotNull { item -> runCatching { item.toDomain() }.getOrNull() }
+    val journeys = items.mapNotNull { item -> runCatching { item.toDomain(allowUntimed = true) }.getOrNull() }
     require(items.isEmpty() || journeys.isNotEmpty()) { "every journey option is invalid" }
     return JourneyPage(
         items = journeys.take(MaxPlanOptions),

@@ -121,10 +121,13 @@ function optionCard(option: PlannerOption, copy: Copy, actions: PlannerActions, 
     card.append(labels);
   }
   const summary = element("span", "planner-option-summary");
-  summary.append(
-    element("strong", "planner-option-total", format(copy.plannerTotal, option.totalMinutes)),
-    element("span", "planner-option-arrival", copy.plannerArrival.replace("%1$s", clock(option.arrivalEpochMillis, language))),
-  );
+  if (option.totalMinutes != null) {
+    summary.append(element("strong", "planner-option-total", format(copy.plannerTotal, option.totalMinutes)));
+  }
+  if (option.arrivalEpochMillis != null) {
+    summary.append(element("span", "planner-option-arrival",
+      copy.plannerArrival.replace("%1$s", clock(option.arrivalEpochMillis, language))));
+  }
   const legs = element("span", "planner-legs");
   let firstRide = true;
   for (const leg of option.legs) {
@@ -132,7 +135,7 @@ function optionCard(option: PlannerOption, copy: Copy, actions: PlannerActions, 
     if (leg.kind === "ride") firstRide = false;
     legs.append(legRow(leg, copy, etas));
   }
-  card.append(summary);
+  if (summary.childElementCount) card.append(summary);
   if (option.selected) card.append(legs);
   else card.append(itinerary(option.legs, copy));
   row.append(card);
@@ -195,7 +198,8 @@ function legRow(leg: PlannerLeg, copy: Copy, nearestEtas: readonly number[]) {
   if (leg.kind === "ride") {
     const badge = element("span", "route-number", leg.routeLabel ?? "?");
     applyRouteColors(badge, leg.routeColor ?? "", leg.routeTextColor ?? "");
-    const parts = [leg.stopCount != null ? format(copy.plannerStops, leg.stopCount) : null, format(copy.plannerMinutes, leg.minutes)];
+    const parts = [leg.stopCount != null ? format(copy.plannerStops, leg.stopCount) : null,
+      leg.minutes != null ? format(copy.plannerMinutes, leg.minutes) : null];
     const detail = element("span", "planner-leg-detail");
     const rideDetails = element("span", "", parts.filter(Boolean).join(" · "));
     if (nearestEtas.length) {
@@ -203,16 +207,21 @@ function legRow(leg: PlannerLeg, copy: Copy, nearestEtas: readonly number[]) {
       arrival.dataset.testid = "planner-nearest";
       detail.append(arrival);
     }
-    detail.append(rideDetails);
-    if (!nearestEtas.length && leg.waitMinutes != null) {
-      detail.append(element("small", "planner-leg-wait",
-        format(copy.plannerWaitEstimate, leg.waitMinutes)));
+    if (leg.fromStopName && leg.toStopName) {
+      const stopNames = [leg.fromStopName, leg.toStopName];
+      detail.append(element("span", "", copy.plannerRideStops.replace(/%([12])\$s/g, (_, index) => stopNames[Number(index) - 1])));
+    }
+    if (parts.some(Boolean)) detail.append(rideDetails);
+    if (!nearestEtas.length) {
+      detail.append(element("small", "planner-leg-wait", leg.waitMinutes == null
+        ? copy.plannerWaitUnknown : format(copy.plannerWaitEstimate, leg.waitMinutes)));
     }
     row.append(badge, detail);
   } else {
     const role = { access: copy.plannerWalkAccess, transfer: copy.plannerWalkTransfer, egress: copy.plannerWalkEgress }[leg.role ?? ""]
       ?? copy.plannerWalkDirect;
-    const parts = [leg.meters != null ? format(copy.plannerMeters, leg.meters) : null, format(copy.plannerMinutes, leg.minutes)];
+    const parts = [leg.meters != null ? format(copy.plannerMeters, leg.meters) : null,
+      leg.minutes != null ? format(copy.plannerMinutes, leg.minutes) : null];
     const walkIcon = element("span", "planner-walk-icon");
     walkIcon.setAttribute("aria-hidden", "true");
     walkIcon.dataset.testid = "planner-leg-walk-icon";

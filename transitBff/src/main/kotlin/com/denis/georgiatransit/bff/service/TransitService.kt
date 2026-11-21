@@ -86,9 +86,11 @@ class TransitService(
     val isReady: Boolean get() = capabilitySnapshots.current().isReady
 
     /** City listing is derived directly from the current atomic snapshot, never a directory TTL. */
-    suspend fun cities(): List<City> = snapshot().cities.values.map { effective ->
+    suspend fun cities(allowUntimedJourneys: Boolean = false): List<City> = snapshot().cities.values.map { effective ->
         val capabilities = effective.city.capabilities
-        if (capabilities.tripPlanning && !effective.adapter.tripPlanningReady) {
+        val plannerAvailable = effective.adapter.tripPlanningReady &&
+            (allowUntimedJourneys || !effective.adapter.requiresUntimedJourneySupport)
+        if (capabilities.tripPlanning && !plannerAvailable) {
             effective.city.copy(capabilities = capabilities.copy(tripPlanning = false))
         } else {
             effective.city

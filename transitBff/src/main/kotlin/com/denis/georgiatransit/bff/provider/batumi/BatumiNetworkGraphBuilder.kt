@@ -2,6 +2,7 @@ package com.denis.georgiatransit.bff.provider.batumi
 
 import com.denis.georgiatransit.bff.planning.TransitNetworkGraph
 import com.denis.georgiatransit.bff.planning.TransitPattern
+import com.denis.georgiatransit.bff.planning.TransitRouteShape
 import com.denis.georgiatransit.bff.planning.TransitStop
 import com.denis.georgiatransit.bff.provider.BatumiCatalog
 import com.denis.georgiatransit.bff.provider.RouteCycle
@@ -36,7 +37,7 @@ internal object BatumiNetworkGraphBuilder {
         val metas = mutableListOf<BatumiPatternMeta>()
         catalog.routes.forEach { route ->
             val cycle = catalog.cycle(route.id)
-            val shape = BatumiRouteShape(catalog.geometry(route.id))
+            val shape = TransitRouteShape(catalog.geometry(route.id))
             val circle = route.id in catalog.circleRouteIds
             val runs = if (circle) listOf(doubledLap(cycle.chain.size)) else statusBlocks(cycle)
             runs.filter { it.size >= 2 }.forEach { chainIndices ->
@@ -46,7 +47,7 @@ internal object BatumiNetworkGraphBuilder {
                 val segments = List(chainIndices.size - 1) { index ->
                     val from = index % runSize
                     val to = (index + 1) % runSize
-                    match.segment(from, to) ?: BatumiRouteShape.Segment(
+                    match.segment(from, to) ?: TransitRouteShape.Segment(
                         points = listOf(positions[from], positions[to]),
                         approximate = true,
                         meters = chainMeters(positions[from], positions[to]),
@@ -56,7 +57,7 @@ internal object BatumiNetworkGraphBuilder {
                     routeId = route.id,
                     directionId = route.directions.single().id,
                     stops = IntArray(chainIndices.size) { stopIndex.getValue(cycle.chain[chainIndices[it]].stop.id) },
-                    segmentGeometry = segments.map(BatumiRouteShape.Segment::points),
+                    segmentGeometry = segments.map(TransitRouteShape.Segment::points),
                     segmentApproximate = BooleanArray(segments.size) { segments[it].approximate },
                     segmentMeters = DoubleArray(segments.size) { segments[it].meters },
                 )

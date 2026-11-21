@@ -4,6 +4,7 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
@@ -80,6 +81,7 @@ internal fun JourneyOptionCard(
     stopNames: Map<StopId, String> = emptyMap(),
 ) {
     val walkOnly = option.legs.isNotEmpty() && option.legs.all { it is JourneyLegUi.Walk }
+    val hasTiming = option.totalMinutes != null || option.arrivalAt != null
     Surface(
         modifier = modifier.fillMaxWidth(),
         shape = TransitShapes.Medium,
@@ -99,21 +101,30 @@ internal fun JourneyOptionCard(
                 verticalArrangement = Arrangement.spacedBy(TransitSpacing.ExtraSmall + 2.dp),
             ) {
                 Row(horizontalArrangement = Arrangement.spacedBy(TransitSpacing.Small), verticalAlignment = Alignment.CenterVertically) {
-                    FlowRow(
-                        modifier = Modifier.weight(1f),
-                        horizontalArrangement = Arrangement.spacedBy(TransitSpacing.Small),
-                        verticalArrangement = Arrangement.spacedBy(TransitSpacing.ExtraSmall),
-                        itemVerticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Text(
-                            stringResource(Res.string.map_planner_total, option.totalMinutes),
-                            style = MaterialTheme.typography.titleLarge,
-                            fontWeight = FontWeight.Bold,
-                        )
-                        Text(
-                            stringResource(Res.string.map_planner_arrival, option.arrivalAt.localClock()),
-                            style = MaterialTheme.typography.bodyMedium,
-                        )
+                    if (hasTiming) {
+                        FlowRow(
+                            modifier = Modifier.weight(1f),
+                            horizontalArrangement = Arrangement.spacedBy(TransitSpacing.Small),
+                            verticalArrangement = Arrangement.spacedBy(TransitSpacing.ExtraSmall),
+                            itemVerticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            option.totalMinutes?.let { minutes ->
+                                Text(
+                                    stringResource(Res.string.map_planner_total, minutes),
+                                    modifier = Modifier.testTag(AutomationId.MapPlannerTotal),
+                                    style = MaterialTheme.typography.titleLarge,
+                                    fontWeight = FontWeight.Bold,
+                                )
+                            }
+                            option.arrivalAt?.let { time ->
+                                Text(
+                                    stringResource(Res.string.map_planner_arrival, time.localClock()),
+                                    style = MaterialTheme.typography.bodyMedium,
+                                )
+                            }
+                        }
+                    } else {
+                        Box(Modifier.weight(1f)) { JourneyItinerary(option.legs) }
                     }
                     if (!isSelected) Icon(ChevronDownIcon, contentDescription = null)
                 }
@@ -133,7 +144,7 @@ internal fun JourneyOptionCard(
                         Icon(WalkIcon, contentDescription = null, modifier = Modifier.size(GlyphSize))
                         Text(stringResource(Res.string.map_planner_walk_only), style = MaterialTheme.typography.bodyMedium)
                     }
-                } else if (!isSelected) {
+                } else if (!isSelected && hasTiming) {
                     JourneyItinerary(option.legs)
                 }
             }

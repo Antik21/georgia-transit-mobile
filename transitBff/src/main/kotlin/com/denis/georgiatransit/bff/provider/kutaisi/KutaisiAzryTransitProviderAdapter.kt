@@ -19,6 +19,8 @@ import com.denis.georgiatransit.bff.api.TransitModeValues
 import com.denis.georgiatransit.bff.api.Vehicle
 import com.denis.georgiatransit.bff.cache.BoundedKeyedTtlCache
 import com.denis.georgiatransit.bff.geo.decodePolyline
+import com.denis.georgiatransit.bff.planning.JourneyPlanQuery
+import com.denis.georgiatransit.bff.planning.PlanningBudget
 import com.denis.georgiatransit.bff.observability.TelemetryProvider
 import com.denis.georgiatransit.bff.provider.CityTransitProviderAdapter
 import com.denis.georgiatransit.bff.provider.JourneyQuery
@@ -45,7 +47,7 @@ internal class KutaisiAzryTransitProviderAdapter(
             routeGeometry = true,
             vehiclePositions = true,
             officialArrivals = true,
-            tripPlanning = false,
+            tripPlanning = true,
             schedules = true,
         ),
         availability = CityAvailability(CityReadiness.PRODUCTION_READY, CitySource.REVIEWED_ADAPTER),
@@ -54,7 +56,16 @@ internal class KutaisiAzryTransitProviderAdapter(
 
     private val catalog = AzryCatalog(feed)
     private val schedule = AzryTimetables(feed)
+    private val planning = KutaisiJourneyPlanning(catalog, feed, clock)
     private val livePositions = BoundedKeyedTtlCache<String, RealtimeVehicles>(10.seconds, 100, clock)
+
+    override val serviceBounds = KutaisiServiceBounds
+    override val tripPlanningReady: Boolean get() = planning.ready
+    override val requiresUntimedJourneySupport = true
+
+    internal fun startJourneyPlanning(enabled: () -> Boolean, onFailure: () -> Unit) = planning.start(enabled, onFailure)
+
+    override suspend fun planJourney(query: JourneyPlanQuery, budget: PlanningBudget) = planning.plan(query, budget)
 
     override suspend fun routes(locale: String, mode: String?) =
         if (mode == null || mode == TransitModeValues.Bus) catalog.routes(azryLocale(locale)) else emptyList()
@@ -77,9 +88,7 @@ internal class KutaisiAzryTransitProviderAdapter(
         val suffix = route.requirePattern(directionId).patternSuffix
         val value = feed.polylines(route.id, listOf(suffix))[suffix]?.encodedValue?.takeIf(String::isNotBlank)
             ?: invalidAzry()
-        if (value.length > 250_000 || value.any { it.code !in 63..126 }) invalidAzry()
-        val points = try { decodePolyline(value) } catch (_: IllegalArgumentException) { invalidAzry() }
-        if (points.size < 2 || points.any { it.latitude !in -90.0..90.0 || it.longitude !in -180.0..180.0 }) invalidAzry()
+        if (azryShapePoints(value) == null) invalidAzry()
         return Shape(precision = 5, value = value, updatedAt = clock.instant().toString())
     }
 
@@ -158,9 +167,18 @@ internal class KutaisiAzryTransitProviderAdapter(
         throw ProviderCapabilityUnavailable("Journey planning is not available")
 
     override fun close() {
+        planning.close()
         catalog.close()
         schedule.close()
         livePositions.close()
         feed.close()
     }
+}
+
+internal fun azryShapePoints(value: String): List<GeoPoint>? {
+    if (value.length > 250_000 || value.any { it.code !in 63..126 }) return null
+    val points = try { decodePolyline(value) } catch (_: IllegalArgumentException) { return null }
+    return points.takeIf { it.size >= 2 && it.all { point ->
+        point.latitude in -90.0..90.0 && point.longitude in -180.0..180.0
+    } }
 }

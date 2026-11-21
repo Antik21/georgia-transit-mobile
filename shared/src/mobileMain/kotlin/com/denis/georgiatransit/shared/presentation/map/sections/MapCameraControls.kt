@@ -22,6 +22,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.denis.georgiatransit.shared.presentation.map.MapZoomDirection
@@ -32,6 +33,7 @@ import com.denis.georgiatransit.shared.presentation.ui.theme.TransitShapes
 import com.denis.georgiatransit.shared.presentation.ui.theme.TransitSpacing
 import georgiatransit.shared.generated.resources.Res
 import georgiatransit.shared.generated.resources.map_plan_trip_action
+import georgiatransit.shared.generated.resources.map_planner_unavailable
 import georgiatransit.shared.generated.resources.map_zoom_in_action
 import georgiatransit.shared.generated.resources.map_zoom_out_action
 import org.jetbrains.compose.resources.stringResource
@@ -76,19 +78,26 @@ internal fun MapCameraControls(
 }
 
 @Composable
-internal fun MapPlannerLauncher(onClick: () -> Unit, modifier: Modifier = Modifier) {
+internal fun MapPlannerLauncher(available: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
+    val colors = MaterialTheme.colorScheme
+    val mutedColor = colors.onSurface.copy(alpha = 0.38f)
     MapControlButton(
         automationId = AutomationId.MapPlannerOpen,
         onClick = onClick,
         modifier = modifier,
+        statusDescription = if (available) null else stringResource(Res.string.map_planner_unavailable),
     ) {
         Row(
             modifier = Modifier.padding(horizontal = TransitSpacing.Medium, vertical = TransitSpacing.Small),
             horizontalArrangement = Arrangement.spacedBy(TransitSpacing.Small),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Icon(imageVector = JourneyPathIcon, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-            Text(stringResource(Res.string.map_plan_trip_action), style = MaterialTheme.typography.labelLarge)
+            Icon(imageVector = JourneyPathIcon, contentDescription = null, tint = if (available) colors.primary else mutedColor)
+            Text(
+                stringResource(Res.string.map_plan_trip_action),
+                style = MaterialTheme.typography.labelLarge,
+                color = if (available) colors.onSurface else mutedColor,
+            )
         }
     }
 }
@@ -118,6 +127,7 @@ private fun MapControlButton(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     label: String? = null,
+    statusDescription: String? = null,
     content: @Composable () -> Unit,
 ) {
     MapControlSurface(modifier) {
@@ -125,7 +135,10 @@ private fun MapControlButton(
             modifier = Modifier
                 .testTag(automationId)
                 .clickable(role = Role.Button, onClick = onClick)
-                .semantics { if (label != null) contentDescription = label }
+                .semantics {
+                    if (label != null) contentDescription = label
+                    if (statusDescription != null) stateDescription = statusDescription
+                }
                 .defaultMinSize(minWidth = MapControlSize, minHeight = MapControlSize),
             contentAlignment = Alignment.Center,
         ) { content() }
@@ -152,7 +165,7 @@ private val GlyphStroke = 2.dp
 @Preview
 @Composable
 private fun MapPlannerLauncherPreview() {
-    GeorgiaTransitTheme { MapPlannerLauncher(onClick = {}) }
+    GeorgiaTransitTheme { MapPlannerLauncher(available = false, onClick = {}) }
 }
 
 @Preview

@@ -1,14 +1,12 @@
-package com.denis.georgiatransit.bff.provider.batumi
+package com.denis.georgiatransit.bff.planning
 
 import com.denis.georgiatransit.bff.api.GeoPoint
 import com.denis.georgiatransit.bff.geo.greatCircleMeters
-import com.denis.georgiatransit.bff.planning.MeasuredPolyline
 import com.denis.georgiatransit.bff.planning.MeasuredPolyline.Projection
-import com.denis.georgiatransit.bff.provider.chainMeters
 
 /** Matches one ordered service run to either direction of the provider's route shape. */
-internal class BatumiRouteShape(points: List<GeoPoint>) {
-    private val closed = chainMeters(points.first(), points.last()) <= ClosedShapeToleranceMeters
+internal class TransitRouteShape(points: List<GeoPoint>) {
+    private val closed = greatCircleMeters(points.first(), points.last()) <= ClosedShapeToleranceMeters
     private val forward = Direction(points, closed)
     private val reverse = Direction(points.asReversed(), closed)
 
@@ -58,7 +56,7 @@ internal class BatumiRouteShape(points: List<GeoPoint>) {
             val first = passesByStop.indexOfFirst { it.isNotEmpty() }
             val anchors = MutableList<Projection?>(stops.size) { null }
             if (first < 0) return Match(continuousShape, lapLength, anchors, Score())
-            val windows = stops.zipWithNext { a, b -> maxOf(MinimumSearchWindowMeters, SearchWindowFactor * chainMeters(a, b)) }
+            val windows = stops.zipWithNext { a, b -> maxOf(MinimumSearchWindowMeters, SearchWindowFactor * greatCircleMeters(a, b)) }
             val best = passesByStop[first]
                 .map { start -> align(passesByStop, windows, first, start) }
                 .reduce { previous, candidate -> if (candidate.score.isBetterThan(previous.score)) candidate else previous }

@@ -96,7 +96,8 @@ class TransitBffClient(
     }
 
     suspend fun cities(): TransitLoadResult<List<TransitCity>> =
-        get<List<CityDto>>(path = listOf("v1", "cities")).map { it.map(CityDto::toDomain) }
+        get<List<CityDto>>(path = listOf("v1", "cities"), query = listOf("untimedJourneys" to "true"))
+            .map { it.map(CityDto::toDomain) }
 
     internal suspend fun routes(
         cityId: CityId,
@@ -213,7 +214,10 @@ class TransitBffClient(
         val response = try {
             httpClient.post {
                 url(configuredEndpoint.baseUrl)
-                url { appendPathSegments("v1", "cities", cityId.value, "journeys", "plan", encodeSlash = true) }
+                url {
+                    appendPathSegments("v1", "cities", cityId.value, "journeys", "plan", encodeSlash = true)
+                    parameters.append("untimedJourneys", "true")
+                }
                 contentType(ContentType.Application.Json)
                 setBody(query.toDto())
                 timeout {

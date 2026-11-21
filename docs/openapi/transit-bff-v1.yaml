@@ -46,6 +46,8 @@ paths:
   /v1/cities:
     get:
       operationId: listCities
+      parameters:
+        - {$ref: '#/components/parameters/UntimedJourneys'}
       responses:
         '200':
           description: |
@@ -363,10 +365,12 @@ paths:
         logs, caches, telemetry labels, LKG, or durable storage, and the request never states whether a
         point is the device location. Every response, including documented errors, sends
         `Cache-Control: no-store, no-cache, max-age=0`. Gated by the city's `tripPlanning`
-        capability. Times are approximate and non-official; walking geometry may be a straight line
-        (`geometryApproximate`).
+        capability. Times are approximate and non-official when available. Clients supporting
+        routes without a timetable must send `untimedJourneys=true`. Walking geometry may be a
+        straight line (`geometryApproximate`).
       parameters:
         - {$ref: '#/components/parameters/CityId'}
+        - {$ref: '#/components/parameters/UntimedJourneys'}
       requestBody:
         required: true
         content:
@@ -374,13 +378,16 @@ paths:
             schema: {$ref: '#/components/schemas/JourneyPlanRequest'}
       responses:
         '200':
-          description: Zero to six ranked journey options, the OPTIMAL one first and the rest by arrival time. An empty `items` means no option was found.
+          description: >-
+            Zero to six ranked journey options. Timed results put OPTIMAL first and rank other
+            options by arrival. Untimed transit options rank by transfers and walking distance.
+            An empty `items` means no option was found.
           headers:
             X-Request-ID: {$ref: '#/components/headers/RequestId'}
             Cache-Control: {$ref: '#/components/headers/NoStoreCacheControl'}
           content:
             application/json:
-              schema: {$ref: '#/components/schemas/JourneyPage'}
+              schema: {$ref: '#/components/schemas/JourneyPlanPage'}
               example: {items: [{id: demo:fixture:journey:blue-direct, departureAt: '2030-01-01T00:00:00Z', arrivalAt: '2030-01-01T00:21:00Z', transfers: 0, durationSeconds: 1260, walkingDistanceMeters: 520, timingQuality: LIVE, labels: [OPTIMAL, FASTEST], legs: [{routeId: demo:fixture:route:blue, directionId: demo:fixture:direction:blue-outbound, fromStopId: demo:fixture:stop:center, toStopId: demo:fixture:stop:park, departureAt: '2030-01-01T00:06:00Z', arrivalAt: '2030-01-01T00:17:00Z'}], segments: [{departureAt: '2030-01-01T00:00:00Z', arrivalAt: '2030-01-01T00:04:00Z', mode: WALK, toStopId: demo:fixture:stop:center, fromPosition: {latitude: 41.7151, longitude: 44.8271}, toPosition: {latitude: 41.7162, longitude: 44.8292}, distanceMeters: 300, geometry: 'o~a~Fg`toG}EiL', geometryApproximate: true}, {departureAt: '2030-01-01T00:06:00Z', arrivalAt: '2030-01-01T00:17:00Z', mode: TRANSIT, routeId: demo:fixture:route:blue, directionId: demo:fixture:direction:blue-outbound, fromStopId: demo:fixture:stop:center, toStopId: demo:fixture:stop:park, fromPosition: {latitude: 41.7162, longitude: 44.8292}, toPosition: {latitude: 41.7281, longitude: 44.8402}, distanceMeters: 2100, geometry: 'mebs~Fu|uoGwiAke@', geometryApproximate: false, intermediateStopCount: 5, waitSeconds: 120, waitBasis: LIVE_VEHICLE, vehicleId: demo:fixture:vehicle:blue-01}, {departureAt: '2030-01-01T00:17:00Z', arrivalAt: '2030-01-01T00:21:00Z', mode: WALK, fromStopId: demo:fixture:stop:park, fromPosition: {latitude: 41.7281, longitude: 44.8402}, toPosition: {latitude: 41.7295, longitude: 44.8421}, distanceMeters: 220, geometry: 'eocs~Fsavo`AsGyJ', geometryApproximate: true}]}], observedAt: '2030-01-01T00:00:00Z', source: CLIENT_ESTIMATE, realtime: true, stale: false}
         '400': {$ref: '#/components/responses/InvalidArgument'}
         '404': {$ref: '#/components/responses/CityNotFound'}
@@ -400,6 +407,14 @@ components:
       description: Privacy response directive. Implementations send `no-store, no-cache, max-age=0`.
       schema: {type: string, example: 'no-store, no-cache, max-age=0'}
   parameters:
+    UntimedJourneys:
+      name: untimedJourneys
+      in: query
+      required: false
+      description: >-
+        Opt into journey options with missing timing fields. A city that requires this support
+        advertises tripPlanning only to opted-in clients and returns 501 for other plan requests.
+      schema: {type: boolean, default: false}
     CityId: {name: cityId, in: path, required: true, schema: {$ref: '#/components/schemas/CityId'}}
     RouteId: {name: routeId, in: path, required: true, schema: {$ref: '#/components/schemas/RouteId'}}
     DirectionId: {name: directionId, in: path, required: true, schema: {$ref: '#/components/schemas/DirectionId'}}
@@ -638,8 +653,12 @@ components:
       enum: [TRANSIT, WALK, BICYCLE, CAR, OTHER]
     JourneySegment:
       type: object
-      description: Additive complete ordered itinerary segment. TRANSIT requires route/direction and stop IDs; other categories have no route/direction and may omit stop IDs.
-      required: [departureAt, arrivalAt, mode]
+      description: >-
+        Complete ordered itinerary segment. TRANSIT requires route/direction and stop IDs.
+        Other categories have no route/direction and may omit stop IDs. Untimed options omit
+        both timestamps; unconfirmed waits omit waitSeconds and waitBasis.
+      required: [mode]
+      dependentRequired: {departureAt: [arrivalAt], arrivalAt: [departureAt]}
       properties:
         departureAt: {$ref: '#/components/schemas/UtcTimestamp'}
         arrivalAt: {$ref: '#/components/schemas/UtcTimestamp'}
@@ -653,6 +672,8 @@ components:
           oneOf: [{$ref: '#/components/schemas/StopId'}, {type: 'null'}]
         toStopId:
           oneOf: [{$ref: '#/components/schemas/StopId'}, {type: 'null'}]
+        fromStopName: {$ref: '#/components/schemas/LocalizedText'}
+        toStopName: {$ref: '#/components/schemas/LocalizedText'}
         fromPosition: {$ref: '#/components/schemas/GeoPoint', description: Endpoint coordinate when the provider can represent the leg without inventing a stop.}
         toPosition: {$ref: '#/components/schemas/GeoPoint', description: Endpoint coordinate when the provider can represent the leg without inventing a stop.}
         distanceMeters: {type: number, minimum: 0, description: Additive. Walking or riding distance of this segment.}
@@ -687,7 +708,11 @@ components:
         locale: {type: string, enum: [ka, en, ru, uk, de, fr, ar, hi, zh]}
     Journey:
       type: object
-      required: [id, departureAt, arrivalAt, transfers, legs]
+      description: >-
+        Untimed transit options have a complete segments array and empty legacy legs.
+        They omit departureAt, arrivalAt, durationSeconds and timingQuality.
+      required: [id, transfers, legs]
+      dependentRequired: {departureAt: [arrivalAt], arrivalAt: [departureAt]}
       properties:
         id: {$ref: '#/components/schemas/PublicId'}
         departureAt: {$ref: '#/components/schemas/UtcTimestamp'}
@@ -698,7 +723,7 @@ components:
           type: array
           description: Additive complete ordered itinerary. New clients should prefer this field; absent means use legacy legs.
           items: {$ref: '#/components/schemas/JourneySegment'}
-        durationSeconds: {type: integer, minimum: 0, description: Additive. arrivalAt minus departureAt.}
+        durationSeconds: {type: integer, minimum: 0, description: arrivalAt minus departureAt when the full trip duration can be estimated.}
         walkingDistanceMeters: {type: number, minimum: 0, description: Additive. Sum of WALK segment distances.}
         timingQuality: {$ref: '#/components/schemas/JourneyTimingQuality'}
         labels: {type: array, uniqueItems: true, description: Additive. Highlight labels of this option; absent or empty means none., items: {$ref: '#/components/schemas/JourneyLabel'}}
@@ -719,6 +744,26 @@ components:
         observedAt: {$ref: '#/components/schemas/UtcTimestamp'}
         stale: {type: boolean}
     JourneyPage:
+      type: object
+      required: [items, observedAt, source, realtime, stale]
+      properties:
+        items:
+          type: array
+          items: {$ref: '#/components/schemas/TimedJourney'}
+        observedAt: {$ref: '#/components/schemas/UtcTimestamp'}
+        source: {$ref: '#/components/schemas/ArrivalSource'}
+        realtime: {type: boolean}
+        stale: {type: boolean}
+    TimedJourney:
+      allOf:
+        - {$ref: '#/components/schemas/Journey'}
+        - type: object
+          required: [departureAt, arrivalAt]
+          properties:
+            segments:
+              type: array
+              items: {type: object, required: [departureAt, arrivalAt]}
+    JourneyPlanPage:
       type: object
       required: [items, observedAt, source, realtime, stale]
       properties:

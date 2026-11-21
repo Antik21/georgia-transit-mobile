@@ -71,6 +71,9 @@ interface CityTransitProviderAdapter {
     /** Runtime narrowing of the static tripPlanning capability, for example while live data is stale. */
     val tripPlanningReady: Boolean get() = true
 
+    /** This planner can respond with journeys whose times are absent. */
+    val requiresUntimedJourneySupport: Boolean get() = false
+
     /** Additive realtime metadata seam; older adapters retain schedule-only journey behavior. */
     suspend fun journeyPage(query: JourneyQuery): RealtimeJourneys = RealtimeJourneys(
         items = journeys(query),

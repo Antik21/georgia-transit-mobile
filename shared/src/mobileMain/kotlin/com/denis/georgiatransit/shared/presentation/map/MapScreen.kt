@@ -121,15 +121,27 @@ fun MapScreen(viewModel: MapViewModel, handleNavigation: suspend (NavigationEffe
         onCommandConsumed = { platformCommand = null },
         onEvent = { viewModel.dispatchAction(Action.LocationEventReceived(it)) },
     )
-    Content(state = state, toastNotice = toastNotice, onAction = viewModel::dispatchAction)
+    Content(
+        state = state,
+        toastNotice = toastNotice,
+        onPlannerUnavailable = {
+            toastNotice = MapToastNotice((toastNotice?.id ?: 0) + 1, MapToastKind.PlannerUnavailable)
+        },
+        onAction = viewModel::dispatchAction,
+    )
 }
 
 @Composable
-private fun Content(state: ViewState, toastNotice: MapToastNotice?, onAction: (Action) -> Unit) {
+private fun Content(
+    state: ViewState,
+    toastNotice: MapToastNotice?,
+    onPlannerUnavailable: () -> Unit,
+    onAction: (Action) -> Unit,
+) {
     val planner = state.journeyPlanner
     val knownStopNames = rememberJourneyStopNames(planner, state.nearbyStops)
     val mapPick = planner.mapPick
-    val canOpenPlanner = state.journeyPlanningAvailable && !planner.isOpen && mapPick == null
+    val showPlannerLauncher = !planner.isOpen && mapPick == null
     var settingsOpen by rememberSaveable(state.canChangeCity) { mutableStateOf(false) }
     val permission = state.location.permission
     var permissionSheetOpen by remember(permission) { mutableStateOf(false) }
@@ -225,9 +237,12 @@ private fun Content(state: ViewState, toastNotice: MapToastNotice?, onAction: (A
                         }
                     },
                     onZoomClick = { onAction(Action.ZoomClicked(it)) },
-                    onOpenPlanner = if (canOpenPlanner) {
-                        { onAction(JourneyPlannerAction.OpenPlanner) }
-                    } else null,
+                    journeyPlanningAvailable = state.journeyPlanningAvailable,
+                    onOpenPlanner = when {
+                        !showPlannerLauncher -> null
+                        !state.journeyPlanningAvailable -> onPlannerUnavailable
+                        else -> ({ onAction(JourneyPlannerAction.OpenPlanner) })
+                    },
                     onCameraMovingChanged = { moving ->
                         if (moving) pointPicker.motionStarted() else pointPicker.motionSettled()
                     },
@@ -474,6 +489,7 @@ private fun Preview() {
         Content(
             state = ViewState(cityName = "Tbilisi", routesAvailable = true),
             toastNotice = null,
+            onPlannerUnavailable = {},
             onAction = {},
         )
     }

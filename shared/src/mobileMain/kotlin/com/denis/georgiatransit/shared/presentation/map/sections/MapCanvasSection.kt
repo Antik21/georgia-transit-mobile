@@ -72,6 +72,7 @@ internal fun MapCanvas(
     locationActionEnabled: Boolean,
     onMyLocationClick: () -> Unit,
     onZoomClick: (MapZoomDirection) -> Unit,
+    journeyPlanningAvailable: Boolean,
     onOpenPlanner: (() -> Unit)?,
     onPlannerLauncherPositioned: (Rect) -> Unit,
     onMapEvent: (MapPlatformEvent) -> Unit,
@@ -167,6 +168,7 @@ internal fun MapCanvas(
         )
         if (onOpenPlanner != null) {
             MapPlannerLauncher(
+                available = journeyPlanningAvailable,
                 onClick = onOpenPlanner,
                 modifier = Modifier.align(Alignment.BottomStart).then(controlInsets)
                     .padding(end = MapControlSize + TransitSpacing.Small)

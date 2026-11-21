@@ -1,12 +1,13 @@
 package com.denis.georgiatransit.bff.planning
 
 import com.denis.georgiatransit.bff.api.GeoPoint
+import com.denis.georgiatransit.bff.api.LocalizedText
 import com.denis.georgiatransit.bff.geo.greatCircleMeters
 import kotlin.math.PI
 import kotlin.math.cos
 import kotlin.math.floor
 
-class TransitStop(val id: String, val position: GeoPoint)
+class TransitStop(val id: String, val position: GeoPoint, val name: LocalizedText? = null)
 
 /**
  * One rideable stop sequence. A ride may board at any position and alight at any later one, so a
@@ -27,6 +28,12 @@ class TransitPattern(
     }
 
     val size: Int get() = stops.size
+
+    private val cumulativeMeters = DoubleArray(stops.size).apply {
+        segmentMeters.forEachIndexed { index, meters -> this[index + 1] = this[index] + meters }
+    }
+
+    internal fun rideMeters(board: Int, alight: Int): Double = cumulativeMeters[alight] - cumulativeMeters[board]
 }
 
 data class PatternPosition(val pattern: Int, val position: Int)
