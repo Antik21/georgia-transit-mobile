@@ -186,6 +186,7 @@
     <string name="map_planner_minutes">%1$d Min.</string>
     <string name="map_planner_stops">Haltestellen: %1$d</string>
     <string name="map_planner_wait_estimate">ca. %1$d Min. warten</string>
+    <string name="map_planner_wait_unknown">Wartezeit unbekannt</string>
     <string name="map_planner_timing_live">Busse in Echtzeit</string>
     <string name="map_planner_timing_mixed">Teilweise in Echtzeit</string>
     <string name="map_planner_timing_estimated">Geschätzt</string>

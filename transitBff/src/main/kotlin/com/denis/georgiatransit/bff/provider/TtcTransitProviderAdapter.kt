@@ -696,8 +696,8 @@ private suspend fun TtcPlanItinerary.toNormalizedJourney(
                     directionId = requireNotNull(segment.directionId),
                     fromStopId = requireNotNull(segment.fromStopId),
                     toStopId = requireNotNull(segment.toStopId),
-                    departureAt = segment.departureAt,
-                    arrivalAt = segment.arrivalAt,
+                    departureAt = checkNotNull(segment.departureAt),
+                    arrivalAt = checkNotNull(segment.arrivalAt),
                 )
             },
             segments = segments,

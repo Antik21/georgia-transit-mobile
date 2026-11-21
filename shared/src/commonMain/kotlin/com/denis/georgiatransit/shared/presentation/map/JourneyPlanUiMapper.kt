@@ -7,6 +7,7 @@ import com.denis.georgiatransit.shared.domain.model.JourneyTimingQuality
 import com.denis.georgiatransit.shared.domain.model.JourneyWaitBasis
 import com.denis.georgiatransit.shared.domain.model.TransitJourney
 import com.denis.georgiatransit.shared.domain.model.TransitJourneySegment
+import com.denis.georgiatransit.shared.domain.model.TransitLocale
 import com.denis.georgiatransit.shared.domain.model.TransitRoute
 import com.denis.georgiatransit.shared.domain.model.WalkingEstimate
 import com.denis.georgiatransit.shared.presentation.location.LocationPermissionState
@@ -41,12 +42,13 @@ internal sealed interface JourneyLocationGate {
 
 /** Turns a plan page into display-ready options; routes come from the city catalogue for colours. */
 internal object JourneyPlanUiMapper {
-    fun options(page: JourneyPage, routes: List<TransitRoute>): List<JourneyOptionUi> =
-        page.items.sortedBy { journey ->
-            journey.durationSeconds?.toLong() ?: (journey.arrivalAt - journey.departureAt).inWholeSeconds
-        }.map { journey -> option(journey, routes) }
+    fun options(page: JourneyPage, routes: List<TransitRoute>, locale: TransitLocale = TransitLocale.English): List<JourneyOptionUi> {
+        val journeys = if (page.items.any { it.arrivalAt == null }) page.items
+        else page.items.sortedBy { it.durationSeconds?.toLong() ?: secondsBetween(it.departureAt, it.arrivalAt) }
+        return journeys.map { journey -> option(journey, routes, locale) }
+    }
 
-    private fun option(journey: TransitJourney, routes: List<TransitRoute>): JourneyOptionUi {
+    private fun option(journey: TransitJourney, routes: List<TransitRoute>, locale: TransitLocale): JourneyOptionUi {
         val segments = journey.segments
         val transitIndexes = segments.indices.filter { segments[it].mode == JourneySegmentMode.Transit }
         return JourneyOptionUi(
@@ -58,7 +60,7 @@ internal object JourneyPlanUiMapper {
             timing = journey.timingQuality?.toUi() ?: segments.derivedTiming(),
             legs = segments.mapIndexedNotNull { index, segment ->
                 if (segment.mode == JourneySegmentMode.Transit) {
-                    ride(segment, routes)
+                    ride(segment, routes, locale)
                 } else {
                     walk(segment, walkRole(index, transitIndexes))
                 }
@@ -78,17 +80,17 @@ internal object JourneyPlanUiMapper {
         val sameStop = segment.fromStopId != null && segment.fromStopId == segment.toStopId
         val minutes = minutesBetween(segment.departureAt, segment.arrivalAt)
         if (role == JourneyWalkRole.Transfer && sameStop) return null
-        if (segment.distanceMeters == 0.0 && minutes == 0) return null
+        if (segment.distanceMeters == 0.0 && (minutes == null || minutes == 0)) return null
         val meters = segment.distanceMeters?.let(WalkingEstimate::meters)
         return JourneyLegUi.Walk(
             role = role,
             meters = meters,
-            minutes = meters?.let(WalkingEstimate::minutes) ?: minutes,
+            minutes = meters?.let(WalkingEstimate::minutes) ?: minutes ?: return null,
             isApproximate = segment.geometryApproximate != false,
         )
     }
 
-    private fun ride(segment: TransitJourneySegment, routes: List<TransitRoute>) = JourneyLegUi.Ride(
+    private fun ride(segment: TransitJourneySegment, routes: List<TransitRoute>, locale: TransitLocale) = JourneyLegUi.Ride(
         route = badge(segment, routes),
         stopCount = segment.intermediateStopCount?.plus(1),
         rideMinutes = minutesBetween(segment.departureAt, segment.arrivalAt),
@@ -96,6 +98,8 @@ internal object JourneyPlanUiMapper {
         waitIsLive = segment.waitBasis == JourneyWaitBasis.LiveVehicle,
         fromStopId = segment.fromStopId,
         toStopId = segment.toStopId,
+        fromStopName = segment.fromStopName?.forLocale(locale),
+        toStopName = segment.toStopName?.forLocale(locale),
     )
 
     private fun badge(segment: TransitJourneySegment, routes: List<TransitRoute>): JourneyRouteBadgeUi {
@@ -142,6 +146,7 @@ internal object JourneyPlanUiMapper {
         filter { it.mode == JourneySegmentMode.Walk }.map { it.distanceMeters ?: return null }.sum()
 
     private fun List<TransitJourneySegment>.derivedTiming(): JourneyTimingUi? {
+        if (any { it.departureAt == null || it.arrivalAt == null }) return null
         val waits = filter { it.mode == JourneySegmentMode.Transit }.map { it.waitBasis == JourneyWaitBasis.LiveVehicle }
         return when {
             waits.isEmpty() -> null
@@ -157,8 +162,11 @@ internal object JourneyPlanUiMapper {
         JourneyTimingQuality.Estimated -> JourneyTimingUi.Estimated
     }
 
-    private fun minutesBetween(start: Instant, end: Instant): Int =
-        minutesCeil((end - start).inWholeSeconds.coerceAtLeast(0).toInt())
+    private fun secondsBetween(start: Instant?, end: Instant?): Long? =
+        if (start != null && end != null) (end - start).inWholeSeconds else null
+
+    private fun minutesBetween(start: Instant?, end: Instant?): Int? =
+        secondsBetween(start, end)?.let { minutesCeil(it.coerceIn(0, Int.MAX_VALUE.toLong()).toInt()) }
 
     private fun minutesCeil(seconds: Int): Int = ceil(seconds.coerceAtLeast(0) / 60.0).toInt()
 

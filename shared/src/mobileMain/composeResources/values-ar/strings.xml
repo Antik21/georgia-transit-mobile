@@ -186,6 +186,7 @@
     <string name="map_planner_minutes">%1$d د</string>
     <string name="map_planner_stops">عدد المحطات: %1$d</string>
     <string name="map_planner_wait_estimate">الانتظار ≈ %1$d د</string>
+    <string name="map_planner_wait_unknown">وقت الانتظار غير معروف</string>
     <string name="map_planner_timing_live">الحافلات في الوقت الفعلي</string>
     <string name="map_planner_timing_mixed">بيانات مباشرة جزئيًا</string>
     <string name="map_planner_timing_estimated">تقديري</string>

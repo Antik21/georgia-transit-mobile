@@ -52,6 +52,7 @@ internal fun MapArea(
     onMapEvent: (MapPlatformEvent) -> Unit,
     onMyLocationClick: () -> Unit,
     onZoomClick: (MapZoomDirection) -> Unit,
+    journeyPlanningAvailable: Boolean,
     onOpenPlanner: (() -> Unit)?,
     onCameraMovingChanged: (Boolean) -> Unit,
     onPointResolved: (MapPlatformEvent.MapPointResolved) -> Unit,
@@ -81,6 +82,7 @@ internal fun MapArea(
                 locationActionEnabled = locationActionEnabled(location.permission) && !location.isLocating,
                 onMyLocationClick = onMyLocationClick,
                 onZoomClick = onZoomClick,
+                journeyPlanningAvailable = journeyPlanningAvailable,
                 onOpenPlanner = onOpenPlanner.takeUnless { cardOverlapsLauncher },
                 onPlannerLauncherPositioned = { launcherBounds = it },
                 onMapEvent = { event ->

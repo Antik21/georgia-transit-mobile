@@ -24,6 +24,7 @@ import com.denis.georgiatransit.shared.presentation.ui.theme.TransitSpacing
 import georgiatransit.shared.generated.resources.Res
 import georgiatransit.shared.generated.resources.location_failure_unavailable
 import georgiatransit.shared.generated.resources.map_connection_error
+import georgiatransit.shared.generated.resources.map_planner_unavailable
 import kotlinx.coroutines.delay
 import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.stringResource
@@ -33,6 +34,7 @@ internal data class MapToastNotice(val id: Int, val kind: MapToastKind)
 internal enum class MapToastKind(val message: StringResource, val automationId: String) {
     ConnectionError(Res.string.map_connection_error, AutomationId.MapConnectionError),
     LocationError(Res.string.location_failure_unavailable, AutomationId.MapLocationError),
+    PlannerUnavailable(Res.string.map_planner_unavailable, AutomationId.MapPlannerUnavailable),
 }
 
 @Composable

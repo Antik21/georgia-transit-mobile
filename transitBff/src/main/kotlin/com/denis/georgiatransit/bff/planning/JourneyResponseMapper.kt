@@ -1,5 +1,6 @@
 package com.denis.georgiatransit.bff.planning
 
+import com.denis.georgiatransit.bff.api.GeoPoint
 import com.denis.georgiatransit.bff.api.Journey
 import com.denis.georgiatransit.bff.api.JourneyLabel
 import com.denis.georgiatransit.bff.api.JourneyLeg
@@ -43,42 +44,51 @@ internal class JourneyResponseMapper(
         )
     }
 
-    private fun walkSegment(leg: WalkLeg) = JourneySegment(
-        departureAt = timestamp(leg.departure),
-        arrivalAt = timestamp(leg.arrival),
+    private fun walkSegment(leg: WalkLeg) =
+        walkSegment(leg.fromStop, leg.toStop, leg.fromPoint, leg.toPoint, leg.meters)
+            .copy(departureAt = timestamp(leg.departure), arrivalAt = timestamp(leg.arrival))
+
+    fun walkSegment(fromStop: Int?, toStop: Int?, from: GeoPoint, to: GeoPoint, meters: Double) = JourneySegment(
         mode = JourneySegmentMode.WALK,
-        fromStopId = leg.fromStop?.let { graph.stops[it].id },
-        toStopId = leg.toStop?.let { graph.stops[it].id },
-        fromPosition = leg.fromPoint,
-        toPosition = leg.toPoint,
-        distanceMeters = leg.meters.roundToLong().toDouble(),
-        geometry = encodePolyline(listOf(leg.fromPoint, leg.toPoint)),
+        fromStopId = fromStop?.let { graph.stops[it].id },
+        toStopId = toStop?.let { graph.stops[it].id },
+        fromPosition = from,
+        toPosition = to,
+        distanceMeters = meters.roundToLong().toDouble(),
+        geometry = encodePolyline(listOf(from, to)),
         geometryApproximate = true,
     )
 
-    private fun rideSegment(leg: RideLeg): JourneySegment {
-        val pattern = graph.patterns[leg.pattern]
-        val positions = leg.boardPosition until leg.alightPosition
+    private fun rideSegment(leg: RideLeg) = rideSegment(leg.pattern, leg.boardPosition, leg.alightPosition).copy(
+        departureAt = timestamp(leg.departure),
+        arrivalAt = timestamp(leg.arrival),
+        waitSeconds = leg.waitSeconds,
+        waitBasis = leg.waitBasis,
+        vehicleId = leg.vehicleId,
+    )
+
+    fun rideSegment(patternIndex: Int, board: Int, alight: Int): JourneySegment {
+        val pattern = graph.patterns[patternIndex]
+        val positions = board until alight
+        val from = graph.stops[pattern.stops[board]]
+        val to = graph.stops[pattern.stops[alight]]
         val geometry = positions.flatMap { position ->
-            pattern.segmentGeometry[position].let { if (position == leg.boardPosition) it else it.drop(1) }
+            pattern.segmentGeometry[position].let { if (position == board) it else it.drop(1) }
         }
         return JourneySegment(
-            departureAt = timestamp(leg.departure),
-            arrivalAt = timestamp(leg.arrival),
             mode = JourneySegmentMode.TRANSIT,
             routeId = pattern.routeId,
             directionId = pattern.directionId,
-            fromStopId = graph.stops[pattern.stops[leg.boardPosition]].id,
-            toStopId = graph.stops[pattern.stops[leg.alightPosition]].id,
-            fromPosition = graph.stops[pattern.stops[leg.boardPosition]].position,
-            toPosition = graph.stops[pattern.stops[leg.alightPosition]].position,
+            fromStopId = from.id,
+            toStopId = to.id,
+            fromPosition = from.position,
+            toPosition = to.position,
+            fromStopName = from.name,
+            toStopName = to.name,
             distanceMeters = positions.sumOf { pattern.segmentMeters[it] }.roundToLong().toDouble(),
             geometry = encodePolyline(geometry),
             geometryApproximate = positions.any { pattern.segmentApproximate[it] },
-            intermediateStopCount = leg.alightPosition - leg.boardPosition - 1,
-            waitSeconds = leg.waitSeconds,
-            waitBasis = leg.waitBasis,
-            vehicleId = leg.vehicleId,
+            intermediateStopCount = alight - board - 1,
         )
     }
 
@@ -87,8 +97,8 @@ internal class JourneyResponseMapper(
         directionId = requireNotNull(segment.directionId),
         fromStopId = requireNotNull(segment.fromStopId),
         toStopId = requireNotNull(segment.toStopId),
-        departureAt = segment.departureAt,
-        arrivalAt = segment.arrivalAt,
+        departureAt = requireNotNull(segment.departureAt),
+        arrivalAt = requireNotNull(segment.arrivalAt),
     )
 
     /** Derived only from public stop/route IDs and times, never from the request coordinates. */
@@ -103,9 +113,25 @@ internal class JourneyResponseMapper(
                 append('|').append(ride.departure)
             }
         }
+        val kind = if (itinerary.isWalkOnly) "walk" else "plan"
+        return journeyId(signature, kind)
+    }
+
+    fun untimedJourney(segments: List<JourneySegment>): Journey {
+        val rides = segments.filter { it.mode == JourneySegmentMode.TRANSIT }
+        val signature = rides.joinToString("|") { "${it.routeId}|${it.directionId}|${it.fromStopId}|${it.toStopId}" }
+        return Journey(
+            id = journeyId(signature, "untimed"),
+            transfers = rides.size - 1,
+            legs = emptyList(),
+            segments = segments,
+            walkingDistanceMeters = segments.filter { it.mode == JourneySegmentMode.WALK }.sumOf { checkNotNull(it.distanceMeters) },
+        )
+    }
+
+    private fun journeyId(signature: String, kind: String): String {
         val digest = MessageDigest.getInstance("SHA-256").digest(signature.toByteArray(StandardCharsets.UTF_8))
         val token = digest.take(8).joinToString("") { "%02x".format(it) }
-        val kind = if (itinerary.isWalkOnly) "walk" else "plan"
         return formatPublicId(cityId, providerId, PublicEntityType.Journey, "$kind-$token")
     }
 

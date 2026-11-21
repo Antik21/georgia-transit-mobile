@@ -44,10 +44,12 @@ class JourneyPlanService(
 ) {
     private val permits = Semaphore(maximumConcurrentPlans)
 
-    suspend fun plan(cityId: String, query: JourneyPlanQuery): JourneyPage {
+    suspend fun plan(cityId: String, query: JourneyPlanQuery, allowUntimedJourneys: Boolean = false): JourneyPage {
         val effectiveCity = capabilitySnapshots.current().city(cityId)
         val adapter = effectiveCity.adapter
-        if (!effectiveCity.city.capabilities.tripPlanning || !adapter.tripPlanningReady) {
+        if (!effectiveCity.city.capabilities.tripPlanning || !adapter.tripPlanningReady ||
+            (!allowUntimedJourneys && adapter.requiresUntimedJourneySupport)
+        ) {
             throw CapabilityNotAvailable("Trip planning is not available for city '$cityId'")
         }
         val bounds = adapter.serviceBounds ?: throw CapabilityNotAvailable("Trip planning is not available for city '$cityId'")
@@ -56,7 +58,7 @@ class JourneyPlanService(
         }
         if (!permits.tryAcquire()) throw RequestRateLimited("Journey planning is at capacity", retryAfterSeconds = 1)
         try {
-            return planWithinBudget(cityId, effectiveCity.adapter, query)
+            return planWithinBudget(cityId, adapter, query, allowUntimedJourneys && adapter.requiresUntimedJourneySupport)
         } finally {
             permits.release()
         }
@@ -66,6 +68,7 @@ class JourneyPlanService(
         cityId: String,
         adapter: CityTransitProviderAdapter,
         query: JourneyPlanQuery,
+        allowUntimedJourneys: Boolean,
     ): JourneyPage {
         val labels = ProviderTelemetryLabels(
             city = cityId,
@@ -91,7 +94,7 @@ class JourneyPlanService(
                 realtime = result.realtime,
                 stale = result.stale,
             )
-            JourneyPlanResponseValidator.page(cityId, page)
+            JourneyPlanResponseValidator.page(cityId, page, allowUntimed = allowUntimedJourneys)
             record(labels, ProviderOutcome.SUCCESS, startedAt)
             observability?.recordDataResult(labels, result.observedAt, page.stale, page.items.size, page.realtime, probe = false)
             return page

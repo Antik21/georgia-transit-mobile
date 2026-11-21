@@ -126,7 +126,7 @@ class BatumiJourneyPlanningTest {
         assertEquals(fixture.stopId("A6"), fastest.transitSegments.single().fromStopId)
         val nearest = page.items.single { it.transitSegments.singleOrNull()?.routeId == fixture.routeId("5") }
         assertEquals(fixture.stopId("E6"), nearest.transitSegments.single().fromStopId)
-        assertTrue(fastest.arrivalAt < nearest.arrivalAt)
+        assertTrue(assertNotNull(fastest.arrivalAt) < assertNotNull(nearest.arrivalAt))
         assertTrue(assertNotNull(nearest.walkingDistanceMeters) < assertNotNull(fastest.walkingDistanceMeters))
         assertEquals(listOf(JourneyLabel.LEAST_WALKING), nearest.labels)
     }

@@ -186,6 +186,7 @@
     <string name="map_planner_minutes">%1$d წთ</string>
     <string name="map_planner_stops">%1$d გაჩ.</string>
     <string name="map_planner_wait_estimate">ლოდინი ≈ %1$d წთ</string>
+    <string name="map_planner_wait_unknown">ლოდინის დრო უცნობია</string>
     <string name="map_planner_timing_live">ავტობუსები ონლაინ</string>
     <string name="map_planner_timing_mixed">ნაწილობრივ ონლაინ</string>
     <string name="map_planner_timing_estimated">შეფასება</string>

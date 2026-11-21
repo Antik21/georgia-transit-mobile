@@ -224,6 +224,12 @@ fun Application.transitBffModule(config: BffConfig = BffConfig.fromEnvironment()
             },
         )
     }
+    adapters.filterIsInstance<KutaisiAzryTransitProviderAdapter>().forEach { adapter ->
+        adapter.startJourneyPlanning(
+            enabled = { capabilityControl.current().cities[KnownCityIds.Kutaisi]?.city?.capabilities?.tripPlanning == true },
+            onFailure = { environment.log.warn("Kutaisi journey planning could not refresh the network") },
+        )
+    }
     val service = TransitService(
         capabilitySnapshots = capabilityControl,
         directoryCacheTtlSeconds = config.directoryCacheTtlSeconds,
@@ -314,7 +320,7 @@ fun Application.transitBffModule(config: BffConfig = BffConfig.fromEnvironment()
         route("/v1/cities") {
             get {
                 call.markHttpOperation(HttpOperation.CITIES)
-                val cities = service.cities()
+                val cities = service.cities(allowUntimedJourneys = call.request.queryParameters["untimedJourneys"] == "true")
                 call.respond(mapProxy?.withCityCoverage(cities) ?: cities)
             }
 
@@ -429,7 +435,7 @@ fun Application.transitBffModule(config: BffConfig = BffConfig.fromEnvironment()
                     call.disallowCaching()
                     val cityId = call.pathCityId()
                     val query = call.receivePrivateBody<JourneyPlanRequest>("journey plan request").toQuery(Instant.now())
-                    call.respond(journeyPlanService.plan(cityId, query))
+                    call.respond(journeyPlanService.plan(cityId, query, call.request.queryParameters["untimedJourneys"] == "true"))
                 }
             }
         }

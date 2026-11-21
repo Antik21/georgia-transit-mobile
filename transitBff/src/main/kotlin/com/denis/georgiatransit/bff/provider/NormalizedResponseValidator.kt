@@ -164,7 +164,7 @@ object NormalizedResponseValidator {
         }
     }
 
-    fun journeyPage(cityId: String, page: JourneyPage) {
+    fun journeyPage(cityId: String, page: JourneyPage, allowUntimed: Boolean = false) {
         timestamp(page.observedAt)
         when (page.source) {
             ArrivalSource.AGGREGATOR_REALTIME, ArrivalSource.SCHEDULE ->
@@ -173,7 +173,7 @@ object NormalizedResponseValidator {
             ArrivalSource.CLIENT_ESTIMATE -> Unit
             ArrivalSource.OFFICIAL_REALTIME -> invalid()
         }
-        page.items.forEach { journey(cityId, it) }
+        page.items.forEach { journey(cityId, it, allowUntimed && page.source == ArrivalSource.CLIENT_ESTIMATE) }
     }
 
     private fun attribution(link: AttributionLink) {
@@ -249,12 +249,21 @@ object NormalizedResponseValidator {
         arrivalSource(arrival.source)
     }
 
-    private fun journey(cityId: String, journey: Journey) {
+    private fun journey(cityId: String, journey: Journey, allowUntimed: Boolean) {
         val journeyId = entityId(journey.id, cityId, PublicEntityType.Journey)
+        if (journey.transfers !in 0..6) invalid()
+        if (journey.segments.isEmpty() && journey.legs.isEmpty()) invalid()
+        if (journey.departureAt == null || journey.arrivalAt == null) {
+            if (!allowUntimed || journey.departureAt != null || journey.arrivalAt != null || journey.legs.isNotEmpty()) invalid()
+            journey.segments.forEach { segment ->
+                if (segment.departureAt != null || segment.arrivalAt != null) invalid()
+                journeySegment(cityId, journeyId.provider, segment)
+            }
+            return
+        }
         val departure = timestamp(journey.departureAt)
         val arrival = timestamp(journey.arrivalAt)
-        if (journey.transfers !in 0..6 || arrival.isBefore(departure)) invalid()
-        if (journey.segments.isEmpty() && journey.legs.isEmpty()) invalid()
+        if (arrival.isBefore(departure)) invalid()
         var previousArrival = departure
         if (journey.segments.isEmpty()) {
             journey.legs.forEach { leg ->
@@ -264,7 +273,9 @@ object NormalizedResponseValidator {
             }
         } else {
             journey.segments.forEach { segment ->
-                val (segmentDeparture, segmentArrival) = journeySegment(cityId, journeyId.provider, segment)
+                journeySegment(cityId, journeyId.provider, segment)
+                val segmentDeparture = timestamp(segment.departureAt ?: invalid())
+                val segmentArrival = timestamp(segment.arrivalAt ?: invalid())
                 validateJourneyItemTimes(segmentDeparture, segmentArrival, departure, arrival, previousArrival)
                 previousArrival = segmentArrival
             }
@@ -303,10 +314,12 @@ object NormalizedResponseValidator {
         return timestamp(leg.departureAt) to timestamp(leg.arrivalAt)
     }
 
-    private fun journeySegment(cityId: String, provider: String, segment: JourneySegment): Pair<Instant, Instant> {
+    private fun journeySegment(cityId: String, provider: String, segment: JourneySegment) {
         if ((segment.routeId == null) != (segment.directionId == null)) invalid()
         segment.fromPosition?.let(::point)
         segment.toPosition?.let(::point)
+        segment.fromStopName?.let(::localized)
+        segment.toStopName?.let(::localized)
         if (segment.mode == JourneySegmentMode.TRANSIT) {
             val route = entityId(segment.routeId ?: invalid(), cityId, PublicEntityType.Route)
             if (route.provider != provider) invalid()
@@ -322,7 +335,6 @@ object NormalizedResponseValidator {
             segment.fromStopId?.let { if (entityId(it, cityId, PublicEntityType.Stop).provider != provider) invalid() }
             segment.toStopId?.let { if (entityId(it, cityId, PublicEntityType.Stop).provider != provider) invalid() }
         }
-        return timestamp(segment.departureAt) to timestamp(segment.arrivalAt)
     }
 
     private fun JourneySegment.toLegacyLeg(): JourneyLeg {
@@ -332,8 +344,8 @@ object NormalizedResponseValidator {
             directionId = directionId ?: invalid(),
             fromStopId = fromStopId ?: invalid(),
             toStopId = toStopId ?: invalid(),
-            departureAt = departureAt,
-            arrivalAt = arrivalAt,
+            departureAt = departureAt ?: invalid(),
+            arrivalAt = arrivalAt ?: invalid(),
         )
     }
 

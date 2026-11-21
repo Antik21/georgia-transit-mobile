@@ -231,8 +231,8 @@ enum class JourneySegmentMode {
 /** Additive complete itinerary representation; non-transit segments have no route/direction. */
 @Serializable
 data class JourneySegment(
-    val departureAt: String,
-    val arrivalAt: String,
+    val departureAt: String? = null,
+    val arrivalAt: String? = null,
     val mode: JourneySegmentMode,
     val routeId: String? = null,
     val directionId: String? = null,
@@ -248,6 +248,8 @@ data class JourneySegment(
     val waitSeconds: Long? = null,
     val waitBasis: JourneyWaitBasis? = null,
     val vehicleId: String? = null,
+    val fromStopName: LocalizedText? = null,
+    val toStopName: LocalizedText? = null,
 )
 
 @Serializable
@@ -275,8 +277,8 @@ enum class JourneyTimingQuality {
 @Serializable
 data class Journey(
     val id: String,
-    val departureAt: String,
-    val arrivalAt: String,
+    val departureAt: String? = null,
+    val arrivalAt: String? = null,
     val transfers: Int,
     /** Legacy transit-only legs. New clients should use [segments] for full order. */
     val legs: List<JourneyLeg>,

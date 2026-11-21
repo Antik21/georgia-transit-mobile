@@ -186,6 +186,7 @@
     <string name="map_planner_minutes">%1$d 分钟</string>
     <string name="map_planner_stops">%1$d 站</string>
     <string name="map_planner_wait_estimate">等候约 %1$d 分钟</string>
+    <string name="map_planner_wait_unknown">等候时间未知</string>
     <string name="map_planner_timing_live">实时公交</string>
     <string name="map_planner_timing_mixed">部分实时</string>
     <string name="map_planner_timing_estimated">估算</string>

@@ -152,26 +152,26 @@ internal fun JourneyPageDto.toDomain(): JourneyPage {
         stale = stale,
     )
 }
-internal fun JourneyDto.toDomain(): TransitJourney {
-    val journeyDeparture = departureAt.toUtcInstant("journey departureAt")
-    val journeyArrival = arrivalAt.toUtcInstant("journey arrivalAt")
-    require(journeyArrival >= journeyDeparture) { "journey times are invalid" }
+internal fun JourneyDto.toDomain(allowUntimed: Boolean = false): TransitJourney {
+    val journeyDeparture = departureAt?.toUtcInstant("journey departureAt")
+    val journeyArrival = arrivalAt?.toUtcInstant("journey arrivalAt")
     val mappedLegs = legs.map(JourneyLegDto::toDomain)
     val mappedSegments = segments.map(JourneySegmentDto::toDomain)
     require(mappedLegs.isNotEmpty() || mappedSegments.isNotEmpty()) { "journey has no legs or segments" }
     val orderedSegments = mappedSegments.ifEmpty { mappedLegs.map(TransitJourneyLeg::toTransitSegment) }
-    var previousArrival = journeyDeparture
-    orderedSegments.forEach { segment ->
-        require(segment.departureAt >= journeyDeparture && segment.arrivalAt <= journeyArrival) {
-            "journey segment is outside journey bounds"
+    if (journeyDeparture != null && journeyArrival != null) {
+        require(journeyArrival >= journeyDeparture) { "journey times are invalid" }
+        requireTimedSegments(orderedSegments, journeyDeparture, journeyArrival)
+        if (mappedSegments.isNotEmpty()) {
+            require(mappedLegs == mappedSegments.filter { it.mode == JourneySegmentMode.Transit }.map { it.toLegacyLeg() }) {
+                "legacy journey legs do not match transit segments"
+            }
         }
-        require(segment.arrivalAt >= segment.departureAt) { "journey segment times are invalid" }
-        require(segment.departureAt >= previousArrival) { "journey segments are not continuous" }
-        previousArrival = segment.arrivalAt
-    }
-    if (mappedSegments.isNotEmpty()) {
-        require(mappedLegs == mappedSegments.filter { it.mode == JourneySegmentMode.Transit }.map { it.toLegacyLeg() }) {
-            "legacy journey legs do not match transit segments"
+    } else {
+        require(allowUntimed && departureAt == null && arrivalAt == null && legs.isEmpty() &&
+            durationSeconds == null && timingQuality == null && segments.isNotEmpty() &&
+            segments.all { it.departureAt == null && it.arrivalAt == null }) {
+            "journey without a timetable has inconsistent times"
         }
     }
     return TransitJourney(
@@ -186,6 +186,16 @@ internal fun JourneyDto.toDomain(): TransitJourney {
         timingQuality = timingQuality.toTimingQualityOrNull(),
         labels = labels.mapNotNull { it.toJourneyLabelOrNull() }.distinct(),
     )
+}
+
+private fun requireTimedSegments(segments: List<TransitJourneySegment>, departure: Instant, arrival: Instant) {
+    var previousArrival = departure
+    segments.forEach { segment ->
+        val start = requireNotNull(segment.departureAt) { "journey segment departure is missing" }
+        val end = requireNotNull(segment.arrivalAt) { "journey segment arrival is missing" }
+        require(start >= previousArrival && end >= start && end <= arrival) { "journey segment times are invalid" }
+        previousArrival = end
+    }
 }
 
 internal fun JourneyLegDto.toDomain(): TransitJourneyLeg = TransitJourneyLeg(
@@ -208,8 +218,8 @@ internal fun JourneySegmentDto.toDomain(): TransitJourneySegment {
         require(routeId == null && directionId == null) { "non-transit journey segment has route metadata" }
     }
     return TransitJourneySegment(
-        departureAt = departureAt.toUtcInstant("segment departureAt"),
-        arrivalAt = arrivalAt.toUtcInstant("segment arrivalAt"),
+        departureAt = departureAt?.toUtcInstant("segment departureAt"),
+        arrivalAt = arrivalAt?.toUtcInstant("segment arrivalAt"),
         mode = normalizedMode,
         routeId = routeId?.let { RouteId(it.requirePublicId("route id")) },
         directionId = directionId?.let { DirectionId(it.requirePublicId("direction id")) },
@@ -224,6 +234,8 @@ internal fun JourneySegmentDto.toDomain(): TransitJourneySegment {
         waitSeconds = waitSeconds?.takeIf { it >= 0 },
         waitBasis = waitBasis.toWaitBasisOrNull(),
         vehicleId = vehicleId?.takeIf { it.length <= MaxPublicIdLength && PublicIdPattern.matches(it) }?.let(::VehicleId),
+        fromStopName = fromStopName?.toDomain(),
+        toStopName = toStopName?.toDomain(),
     )
 }
 
@@ -252,8 +264,8 @@ private fun TransitJourneySegment.toLegacyLeg(): TransitJourneyLeg {
         directionId = requireNotNull(directionId) { "transit segment directionId is missing" },
         fromStopId = requireNotNull(fromStopId) { "transit segment fromStopId is missing" },
         toStopId = requireNotNull(toStopId) { "transit segment toStopId is missing" },
-        departureAt = departureAt,
-        arrivalAt = arrivalAt,
+        departureAt = requireNotNull(departureAt),
+        arrivalAt = requireNotNull(arrivalAt),
     )
 }
 

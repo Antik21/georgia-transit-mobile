@@ -246,7 +246,7 @@ export interface PlannerEndpoint {
 
 export interface PlannerLeg {
   readonly kind: string;
-  readonly minutes: number;
+  readonly minutes: number | null | undefined;
   readonly role: string | null | undefined;
   readonly meters: number | null | undefined;
   readonly approximate: boolean;
@@ -258,6 +258,8 @@ export interface PlannerLeg {
   readonly waitMinutes: number | null | undefined;
   readonly waitLive: boolean;
   readonly routeMode: string | null | undefined;
+  readonly fromStopName: string | null | undefined;
+  readonly toStopName: string | null | undefined;
 }
 
 export interface PlannerLabel {
@@ -279,8 +281,8 @@ export interface PlannerBus {
 
 export interface PlannerOption {
   readonly id: string;
-  readonly totalMinutes: number;
-  readonly arrivalEpochMillis: number;
+  readonly totalMinutes: number | null | undefined;
+  readonly arrivalEpochMillis: number | null | undefined;
   readonly transfers: number;
   readonly walkingMeters: number | null | undefined;
   readonly timing: string | null | undefined;

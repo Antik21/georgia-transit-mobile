@@ -194,8 +194,8 @@ internal enum class JourneySegmentModeDto {
 
 @Serializable
 internal data class JourneySegmentDto(
-    val departureAt: String,
-    val arrivalAt: String,
+    val departureAt: String? = null,
+    val arrivalAt: String? = null,
     val mode: JourneySegmentModeDto,
     val routeId: String? = null,
     val directionId: String? = null,
@@ -211,13 +211,15 @@ internal data class JourneySegmentDto(
     // Additive enums stay strings so a newer BFF value degrades to "unknown" instead of failing the page.
     val waitBasis: String? = null,
     val vehicleId: String? = null,
+    val fromStopName: LocalizedTextDto? = null,
+    val toStopName: LocalizedTextDto? = null,
 )
 
 @Serializable
 internal data class JourneyDto(
     val id: String,
-    val departureAt: String,
-    val arrivalAt: String,
+    val departureAt: String? = null,
+    val arrivalAt: String? = null,
     val transfers: Int,
     val legs: List<JourneyLegDto>,
     val segments: List<JourneySegmentDto> = emptyList(),

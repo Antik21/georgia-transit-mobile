@@ -19,13 +19,13 @@ import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlin.time.Duration.Companion.hours
 
-private const val Provider = "azry"
+internal const val AzryProviderId = "azry"
 private val RawId = Regex("[A-Za-z0-9][A-Za-z0-9:_-]{0,71}")
 private val AzryColor = Regex("[0-9a-fA-F]{6}")
 private val Encoder = Base64.getUrlEncoder().withoutPadding()
 
 internal fun azryPublicId(type: PublicEntityType, rawId: String): String =
-    formatPublicId(KnownCityIds.Kutaisi, Provider, type, azrySuffix(rawId))
+    formatPublicId(KnownCityIds.Kutaisi, AzryProviderId, type, azrySuffix(rawId))
 
 private fun azrySuffix(value: String): String {
     if (!RawId.matches(value)) invalidAzry()
@@ -33,7 +33,7 @@ private fun azrySuffix(value: String): String {
 }
 
 internal fun azryDirectionId(route: String, pattern: String): String =
-    formatPublicId(KnownCityIds.Kutaisi, Provider, PublicEntityType.Direction, "${azrySuffix(route)}~${azrySuffix(pattern)}")
+    formatPublicId(KnownCityIds.Kutaisi, AzryProviderId, PublicEntityType.Direction, "${azrySuffix(route)}~${azrySuffix(pattern)}")
 
 internal fun azryLocale(locale: String): String = if (locale == "ka") "ka" else "en"
 

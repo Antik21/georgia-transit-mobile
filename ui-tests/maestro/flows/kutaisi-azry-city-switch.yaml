@@ -19,6 +19,12 @@ appId: com.denis.georgiatransit.sandbox
     timeout: 20000
 - assertNotVisible:
     id: map.attribution
+- tapOn:
+    id: map.planner.open
+- assertVisible:
+    id: map.planner.unavailable
+- assertNotVisible:
+    id: map.planner.panel
 - longPressOn:
     id: map.nearby-stop
 - assertNotVisible:

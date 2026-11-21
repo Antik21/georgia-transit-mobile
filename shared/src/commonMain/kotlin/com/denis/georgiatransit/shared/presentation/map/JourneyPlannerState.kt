@@ -65,12 +65,12 @@ sealed interface JourneyPlannerStatus {
     @Immutable data class LocationNeeded(val side: JourneyPlanSide, val reason: JourneyLocationReason) : JourneyPlannerStatus
 }
 
-/** Every time is approximate: the planner is a `CLIENT_ESTIMATE`, never an official timetable. */
+/** Times are approximate when available. */
 @Immutable
 data class JourneyOptionUi(
     val id: JourneyId,
-    val totalMinutes: Int,
-    val arrivalAt: Instant,
+    val totalMinutes: Int?,
+    val arrivalAt: Instant?,
     val transfers: Int,
     val walkingMeters: Int?,
     val timing: JourneyTimingUi?,
@@ -124,15 +124,17 @@ sealed interface JourneyLegUi {
         val isApproximate: Boolean,
     ) : JourneyLegUi
 
-    /** [waitIsLive] is true only for a projected live vehicle; anything else is an estimate. */
+    /** A null [waitMinutes] means the wait is unknown. */
     @Immutable data class Ride(
         val route: JourneyRouteBadgeUi,
         val stopCount: Int?,
-        val rideMinutes: Int,
+        val rideMinutes: Int?,
         val waitMinutes: Int?,
         val waitIsLive: Boolean,
         val fromStopId: StopId? = null,
         val toStopId: StopId? = null,
+        val fromStopName: String? = null,
+        val toStopName: String? = null,
     ) : JourneyLegUi
 }
 

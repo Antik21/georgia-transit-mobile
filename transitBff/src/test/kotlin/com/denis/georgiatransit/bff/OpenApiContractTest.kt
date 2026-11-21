@@ -97,7 +97,7 @@ class OpenApiContractTest {
         )
         val planSuccess = plan.map("responses").map("200")
         assertEquals(
-            "#/components/schemas/JourneyPage",
+            "#/components/schemas/JourneyPlanPage",
             planSuccess.map("content").map("application/json").map("schema")["\$ref"],
         )
         assertEquals("#/components/headers/RequestId", planSuccess.map("headers").map("X-Request-ID")["\$ref"])
@@ -184,12 +184,17 @@ class OpenApiContractTest {
         val journey = schemas.map("Journey")
         val page = schemas.map("JourneyPage")
 
-        assertEquals(listOf("id", "departureAt", "arrivalAt", "transfers", "legs"), journey["required"])
+        assertEquals(listOf("id", "transfers", "legs"), journey["required"])
         assertTrue(journey.map("properties").containsKey("segments"))
         assertEquals(
-            listOf("departureAt", "arrivalAt", "mode"),
+            listOf("routeId", "directionId", "fromStopId", "toStopId", "departureAt", "arrivalAt"),
+            schemas.map("JourneyLeg")["required"],
+        )
+        assertEquals(
+            listOf("mode"),
             schemas.map("JourneySegment")["required"],
         )
+        assertEquals("#/components/schemas/TimedJourney", page.map("properties").map("items").map("items")["\$ref"])
         assertEquals(
             listOf("TRANSIT", "WALK", "BICYCLE", "CAR", "OTHER"),
             schemas.map("JourneySegmentMode")["enum"],
@@ -245,6 +250,8 @@ class OpenApiContractTest {
             waitSeconds = 60,
             waitBasis = JourneyWaitBasis.LIVE_VEHICLE,
             vehicleId = "demo:fixture:vehicle:blue-01",
+            fromStopName = text,
+            toStopName = text,
         )
         val journey = Journey(
             id = "demo:fixture:journey:j1",

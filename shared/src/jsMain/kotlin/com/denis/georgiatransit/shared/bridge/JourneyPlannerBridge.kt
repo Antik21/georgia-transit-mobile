@@ -36,7 +36,7 @@ class PlannerEndpoint(val kind: String, val point: PlannerPoint?)
 @JsExport
 class PlannerLeg(
     val kind: String,
-    val minutes: Int,
+    val minutes: Int?,
     val role: String? = null,
     val meters: Int? = null,
     val approximate: Boolean = false,
@@ -48,6 +48,8 @@ class PlannerLeg(
     val waitMinutes: Int? = null,
     val waitLive: Boolean = false,
     val routeMode: String? = null,
+    val fromStopName: String? = null,
+    val toStopName: String? = null,
 )
 
 /** A highlight label: [key] picks the localized text, the colours come from the shared palette. */
@@ -70,8 +72,8 @@ class PlannerBus(
 @JsExport
 class PlannerOption(
     val id: String,
-    val totalMinutes: Int,
-    val arrivalEpochMillis: Double,
+    val totalMinutes: Int?,
+    val arrivalEpochMillis: Double?,
     val transfers: Int,
     val walkingMeters: Int?,
     val timing: String?,
@@ -239,7 +241,7 @@ private fun JourneyPlannerUi.toJs(route: PlannerRoute): PlannerState {
 private fun JourneyOptionUi.toJs(selected: Boolean, buses: JourneyBusesUi?) = PlannerOption(
     id = id.value,
     totalMinutes = totalMinutes,
-    arrivalEpochMillis = arrivalAt.toEpochMilliseconds().toDouble(),
+    arrivalEpochMillis = arrivalAt?.toEpochMilliseconds()?.toDouble(),
     transfers = transfers,
     walkingMeters = walkingMeters,
     timing = timing?.name?.replaceFirstChar { it.lowercase() },
@@ -255,6 +257,7 @@ private fun JourneyOptionUi.toJs(selected: Boolean, buses: JourneyBusesUi?) = Pl
                 routeLabel = leg.route.label, routeColor = leg.route.backgroundArgb.toCssColor(),
                 routeTextColor = leg.route.textArgb.toCssColor(), stopCount = leg.stopCount,
                 waitMinutes = leg.waitMinutes, waitLive = leg.waitIsLive, routeMode = leg.route.mode.name.lowercase(),
+                fromStopName = leg.fromStopName, toStopName = leg.toStopName,
             )
         }
     }.toTypedArray(),

@@ -152,7 +152,7 @@ internal object JourneyPlannerReducer {
         if (previous != Status.Loading && previous !is Status.Results) return finish(state, context)
         val next = when (result) {
             is TransitLoadResult.Data -> {
-                val options = JourneyPlanUiMapper.options(result.value, context.routes)
+                val options = JourneyPlanUiMapper.options(result.value, context.routes, context.locale)
                 if (options.isEmpty()) Status.Empty else Status.Results(
                     options = options,
                     selectedId = (previous as? Status.Results)?.keptSelection(options) ?: options.first().id,

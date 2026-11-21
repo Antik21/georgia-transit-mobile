@@ -87,8 +87,10 @@ internal class JourneyPlannerWorkflow(
         when {
             city == null || !context.visible || !context.available -> cancel()
             step.query != null -> launch(scope, context, step.query, step.currentPoint) { onEvent(JourneyPlannerEvent.Planned(it)) }
-            status is JourneyPlannerStatus.Results && !status.isRefreshing ->
-                scheduleRefresh(scope) { onEvent(JourneyPlannerEvent.RefreshDue) }
+            status is JourneyPlannerStatus.Results && !status.isRefreshing -> {
+                if (status.options.none { it.arrivalAt == null }) scheduleRefresh(scope) { onEvent(JourneyPlannerEvent.RefreshDue) }
+                else refreshJob?.cancel()
+            }
             status != JourneyPlannerStatus.Loading && status !is JourneyPlannerStatus.Results -> cancel()
         }
         buses.sync(scope, busKey(step.state, context)) { onEvent(JourneyPlannerEvent.Buses(it)) }

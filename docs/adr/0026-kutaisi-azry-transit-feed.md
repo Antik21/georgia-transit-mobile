@@ -2,7 +2,8 @@
 
 - Status: Accepted for implementation
 - Date: 2026-11-19
-- Extends [ADR 0024](0024-kutaisi-osm-stop-catalog.md).
+- Extends [ADR 0024](0024-kutaisi-osm-stop-catalog.md). The planning decision is
+  superseded by [ADR 0028](0028-kutaisi-untimed-journeys.md).
 
 ## Decision
 
