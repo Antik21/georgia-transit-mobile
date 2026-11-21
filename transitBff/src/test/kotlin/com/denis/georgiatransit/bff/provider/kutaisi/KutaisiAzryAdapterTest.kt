@@ -27,7 +27,9 @@ class KutaisiAzryAdapterTest {
             val reverse = route.directions.last().id
             assertEquals(azryDirectionId(feed.line.id, "1:01"), primary)
             assertEquals(listOf(route.id), adapter.directionStops(route.id, primary, "en").first().routeIds)
-            assertEquals(clock.instant(), adapter.vehicles(route.id, null).observedAt)
+            val snapshot = adapter.vehicles(route.id, null)
+            assertEquals(clock.instant(), snapshot.observedAt)
+            assertEquals(48, snapshot.maxAgeSeconds)
             val bus = adapter.vehicles(route.id, primary).items.single()
             assertNull(bus.observedAt)
             assertNull(bus.ageSeconds)

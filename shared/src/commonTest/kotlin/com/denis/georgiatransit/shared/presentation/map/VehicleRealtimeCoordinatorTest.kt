@@ -91,6 +91,27 @@ class VehicleRealtimeCoordinatorTest {
     }
 
     @Test
+    fun cachedVehicleSnapshotKeepsLiveTracksAndTheirOriginalDeadline() {
+        val first = applied(page(listOf(vehicle("bus", observedAt = null))))
+        val snapshot = page(
+            items = listOf(vehicle("bus", point = metersNorth(100), observedAt = null)),
+            observedAt = now + seconds(16),
+        )
+        val moved = applied(snapshot, state = first, monotonicNowMillis = 16_000, receivedAt = now + seconds(16))
+
+        val repeated = applied(snapshot, state = moved, monotonicNowMillis = 24_000, receivedAt = now + seconds(24))
+
+        assertEquals(moved, repeated)
+        assertEquals(VehicleRoutePhase.Live, repeated.routePhases[routeA])
+        assertEquals(now + seconds(46), repeated.tracks.single().expiresAt)
+        assertTrue(VehicleRealtimeReducer.expire(repeated, now + seconds(46)).tracks.isEmpty())
+
+        val stale = applied(snapshot.copy(stale = true), state = repeated, receivedAt = now + seconds(24))
+        assertEquals(VehicleRoutePhase.Stale, stale.routePhases[routeA])
+        assertTrue(stale.tracks.single().isStale)
+    }
+
+    @Test
     fun directTravelBearingUsesMovementAndSurvivesAShortGpsSetback() {
         val initial = applied(page(items = listOf(vehicle("bus"))))
         val firstObservation = now + seconds(5)
@@ -371,12 +392,13 @@ class VehicleRealtimeCoordinatorTest {
         page: VehiclePage,
         state: VehicleRealtimeState = VehicleRealtimeState(),
         monotonicNowMillis: Long = 0,
+        receivedAt: Instant = now,
     ): VehiclePageReduction = VehicleRealtimeReducer.acceptPage(
         state = state,
         requestedRouteId = routeA,
         page = page,
         freshness = TransitFreshness.Network,
-        wallReceivedAt = now,
+        wallReceivedAt = receivedAt,
         monotonicNowMillis = monotonicNowMillis,
     )
 
@@ -384,7 +406,8 @@ class VehicleRealtimeCoordinatorTest {
         page: VehiclePage,
         state: VehicleRealtimeState = VehicleRealtimeState(),
         monotonicNowMillis: Long = 0,
-    ): VehicleRealtimeState = assertIs<VehiclePageReduction.Applied>(reduction(page, state, monotonicNowMillis)).state
+        receivedAt: Instant = now,
+    ): VehicleRealtimeState = assertIs<VehiclePageReduction.Applied>(reduction(page, state, monotonicNowMillis, receivedAt)).state
 
     private fun assertPausedAndCleared(reduction: VehiclePageReduction) {
         val rejected = assertIs<VehiclePageReduction.Rejected>(reduction).state
