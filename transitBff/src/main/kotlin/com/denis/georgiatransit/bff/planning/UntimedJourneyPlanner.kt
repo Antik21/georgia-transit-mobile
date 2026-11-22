@@ -25,37 +25,31 @@ internal class UntimedJourneyPlanner(
             val walk = (directMeters * PlannerParameters.WalkDetourFactor).takeIf {
                 it <= PlannerParameters.WalkOnlyMaximumMeters
             }
-            val transit = select(search(query, budget), directMeters, walk).map { itinerary(query, it) }
+            val transit = select(search(query, detourLimit(directMeters), budget), walk).map { itinerary(query, it) }
             if (walk != null) transit + walkOnly(query) else transit
         }
         return RealtimeJourneys(options, ArrivalSource.CLIENT_ESTIMATE, realtime = false, observedAt, stale)
     }
 
-    private fun search(query: JourneyPlanQuery, budget: PlanningBudget): List<Path> {
+    private fun search(query: JourneyPlanQuery, maxDistance: Double, budget: PlanningBudget): Collection<Path> {
         val egress = graph.stopsWithin(query.to, PlannerParameters.AccessRadiusMeters)
             .associate { it.stop to it.straightMeters * PlannerParameters.WalkDetourFactor }
         if (egress.isEmpty()) return emptyList()
         var boardable = graph.stopsWithin(query.from, PlannerParameters.AccessRadiusMeters).associate { access ->
             access.stop to listOf(Boarding(Path(), access.straightMeters * PlannerParameters.WalkDetourFactor))
         }
-        val results = mutableListOf<Path>()
+        val completed = mutableMapOf<List<String>, Path>()
         for (round in 0..query.maxTransfers) {
             if (boardable.isEmpty()) break
-            val arrivals = scan(boardable, budget)
-            for ((stop, paths) in arrivals) {
-                val walk = egress[stop] ?: continue
-                for (path in paths) results += path.copy(walkMeters = path.walkMeters + walk)
-            }
-            if (round < query.maxTransfers) boardable = transfers(arrivals, budget)
+            val arrivals = scan(boardable, egress, completed, maxDistance, budget)
+            if (round < query.maxTransfers) boardable = transfers(arrivals, maxDistance, budget)
         }
-        return results
+        return completed.values
     }
 
-    private fun select(paths: List<Path>, directMeters: Double, walkMeters: Double?): List<Path> {
+    private fun select(paths: Collection<Path>, walkMeters: Double?): List<Path> {
         val walkScore = walkMeters?.times(WalkingWeight) ?: Double.POSITIVE_INFINITY
-        val candidates = paths.filter { path ->
-            path.rideMeters + path.walkMeters <= detourLimit(directMeters) && path.score < walkScore
-        }
+        val candidates = paths.filter { it.score < walkScore }
         val bestScore = candidates.minOfOrNull(Path::score) ?: return emptyList()
         val limit = bestScore + max(MinimumAlternativeSlack, bestScore * AlternativeSlackFraction)
         val bestByRideCount = candidates.groupBy { it.rides.size }
@@ -65,12 +59,17 @@ internal class UntimedJourneyPlanner(
                 path.score <= limit && bestByRideCount.none { (rides, score) -> rides < path.rides.size && score <= path.score }
             }
             .sortedWith(pathOrder)
-            .distinctBy(Path::routeIds)
             .take(MaximumTransitOptions)
             .toList()
     }
 
-    private fun scan(boardable: Map<Int, List<Boarding>>, budget: PlanningBudget): Map<Int, List<Path>> {
+    private fun scan(
+        boardable: Map<Int, List<Boarding>>,
+        egress: Map<Int, Double>,
+        completed: MutableMap<List<String>, Path>,
+        maxDistance: Double,
+        budget: PlanningBudget,
+    ): Map<Int, List<Path>> {
         val arrivals = mutableMapOf<Int, MutableList<Path>>()
         for ((stop, boardings) in boardable) {
             budget.checkpoint()
@@ -89,6 +88,7 @@ internal class UntimedJourneyPlanner(
                     val progress = greatCircleMeters(boardingPoint, graph.stops[target].position)
                     if (rideMeters > detourLimit(progress)) continue
                     for ((boarding, routes) in eligible) {
+                        if (boarding.distanceMeters + rideMeters > maxDistance) continue
                         val (path, walk) = boarding
                         val ride = Ride(index, board, alight, walk)
                         val candidate = Path(
@@ -97,6 +97,13 @@ internal class UntimedJourneyPlanner(
                             path.walkMeters + walk,
                             path.rideMeters + rideMeters,
                         )
+                        // Test the complete trip before dropping labels used for transfer search.
+                        val lastWalk = egress[target]
+                        if (lastWalk != null && candidate.distanceMeters + lastWalk <= maxDistance) {
+                            val finished = candidate.copy(walkMeters = candidate.walkMeters + lastWalk)
+                            val previous = completed[routes]
+                            if (previous == null || pathOrder.compare(finished, previous) < 0) completed[routes] = finished
+                        }
                         keepBest(arrivals.getOrPut(target, ::mutableListOf), candidate)
                     }
                 }
@@ -105,7 +112,11 @@ internal class UntimedJourneyPlanner(
         return arrivals
     }
 
-    private fun transfers(arrivals: Map<Int, List<Path>>, budget: PlanningBudget): Map<Int, List<Boarding>> {
+    private fun transfers(
+        arrivals: Map<Int, List<Path>>,
+        maxDistance: Double,
+        budget: PlanningBudget,
+    ): Map<Int, List<Boarding>> {
         val result = mutableMapOf<Int, MutableList<Boarding>>()
         for ((stop, paths) in arrivals) {
             budget.checkpoint()
@@ -118,18 +129,29 @@ internal class UntimedJourneyPlanner(
             }
         }
         return result.mapValues { (_, candidates) ->
-            candidates.sortedBy { it.path.score + it.walkMeters * WalkingWeight }
-                .distinctBy { it.path.routeIds }
+            val shortestByRouteSequence = mutableMapOf<List<String>, Double>()
+            candidates.asSequence()
+                .filter { it.distanceMeters <= maxDistance }
+                .sortedWith(compareBy(Boarding::score, Boarding::distanceMeters))
+                .filter { candidate ->
+                    val routes = candidate.path.routeIds
+                    val shortest = shortestByRouteSequence[routes]
+                    if (shortest != null && shortest <= candidate.distanceMeters) {
+                        false
+                    } else {
+                        shortestByRouteSequence[routes] = candidate.distanceMeters
+                        true
+                    }
+                }
                 .take(PathsPerStop)
+                .toList()
         }
     }
 
     private fun keepBest(paths: MutableList<Path>, candidate: Path) {
-        val existing = paths.indexOfFirst { it.routeIds == candidate.routeIds }
-        if (existing >= 0) {
-            if (pathOrder.compare(paths[existing], candidate) <= 0) return
-            paths.removeAt(existing)
-        }
+        // A path with a better score but more metres may leave too little room for another ride.
+        if (paths.any { it.dominates(candidate) }) return
+        paths.removeAll { candidate.dominates(it) }
         if (paths.size == PathsPerStop && pathOrder.compare(paths.last(), candidate) <= 0) return
         paths += candidate
         paths.sortWith(pathOrder)
@@ -167,11 +189,19 @@ internal class UntimedJourneyPlanner(
         val walkMeters: Double = 0.0,
         val rideMeters: Double = 0.0,
     ) {
+        val distanceMeters: Double get() = rideMeters + walkMeters
+
         // Distance-based ranking for a network without reliable ride or wait times.
         val score: Double get() = rideMeters + walkMeters * WalkingWeight +
             (rides.size - 1).coerceAtLeast(0) * TransferPenaltyMeters
+
+        fun dominates(other: Path): Boolean =
+            routeIds == other.routeIds && distanceMeters <= other.distanceMeters && score <= other.score
     }
-    private data class Boarding(val path: Path, val walkMeters: Double)
+    private data class Boarding(val path: Path, val walkMeters: Double) {
+        val distanceMeters: Double get() = path.distanceMeters + walkMeters
+        val score: Double get() = path.score + walkMeters * WalkingWeight
+    }
 
     private companion object {
         const val PathsPerStop = 6
