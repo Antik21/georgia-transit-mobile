@@ -33,6 +33,7 @@ import com.denis.georgiatransit.bff.planning.GeoBounds
 import com.denis.georgiatransit.bff.planning.JourneyPlanQuery
 import com.denis.georgiatransit.bff.planning.PlanningBudget
 import com.denis.georgiatransit.bff.provider.batumi.BatumiJourneyPlanning
+import com.denis.georgiatransit.bff.provider.batumi.BatumiRouteNames
 import com.denis.georgiatransit.bff.provider.batumi.BatumiStopNames
 import com.denis.georgiatransit.bff.provider.batumi.BatumiServiceBounds
 import io.ktor.client.HttpClient
@@ -190,10 +191,10 @@ internal class BatumiThetaTransitProviderAdapter(
     }
 
     override suspend fun routes(locale: String, mode: String?): List<Route> =
-        if (mode == null || mode == TransitModeValues.Bus) catalog().routes else emptyList()
+        if (mode == null || mode == TransitModeValues.Bus) catalog().routes.map(BatumiRouteNames::apply) else emptyList()
 
     override suspend fun route(routeId: String, locale: String): Route =
-        catalog().routes.singleOrNull { it.id == routeId } ?: throw ProviderRouteNotFound("The requested route was not found")
+        BatumiRouteNames.apply(catalog().route(routeId))
 
     override suspend fun directionStops(routeId: String, directionId: String, locale: String): List<Stop> {
         val snapshot = catalog()
