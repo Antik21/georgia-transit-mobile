@@ -488,27 +488,29 @@ try {
   await waitFor('Second city requests its own nearby stops', () => bffRequests.includes(`/v1/cities/${otherCityId}/stops/nearby`));
   await waitFor('An empty area is reported on the map, not in a list', `${visible(testId('map-content-status'))} && ${panelCollapsed}`);
 
+  const plannerStarts = () => analyticsRequests.filter((event) => event.journeyPlanning);
   await tap(openPlanner);
   await waitFor('The map launcher opens an empty planner and gives it the map controls',
     `${visible(testId('planner-panel'))} && !${visible(openPlanner)} && !${visible(openRoutes)}
     && ${visible(testId('planner-pick-origin'))} && !${visible(testId('planner-pick-destination'))}
     && document.querySelector('${testId('planner-find')}')?.disabled === true`);
+  await waitFor('Opening the planner from the launcher records one start', () => plannerStarts().length === 1);
+  assert.equal(plannerStarts()[0].journeyPlanning.source, 'map_button');
   await tap(testId('planner-close'));
   await waitFor('Closing the planner restores the map launcher and routes', `${visible(openPlanner)} && ${visible(openRoutes)}`);
 
   const planner = plannerSmoke({ send, evaluate, waitFor, tap, visible, testId, mapContainsColor, analyzeMap, bffRequests });
-  const plannerStarts = () => analyticsRequests.filter((event) => event.journeyPlanning);
   await planner.pointToPoint(() => evaluate('window.__telegramSmoke.backHandler(); true'));
-  await waitFor('Opening the planner from a long press records one start', () => plannerStarts().length === 1);
-  assert.equal(plannerStarts()[0].journeyPlanning.source, 'long_press');
-  assert.deepEqual(Object.keys(plannerStarts()[0].journeyPlanning).sort(), ['eventId', 'source']);
+  await waitFor('Opening the planner from a long press records another start', () => plannerStarts().length === 2);
+  assert.equal(plannerStarts()[1].journeyPlanning.source, 'long_press');
+  assert.deepEqual(Object.keys(plannerStarts()[1].journeyPlanning).sort(), ['eventId', 'source']);
   await planner.beforeStyleLoads();
   await planner.duringStyleSwap();
-  await waitFor('Both planner launches after a page reload are recorded', () => plannerStarts().length === 3);
+  await waitFor('Both planner launches after a page reload are recorded', () => plannerStarts().length === 4);
   await planner.unavailable();
-  await waitFor('Reopening the planner in the same session records another start', () => plannerStarts().length === 4);
-  assert.equal(plannerStarts()[3].sessionId, plannerStarts()[2].sessionId);
-  assert.equal(new Set(plannerStarts().map((event) => event.journeyPlanning.eventId)).size, 4);
+  await waitFor('Reopening the planner in the same session records another start', () => plannerStarts().length === 5);
+  assert.equal(plannerStarts()[4].sessionId, plannerStarts()[3].sessionId);
+  assert.equal(new Set(plannerStarts().map((event) => event.journeyPlanning.eventId)).size, 5);
 
   const locationButton = testId('my-location');
   const permissionIs = (value) => `document.querySelector('${locationButton}')?.dataset.permission === '${value}'`;
