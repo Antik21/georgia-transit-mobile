@@ -1,9 +1,8 @@
 # Geo Transit landing page
 
 Geo Transit’s static landing page covers Batumi, Kutaisi and Zugdidi. New visitors see English by
-default. The language selector saves the selected language. Use `?lang=en`, `ka`, `ru`,
-`zh-Hans`, `fr` or `de` to share a localized page. Light and dark themes follow the system until
-changed with the header button.
+default. The selector saves the chosen language and opens its shareable page. Existing `?lang=`
+links are supported. Light and dark themes follow the system until changed with the header button.
 
 ## Run locally
 
@@ -23,6 +22,13 @@ is `null`, the page shows a localized link placeholder. The web and Telegram lin
 
 The footer button opens [privacy.html](privacy.html) in the selected language. The direct policy
 URL defaults to English and can be used in store listings after the site is deployed.
+
+## Search indexing
+
+The localized HTML pages, `robots.txt`, and `sitemap.xml` are generated alongside the English
+landing page so Render can serve them as static files. After editing the landing page HTML or
+translations, run `node tools/build-landing-seo.mjs` from the repository root with Node.js 22 or
+later. Run it with `--check` to verify the checked-in output.
 
 ## Screenshots
 

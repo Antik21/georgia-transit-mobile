@@ -11,6 +11,11 @@ const storage = {
   get(key) { try { return localStorage.getItem(key); } catch { return null; } },
   set(key, value) { try { localStorage.setItem(key, value); } catch {} },
 };
+const pageLanguage = document.documentElement.lang;
+const localizedPaths = new Map(
+  [...document.querySelectorAll('link[rel="alternate"][hreflang]')]
+    .map(link => [link.hreflang, new URL(link.href).pathname]),
+);
 
 function supportedLanguage(tag) {
   const language = tag?.toLowerCase().split("-")[0];
@@ -20,9 +25,8 @@ function supportedLanguage(tag) {
 
 function pickLanguage() {
   const fromUrl = new URLSearchParams(location.search).get("lang");
-  return supportedLanguage(fromUrl)
-    ?? supportedLanguage(storage.get("gt-landing-lang"))
-    ?? "en";
+  const preferred = pageLanguage === "en" ? supportedLanguage(storage.get("gt-landing-lang")) : null;
+  return supportedLanguage(fromUrl) ?? preferred ?? pageLanguage;
 }
 
 const languageSelect = document.querySelector("#language");
@@ -66,9 +70,13 @@ languageSelect.addEventListener("change", () => {
   const language = languageSelect.value;
   storage.set("gt-landing-lang", language);
   const url = new URL(location.href);
-  url.searchParams.set("lang", language);
-  history.replaceState(history.state, "", url);
-  applyLanguage(language);
+  url.pathname = localizedPaths.get(language);
+  url.searchParams.delete("lang");
+  if (url.href === location.href) {
+    applyLanguage(language);
+  } else {
+    location.assign(url);
+  }
 });
 
 document.querySelector(".theme-toggle").addEventListener("click", () => {
