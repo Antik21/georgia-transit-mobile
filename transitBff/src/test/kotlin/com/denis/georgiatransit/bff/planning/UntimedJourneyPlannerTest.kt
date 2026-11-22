@@ -58,6 +58,36 @@ class UntimedJourneyPlannerTest {
         assertEquals("test:fixture:route:direct", plan.items.single().segments.single().routeId)
     }
 
+    @Test
+    fun `a lower scored boarding cannot displace one that fits the distance limit`() {
+        val earlierBoarding = point(-100)
+        val laterBoarding = point(-600)
+        val alighting = point(2_200)
+        val plan = planner(
+            mapOf("bus" to listOf(earlierBoarding, point(-1_130), laterBoarding, point(800, 1_100), alighting)),
+        ).planBetween(point(0), point(2_000))
+
+        val ride = plan.items.single().segments.single { it.mode == JourneySegmentMode.TRANSIT }
+        assertEquals(laterBoarding, ride.fromPosition)
+    }
+
+    @Test
+    fun `a shorter first ride can make a transfer fit the distance limit`() {
+        val earlierBoarding = point(-200)
+        val laterBoarding = point(-700)
+        val change = point(2_000)
+        val destination = point(3_400)
+        val plan = planner(
+            mapOf(
+                "first" to listOf(earlierBoarding, point(-1_250), laterBoarding, point(650, 1_400), change),
+                "second" to listOf(change, point(2_700, 1_600), destination),
+            ),
+        ).planBetween(point(0), destination)
+
+        val rides = plan.items.single().segments.filter { it.mode == JourneySegmentMode.TRANSIT }
+        assertEquals(listOf(laterBoarding, change), rides.map { it.fromPosition })
+    }
+
     private fun planner(routes: Map<String, List<GeoPoint>>): UntimedJourneyPlanner {
         val points = routes.values.flatten().distinct()
         val index = points.withIndex().associate { it.value to it.index }
