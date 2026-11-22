@@ -3,12 +3,13 @@ package com.denis.georgiatransit.shared.presentation.routes.sections
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.defaultMinSize
-import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.selection.selectable
@@ -22,8 +23,14 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.unit.dp
 import com.denis.georgiatransit.shared.domain.model.RouteId
+import com.denis.georgiatransit.shared.presentation.map.sections.CheckIcon
 import com.denis.georgiatransit.shared.presentation.routes.RouteItemUiModel
 import com.denis.georgiatransit.shared.presentation.ui.automation.AutomationId
 import com.denis.georgiatransit.shared.presentation.ui.theme.TransitShapes
@@ -32,6 +39,8 @@ import com.denis.georgiatransit.shared.presentation.ui.contrastSafeRouteTextColo
 import georgiatransit.shared.generated.resources.Res
 import georgiatransit.shared.generated.resources.route_history
 import georgiatransit.shared.generated.resources.routes_recent
+import georgiatransit.shared.generated.resources.routes_row_selected
+import georgiatransit.shared.generated.resources.routes_row_unselected
 import org.jetbrains.compose.resources.painterResource
 import org.jetbrains.compose.resources.stringResource
 
@@ -44,13 +53,8 @@ internal fun RecentRoutesSection(
     modifier: Modifier = Modifier,
 ) {
     if (routes.isEmpty()) return
-    Row(
-        modifier = modifier,
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(TransitSpacing.Small),
-    ) {
+    Column(modifier = modifier.fillMaxWidth()) {
         Row(
-            modifier = Modifier.widthIn(max = 140.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(TransitSpacing.ExtraSmall),
         ) {
@@ -62,12 +66,13 @@ internal fun RecentRoutesSection(
             )
             Text(
                 stringResource(Res.string.routes_recent),
+                modifier = Modifier.semantics { heading() },
                 style = MaterialTheme.typography.titleMedium,
                 color = MaterialTheme.colorScheme.onBackground,
             )
         }
         LazyRow(
-            modifier = Modifier.weight(1f),
+            modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(TransitSpacing.ExtraSmall),
         ) {
             items(routes, key = { it.id.value }) { route ->
@@ -90,6 +95,10 @@ private fun RecentRouteChip(
     onClick: () -> Unit,
 ) {
     val enabled = selected || !selectionLimitReached
+    val description = routeSelectionDescription(route, enabled)
+    val selectionState = stringResource(
+        if (selected) Res.string.routes_row_selected else Res.string.routes_row_unselected,
+    )
     val colors = MaterialTheme.colorScheme
     val containerColor = when {
         selected -> Color(route.colorArgb)
@@ -103,7 +112,7 @@ private fun RecentRouteChip(
     }
 
     Box(
-        modifier = Modifier.heightIn(min = 48.dp)
+        modifier = Modifier.sizeIn(minWidth = 48.dp, minHeight = 48.dp)
             .testTag(AutomationId.RoutesRecentOption)
             .clip(TransitShapes.Full)
             .selectable(
@@ -113,17 +122,29 @@ private fun RecentRouteChip(
                 enabled = enabled,
                 role = Role.Checkbox,
                 onClick = onClick,
-            ),
+            )
+            .semantics(mergeDescendants = true) {
+                contentDescription = description
+                stateDescription = selectionState
+            },
         contentAlignment = Alignment.Center,
     ) {
-        Box(
+        Row(
             modifier = Modifier.defaultMinSize(minWidth = 32.dp, minHeight = 32.dp)
                 .background(containerColor, TransitShapes.Full)
-                .padding(horizontal = if (route.shortName.length == 1) 0.dp else TransitSpacing.Small),
-            contentAlignment = Alignment.Center,
+                .padding(
+                    horizontal = if (selected || route.shortName.length > 1) TransitSpacing.Small else TransitSpacing.ExtraSmall,
+                    vertical = TransitSpacing.ExtraSmall,
+                ),
+            horizontalArrangement = Arrangement.spacedBy(TransitSpacing.ExtraSmall, Alignment.CenterHorizontally),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
+            if (selected) {
+                Icon(CheckIcon, contentDescription = null, modifier = Modifier.size(14.dp), tint = labelColor)
+            }
             Text(
                 text = route.shortName,
+                modifier = Modifier.clearAndSetSemantics {},
                 color = labelColor,
                 style = MaterialTheme.typography.labelLarge,
                 maxLines = 1,

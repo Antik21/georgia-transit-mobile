@@ -82,6 +82,7 @@
     <string name="map_stop_arrivals_retry">Erneut versuchen</string>
     <string name="map_stop_arrivals_refreshing">Ankünfte werden aktualisiert…</string>
     <string name="map_stop_arrivals_stale">Ältere Ankunftsdaten werden angezeigt.</string>
+    <string name="map_stop_arrivals_stale_forecast">Prognose veraltet. Minuten laut letzter Berechnung.</string>
     <string name="map_stop_arrivals_route_unavailable">Liniendetails nicht verfügbar</string>
     <string name="map_stop_arrivals_arriving">Kommt an</string>
     <string name="map_stop_arrivals_minutes">%1$d Min.</string>
@@ -98,6 +99,7 @@
     <string name="map_vehicle_status_loading">wird geladen</string>
     <string name="map_vehicle_status_live">live</string>
     <string name="map_vehicle_status_stale">ältere Positionen werden angezeigt</string>
+    <string name="map_vehicle_no_current_positions">Derzeit keine aktuellen Buspositionen</string>
     <string name="map_vehicle_status_retryable">vorübergehend nicht verfügbar. Ältere Positionen werden angezeigt</string>
     <string name="map_vehicle_status_unavailable">nicht verfügbar</string>
     <string name="map_vehicle_status_mixed">Verfügbarkeit je nach Linie</string>
@@ -108,6 +110,7 @@
     <string name="routes_selection_limit_warning">Du kannst bis zu %1$d Linien gleichzeitig anzeigen. Hebe eine Auswahl auf, um eine andere Linie zu wählen.</string>
     <string name="routes_show_selected">Ausgewählte Linien anzeigen</string>
     <string name="routes_selected_title">Ausgewählte Linien</string>
+    <string name="routes_selected_hint">Entfernen Sie das Häkchen bei einer Linie. Sie kehren zur Suche zurück.</string>
     <string name="routes_empty">Für diese Stadt gibt es noch keine Linienliste.</string>
     <string name="routes_loading">Linienliste wird geladen…</string>
     <string name="routes_error">Die Linien konnten nicht geladen werden</string>
@@ -143,6 +146,8 @@
     <string name="map_planner_origin">Start</string>
     <string name="map_planner_destination">Ziel</string>
     <string name="map_planner_my_location">Mein Standort</string>
+    <string name="map_planner_my_location_compact">Standort</string>
+    <string name="map_planner_endpoint_description">%1$s. %2$s</string>
     <string name="map_planner_map_point">Punkt auf der Karte</string>
     <string name="map_planner_not_set">Nicht ausgewählt</string>
     <string name="map_planner_pick_on_map">Auf der Karte auswählen</string>
@@ -165,12 +170,19 @@
     <string name="map_planner_error_busy">Die Routenplanung ist ausgelastet. Versuche es gleich noch einmal.</string>
     <string name="map_planner_error_rejected">Zwischen diesen Punkten kann keine Route geplant werden. Beide müssen innerhalb der Stadt liegen.</string>
     <string name="map_planner_error_service">Die Routenplanung ist vorübergehend nicht verfügbar.</string>
-    <string name="map_planner_unavailable">Die Routenplanung ist in dieser Stadt derzeit nicht verfügbar.</string>
+    <string name="map_planner_unavailable">In dieser Stadt ist keine Routenplanung verfügbar.</string>
     <string name="map_planner_location_permission">Erlaube den Standortzugriff, um von deinem Standort aus zu starten, oder wähle einen Punkt auf der Karte.</string>
     <string name="map_planner_location_locating">Standort wird ermittelt…</string>
     <string name="map_planner_location_approximate">Dein Standort ist für die Routenplanung zu ungenau. Wähle einen Punkt auf der Karte.</string>
     <string name="map_planner_already_there">Du bist schon fast da: etwa %1$d m zu Fuß (≈ %2$d Min.).</string>
     <string name="map_planner_disclaimer">Die Zeiten sind geschätzt.</string>
+    <string name="map_planner_unknown_travel_time">Fahrzeit unbekannt</string>
+    <string name="map_planner_summary_walking_distance">%1$s zu Fuß</string>
+    <string name="map_planner_untimed_summary">%1$s · %2$s</string>
+    <plurals name="map_planner_summary_transfers">
+        <item quantity="one">%1$d Umstieg</item>
+        <item quantity="other">%1$d Umstiege</item>
+    </plurals>
     <string name="map_planner_expand">Routenübersicht ausklappen</string>
     <string name="map_planner_collapse">Routenübersicht einklappen</string>
     <string name="map_planner_refreshing">Wird aktualisiert…</string>

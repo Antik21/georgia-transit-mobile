@@ -62,6 +62,8 @@ class RoutesResourceContractTest {
             AutomationId.RoutesShowSelected,
             AutomationId.RoutesSelectedSheet,
             AutomationId.RoutesSelectedClose,
+            AutomationId.RoutesSelectedHint,
+            AutomationId.RoutesRecentOption,
             AutomationId.RoutesConfirm,
         )
 
@@ -83,7 +85,9 @@ class RoutesResourceContractTest {
         )
         val row = rowSource.functionBody("internal fun RouteRow")
         assertFalse(row.contains("route.id"), "Rows expose localized public labels, never opaque route identifiers.")
-        assertTrue(row.contains("routes_row_limit_reached"))
+        val description = rowSource.functionBody("internal fun routeSelectionDescription")
+        assertFalse(description.contains("route.id"))
+        assertTrue(description.contains("routes_row_limit_reached"))
         assertCodePath(
             row,
             "val isToggleEnabled = selected || !selectionLimitReached",
@@ -104,20 +108,20 @@ class RoutesResourceContractTest {
         val routeTitle = root.resolve(
             "shared/src/mobileMain/kotlin/com/denis/georgiatransit/shared/presentation/ui/component/TransitRouteTitle.kt",
         ).readText()
-        val mapScreen = root.resolve(
-            "shared/src/mobileMain/kotlin/com/denis/georgiatransit/shared/presentation/map/MapScreen.kt",
+        val mapControls = root.resolve(
+            "shared/src/mobileMain/kotlin/com/denis/georgiatransit/shared/presentation/map/sections/MapControls.kt",
         ).readText()
         val mapViewModel = root.resolve(
             "shared/src/commonMain/kotlin/com/denis/georgiatransit/shared/presentation/map/MapViewModel.kt",
         ).readText()
 
         assertCodePath(
-            routeRow.functionBody("internal fun RouteRow"),
+            routeRow.functionBody("internal fun routeSelectionDescription"),
             "routes_row_description_with_direction",
             "routes_row_description",
             "routes_row_description_short",
-            "route.mode.routeTitle(route.shortName)",
         )
+        assertTrue(routeRow.functionBody("internal fun RouteRow").contains("route.mode.routeTitle(route.shortName)"))
         assertCodePath(
             routeTitle.functionBody("internal fun TransitMode.displayName"),
             "TransitMode.Bus -> Res.string.routes_mode_bus",
@@ -126,7 +130,7 @@ class RoutesResourceContractTest {
             "TransitMode.Ferry -> Res.string.routes_mode_ferry",
         )
         assertCodePath(
-            mapScreen.functionBody("private fun MapControls"),
+            mapControls.functionBody("internal fun MapControls"),
             "if (routesAvailable)",
             "testTag(AutomationId.MapRoutes)",
         )
@@ -318,6 +322,7 @@ class RoutesResourceContractTest {
             "routes_selection_limit_warning",
             "routes_show_selected",
             "routes_selected_title",
+            "routes_selected_hint",
             "routes_loading",
             "routes_empty",
             "routes_empty_search",

@@ -170,6 +170,7 @@ class MapResourceContractTest {
         assertCodePath(
             sheet,
             "MapStopArrivalsSheet",
+            "MapStopArrivalsStale",
             "MapStopArrivalsClose",
             "MapStopArrivalsRows",
             "StopArrivalsDetails(",
@@ -206,7 +207,7 @@ class MapResourceContractTest {
             "row.headsign.takeIf",
             "arrivalSourceLabel(row.source)",
             "MapStopArrivalsSource",
-            "arrivalTimeLabel(row.time)",
+            "arrivalTimeLabel(row.time, isStale)",
         )
         assertFalse(row.contains("routeId"), "Rows must render catalogue labels, never opaque route IDs.")
         assertFalse(row.contains("stopId"), "Rows must never surface opaque stop IDs.")
@@ -237,7 +238,7 @@ class MapResourceContractTest {
 
         assertCodePath(baseLayerOverlay, "MapBaseLayerState.LocalPreview", "map_preview_note", "MapLocalPreview")
         assertFalse(canvasSource.contains("MapContentState"), "Nearby-stop loading status must not be drawn over the map.")
-        assertCodePath(mapToast, "map_connection_error, AutomationId.MapConnectionError", "LaunchedEffect(notice.id)", "delay(TOAST_DURATION_MILLIS)")
+        assertCodePath(mapToast, "map_connection_error, AutomationId.MapConnectionError", "LaunchedEffect(notice.id, timeoutMillis)", "delay(timeoutMillis)")
         assertCodePath(screen, "SideEffect.ShowConnectionError -> toastNotice", "MapToast(")
         assertTrue(viewModel.compactWhitespace().contains("contentState = MapContentState.Loading"))
         val userLocationTag = canvas.indexOf("AutomationId.MapUserLocation")
@@ -1083,6 +1084,11 @@ class MapResourceContractTest {
             "map_settings",
             "map_my_location_action",
             "map_selected_routes",
+            "map_planner_my_location_compact",
+            "map_planner_endpoint_description",
+            "map_planner_unknown_travel_time",
+            "map_planner_summary_walking_distance",
+            "map_planner_untimed_summary",
             "map_stop_arrivals_title",
             "map_stop_arrivals_stop_details_unavailable",
             "map_stop_arrivals_routes",
@@ -1096,6 +1102,7 @@ class MapResourceContractTest {
             "map_stop_arrivals_retry",
             "map_stop_arrivals_refreshing",
             "map_stop_arrivals_stale",
+            "map_stop_arrivals_stale_forecast",
             "map_stop_arrivals_route_unavailable",
             "map_stop_arrivals_arriving",
             "map_stop_arrivals_minutes",
@@ -1107,6 +1114,7 @@ class MapResourceContractTest {
             "map_stop_arrivals_collapse_accessibility",
             "map_nearby_stops_title",
             "map_vehicles_summary",
+            "map_vehicle_no_current_positions",
             "map_vehicle_route_summary",
             "map_vehicle_status_loading",
             "map_vehicle_status_live",

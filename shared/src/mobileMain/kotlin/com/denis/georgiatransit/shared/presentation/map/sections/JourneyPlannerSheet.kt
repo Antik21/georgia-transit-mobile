@@ -32,12 +32,16 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.Velocity
 import androidx.compose.ui.unit.constrainHeight
 import androidx.compose.ui.unit.dp
+import com.denis.georgiatransit.shared.presentation.map.JourneyPlannerStatus
 import com.denis.georgiatransit.shared.presentation.ui.theme.TransitSpacing
 import georgiatransit.shared.generated.resources.Res
 import georgiatransit.shared.generated.resources.map_planner_collapse
 import georgiatransit.shared.generated.resources.map_planner_expand
 import kotlin.math.roundToInt
 import org.jetbrains.compose.resources.stringResource
+
+internal val JourneyPlannerStatus.usesCompactPanel: Boolean
+    get() = this == JourneyPlannerStatus.Empty || this is JourneyPlannerStatus.Error
 
 /** Overlays the map; closing requires a separate drag from the collapsed anchor. */
 @Composable

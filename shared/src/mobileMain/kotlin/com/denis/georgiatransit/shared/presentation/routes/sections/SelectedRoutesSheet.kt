@@ -7,15 +7,18 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material3.BottomSheetDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import com.denis.georgiatransit.shared.domain.model.RouteId
@@ -25,7 +28,9 @@ import com.denis.georgiatransit.shared.presentation.ui.automation.enableAutomati
 import com.denis.georgiatransit.shared.presentation.ui.component.TransitCloseButton
 import com.denis.georgiatransit.shared.presentation.ui.theme.TransitSpacing
 import georgiatransit.shared.generated.resources.Res
+import georgiatransit.shared.generated.resources.routes_selected_hint
 import georgiatransit.shared.generated.resources.routes_selected_title
+import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.stringResource
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -36,11 +41,17 @@ internal fun SelectedRoutesSheet(
     onRemove: (RouteId) -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val scope = rememberCoroutineScope()
     ModalBottomSheet(
         onDismissRequest = onDismiss,
-        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+        sheetState = sheetState,
+        dragHandle = null,
         modifier = modifier,
     ) {
+        BottomSheetDefaults.DragHandle(
+            modifier = Modifier.align(Alignment.CenterHorizontally).clearAndSetSemantics {},
+        )
         Column(
             modifier = Modifier.fillMaxWidth().enableAutomationResourceIds()
                 .testTag(AutomationId.RoutesSelectedSheet)
@@ -59,11 +70,22 @@ internal fun SelectedRoutesSheet(
                     style = MaterialTheme.typography.titleLarge,
                 )
                 TransitCloseButton(
-                    onClick = onDismiss,
+                    onClick = {
+                        scope.launch {
+                            sheetState.hide()
+                            if (!sheetState.isVisible) onDismiss()
+                        }
+                    },
                     modifier = Modifier.testTag(AutomationId.RoutesSelectedClose),
                     tonal = true,
                 )
             }
+            Text(
+                text = stringResource(Res.string.routes_selected_hint),
+                modifier = Modifier.testTag(AutomationId.RoutesSelectedHint),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
             LazyColumn(
                 modifier = Modifier.weight(1f, fill = false),
                 verticalArrangement = Arrangement.spacedBy(TransitSpacing.Small),

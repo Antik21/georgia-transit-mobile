@@ -82,6 +82,7 @@
     <string name="map_stop_arrivals_retry">Réessayer</string>
     <string name="map_stop_arrivals_refreshing">Actualisation des prochains passages…</string>
     <string name="map_stop_arrivals_stale">Les informations de passage affichées sont anciennes.</string>
+    <string name="map_stop_arrivals_stale_forecast">Prévision obsolète. Les minutes correspondent au dernier calcul.</string>
     <string name="map_stop_arrivals_route_unavailable">Détails de la ligne indisponibles</string>
     <string name="map_stop_arrivals_arriving">À l’approche</string>
     <string name="map_stop_arrivals_minutes">%1$d min</string>
@@ -98,6 +99,7 @@
     <string name="map_vehicle_status_loading">chargement</string>
     <string name="map_vehicle_status_live">en temps réel</string>
     <string name="map_vehicle_status_stale">positions anciennes affichées</string>
+    <string name="map_vehicle_no_current_positions">Positions des bus indisponibles pour le moment</string>
     <string name="map_vehicle_status_retryable">temporairement indisponible, positions anciennes affichées</string>
     <string name="map_vehicle_status_unavailable">indisponible</string>
     <string name="map_vehicle_status_mixed">disponibilité variable selon la ligne</string>
@@ -108,6 +110,7 @@
     <string name="routes_selection_limit_warning">Vous pouvez afficher jusqu’à %1$d lignes à la fois. Désélectionnez une ligne pour en choisir une autre.</string>
     <string name="routes_show_selected">Afficher les lignes sélectionnées</string>
     <string name="routes_selected_title">Lignes sélectionnées</string>
+    <string name="routes_selected_hint">Décochez une ligne. Vous reviendrez à la recherche.</string>
     <string name="routes_empty">La liste des lignes de cette ville n’est pas encore disponible.</string>
     <string name="routes_loading">Chargement de la liste des lignes…</string>
     <string name="routes_error">Impossible de charger les lignes</string>
@@ -143,6 +146,8 @@
     <string name="map_planner_origin">Départ</string>
     <string name="map_planner_destination">Arrivée</string>
     <string name="map_planner_my_location">Ma position</string>
+    <string name="map_planner_my_location_compact">Ma position</string>
+    <string name="map_planner_endpoint_description">%1$s. %2$s</string>
     <string name="map_planner_map_point">Point sur la carte</string>
     <string name="map_planner_not_set">Non choisi</string>
     <string name="map_planner_pick_on_map">Choisir sur la carte</string>
@@ -165,12 +170,19 @@
     <string name="map_planner_error_busy">Le calcul d’itinéraire est saturé. Réessayez dans un instant.</string>
     <string name="map_planner_error_rejected">Impossible de relier ces points. Tous deux doivent se trouver dans la ville.</string>
     <string name="map_planner_error_service">Le calcul d’itinéraire est temporairement indisponible.</string>
-    <string name="map_planner_unavailable">Le calcul d’itinéraire est actuellement indisponible dans cette ville.</string>
+    <string name="map_planner_unavailable">La planification de trajets est indisponible dans cette ville.</string>
     <string name="map_planner_location_permission">Autorisez l’accès à votre position pour partir de là où vous êtes, ou choisissez un point sur la carte.</string>
     <string name="map_planner_location_locating">Recherche de votre position…</string>
     <string name="map_planner_location_approximate">Votre position est trop imprécise pour calculer un itinéraire. Choisissez un point sur la carte.</string>
     <string name="map_planner_already_there">Vous êtes presque arrivé : environ %1$d m à pied (≈ %2$d min).</string>
     <string name="map_planner_disclaimer">Les horaires sont estimés.</string>
+    <string name="map_planner_unknown_travel_time">Durée du trajet inconnue</string>
+    <string name="map_planner_summary_walking_distance">%1$s à pied</string>
+    <string name="map_planner_untimed_summary">%1$s · %2$s</string>
+    <plurals name="map_planner_summary_transfers">
+        <item quantity="one">%1$d correspondance</item>
+        <item quantity="other">%1$d correspondances</item>
+    </plurals>
     <string name="map_planner_expand">Développer le panneau d’itinéraire</string>
     <string name="map_planner_collapse">Réduire le panneau d’itinéraire</string>
     <string name="map_planner_refreshing">Actualisation…</string>

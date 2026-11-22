@@ -33,6 +33,7 @@ import com.denis.georgiatransit.shared.presentation.map.sections.JourneyMapPickT
 import com.denis.georgiatransit.shared.presentation.map.sections.JourneyPinPopup
 import com.denis.georgiatransit.shared.presentation.map.sections.MapCanvas
 import com.denis.georgiatransit.shared.presentation.map.sections.MapContentPlaceholder
+import com.denis.georgiatransit.shared.presentation.map.sections.MapToastNotice
 import com.denis.georgiatransit.shared.presentation.ui.automation.AutomationId
 import com.denis.georgiatransit.shared.presentation.ui.theme.TransitSpacing
 
@@ -53,6 +54,7 @@ internal fun MapArea(
     onMyLocationClick: () -> Unit,
     onZoomClick: (MapZoomDirection) -> Unit,
     journeyPlanningAvailable: Boolean,
+    plannerNotice: MapToastNotice?,
     onOpenPlanner: (() -> Unit)?,
     onCameraMovingChanged: (Boolean) -> Unit,
     onPointResolved: (MapPlatformEvent.MapPointResolved) -> Unit,
@@ -83,6 +85,7 @@ internal fun MapArea(
                 onMyLocationClick = onMyLocationClick,
                 onZoomClick = onZoomClick,
                 journeyPlanningAvailable = journeyPlanningAvailable,
+                plannerNotice = plannerNotice,
                 onOpenPlanner = onOpenPlanner.takeUnless { cardOverlapsLauncher },
                 onPlannerLauncherPositioned = { launcherBounds = it },
                 onMapEvent = { event ->

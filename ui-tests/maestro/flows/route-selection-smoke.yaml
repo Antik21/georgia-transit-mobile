@@ -136,6 +136,8 @@ appId: com.anti.georgiatransit.sandbox
           id: routes.show-selected
       - assertVisible:
           id: routes.selected-sheet
+      - assertVisible:
+          id: routes.selected-hint
       - tapOn:
           id: routes.selected-close
       - assertNotVisible:

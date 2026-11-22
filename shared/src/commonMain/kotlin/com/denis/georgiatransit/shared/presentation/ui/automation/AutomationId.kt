@@ -109,6 +109,7 @@ object AutomationId {
     const val MapPlannerWaitUnknown = "map.planner.wait-unknown"
     const val MapPlannerLabel = "map.planner.label"
     const val MapPlannerItinerary = "map.planner.itinerary"
+    const val MapPlannerUntimedSummary = "map.planner.untimed-summary"
     const val MapPlannerLeg = "map.planner.leg"
     const val MapPlannerNearest = "map.planner.nearest"
     const val MapPlannerDisclaimer = "map.planner.disclaimer"
@@ -136,5 +137,6 @@ object AutomationId {
     const val RoutesShowSelected = "routes.show-selected"
     const val RoutesSelectedSheet = "routes.selected-sheet"
     const val RoutesSelectedClose = "routes.selected-close"
+    const val RoutesSelectedHint = "routes.selected-hint"
     const val RoutesConfirm = "routes.confirm"
 }

@@ -53,26 +53,11 @@ internal fun RouteRow(
     modifier: Modifier = Modifier,
 ) {
     val isToggleEnabled = selected || !selectionLimitReached
-    val mode = route.mode.displayName()
-    val name = route.name.takeUnless { it.equals(route.shortName, ignoreCase = true) }.orEmpty()
-    val direction = route.direction.takeUnless {
-        it.equals(name, ignoreCase = true) || it.equals(route.shortName, ignoreCase = true)
-    }.orEmpty()
+    val subtitle = route.catalogDirection.ifBlank { route.catalogName }
     val selectionState = stringResource(
         if (selected) Res.string.routes_row_selected else Res.string.routes_row_unselected,
     )
-    val description = when {
-        name.isNotBlank() && direction.isNotBlank() ->
-            stringResource(Res.string.routes_row_description_with_direction, route.shortName, name, direction, mode)
-        name.isNotBlank() || direction.isNotBlank() ->
-            stringResource(Res.string.routes_row_description, route.shortName, name.ifBlank { direction }, mode)
-        else -> stringResource(Res.string.routes_row_description_short, route.shortName, mode)
-    }
-    val accessibilityDescription = if (isToggleEnabled) {
-        description
-    } else {
-        "$description. ${stringResource(Res.string.routes_row_limit_reached)}"
-    }
+    val accessibilityDescription = routeSelectionDescription(route, isToggleEnabled)
     val colors = MaterialTheme.colorScheme
     val rowColor = if (selected) lerp(colors.surfaceContainerLow, colors.primary, 0.14f) else colors.surfaceContainerLow
     Card(
@@ -120,7 +105,6 @@ internal fun RouteRow(
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
                 )
-                val subtitle = direction.ifBlank { name }
                 if (subtitle.isNotBlank()) {
                     Text(
                         subtitle,
@@ -141,3 +125,24 @@ internal fun RouteRow(
         }
     }
 }
+
+@Composable
+internal fun routeSelectionDescription(route: RouteItemUiModel, enabled: Boolean): String {
+    val mode = route.mode.displayName()
+    val name = route.catalogName
+    val direction = route.catalogDirection
+    val description = when {
+        name.isNotBlank() && direction.isNotBlank() ->
+            stringResource(Res.string.routes_row_description_with_direction, route.shortName, name, direction, mode)
+        name.isNotBlank() || direction.isNotBlank() ->
+            stringResource(Res.string.routes_row_description, route.shortName, name.ifBlank { direction }, mode)
+        else -> stringResource(Res.string.routes_row_description_short, route.shortName, mode)
+    }
+    return if (enabled) description else "$description. ${stringResource(Res.string.routes_row_limit_reached)}"
+}
+
+private val RouteItemUiModel.catalogName: String
+    get() = name.takeUnless { it.equals(shortName, ignoreCase = true) }.orEmpty()
+
+private val RouteItemUiModel.catalogDirection: String
+    get() = direction.takeUnless { it.equals(catalogName, ignoreCase = true) || it.equals(shortName, ignoreCase = true) }.orEmpty()

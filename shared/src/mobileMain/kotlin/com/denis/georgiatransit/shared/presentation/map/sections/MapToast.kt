@@ -14,6 +14,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalAccessibilityManager
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.liveRegion
@@ -41,9 +42,17 @@ internal enum class MapToastKind(val message: StringResource, val automationId: 
 internal fun MapToast(notice: MapToastNotice?, modifier: Modifier = Modifier) {
     if (notice == null) return
     var visible by remember { mutableStateOf(false) }
-    LaunchedEffect(notice.id) {
+    val timeoutMillis = if (notice.kind == MapToastKind.PlannerUnavailable) {
+        LocalAccessibilityManager.current?.calculateRecommendedTimeoutMillis(
+            PLANNER_UNAVAILABLE_DURATION_MILLIS,
+            containsText = true,
+        ) ?: PLANNER_UNAVAILABLE_DURATION_MILLIS
+    } else {
+        TOAST_DURATION_MILLIS
+    }
+    LaunchedEffect(notice.id, timeoutMillis) {
         visible = true
-        delay(TOAST_DURATION_MILLIS)
+        delay(timeoutMillis)
         visible = false
     }
     AnimatedVisibility(visible = visible, modifier = modifier, enter = fadeIn(), exit = fadeOut()) {
@@ -66,3 +75,4 @@ internal fun MapToast(notice: MapToastNotice?, modifier: Modifier = Modifier) {
 }
 
 private const val TOAST_DURATION_MILLIS = 3_000L
+private const val PLANNER_UNAVAILABLE_DURATION_MILLIS = 4_000L

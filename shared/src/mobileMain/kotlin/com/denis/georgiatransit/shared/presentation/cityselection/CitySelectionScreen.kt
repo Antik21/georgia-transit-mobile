@@ -92,11 +92,13 @@ private fun Content(state: ViewState, onAction: (Action) -> Unit, onBack: (() ->
                 onRetry = { onAction(Action.RetryClicked) },
                 modifier = Modifier.weight(1f),
             )
-            Button(
-                onClick = { onAction(Action.ContinueClicked) },
-                enabled = state.canContinue,
-                modifier = Modifier.fillMaxWidth().testTag(AutomationId.CityContinue),
-            ) { Text(stringResource(Res.string.city_open_map)) }
+            if (state.catalog !is CityCatalogState.RetryableError) {
+                Button(
+                    onClick = { onAction(Action.ContinueClicked) },
+                    enabled = state.canContinue,
+                    modifier = Modifier.fillMaxWidth().testTag(AutomationId.CityContinue),
+                ) { Text(stringResource(Res.string.city_open_map)) }
+            }
         }
     }
 }

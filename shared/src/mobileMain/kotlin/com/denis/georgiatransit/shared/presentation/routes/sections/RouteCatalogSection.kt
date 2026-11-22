@@ -1,6 +1,7 @@
 package com.denis.georgiatransit.shared.presentation.routes.sections
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
@@ -169,10 +170,9 @@ private fun RouteList(
                     modifier = Modifier.weight(1f).testTag(AutomationId.RoutesEmpty),
                 )
 
-                visibleRoutes.isEmpty() && !scrollSelectedAction -> EmptyState(
-                    title = stringResource(Res.string.routes_empty_search),
-                    modifier = Modifier.weight(1f).testTag(AutomationId.RoutesEmpty),
-                )
+                visibleRoutes.isEmpty() && !scrollSelectedAction -> Box(Modifier.weight(1f)) {
+                    RouteSearchEmptyState()
+                }
 
                 else -> LazyColumn(
                     state = listState,
@@ -186,11 +186,7 @@ private fun RouteList(
                     }
                     if (visibleRoutes.isEmpty()) {
                         item(key = RouteListSection.EmptySearch) {
-                            EmptyState(
-                                title = stringResource(Res.string.routes_empty_search),
-                                modifier = Modifier.testTag(AutomationId.RoutesEmpty),
-                                compact = true,
-                            )
+                            RouteSearchEmptyState()
                         }
                     }
                     if (searchQuery.isBlank() && recentRoutes.isNotEmpty()) {
@@ -230,6 +226,15 @@ private fun RouteList(
 private enum class RouteListSection { Recent, SelectionLimit, EmptySearch }
 
 private val MinimumHeightForPinnedSelectionLimit = 200.dp
+
+@Composable
+private fun RouteSearchEmptyState() {
+    EmptyState(
+        title = stringResource(Res.string.routes_empty_search),
+        modifier = Modifier.testTag(AutomationId.RoutesEmpty),
+        compact = true,
+    )
+}
 
 @Composable
 private fun RouteSearchField(query: String, onQueryChanged: (String) -> Unit) {
