@@ -241,4 +241,7 @@
     <string name="schedule_stop_empty">დაგეგმილი მოსვლა არ არის</string>
     <string name="schedule_following_day">%1$s (+%2$d დღე)</string>
     <string name="map_settings">პარამეტრები</string>
+    <string name="language_title">აპის ენა</string>
+    <string name="language_system_default">სისტემის ენა</string>
+    <string name="language_apply">გამოყენება</string>
 </resources>

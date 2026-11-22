@@ -246,4 +246,7 @@
     <string name="schedule_stop_empty">لا توجد مواعيد وصول مجدولة</string>
     <string name="schedule_following_day">%1$s (اليوم +%2$d)</string>
     <string name="map_settings">الإعدادات</string>
+    <string name="language_title">لغة التطبيق</string>
+    <string name="language_system_default">لغة النظام</string>
+    <string name="language_apply">تطبيق</string>
 </resources>

@@ -243,4 +243,7 @@
     <string name="schedule_stop_empty">आगमन का कोई समय निर्धारित नहीं है</string>
     <string name="schedule_following_day">%1$s (दिन +%2$d)</string>
     <string name="map_settings">सेटिंग्स</string>
+    <string name="language_title">ऐप की भाषा</string>
+    <string name="language_system_default">सिस्टम की भाषा</string>
+    <string name="language_apply">लागू करें</string>
 </resources>

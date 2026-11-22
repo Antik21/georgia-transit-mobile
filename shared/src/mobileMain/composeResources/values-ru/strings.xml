@@ -244,4 +244,7 @@
     <string name="schedule_stop_empty">Нет плановых прибытий</string>
     <string name="schedule_following_day">%1$s (+%2$d дн.)</string>
     <string name="map_settings">Настройки</string>
+    <string name="language_title">Язык приложения</string>
+    <string name="language_system_default">Язык системы</string>
+    <string name="language_apply">Применить</string>
 </resources>

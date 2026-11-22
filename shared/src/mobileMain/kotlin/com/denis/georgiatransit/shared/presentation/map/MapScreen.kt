@@ -73,7 +73,11 @@ import org.orbitmvi.orbit.compose.collectAsState
 import org.orbitmvi.orbit.compose.collectSideEffect
 
 @Composable
-fun MapScreen(viewModel: MapViewModel, handleNavigation: suspend (NavigationEffect) -> Unit) {
+fun MapScreen(
+    viewModel: MapViewModel,
+    onChangeLanguage: (() -> Unit)?,
+    handleNavigation: suspend (NavigationEffect) -> Unit,
+) {
     val state by viewModel.collectAsState()
     val language = Locale.current.language
     LaunchedEffect(language) {
@@ -115,6 +119,7 @@ fun MapScreen(viewModel: MapViewModel, handleNavigation: suspend (NavigationEffe
             toastNotice = MapToastNotice((toastNotice?.id ?: 0) + 1, MapToastKind.PlannerUnavailable)
         },
         onAction = viewModel::dispatchAction,
+        onChangeLanguage = onChangeLanguage,
     )
 }
 
@@ -124,12 +129,14 @@ private fun Content(
     toastNotice: MapToastNotice?,
     onPlannerUnavailable: () -> Unit,
     onAction: (Action) -> Unit,
+    onChangeLanguage: (() -> Unit)?,
 ) {
     val planner = state.journeyPlanner
     val knownStopNames = rememberJourneyStopNames(planner, state.nearbyStops)
     val mapPick = planner.mapPick
     val showPlannerLauncher = !planner.isOpen && mapPick == null
-    var settingsOpen by rememberSaveable(state.canChangeCity) { mutableStateOf(false) }
+    val settingsAvailable = state.canChangeCity || onChangeLanguage != null
+    var settingsOpen by rememberSaveable(settingsAvailable) { mutableStateOf(false) }
     val permission = state.location.permission
     var permissionSheetOpen by remember(permission) { mutableStateOf(false) }
     NavigationBackHandler(
@@ -265,7 +272,7 @@ private fun Content(
                     vehicleLayerState = state.vehicleLayerState,
                     vehicleRoutes = state.vehicleRoutes,
                     routeGeometryLegends = state.routeGeometryLegends,
-                    settingsAvailable = state.canChangeCity,
+                    settingsAvailable = settingsAvailable,
                     routesAvailable = state.routesAvailable,
                     schedulesAvailable = state.schedulesAvailable,
                     onFocusRoute = { routeId -> onAction(Action.RouteGeometryFocused(routeId)) },
@@ -339,12 +346,20 @@ private fun Content(
                 onTopPositioned = { stopSheetTopPx = it },
             )
         }
-        if (settingsOpen) {
+        if (settingsOpen && settingsAvailable) {
             MapSettingsSheet(
                 onDismiss = { settingsOpen = false },
-                onChangeCity = {
-                    settingsOpen = false
-                    onAction(Action.ChangeCityClicked)
+                onChangeCity = if (state.canChangeCity) {
+                    {
+                        settingsOpen = false
+                        onAction(Action.ChangeCityClicked)
+                    }
+                } else null,
+                onChangeLanguage = onChangeLanguage?.let { open ->
+                    {
+                        settingsOpen = false
+                        open()
+                    }
                 },
             )
         }
@@ -428,6 +443,7 @@ private fun Preview() {
             toastNotice = null,
             onPlannerUnavailable = {},
             onAction = {},
+            onChangeLanguage = {},
         )
     }
 }
