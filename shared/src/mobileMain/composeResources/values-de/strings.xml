@@ -243,4 +243,7 @@
     <string name="schedule_stop_empty">Keine planmäßigen Ankünfte</string>
     <string name="schedule_following_day">%1$s (Tag +%2$d)</string>
     <string name="map_settings">Einstellungen</string>
+    <string name="language_title">App-Sprache</string>
+    <string name="language_system_default">Systemstandard</string>
+    <string name="language_apply">Anwenden</string>
 </resources>

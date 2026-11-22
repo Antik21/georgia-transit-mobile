@@ -22,6 +22,8 @@ import com.denis.georgiatransit.shared.data.repository.RuntimeTransitSession
 import com.denis.georgiatransit.shared.domain.repository.TransitRepository
 import com.denis.georgiatransit.shared.domain.repository.TransitSession
 import com.denis.georgiatransit.shared.presentation.cityselection.CitySelectionViewModel
+import com.denis.georgiatransit.shared.presentation.languageselection.AppLanguageSettings
+import com.denis.georgiatransit.shared.presentation.languageselection.LanguageSelectionViewModel
 import com.denis.georgiatransit.shared.presentation.location.LocationSession
 import com.denis.georgiatransit.shared.presentation.location.RuntimeLocationSession
 import com.denis.georgiatransit.shared.presentation.map.MapViewModel
@@ -77,6 +79,7 @@ internal fun appModule(
     factory { RouteGeometryCoordinator(repository = get()) }
     factory { SplashViewModel(bootstrapTransitSession = get()) }
     factory { CitySelectionViewModel(repository = get(), session = get(), locationSession = get()) }
+    factory { (picker: AppLanguageSettings.Picker) -> LanguageSelectionViewModel(picker) }
     factory {
         MapViewModel(
             repository = get(),

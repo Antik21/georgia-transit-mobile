@@ -243,4 +243,7 @@
     <string name="schedule_stop_empty">Aucune arrivée prévue</string>
     <string name="schedule_following_day">%1$s (jour +%2$d)</string>
     <string name="map_settings">Paramètres</string>
+    <string name="language_title">Langue de l’application</string>
+    <string name="language_system_default">Langue du système</string>
+    <string name="language_apply">Appliquer</string>
 </resources>

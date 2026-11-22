@@ -21,6 +21,10 @@ import androidx.savedstate.serialization.SavedStateConfiguration
 import com.denis.georgiatransit.shared.domain.repository.TransitSession
 import com.denis.georgiatransit.shared.presentation.cityselection.CitySelectionScreen
 import com.denis.georgiatransit.shared.presentation.cityselection.CitySelectionViewModel
+import com.denis.georgiatransit.shared.presentation.languageselection.AppLanguageSettings
+import com.denis.georgiatransit.shared.presentation.languageselection.LanguageSelectionScreen
+import com.denis.georgiatransit.shared.presentation.languageselection.LanguageSelectionViewModel
+import com.denis.georgiatransit.shared.presentation.languageselection.NavigationEffect as LanguageNavigationEffect
 import com.denis.georgiatransit.shared.presentation.map.MapScreen
 import com.denis.georgiatransit.shared.presentation.map.MapViewModel
 import com.denis.georgiatransit.shared.presentation.routes.RoutesScreen
@@ -42,6 +46,8 @@ internal fun Navigation3AppHost(initialDestination: Destination) {
     val selectedCity by session.selectedCity.collectAsState()
     val selectedCityId = selectedCity?.id
     val schedulesAvailable = selectedCity?.capabilities?.schedules == true
+    val languageSettings = rememberAppLanguageSettings()
+    val languagePicker = languageSettings as? AppLanguageSettings.Picker
     val validatedInitialStack = NavigationTransitionPolicy.restore(
         restoredStack = listOf(initialDestination),
         selectedCityId = selectedCityId,
@@ -52,7 +58,12 @@ internal fun Navigation3AppHost(initialDestination: Destination) {
     )
     val rawStack = backStack.toList()
     val currentStack = rawStack.filterIsInstance<Destination>()
-    val restoredStack = NavigationTransitionPolicy.restore(currentStack, selectedCityId, schedulesAvailable)
+    val restoredStack = NavigationTransitionPolicy.restore(
+        restoredStack = currentStack,
+        selectedCityId = selectedCityId,
+        schedulesAvailable = schedulesAvailable,
+        languagePickerAvailable = languagePicker != null,
+    )
 
     // Navigation 3 can restore a saved stack before the runtime session is available. Do not
     // render that stack until it has been reconciled with the session prerequisite.
@@ -67,6 +78,7 @@ internal fun Navigation3AppHost(initialDestination: Destination) {
         val nextStack = navigationEventApplier.apply(
             currentStack = backStack.toList().filterIsInstance<Destination>(),
             event = event,
+            languagePickerAvailable = languagePicker != null,
         )
         if (backStack.toList() != nextStack) {
             backStack.clear()
@@ -95,7 +107,12 @@ internal fun Navigation3AppHost(initialDestination: Destination) {
         }
         entry<Destination.Map> {
             val viewModel: MapViewModel = navigationEntryViewModel("map")
-            MapScreen(viewModel) { effect ->
+            val onChangeLanguage = when (languageSettings) {
+                is AppLanguageSettings.Picker -> { { applyNavigation(NavigationEvent.OpenLanguageSelection) } }
+                is AppLanguageSettings.SystemSettings -> languageSettings.open
+                null -> null
+            }
+            MapScreen(viewModel, onChangeLanguage) { effect ->
                 when (effect) {
                     com.denis.georgiatransit.shared.presentation.map.NavigationEffect.OpenRoutes ->
                         applyNavigation(NavigationEvent.OpenRoutes)
@@ -103,6 +120,24 @@ internal fun Navigation3AppHost(initialDestination: Destination) {
                         applyNavigation(NavigationEvent.OpenSchedules)
                     com.denis.georgiatransit.shared.presentation.map.NavigationEffect.OpenCitySelection ->
                         applyNavigation(NavigationEvent.ChangeCity)
+                }
+            }
+        }
+        entry<Destination.LanguageSelection>(metadata = slideFromBottomMetadata) {
+            if (languagePicker != null) {
+                val viewModel: LanguageSelectionViewModel = koinViewModel(
+                    key = "language-selection",
+                    parameters = { parametersOf(languagePicker) },
+                )
+                LanguageSelectionScreen(viewModel) { effect ->
+                    when (effect) {
+                        is LanguageNavigationEffect.Applied -> {
+                            // Applying the locale can recreate the Android activity.
+                            applyNavigation(NavigationEvent.Back)
+                            languagePicker.applyLanguage(effect.languageTag)
+                        }
+                        LanguageNavigationEffect.Closed -> applyNavigation(NavigationEvent.Back)
+                    }
                 }
             }
         }
@@ -165,6 +200,7 @@ private val navigationSavedStateConfiguration = SavedStateConfiguration {
             subclass(Destination.CitySelection::class, Destination.CitySelection.serializer())
             subclass(Destination.Map::class, Destination.Map.serializer())
             subclass(Destination.Routes::class, Destination.Routes.serializer())
+            subclass(Destination.LanguageSelection::class, Destination.LanguageSelection.serializer())
             subclass(Destination.Schedules::class, Destination.Schedules.serializer())
         }
     }
