@@ -1,4 +1,4 @@
-appId: com.denis.georgiatransit
+appId: com.anti.georgiatransit.sandbox
 ---
 # Precondition: grant foreground location and inject a simulator fix with adb/simctl.
 - launchApp:

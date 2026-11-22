@@ -1,4 +1,4 @@
-appId: com.denis.georgiatransit.sandbox
+appId: com.anti.georgiatransit.sandbox
 ---
 # Start the local BFF with the AZRY and Batumi adapters and both city entries enabled.
 - launchApp:

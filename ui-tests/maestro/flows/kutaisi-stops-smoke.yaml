@@ -1,4 +1,4 @@
-appId: com.denis.georgiatransit.sandbox
+appId: com.anti.georgiatransit.sandbox
 ---
 # Start the local BFF with only the Kutaisi capability control example.
 - launchApp:

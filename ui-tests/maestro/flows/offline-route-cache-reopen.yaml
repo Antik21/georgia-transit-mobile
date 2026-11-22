@@ -1,4 +1,4 @@
-appId: com.denis.georgiatransit
+appId: com.anti.georgiatransit.sandbox
 ---
 # Precondition: the seed flow succeeded and its owned fixture has been stopped and verified absent.
 - launchApp:

@@ -1,4 +1,4 @@
-appId: com.denis.georgiatransit
+appId: com.anti.georgiatransit.sandbox
 ---
 # Precondition: Android harness configures a prior, permanently denied foreground permission.
 - launchApp:
