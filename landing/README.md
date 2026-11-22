@@ -1,9 +1,9 @@
 # Geo Transit landing page
 
-Static business-card site for Geo Transit: plain HTML, CSS and JavaScript with no build step and
-no dependencies. Russian is the default language; English and Georgian are available from the
-switch in the header (or `?lang=en`, `?lang=ka`). Light and dark themes follow the system, and the
-header button overrides it.
+Geo Transit’s static landing page covers Batumi, Kutaisi and Zugdidi. New visitors see English by
+default. The language selector saves the selected language. Use `?lang=en`, `ka`, `ru`,
+`zh-Hans`, `fr` or `de` to share a localized page. Light and dark themes follow the system until
+changed with the header button.
 
 ## Run locally
 
@@ -15,17 +15,21 @@ Then open `http://127.0.0.1:4180/`. Any static file server works; there is nothi
 
 ## Store and bot links
 
-Fill in the Android and iOS store links in `LINKS` at the top of
-[main.js](main.js); while a value is `null`, the page shows a "link will appear here" placeholder
-instead of a fake badge. The Telegram link in [index.html](index.html) opens the bot's main Mini App.
+Set the Android and iOS store URLs in `LINKS` in [main.js](main.js) after publication. When a URL
+is `null`, the page shows a localized link placeholder. The web and Telegram links are set in
+[index.html](index.html).
+
+## Privacy Policy
+
+The footer button opens [privacy.html](privacy.html) in the selected language. The direct policy
+URL defaults to English and can be used in store listings after the site is deployed.
 
 ## Screenshots
 
-`assets/screens/*.webp` are real captures of the web client at 390×844 CSS px, encoded at 780 px
-wide. The live map, arrivals and routes come from production. The A→B planner was captured
-against a local BFF build with Batumi `tripPlanning` enabled, because the production capability
-was switched off at capture time (2026-11-13). Replace a file with a same-named 780×1688 WebP to
-update it.
+`assets/screens/mobile-*.webp` are captures of the English Android and iOS apps using production
+Batumi data. The light and dark live map, stop arrivals and route list were captured on Android.
+The selected routes on the map and the journey planner were captured on iOS. Screens are encoded
+at 900 px wide with their device proportions. CSS supplies the device frames.
 
 ## Hosting
 
