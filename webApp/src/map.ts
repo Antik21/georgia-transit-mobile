@@ -3,11 +3,12 @@ import {
 } from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import mapWorkerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?url&no-inline";
-import type { MapState, MapStopLayer, MapStopPin, PlannerState, VehicleLayer } from "./contracts";
+import type { MapState, MapStopLayer, MapStopPin, PlannerPoint, PlannerState, VehicleLayer } from "./contracts";
+import type { getCopy } from "./copy";
 import {
-  createPlannerMap, plannerLineLayerIds, plannerPointLayerId, type PlannerMapActions, type PlannerMapLabels,
+  createPlannerMap, plannerLineLayerIds, plannerPointLayerId, type PlannerMapActions,
 } from "./planner-map";
-import { drawStopCluster, drawStopPin } from "./stop-pin";
+import { drawStopPin } from "./stop-pin";
 import { drawVehicleBadge, systemTextScale, vehicleBadgeStyle, type VehicleBadgeStyle } from "./vehicle-badge";
 import { maxPulseMarkers, pulseFrame, pulsePaint, pulseTickMillis } from "./vehicle-pulse";
 
@@ -29,7 +30,6 @@ const selectedStopSourceId = "transit-selected-stop";
 const stopLayerId = "transit-stop-pins";
 const clusterLayerId = "transit-stop-clusters";
 const selectedStopLayerId = "transit-selected-stop-pin";
-const clusterImagePrefix = "transit-stop-cluster-";
 const maxStopMarkers = 1_000;
 const maxVehicleMarkers = 2_000;
 const maxBadgeImages = 256;
@@ -50,8 +50,8 @@ const localStyle: StyleSpecification = {
 const layerOrder = [
   "transit-route-lines-base", "transit-route-lines-emphasized", ...plannerLineLayerIds,
   "transit-user-accuracy-fill", "transit-user-accuracy-line",
-  stopLayerId, clusterLayerId, plannerPointLayerId, attentionLayerId, vehicleLayerId, selectedStopLayerId,
-  "transit-user-location",
+  clusterLayerId, stopLayerId, attentionLayerId, vehicleLayerId, selectedStopLayerId,
+  "transit-user-location", plannerPointLayerId,
 ];
 
 interface MapActions extends PlannerMapActions {
@@ -59,12 +59,14 @@ interface MapActions extends PlannerMapActions {
   updateViewport(latitude: number, longitude: number, radiusMeters: number, zoom: number): void;
   selectVehicle(vehicleId: string, revision: string): void;
   setUnavailable(unavailable: boolean): void;
+  setMapPointReady(ready: boolean): void;
 }
 
 export interface TransitMap {
   update(state: MapState): void;
   updateVehicles(layer: VehicleLayer): void;
   updatePlanner(state: PlannerState): void;
+  pointAt(position: { x: number; y: number }): PlannerPoint | undefined;
   retry(): void;
   resize(): void;
   setVisible(visible: boolean): void;
@@ -184,7 +186,7 @@ function stopData(layer: MapStopLayer | null | undefined) {
     .filter((cluster) => cluster.id && cluster.count > 1 && isMapCoordinate(cluster.latitude, cluster.longitude))
     .sort((a, b) => (a.id < b.id ? -1 : 1)).slice(0, maxStopMarkers)
     .map((cluster) => stopFeature(cluster.id, layer!.revision, cluster.longitude, cluster.latitude,
-      { kind: "cluster", image: clusterImagePrefix + cluster.count, label: cluster.label }));
+      { kind: "cluster", label: cluster.label }));
   const selected = order.selected.map(pin);
   return {
     ordinary: { type: "FeatureCollection" as const, features: [...ordinary, ...clusters] },
@@ -207,7 +209,7 @@ function routeLineData(lines: MapState["routePolylines"]) {
 }
 
 export function createTransitMap(
-  container: HTMLElement, initial: MapState, actions: MapActions, plannerLabels: PlannerMapLabels,
+  container: HTMLElement, initial: MapState, actions: MapActions, copy: ReturnType<typeof getCopy>,
 ): TransitMap {
   const { camera, styleUrl } = initial;
   if (!camera) throw new Error("Map camera is missing");
@@ -311,10 +313,6 @@ export function createTransitMap(
     for (const stop of layer?.stops ?? []) {
       if (!wanted.has(stop.pin.imageId)) wanted.set(stop.pin.imageId, () => drawStopPin(stop.pin, pixelRatio));
     }
-    for (const cluster of layer?.clusters ?? []) {
-      const id = clusterImagePrefix + cluster.count;
-      if (cluster.count > 1 && !wanted.has(id)) wanted.set(id, () => drawStopCluster(cluster.count, pixelRatio));
-    }
     for (const id of stopImageIds) {
       if (wanted.has(id)) continue;
       if (map.hasImage(id)) map.removeImage(id);
@@ -327,16 +325,16 @@ export function createTransitMap(
     }
   }
 
-  function pinLayer(id: string, source: string, kind: string): AddLayerObject {
+  function pinLayer(id: string, source: string): AddLayerObject {
     return {
       id,
       type: "symbol",
       source,
-      filter: ["==", ["get", "kind"], kind],
+      filter: ["==", ["get", "kind"], "stop"],
       layout: {
         "icon-image": ["get", "image"],
-        "icon-size": kind === "stop" ? ["number", ["get", "scale"]] : 1,
-        "icon-anchor": kind === "stop" ? "bottom" : "center",
+        "icon-size": ["number", ["get", "scale"]],
+        "icon-anchor": "bottom",
         "icon-padding": 0,
         "icon-allow-overlap": true,
         "icon-ignore-placement": true,
@@ -359,9 +357,12 @@ export function createTransitMap(
     } else {
       map.addSource(stopSourceId, { type: "geojson", data: ordinary });
       map.addSource(selectedStopSourceId, { type: "geojson", data: selected });
-      addLayerInOrder(pinLayer(stopLayerId, stopSourceId, "stop"));
-      addLayerInOrder(pinLayer(clusterLayerId, stopSourceId, "cluster"));
-      addLayerInOrder(pinLayer(selectedStopLayerId, selectedStopSourceId, "stop"));
+      addLayerInOrder({
+        id: clusterLayerId, type: "circle", source: stopSourceId, filter: ["==", ["get", "kind"], "cluster"],
+        paint: { "circle-color": "#264653", "circle-radius": 12, "circle-stroke-color": "#ffffff", "circle-stroke-width": 2 },
+      });
+      addLayerInOrder(pinLayer(stopLayerId, stopSourceId));
+      addLayerInOrder(pinLayer(selectedStopLayerId, selectedStopSourceId));
     }
     renderedStops = layer;
   }
@@ -474,7 +475,7 @@ export function createTransitMap(
     attentionTimer ??= setTimeout(attentionTick, pulseTickMillis);
   }
   reducedMotion.addEventListener("change", refreshAttention);
-  const planner = createPlannerMap(map, addLayerInOrder, actions, plannerLabels, reducedMotion);
+  const planner = createPlannerMap(map, addLayerInOrder, actions, copy, reducedMotion);
 
   map.on("style.load", () => {
     remoteStyleLoading = false;
@@ -494,6 +495,7 @@ export function createTransitMap(
     renderStops();
     attentionCount = 0;
     renderVehicles();
+    actions.setMapPointReady(!map.isMoving());
   });
 
   // Like the native adapters only the drawn pin is a target and the selected one wins; clusters are not tappable.
@@ -551,6 +553,7 @@ export function createTransitMap(
     remoteStyleLoading = false;
     usingFallbackStyle = true;
     styleReady = false;
+    actions.setMapPointReady(false);
     planner.styleLost();
     map.setStyle(localStyle, { diff: false });
   });
@@ -560,20 +563,24 @@ export function createTransitMap(
     usingFallbackStyle = false;
     remoteStyleLoading = true;
     styleReady = false;
+    actions.setMapPointReady(false);
     planner.styleLost();
     map.setStyle("/v1/map/style.json", { diff: false });
   }
   map.on("webglcontextlost", () => {
     styleReady = false;
+    actions.setMapPointReady(false);
     planner.styleLost();
     actions.setUnavailable(true);
   });
   map.on("webglcontextrestored", () => actions.setUnavailable(false));
   // Programmatic moves are reported too, as on mobile: a group tap zooms in and the ViewModel must see the new zoom.
   map.on("movestart", (event) => {
+    actions.setMapPointReady(false);
     if (event.originalEvent) pendingZoom = undefined;
   });
   map.on("moveend", () => {
+    actions.setMapPointReady(styleReady && !map.isMoving());
     const center = map.getCenter();
     const bounds = map.getBounds();
     const radius = Math.ceil(Math.max(
@@ -660,6 +667,16 @@ export function createTransitMap(
     onTextScaleCheck();
   }
 
+  function pointAt(position: { x: number; y: number }): PlannerPoint | undefined {
+    if (!styleReady || map.isMoving()) return;
+    const bounds = map.getCanvas().getBoundingClientRect();
+    const x = position.x - bounds.left;
+    const y = position.y - bounds.top;
+    if (x <= 0 || x >= bounds.width || y <= 0 || y >= bounds.height) return;
+    const point = map.unproject([x, y]).wrap();
+    return { latitude: point.lat, longitude: point.lng };
+  }
+
   function dispose() {
     pixelRatioQuery?.removeEventListener("change", onPixelRatioChange);
     reducedMotion.removeEventListener("change", refreshAttention);
@@ -677,5 +694,5 @@ export function createTransitMap(
     renderVehicles();
   }
 
-  return { update, updateVehicles, updatePlanner, retry, resize, setVisible, dispose };
+  return { update, updateVehicles, updatePlanner, pointAt, retry, resize, setVisible, dispose };
 }

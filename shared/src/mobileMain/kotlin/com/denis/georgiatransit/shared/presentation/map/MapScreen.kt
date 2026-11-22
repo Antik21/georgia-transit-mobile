@@ -157,10 +157,7 @@ private fun Content(
     LaunchedEffect(mapPick) { pointPicker.cancel() }
     // Re-keyed on endpoint changes so a choice collapses its block and opens the missing one; taps toggle in between.
     var expandedSide by remember(planner.isOpen, planner.origin, planner.destination) {
-        mutableStateOf(
-            if (planner.origin == null && planner.destination == null) JourneyPlanSide.Origin
-            else journeyExpandedSideFor(planner.origin, planner.destination),
-        )
+        mutableStateOf(journeyDefaultExpandedSideFor(planner.origin, planner.destination))
     }
     val density = LocalDensity.current
     var sheetHeight by remember { mutableStateOf(0.dp) }

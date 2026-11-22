@@ -8,3 +8,6 @@ internal fun journeyExpandedSideFor(origin: JourneyEndpoint?, destination: Journ
     origin == null && destination != null -> JourneyPlanSide.Origin
     else -> null
 }
+
+internal fun journeyDefaultExpandedSideFor(origin: JourneyEndpoint?, destination: JourneyEndpoint?): JourneyPlanSide? =
+    if (origin == null && destination == null) JourneyPlanSide.Origin else journeyExpandedSideFor(origin, destination)

@@ -20,6 +20,8 @@ const height = 844;
 const bffRequests = [];
 const workerResponses = [];
 const errors = [];
+const runtimeHold = Promise.withResolvers();
+fixtureControl.runtimeHold = runtimeHold.promise;
 
 await access(join(dist, 'index.html'));
 const profile = await mkdtemp(join(tmpdir(), 'georgia-transit-browser-smoke-'));
@@ -75,6 +77,7 @@ try {
   const routePressed = (id, value) => `document.querySelector(${JSON.stringify(routeOption(id))})?.getAttribute('aria-pressed') === '${value}'`;
   const routesScreen = visible(testId('routes-screen'));
   const mapScreen = visible(testId('map-screen'));
+  const cityScreen = visible(testId('city-screen'));
   const confirmCity = testId('confirm-city');
   const canConfirmCity = `document.querySelector('${confirmCity}')?.disabled === false`;
   const tileAttribution = `${visible('.maplibregl-ctrl-attrib')} && document.querySelector('.maplibregl-ctrl-attrib').textContent.includes(${JSON.stringify(fixtureAttribution)})`;
@@ -200,7 +203,7 @@ try {
     return glyph.count >= 20 ? glyph : null;
   }
 
-  async function tap(selector) {
+  async function touchTarget(selector) {
     const point = await evaluate(`(() => {
       const element = document.querySelector(${JSON.stringify(selector)});
       if (!element || element.disabled) return null;
@@ -209,11 +212,22 @@ try {
       return { x: rect.x + rect.width / 2, y: rect.y + rect.height / 2 };
     })()`);
     assert.ok(point, `No enabled touch target: ${selector}`);
-    await send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [point] });
-    await send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+    return point;
   }
 
+  const tap = async (selector) => tapAt(await touchTarget(selector));
+
+  await waitFor('Startup shows the app logo and loading bar while the runtime loads', `(() => {
+    const loading = document.querySelector('${testId('startup-loading')}');
+    const logo = loading?.querySelector('.startup-logo');
+    return Boolean(logo?.complete && logo.naturalWidth && logo.getBoundingClientRect().width >= 64
+      && loading.querySelector('[role="status"]')?.textContent.trim()
+      && loading.querySelector('.startup-progress')?.getBoundingClientRect().width >= 80
+      && !loading.closest('main').querySelector('button') && !${cityScreen} && !${mapScreen});
+  })()`);
+  runtimeHold.resolve();
   await waitFor('Telegram host ready and expanded', 'window.__telegramSmoke?.ready === 1 && window.__telegramSmoke?.expand === 1');
+  await waitFor('First launch opens city selection', `${cityScreen} && !${mapScreen} && !${canConfirmCity}`);
   await waitFor('City options fit the mobile viewport', `${visible(cityOption(fixtureCityId))} && ${visible(cityOption(otherCityId))} && window.innerWidth === ${width} && document.documentElement.scrollWidth === ${width}`);
   const cityCredit = `.attribution-links a[href="${fixtureCityCreditUrl}"]`;
   await waitFor('City selection displays the credit for a city with public attribution', visible(`.city-options ${cityCredit}`));
@@ -230,6 +244,21 @@ try {
     return logo?.complete && logo.naturalWidth >= 96 && logo.getBoundingClientRect().width >= 30
       && getComputedStyle(logo).borderRadius === '50%' && document.querySelector('.brand-name')?.textContent === 'Geo Transit';
   })()`);
+  const openPlanner = testId('open-planner');
+  const openRoutes = testId('open-routes');
+  await waitFor('Map actions match the mobile layout', `(() => {
+    const routes = document.querySelector('${openRoutes}').getBoundingClientRect();
+    const map = document.querySelector('.map-region').getBoundingClientRect();
+    const planner = document.querySelector('${openPlanner}').getBoundingClientRect();
+    const zoomOut = document.querySelector('${testId('zoom-out')}').getBoundingClientRect();
+    return routes.width > map.width * 0.8 && routes.top >= map.bottom
+      && planner.width > 0 && planner.bottom <= zoomOut.bottom + 1 && planner.bottom >= zoomOut.top - 4
+      && planner.right < zoomOut.left
+      && ${visible(testId('change-city'))};
+  })()`);
+  await tap(openPlanner);
+  await waitFor('A city without trip planning explains why the planner stays closed',
+    `${visible(testId('planner-unavailable-notice'))} && !${visible(testId('planner-panel'))}`);
   await waitFor('MapLibre worker loads from the production build', () => workerResponses.includes(200));
   await waitFor('MapLibre renders pixels from the fixture raster tiles', () => mapContainsColor(fixtureTileColor, 2_000));
   await waitFor('Tile source attribution is visible', tileAttribution);
@@ -237,6 +266,7 @@ try {
   await waitFor('Nearby stops load as map pins only', async () => Boolean(await stopPinPoint()) && await evaluate(`${panelCollapsed} && !${visible(testId('map-content-status'))}`));
   await tapAt(await stopPinPoint());
   await waitFor('ETA panel shows BFF arrival', etaVisible);
+  await waitFor('The selected stop uses the mobile green outline', () => mapContainsColor([39, 174, 122], 25));
   await waitFor('Arrival and stop route badges use the BFF route colour', `JSON.stringify(${colorsOf(testId('arrival-route'))}) === ${JSON.stringify(JSON.stringify([['D1', `rgb(${fixtureRouteColor.join(', ')})`, 'rgb(255, 255, 255)']]))}
     && JSON.stringify(${colorsOf(testId('stop-route-chip'))}) === ${JSON.stringify(JSON.stringify([['D1', `rgb(${fixtureRouteColor.join(', ')})`, 'rgb(255, 255, 255)']]))}`);
   await waitFor('Telegram BackButton handles the ETA panel', `${backVisible} && typeof window.__telegramSmoke.backHandler === 'function'`);
@@ -253,6 +283,11 @@ try {
   await waitFor('In-app close collapses the panel back to the map', `!${arrivalsPanel} && ${panelCollapsed}`);
   let pinPoint;
   await waitFor('The stop pin settles after the ETA camera move', async () => Boolean(pinPoint = await stopPinPoint()));
+  const mapCenter = () => evaluate(`(() => {
+    const bounds = document.querySelector('.maplibregl-canvas').getBoundingClientRect();
+    return { x: bounds.x + bounds.width / 2, y: bounds.y + bounds.height / 2 };
+  })()`);
+  const beforeSelection = await mapCenter();
 
   await tap(testId('open-routes'));
   await waitFor('Route picker loads both catalog entries', `${routesScreen} && ${visible(routeOption(fixtureRouteId))} && ${visible(routeOption(otherRouteId))}`);
@@ -265,7 +300,20 @@ try {
   await waitFor('Confirm returns to the map', `${mapScreen} && !${routesScreen}`);
   await waitFor('The selected route geometry draws on the MapLibre canvas', () => mapContainsColor(fixtureRouteColor, 75));
   await waitFor('A stop on the selected route switches to the route-coloured pin', async () => !(await stopPinPoint()));
-  await tapAt(pinPoint);
+  await waitFor('The route chip uses the route palette and keeps separate map actions', `(() => {
+    const chip = document.querySelector('${testId('route-legend')} .map-route-chip');
+    return Boolean(chip && getComputedStyle(chip).backgroundColor === '${fixtureRouteCss}'
+      && chip.querySelector('${testId('focus-route')} svg')
+      && chip.querySelector('${testId('remove-route')} svg'));
+  })()`);
+  await tap(testId('focus-route'));
+  await waitFor('Tapping the route chip highlights its line', `document.querySelector('${testId('focus-route')}')?.getAttribute('aria-pressed') === 'true'`);
+  // The new route legend takes space below the canvas and shifts its centre.
+  const afterSelection = await mapCenter();
+  await tapAt({
+    x: pinPoint.x + afterSelection.x - beforeSelection.x,
+    y: pinPoint.y + afterSelection.y - beforeSelection.y,
+  });
   await waitFor('Tapping the route-coloured pin opens ETA with a route selected', etaVisible);
   await waitFor('The stop panel marks the selected route chip', `document.querySelector('${testId('stop-route-chip')}')?.dataset.selected === 'true'`);
   await tap(testId('dismiss-arrivals'));
@@ -353,8 +401,22 @@ try {
   await waitFor('Telegram back closes the route picker', `${mapScreen} && !${routesScreen} && window.__telegramSmoke?.backVisible === false`);
   await tap(testId('open-routes'));
   await waitFor('Telegram back discards the route draft', `${routePressed(fixtureRouteId, true)} && ${routePressed(otherRouteId, false)}`);
-  await tap(testId('cancel-routes'));
-  await waitFor('Closing the route picker restores the map', `${mapScreen} && !${routesScreen}`);
+  const incomingVehicles = Promise.withResolvers();
+  fixtureControl.vehicleHold = incomingVehicles.promise;
+  try {
+    await tap(testId('cancel-routes'));
+    await waitFor('The map shows the route while vehicle positions start loading',
+      `${mapScreen} && !${routesScreen} && ${visible(testId('remove-route'))} && ${visible(testId('vehicle-status'))}`);
+    const removePoint = await touchTarget(testId('remove-route'));
+    incomingVehicles.resolve();
+    await waitFor('The vehicle status clears when positions arrive', `!${visible(testId('vehicle-status'))}`);
+    assert.deepEqual(await touchTarget(testId('remove-route')), removePoint, 'The vehicle status must not move the route action');
+    await tapAt(removePoint);
+  } finally {
+    fixtureControl.vehicleHold = null;
+    incomingVehicles.resolve();
+  }
+  await waitFor('Removing the route clears its chip', `!${visible(testId('route-legend'))}`);
   await tap(testId('change-city'));
   await waitFor('Change-city action reopens city choices', `${visible(testId('city-screen'))} && ${visible(cityOption(otherCityId))}`);
 
@@ -380,6 +442,14 @@ try {
   await waitFor('The BFF style is retried when the network returns', () => mapContainsColor(fixtureTileColor, 2_000));
   await waitFor('Second city requests its own nearby stops', () => bffRequests.includes(`/v1/cities/${otherCityId}/stops/nearby`));
   await waitFor('An empty area is reported on the map, not in a list', `${visible(testId('map-content-status'))} && ${panelCollapsed}`);
+
+  await tap(openPlanner);
+  await waitFor('The map launcher opens an empty planner and gives it the map controls',
+    `${visible(testId('planner-panel'))} && !${visible(openPlanner)} && !${visible(openRoutes)}
+    && ${visible(testId('planner-pick-origin'))} && !${visible(testId('planner-pick-destination'))}
+    && document.querySelector('${testId('planner-find')}')?.disabled === true`);
+  await tap(testId('planner-close'));
+  await waitFor('Closing the planner restores the map launcher and routes', `${visible(openPlanner)} && ${visible(openRoutes)}`);
 
   const planner = plannerSmoke({ send, evaluate, waitFor, tap, visible, testId, mapContainsColor, analyzeMap, bffRequests });
   await planner.pointToPoint(() => evaluate('window.__telegramSmoke.backHandler(); true'));
@@ -436,8 +506,11 @@ try {
   await devTools.send('Browser.grantPermissions', { origin, permissions: ['geolocation'] });
   await send('Emulation.setGeolocationOverride', { latitude: 41.6512, longitude: 41.6402, accuracy: 30 });
   const browserTimeOrigin = await evaluate('performance.timeOrigin');
+  const requestsBeforeBrowserReload = bffRequests.length;
   await send('Page.reload');
-  await waitFor('A plain browser reopens the map without Telegram', `performance.timeOrigin !== ${browserTimeOrigin} && !window.Telegram && ${mapScreen}`);
+  await waitFor('A plain browser reopens the map without Telegram', `performance.timeOrigin !== ${browserTimeOrigin} && !window.Telegram && ${mapScreen} && !${cityScreen}`);
+  await waitFor('The browser restores the most recently chosen city', () =>
+    bffRequests.slice(requestsBeforeBrowserReload).includes(`/v1/cities/${otherCityId}/stops/nearby`));
   await waitFor('Previously granted browser geolocation locates the user on open', `${permissionIs('granted')} && !${visible(testId('location-status'))}`);
   await waitFor('The browser location dot draws on the MapLibre canvas', () => mapContainsColor(userLocationDotColor, 20));
   await planner.fromMyLocation({ latitude: 41.6512, longitude: 41.6402 });
@@ -459,6 +532,7 @@ try {
   if (errors.length) console.error('Browser errors:', errors);
   throw error;
 } finally {
+  runtimeHold.resolve();
   await devTools.close();
   await new Promise((done) => server.close(done));
   await rm(profile, { recursive: true, force: true });

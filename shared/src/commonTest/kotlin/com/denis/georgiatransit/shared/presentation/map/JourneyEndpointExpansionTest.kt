@@ -16,4 +16,12 @@ class JourneyEndpointExpansionTest {
         assertNull(journeyExpandedSideFor(point, JourneyEndpoint.CurrentLocation))
         assertNull(journeyExpandedSideFor(null, null))
     }
+
+    @Test
+    fun opensTheStartOfAnEmptyFormAndOnlyUnselectedEndpointsAfterThat() {
+        assertEquals(JourneyPlanSide.Origin, journeyDefaultExpandedSideFor(null, null))
+        assertEquals(JourneyPlanSide.Destination, journeyDefaultExpandedSideFor(point, null))
+        assertEquals(JourneyPlanSide.Origin, journeyDefaultExpandedSideFor(null, point))
+        assertNull(journeyDefaultExpandedSideFor(point, JourneyEndpoint.CurrentLocation))
+    }
 }

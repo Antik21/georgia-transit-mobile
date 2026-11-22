@@ -1,6 +1,8 @@
 import { getCopy, getLanguage } from "./copy";
 import { applyRouteColors, button, element, heading, icon, replacePreservingFocus, status } from "./dom";
-import type { ArrivalsState, Attribution, CityState, MapState, PlannerState, RouteChoice, RoutesState } from "./contracts";
+import type { ArrivalsState, Attribution, CityState, MapState, PlannerEndpoint, PlannerSide, PlannerState, RouteChoice, RoutesState } from "./contracts";
+import { mapIcon } from "./map-icons";
+import { createMapPointPicker } from "./planner-map-ui";
 import { renderPlannerPanel, type PlannerActions } from "./planner-ui";
 import appLogoUrl from "./assets/app-logo.webp";
 
@@ -25,6 +27,10 @@ export interface ViewActions extends PlannerActions {
   myLocation(): void;
   zoomIn(): void;
   zoomOut(): void;
+  openPlanner(): void;
+  cancelMapPick(): void;
+  confirmMapPick(): void;
+  dismissPlannerPin(): void;
 }
 
 type Copy = ReturnType<typeof getCopy>;
@@ -58,30 +64,55 @@ export function createTransitView(root: HTMLElement, actions: ViewActions, langu
   cityCard.setAttribute("aria-labelledby", cityHeading.id);
   const cityContent = element("div", "city-content");
   const cityFooter = element("div", "city-footer");
-  const confirmCity = button("primary-button", copy.continue, actions.confirmCity, "confirm-city");
+  const confirmCity = button("primary-button", copy.openMap, actions.confirmCity, "confirm-city");
   cityFooter.append(confirmCity);
   cityCard.append(cityHeading, cityContent, cityFooter);
   city.append(cityCard);
 
   const map = element("main", "map-screen");
   map.dataset.testid = "map-screen";
+  const mapColumn = element("div", "map-column");
   const mapRegion = element("section", "map-region");
   mapRegion.setAttribute("aria-label", copy.map);
   mapRegion.tabIndex = -1;
   const mapElement = element("div", "map-canvas");
   const mapOverlay = element("div", "map-overlay");
   const mapControls = element("div", "map-controls");
-  const openRoutes = button("secondary-button map-routes-button", copy.openRoutes, actions.openRoutes, "open-routes");
+  const openRoutes = button("primary-button map-routes-button", copy.openRoutes, actions.openRoutes, "open-routes");
+  const routeSelection = element("section", "map-route-selection");
+  const routeHeading = element("h2", "map-route-heading", copy.selectedRoutes);
+  routeHeading.id = "map-selected-routes";
   const routeLegends = element("ul", "map-route-legends");
-  routeLegends.setAttribute("aria-label", copy.selectedRoutes);
+  routeLegends.setAttribute("aria-labelledby", routeHeading.id);
+  routeSelection.append(routeHeading, routeLegends);
   const vehicleStatus = element("p", "map-vehicle-status");
   vehicleStatus.dataset.testid = "vehicle-status";
   // Mirrors the mobile accessibility summary: announced politely, never drawn.
   const vehicleSummary = element("p", "visually-hidden");
   vehicleSummary.setAttribute("aria-live", "polite");
   vehicleSummary.dataset.testid = "vehicle-summary";
-  mapControls.append(openRoutes, routeLegends, vehicleStatus, vehicleSummary);
+  // The footer grows upward. Placing status above the chips keeps their targets still as live data arrives.
+  mapControls.append(vehicleStatus, routeSelection, openRoutes);
   const mapCredits = element("div", "map-credits");
+  const mapLeftControls = element("div", "map-left-controls");
+  const plannerControls = element("div", "map-planner-controls");
+  const plannerNotice = status(copy.plannerUnavailable);
+  plannerNotice.classList.add("map-planner-notice");
+  plannerNotice.dataset.testid = "planner-unavailable-notice";
+  plannerNotice.hidden = true;
+  let plannerNoticeTimer: number | undefined;
+  const openPlanner = button("map-planner-button", "", () => {
+    if (mapState?.journeyPlanningAvailable) {
+      actions.openPlanner();
+    } else {
+      plannerNotice.hidden = false;
+      window.clearTimeout(plannerNoticeTimer);
+      plannerNoticeTimer = window.setTimeout(hidePlannerNotice, 3_000);
+    }
+  }, "open-planner");
+  openPlanner.append(mapIcon("journey"), element("span", "", copy.planTrip));
+  plannerControls.append(plannerNotice, openPlanner);
+  mapLeftControls.append(plannerControls, mapCredits);
   const locationControls = element("div", "map-location");
   const locationStatus = element("p", "map-location-status");
   locationStatus.setAttribute("role", "status");
@@ -92,24 +123,26 @@ export function createTransitView(root: HTMLElement, actions: ViewActions, langu
     locationRequested = true;
     actions.myLocation();
   }, "my-location");
-  locationButton.append(locationIcon());
+  locationButton.append(mapIcon("location"));
   const zoomIn = button("map-zoom-button", "", actions.zoomIn, "zoom-in");
   const zoomOut = button("map-zoom-button", "", actions.zoomOut, "zoom-out");
-  for (const [control, label, glyph] of [[zoomIn, copy.zoomIn, "M5 12h14M12 5v14"], [zoomOut, copy.zoomOut, "M5 12h14"]] as const) {
+  for (const [control, label, glyph] of [[zoomIn, copy.zoomIn, "zoomIn"], [zoomOut, copy.zoomOut, "zoomOut"]] as const) {
     control.setAttribute("aria-label", label);
     control.title = label;
-    control.append(zoomIcon(glyph));
+    control.append(mapIcon(glyph));
   }
   locationControls.append(locationStatus, locationButton, zoomIn, zoomOut);
   // Mirrors the mobile map overlay: nearby-stop loading and errors show on the map, never as a list.
   const contentStatus = element("div", "map-content-status");
   contentStatus.dataset.testid = "map-content-status";
-  mapRegion.append(mapElement, mapOverlay, mapControls, contentStatus, locationControls, mapCredits);
+  const mapPointPicker = createMapPointPicker(copy, actions.cancelMapPick, actions.confirmMapPick);
+  mapRegion.append(mapElement, mapOverlay, contentStatus, mapLeftControls, locationControls, mapPointPicker.header, mapPointPicker.target);
   const mapPanel = element("section", "map-panel");
   mapPanel.dataset.testid = "map-panel";
   mapPanel.setAttribute("aria-labelledby", "map-panel-heading");
   mapPanel.hidden = true;
-  map.append(mapRegion, mapPanel);
+  mapColumn.append(mapRegion, mapControls, mapPointPicker.footer, vehicleSummary);
+  map.append(mapColumn, mapPanel);
 
   const routePicker = createRoutePicker(copy, actions);
   app.append(header, startup, city, map, routePicker.element);
@@ -120,12 +153,38 @@ export function createTransitView(root: HTMLElement, actions: ViewActions, langu
   let panelKey: string | null = null;
   let mapState: MapState | undefined;
   let planner: PlannerState | undefined;
+  let expandedPlannerSide: PlannerSide | undefined;
+  const plannerActions: PlannerActions = {
+    ...actions,
+    editPlannerPoints() {
+      if (planner?.status === "empty") expandedPlannerSide = "origin";
+      actions.editPlannerPoints();
+    },
+    useMyLocationFor(side) {
+      if (planner?.[side].kind === "myLocation") {
+        expandedPlannerSide = undefined;
+        showMap(mapState);
+      }
+      actions.useMyLocationFor(side);
+    },
+  };
+
+  function togglePlannerSide(side: PlannerSide) {
+    expandedPlannerSide = expandedPlannerSide === side ? undefined : side;
+    showMap(mapState);
+  }
 
   app.addEventListener("keydown", (event) => {
     if (event.key !== "Escape" || event.defaultPrevented || event.isComposing) return;
     if (screen === "routes") {
       event.preventDefault();
       actions.cancelRoutes();
+    } else if (screen === "map" && planner?.mapPick) {
+      event.preventDefault();
+      actions.cancelMapPick();
+    } else if (screen === "map" && planner?.pin) {
+      event.preventDefault();
+      actions.dismissPlannerPin();
     } else if (screen === "map" && planner?.open) {
       event.preventDefault();
       if (planner.showingResults) actions.editPlannerPoints();
@@ -146,12 +205,21 @@ export function createTransitView(root: HTMLElement, actions: ViewActions, langu
     if (next !== "map") {
       cityName.hidden = true;
       changeCity.hidden = true;
+      hidePlannerNotice();
     }
     if (changed) focusTarget?.focus({ preventScroll: true });
   }
 
   function showLoading() {
-    startup.replaceChildren(status(copy.startup, true));
+    const loading = element("div", "startup-loading");
+    loading.dataset.testid = "startup-loading";
+    const logo = element("img", "startup-logo");
+    logo.src = appLogoUrl;
+    logo.alt = "";
+    const progress = element("span", "startup-progress");
+    progress.setAttribute("aria-hidden", "true");
+    loading.append(logo, status(copy.startup), progress);
+    startup.replaceChildren(loading);
     setScreen("startup");
   }
 
@@ -196,6 +264,8 @@ export function createTransitView(root: HTMLElement, actions: ViewActions, langu
 
   function showMap(state?: MapState) {
     mapState = state;
+    const mapPick = planner?.mapPick;
+    const pickSide = mapPick === "origin" || mapPick === "destination" ? mapPick : undefined;
     const returningFromRoutes = screen === "routes";
     if (screen !== "map" && (!returningFromRoutes || !state)) setMapLoading();
     const name = state?.cityName ?? "";
@@ -205,40 +275,69 @@ export function createTransitView(root: HTMLElement, actions: ViewActions, langu
     cityName.hidden = !name || !changeCity.hidden;
     cityName.textContent = name;
     updateCredits(mapCredits, cityCreditLinks(state?.cityId, state?.attribution ?? []));
+    plannerControls.hidden = !state?.camera || planner?.open === true;
+    if (plannerControls.hidden || state?.journeyPlanningAvailable) hidePlannerNotice();
+    openPlanner.dataset.available = String(state?.journeyPlanningAvailable === true);
+    openPlanner.title = state?.journeyPlanningAvailable ? "" : copy.plannerUnavailable;
     openRoutes.hidden = !state?.canOpenRoutes;
     const legends = state?.routeLegends ?? [];
-    routeLegends.hidden = legends.length === 0;
-    replacePreservingFocus(routeLegends, legends.map((route) => renderRouteLegend(route, copy, actions)));
+    routeSelection.hidden = legends.length === 0;
+    const legendRows = legends.map((route) => renderRouteLegend(route, copy, actions));
+    // Map updates can arrive between pointer down and up. Keep unchanged buttons mounted.
+    if (routeLegends.childElementCount !== legendRows.length
+      || legendRows.some((row, index) => !row.isEqualNode(routeLegends.children[index]))) {
+      replacePreservingFocus(routeLegends, legendRows);
+    }
     renderLocation(state?.location);
     const vehicleText = vehicleStatusText(copy, state?.vehicleStatus);
     vehicleStatus.hidden = !vehicleText;
     if (vehicleStatus.textContent !== (vehicleText ?? "")) vehicleStatus.textContent = vehicleText ?? "";
+    mapControls.hidden = planner?.open === true || (openRoutes.hidden && routeSelection.hidden && vehicleStatus.hidden);
     const summaryText = vehicleSummaryText(copy, state?.vehicleStatus, state?.vehicleRoutes ?? []);
     if (vehicleSummary.textContent !== summaryText) vehicleSummary.textContent = summaryText;
 
-    renderContentStatus(state);
+    if (pickSide) contentStatus.hidden = true;
+    else renderContentStatus(state);
 
-    const nextPanelKey = planner?.open ? "planner" : state?.arrivals?.stopId ?? null;
-    const content = planner?.open ? renderPlannerPanel(planner, copy, actions, language)
+    const nextPanelKey = pickSide ? null : planner?.open ? "planner" : state?.arrivals?.stopId ?? null;
+    const content = pickSide ? null : planner?.open
+      ? renderPlannerPanel(planner, copy, plannerActions, language, expandedPlannerSide, togglePlannerSide)
       : state?.arrivals ? renderArrivals(state.arrivals, copy, actions) : null;
     const panelHeading = content?.querySelector<HTMLElement>("h1") ?? null;
     if (panelHeading) panelHeading.id = "map-panel-heading";
-    const panelChanged = nextPanelKey !== panelKey;
+    const plannerForm = !pickSide && planner?.open === true && !planner.showingResults;
+    const panelChanged = nextPanelKey !== panelKey || (plannerForm && !map.classList.contains("has-planner-form"));
     const panelHadFocus = mapPanel.contains(document.activeElement);
     mapPanel.hidden = !content;
     map.classList.toggle("has-panel", Boolean(content));
+    map.classList.toggle("has-planner-form", plannerForm);
     if (!content) {
       mapPanel.replaceChildren();
-      if (panelHadFocus) mapRegion.focus({ preventScroll: true });
+      if (panelHadFocus && !pickSide) {
+        const previousControl = panelKey === "planner" && !plannerControls.hidden ? openPlanner : mapRegion;
+        previousControl.focus({ preventScroll: true });
+      }
     } else if (panelChanged) {
       mapPanel.replaceChildren(content);
       mapPanel.scrollTop = 0;
       panelHeading?.focus({ preventScroll: true });
-    } else {
+    } else if (!planner?.open || !content.isEqualNode(mapPanel.firstChild)) {
+      const focusedSide = mapPanel.querySelector(":focus")?.closest<HTMLElement>("[data-side]")?.dataset.side;
       replacePreservingFocus(mapPanel, [content]);
+      if (plannerForm && panelHadFocus && !mapPanel.contains(document.activeElement)) {
+        const side = expandedPlannerSide ?? focusedSide;
+        const summary = side ? mapPanel.querySelector<HTMLElement>(`[data-testid="planner-${side}-toggle"]`) : panelHeading;
+        summary?.focus({ preventScroll: true });
+      }
     }
     panelKey = nextPanelKey;
     setScreen("map", returningFromRoutes && !openRoutes.hidden ? openRoutes : panelHeading ?? mapRegion);
+    mapPointPicker.render(pickSide);
+  }
+
+  function hidePlannerNotice() {
+    window.clearTimeout(plannerNoticeTimer);
+    plannerNotice.hidden = true;
   }
 
   function renderContentStatus(state: MapState | undefined) {
@@ -291,7 +390,14 @@ export function createTransitView(root: HTMLElement, actions: ViewActions, langu
     if (unavailable) mapOverlay.replaceChildren(status(copy.mapUnavailable));
   }
 
-  function showPlanner(state: PlannerState) {
+  function showPlanner(state: PlannerState | undefined) {
+    // Reset manual expansion only when the form opens or a saved endpoint changes, as on Android.
+    if (state?.open !== planner?.open || (state && planner && (
+      !sameEndpoint(state.origin, planner.origin) || !sameEndpoint(state.destination, planner.destination)
+    ))) {
+      const side = state?.defaultExpandedSide;
+      expandedPlannerSide = side === "origin" || side === "destination" ? side : undefined;
+    }
     planner = state;
     if (screen === "map") showMap(mapState);
   }
@@ -299,7 +405,13 @@ export function createTransitView(root: HTMLElement, actions: ViewActions, langu
   showLoading();
   return {
     mapElement, showLoading, showStartupError, showCitySelection, showMap, showRoutes, showPlanner, setMapLoading, setMapUnavailable,
+    setMapPointReady: mapPointPicker.setReady, mapPickPoint: mapPointPicker.point,
   };
+}
+
+function sameEndpoint(next: PlannerEndpoint, previous: PlannerEndpoint) {
+  return next.kind === previous.kind && next.point?.latitude === previous.point?.latitude
+    && next.point?.longitude === previous.point?.longitude;
 }
 
 function createRoutePicker(copy: Copy, actions: ViewActions) {
@@ -457,25 +569,31 @@ function renderRouteLegend(route: MapState["routeLegends"][number], copy: Copy, 
   const row = element("li", "map-route-legend");
   row.dataset.testid = "route-legend";
   row.dataset.routeId = route.routeId;
+  const chip = element("div", "map-route-chip");
+  applyRouteColors(chip, route.color, route.textColor);
   const focus = button("map-route-focus", "", () => actions.focusRoute(route.routeId), "focus-route");
   focus.dataset.focusKey = `focus-${route.routeId}`;
   focus.setAttribute("aria-pressed", String(route.focused));
-  const badge = element("span", "route-number", route.label);
-  applyRouteColors(badge, route.color, route.textColor);
-  focus.append(badge);
+  focus.disabled = !route.canFocus;
   const state = routeLineStatus(copy, route.status);
-  if (state) focus.append(element("span", "map-route-status", state));
-  row.append(focus);
-  if (route.canRetry) {
-    const retry = button("route-icon-button", "↻", () => actions.retryRoute(route.routeId), "retry-route");
-    retry.dataset.focusKey = `retry-${route.routeId}`;
-    retry.setAttribute("aria-label", copy.retryRoute.replace("%1$s", route.label));
-    row.append(retry);
-  }
-  const remove = button("route-icon-button", "×", () => actions.removeRoute(route.routeId), "remove-route");
+  focus.setAttribute("aria-label", [copy.focusRoute.replace("%1$s", route.label), state].filter(Boolean).join(". "));
+  const label = element("span", "map-route-label");
+  label.append(element("span", "", route.label));
+  if (state) label.append(element("small", "map-route-status", state));
+  focus.append(route.status === "loading" ? icon("spinner") : mapIcon("bus"), label);
+  const remove = button("map-route-remove", "", () => actions.removeRoute(route.routeId), "remove-route");
   remove.dataset.focusKey = `remove-${route.routeId}`;
   remove.setAttribute("aria-label", copy.removeRoute.replace("%1$s", route.label));
-  row.append(remove);
+  remove.append(mapIcon("close"));
+  chip.append(focus, icon("map-route-divider"), remove);
+  row.append(chip);
+  if (route.canRetry) {
+    const retry = button("map-route-retry", "", () => actions.retryRoute(route.routeId), "retry-route");
+    retry.dataset.focusKey = `retry-${route.routeId}`;
+    retry.setAttribute("aria-label", copy.retryRoute.replace("%1$s", route.label));
+    retry.append(mapIcon("retry"));
+    row.append(retry);
+  }
   return row;
 }
 
@@ -507,36 +625,6 @@ function locationStatusText(copy: Copy, location: NonNullable<MapState["location
     case "error": return copy.locationError;
     default: return null;
   }
-}
-
-const svgNamespace = "http://www.w3.org/2000/svg";
-
-function zoomIcon(path: string) {
-  const svg = document.createElementNS(svgNamespace, "svg");
-  svg.setAttribute("viewBox", "0 0 24 24");
-  svg.setAttribute("aria-hidden", "true");
-  svg.classList.add("map-zoom-icon");
-  const shape = document.createElementNS(svgNamespace, "path");
-  shape.setAttribute("d", path);
-  svg.append(shape);
-  return svg;
-}
-
-function locationIcon() {
-  const svg = document.createElementNS(svgNamespace, "svg");
-  svg.setAttribute("viewBox", "0 0 24 24");
-  svg.setAttribute("aria-hidden", "true");
-  svg.classList.add("map-location-icon");
-  for (const [tag, attributes] of [
-    ["circle", { cx: "12", cy: "12", r: "7" }],
-    ["circle", { cx: "12", cy: "12", r: "2.5", fill: "currentColor" }],
-    ["path", { d: "M12 1v4M12 19v4M1 12h4M19 12h4" }],
-  ] as const) {
-    const shape = document.createElementNS(svgNamespace, tag);
-    for (const [name, value] of Object.entries(attributes)) shape.setAttribute(name, value);
-    svg.append(shape);
-  }
-  return svg;
 }
 
 function vehicleStateLabel(copy: Copy, status?: string) {
