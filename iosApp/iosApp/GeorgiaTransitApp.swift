@@ -1,3 +1,4 @@
+import FirebaseCore
 import SwiftUI
 import Shared
 
@@ -23,6 +24,7 @@ private enum AppEnvironment {
 @main
 struct GeorgiaTransitApp: App {
     init() {
+        FirebaseApp.configure()
 #if SANDBOX
         DebugNetworkInspector.install()
 #endif

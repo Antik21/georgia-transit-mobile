@@ -54,3 +54,5 @@ The automatic ThetaMaps fallback for Batumi live positions is recorded in
 [ADR 0027](0027-batumi-theta-live-failover.md).
 The Kutaisi planning graph and compatibility for journeys without times are recorded in
 [ADR 0028](0028-kutaisi-untimed-journeys.md).
+Native crash reporting and its telemetry boundary are recorded in
+[ADR 0029](0029-native-crash-reporting.md).
