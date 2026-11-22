@@ -1,7 +1,6 @@
-// Fill in store and bot links here once they exist; null renders a visible "link coming" placeholder.
+// Fill in store links here once they exist; null renders a visible "link coming" placeholder.
 const LINKS = {
   web: "https://app.geotransit.com.ge/",
-  telegram: null,
   android: null,
   ios: null,
 };
@@ -199,7 +198,7 @@ const ka = {
 };
 
 const translations = { ru, en, ka };
-const linkLabels = { web: "linkWeb", android: "linkAndroid", ios: "linkIos", telegram: "linkTelegram" };
+const linkLabels = { web: "linkWeb", android: "linkAndroid", ios: "linkIos" };
 const storage = {
   get(key) { try { return localStorage.getItem(key); } catch { return null; } },
   set(key, value) { try { localStorage.setItem(key, value); } catch {} },

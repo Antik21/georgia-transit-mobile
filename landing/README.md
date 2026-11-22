@@ -15,9 +15,9 @@ Then open `http://127.0.0.1:4180/`. Any static file server works; there is nothi
 
 ## Store and bot links
 
-Android, iOS and Telegram links are not published yet. Fill them in `LINKS` at the top of
+Fill in the Android and iOS store links in `LINKS` at the top of
 [main.js](main.js); while a value is `null`, the page shows a "link will appear here" placeholder
-instead of a fake badge.
+instead of a fake badge. The Telegram link in [index.html](index.html) opens the bot's main Mini App.
 
 ## Screenshots
 
