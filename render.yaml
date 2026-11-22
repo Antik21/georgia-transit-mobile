@@ -95,6 +95,8 @@ services:
     branch: main
     buildCommand: test -f landing/index.html
     staticPublishPath: landing
+    domains:
+      - www.geotransit.com.ge
     autoDeployTrigger: checksPass
     buildFilter:
       paths:
