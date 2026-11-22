@@ -152,6 +152,11 @@ The CSV supplies the ordered coordinates and the original lookup labels. The pre
 segments between stops and exposes static routes, stops, and route geometry. The input is local
 and accepted only by a loopback development BFF.
 
+## Product analytics
+
+The [Amplitude event catalog](docs/development/product-analytics.md) documents the triggers, properties,
+and frequency for Android, iOS, Web, and Telegram Mini App.
+
 ## Firebase Crashlytics
 
 The [Geo Transit Firebase project](https://console.firebase.google.com/project/georgia-transit-mobile/overview)
