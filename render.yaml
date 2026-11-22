@@ -69,6 +69,8 @@ services:
     branch: web-dist
     buildCommand: test -f index.html
     staticPublishPath: .
+    domains:
+      - app.geotransit.com.ge
     autoDeployTrigger: commit
     routes:
       # Same-origin proxy required by ADR 0020; style and tile paths must stay unchanged.

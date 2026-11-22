@@ -1,6 +1,6 @@
 // Fill in store and bot links here once they exist; null renders a visible "link coming" placeholder.
 const LINKS = {
-  web: "https://antik21-georgia-transit-web.onrender.com/",
+  web: "https://app.geotransit.com.ge/",
   telegram: null,
   android: null,
   ios: null,
