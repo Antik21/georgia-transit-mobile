@@ -20,7 +20,7 @@ export const stopPinGlyphColor = [52, 65, 85];
 export const fixtureVehiclesPath = `/v1/cities/${fixtureCityId}/vehicles`;
 export const fixtureAttribution = 'Fixture tiles';
 // Toggled by the smoke to exercise the local-style fallback and its recovery.
-export const fixtureControl = { failStyle: false, staleVehicles: false, telegram: true, vehicleAdvanced: false, planStatus: 200, styleHold: null, lastPlan: null };
+export const fixtureControl = { failStyle: false, staleVehicles: false, telegram: true, vehicleAdvanced: false, planStatus: 200, styleHold: null, runtimeHold: null, lastPlan: null };
 export const plannerRouteColors = { orange: [228, 87, 46], yellow: [242, 193, 78] };
 // The buses the planner should highlight: the two soonest of a route at the first boarding stop.
 export const plannerArrivalMinutes = { orange: [3, 11], yellow: [5] };
@@ -401,6 +401,7 @@ export function browserFixture(dist, bffRequests, origin) {
 
     const asset = resolve(root, path === '/' ? './index.html' : `.${path}`);
     if (!asset.startsWith(`${root}${sep}`)) return respond(404);
+    if (/^\/assets\/runtime-[^/]+\.js$/.test(path)) await fixtureControl.runtimeHold;
     try {
       const body = await readFile(asset);
       return respond(200, body, contentTypes.get(asset.split('.').at(-1)) ?? 'application/octet-stream');

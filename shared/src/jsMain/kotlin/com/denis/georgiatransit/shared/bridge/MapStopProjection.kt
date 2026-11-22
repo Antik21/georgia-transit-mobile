@@ -17,6 +17,7 @@ class StopPin(
     val imageId: String,
     val color: String,
     val glyphColor: String,
+    val outlineColor: String,
     val width: Int,
     val height: Int,
     val bodyTop: Double,
@@ -61,7 +62,7 @@ internal fun stopLayerOf(revision: Long, stops: List<MapStopMarker>, clusters: L
     return MapStopLayer(
         revision = revision.toString(),
         stops = stops.map { marker ->
-            val artwork = marker.routeHighlight.pinArtwork
+            val artwork = marker.pinArtwork
             MapStopPin(
                 id = marker.id.value,
                 latitude = marker.position.latitude,
@@ -85,6 +86,7 @@ private fun StopPinArtwork.toJs() = StopPin(
     imageId = imageId,
     color = backgroundArgb.toCssColor(),
     glyphColor = glyphArgb.toCssColor(),
+    outlineColor = outlineArgb.toCssColor(),
     width = width,
     height = height,
     bodyTop = bodyTop.toDouble(),

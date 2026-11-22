@@ -142,7 +142,7 @@ class JourneyPlannerBridgeTest {
                 assertEquals("locationNeeded", state?.status)
                 assertEquals("permissionRequired", state?.reason)
                 entry.planner.pickPointFor("origin")
-                entry.planner.longPressMap(B.latitude, B.longitude)
+                entry.planner.confirmMapPick(B.latitude, B.longitude)
                 settle()
                 entry.planner.findRoute()
                 settle()
@@ -159,6 +159,48 @@ class JourneyPlannerBridgeTest {
                 entry.planner.retry()
                 settle()
                 assertEquals(requests, queries.size)
+            } finally {
+                entry.dispose()
+            }
+        } finally {
+            store.clear()
+            Dispatchers.resetMain()
+        }
+    }
+
+    @Test
+    fun pickingAProjectedMapPointRequiresConfirmationAndCanBeCancelled() = runTest {
+        Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+        val store = ViewModelStore()
+        try {
+            val entry = MapBridge(viewModel(store, JourneyPlanRepository { _, _ -> plan() }), store, CITY) {}
+            try {
+                var state: PlannerState? = null
+                entry.planner.subscribe { state = it }
+                entry.setVisible(true)
+                settle()
+                entry.planner.open()
+                entry.planner.pickPointFor("origin")
+                settle()
+                assertEquals("origin", state?.mapPick)
+
+                entry.planner.longPressMap(A.latitude, A.longitude)
+                settle()
+                assertEquals("none", state?.origin?.kind)
+                entry.planner.cancelMapPick()
+                settle()
+                assertNull(state?.mapPick)
+                assertEquals("none", state?.origin?.kind)
+
+                entry.planner.pickPointFor("destination")
+                settle()
+                assertEquals("destination", state?.mapPick)
+                entry.planner.confirmMapPick(B.latitude, B.longitude)
+                settle()
+                assertNull(state?.mapPick)
+                assertEquals(B.latitude, state?.destination?.point?.latitude)
+                assertEquals(B.longitude, state?.destination?.point?.longitude)
+                assertEquals("none", state?.origin?.kind)
             } finally {
                 entry.dispose()
             }

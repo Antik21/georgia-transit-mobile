@@ -77,6 +77,7 @@ export interface StopPin {
   readonly imageId: string;
   readonly color: string;
   readonly glyphColor: string;
+  readonly outlineColor: string;
   readonly width: number;
   readonly height: number;
   readonly bodyTop: number;
@@ -136,6 +137,7 @@ export interface RouteLegend {
   readonly status: string;
   readonly focused: boolean;
   readonly canRetry: boolean;
+  readonly canFocus: boolean;
 }
 
 export interface VehicleItem {
@@ -217,6 +219,7 @@ export interface MapState {
   readonly cityName: string;
   readonly canChangeCity: boolean;
   readonly canOpenRoutes: boolean;
+  readonly journeyPlanningAvailable: boolean;
   readonly routePolylines: readonly RoutePolyline[];
   readonly routePolylineRevision: string;
   readonly routeLegends: readonly RouteLegend[];
@@ -238,6 +241,8 @@ export interface PlannerPoint {
   readonly latitude: number;
   readonly longitude: number;
 }
+
+export type PlannerSide = "origin" | "destination";
 
 export interface PlannerEndpoint {
   readonly kind: string;
@@ -301,6 +306,8 @@ export interface PlannerRoute {
 
 export interface PlannerState {
   readonly open: boolean;
+  readonly mapPick: string | null | undefined;
+  readonly defaultExpandedSide: string | null | undefined;
   readonly showingResults: boolean;
   readonly status: string;
   readonly pin: PlannerPoint | null | undefined;
@@ -321,12 +328,15 @@ export interface PlannerState {
 
 export interface PlannerEntry {
   subscribe(onState: (state: PlannerState) => void): void;
+  open(): void;
   longPressMap(latitude: number, longitude: number): void;
   routeHere(): void;
   routeFromHere(): void;
   dismissPin(): void;
-  useMyLocationFor(side: string): void;
-  pickPointFor(side: string): void;
+  useMyLocationFor(side: PlannerSide): void;
+  pickPointFor(side: PlannerSide): void;
+  confirmMapPick(latitude: number, longitude: number): void;
+  cancelMapPick(): void;
   swap(): void;
   clear(): void;
   findRoute(): void;
