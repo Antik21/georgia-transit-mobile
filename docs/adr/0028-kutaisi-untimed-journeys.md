@@ -16,7 +16,12 @@ The network can establish where a rider may change buses with the timing left un
 - Build a city graph in the Kutaisi BFF adapter from the AZRY catalog, ordered direction stops
   and shapes. Share the graph, geometry matching, walking limits and response mapping with
   Batumi. The Kutaisi search uses stop order, walkable links between stops and up to two
-  transfers. Rank by transfers, then walking distance, and keep one option per route sequence.
+  transfers. Filter large detours on each ride and on the complete journey by comparing its
+  distance with the straight-line distance plus a fixed allowance. Rank by riding distance,
+  triple-weighted walking distance and a 500-metre penalty per transfer. Keep one option per
+  route sequence and up to three reasonably close transit alternatives. A transfer must beat
+  the best score of any option with fewer transfers. For walkable trips, include walking and
+  require any transit option to improve on its score. These scores are distances for ranking.
 - Build the graph in the background only when the city's operator controls enable trip
   planning. Refresh every two hours using the existing AZRY client budget. A failed refresh
   retains the previous graph for up to 24 hours. The city reports planning as available
