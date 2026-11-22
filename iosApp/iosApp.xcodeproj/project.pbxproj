@@ -13,6 +13,7 @@
 		0A000001000000000000AB01 /* MapLibreJourneyLayers.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A000011000000000000AB02 /* MapLibreJourneyLayers.swift */; };
 		0A0000010000000000000004 /* MapLibrePrototypeStyle.json in Resources */ = {isa = PBXBuildFile; fileRef = 0A0000110000000000000005 /* MapLibrePrototypeStyle.json */; };
 		0A0000010000000000000005 /* MapLibre in Frameworks */ = {isa = PBXBuildFile; productRef = 0A0000910000000000000001 /* MapLibre */; };
+		0A0000010000000000000014 /* FirebaseCrashlytics in Frameworks */ = {isa = PBXBuildFile; productRef = 0A0000910000000000000002 /* FirebaseCrashlytics */; };
 		0A0000010000000000000006 /* InfoPlist.strings in Resources */ = {isa = PBXBuildFile; fileRef = 0A0000310000000000000002 /* InfoPlist.strings */; };
 		0A0000010000000000000007 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 0A0000110000000000000009 /* Assets.xcassets */; };
 		0A0000010000000000000010 /* DebugNetworkInspector.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A0000110000000000000010 /* DebugNetworkInspector.swift */; };
@@ -48,6 +49,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				0A0000010000000000000005 /* MapLibre in Frameworks */,
+				0A0000010000000000000014 /* FirebaseCrashlytics in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -108,6 +110,7 @@
 				0A0000520000000000000001 /* Sources */,
 				0A0000530000000000000001 /* Frameworks */,
 				0A0000540000000000000001 /* Resources */,
+				0A0000510000000000000002 /* Configure Firebase and upload dSYMs */,
 			);
 			buildRules = (
 			);
@@ -116,6 +119,7 @@
 			name = iosApp;
 			packageProductDependencies = (
 				0A0000910000000000000001 /* MapLibre */,
+				0A0000910000000000000002 /* FirebaseCrashlytics */,
 			);
 			productName = iosApp;
 			productReference = 0A0000120000000000000001 /* iosApp.app */;
@@ -155,6 +159,7 @@
 			mainGroup = 0A0000210000000000000001;
 			packageReferences = (
 				0A0000810000000000000001 /* XCRemoteSwiftPackageReference "maplibre-gl-native-distribution" */,
+				0A0000810000000000000002 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */,
 			);
 			productRefGroup = 0A0000210000000000000003 /* Products */;
 			projectDirPath = "";
@@ -196,6 +201,24 @@
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
 			shellScript = "set -e\ncd \"$SRCROOT/..\"\n./gradlew :shared:embedAndSignAppleFrameworkForXcode";
+		};
+		0A0000510000000000000002 /* Configure Firebase and upload dSYMs */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = ();
+			inputPaths = (
+				"$(SRCROOT)/Configuration/Firebase/$(CONFIGURATION)/GoogleService-Info.plist",
+				"$(DWARF_DSYM_FOLDER_PATH)/$(DWARF_DSYM_FILE_NAME)",
+				"$(DWARF_DSYM_FOLDER_PATH)/$(DWARF_DSYM_FILE_NAME)/Contents/Info.plist",
+				"$(DWARF_DSYM_FOLDER_PATH)/$(DWARF_DSYM_FILE_NAME)/Contents/Resources/DWARF/$(PRODUCT_NAME)",
+				"$(DWARF_DSYM_FOLDER_PATH)/$(DWARF_DSYM_FILE_NAME)/Contents/Resources/DWARF/$(EXECUTABLE_DEBUG_DYLIB_PATH:file)",
+				"$(TARGET_BUILD_DIR)/$(EXECUTABLE_PATH)",
+			);
+			name = "Configure Firebase and upload dSYMs";
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "/bin/sh \"$SRCROOT/Configuration/configure-crashlytics.sh\"";
 		};
 /* End PBXShellScriptBuildPhase section */
 
@@ -241,7 +264,7 @@
 				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
 				CLANG_ENABLE_MODULES = YES;
 				CLANG_ENABLE_OBJC_ARC = YES;
-				DEBUG_INFORMATION_FORMAT = dwarf;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				ENABLE_TESTABILITY = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu17;
 				GCC_OPTIMIZATION_LEVEL = 0;
@@ -287,7 +310,7 @@
 				KOTLIN_FRAMEWORK_BUILD_TYPE = Debug;
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks";
 				MARKETING_VERSION = 0.1.0;
-				OTHER_LDFLAGS = "$(inherited) -framework Shared";
+				OTHER_LDFLAGS = "$(inherited) -framework Shared -ObjC";
 				PRODUCT_BUNDLE_IDENTIFIER = com.anti.georgiatransit.sandbox;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SUPPORTED_PLATFORMS = "iphonesimulator iphoneos";
@@ -317,7 +340,7 @@
 				KOTLIN_FRAMEWORK_BUILD_TYPE = Release;
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks";
 				MARKETING_VERSION = 0.1.0;
-				OTHER_LDFLAGS = "$(inherited) -framework Shared";
+				OTHER_LDFLAGS = "$(inherited) -framework Shared -ObjC";
 				PRODUCT_BUNDLE_IDENTIFIER = com.anti.georgiatransit;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SUPPORTED_PLATFORMS = "iphonesimulator iphoneos";
@@ -360,6 +383,15 @@
 				version = 6.29.0;
 			};
 		};
+		0A0000810000000000000002 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/firebase/firebase-ios-sdk";
+			requirement = {
+				kind = exactVersion;
+				version = 13.2.0;
+			};
+			traits = ();
+		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -367,6 +399,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 0A0000810000000000000001 /* XCRemoteSwiftPackageReference "maplibre-gl-native-distribution" */;
 			productName = MapLibre;
+		};
+		0A0000910000000000000002 /* FirebaseCrashlytics */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 0A0000810000000000000002 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
+			productName = FirebaseCrashlytics;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

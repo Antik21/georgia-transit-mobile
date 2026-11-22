@@ -152,6 +152,27 @@ The CSV supplies the ordered coordinates and the original lookup labels. The pre
 segments between stops and exposes static routes, stops, and route geometry. The input is local
 and accepted only by a loopback development BFF.
 
+## Firebase Crashlytics
+
+The [Geo Transit Firebase project](https://console.firebase.google.com/project/georgia-transit-mobile/overview)
+has an Android app and an iOS app for each environment. The repository includes their public
+Firebase client configuration:
+
+| Environment | Application and bundle ID | Android file | iOS file |
+| --- | --- | --- | --- |
+| Sandbox | `com.anti.georgiatransit.sandbox` | `androidApp/src/sandbox/google-services.json` | `iosApp/Configuration/Firebase/Sandbox/GoogleService-Info.plist` |
+| Prod | `com.anti.georgiatransit` | `androidApp/src/prod/google-services.json` | `iosApp/Configuration/Firebase/Prod/GoogleService-Info.plist` |
+
+Crash reporting starts automatically. Gradle uses the Crashlytics plugin for mapping files
+when minification is enabled. The last Xcode build phase packages the selected plist and
+runs Firebase's dSYM uploader. Firebase requires Xcode 26.2 or later.
+
+For end-to-end verification, use a temporary test crash in Sandbox, launch again to upload the
+report, and look for it under the Sandbox app in the Firebase Console. On iOS trigger the crash
+with the debugger detached.
+[Android verification](https://firebase.google.com/docs/crashlytics/android/test-implementation) ·
+[iOS verification](https://firebase.google.com/docs/crashlytics/ios/test-implementation)
+
 ## Transit BFF
 
 `:transitBff` is a standalone JVM server module; it does not enter `shared`,
@@ -275,9 +296,9 @@ Prerequisites:
 
 - JDK 17.
 - Android SDK platform 37.0 and build tools 37.0.0. Set `ANDROID_HOME` to the SDK root, or put the local SDK path in an uncommitted `local.properties` file such as `sdk.dir=/absolute/path/to/android-sdk`.
-- For Apple targets, macOS with Xcode and an installed iOS Simulator runtime on Apple Silicon. The shared `iosSimulatorArm64` target needs an `arm64` host; `iosX64` is available only on Intel macOS.
+- For Apple targets, macOS with Xcode 26.2 or later and an installed iOS Simulator runtime on Apple Silicon. The shared `iosSimulatorArm64` target needs an `arm64` host; `iosX64` is available only on Intel macOS.
 
-`local.properties`, `ANDROID_HOME` values, signing material, and provider configuration are local-only. Do not commit them. This shell does not require secrets or signing to run its quality gates.
+`local.properties`, `ANDROID_HOME` values, signing material, and Transit BFF provider configuration are local-only. Do not commit them. This shell does not require secrets or signing to run its quality gates.
 
 Run the same quality checks locally with:
 

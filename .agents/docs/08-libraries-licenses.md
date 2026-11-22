@@ -10,6 +10,13 @@ identifiable User-Agent, seven-day caching, no prefetch/offline downloads, and a
 SLA. Any replacement provider still requires a separate review of cost, quota, attribution, privacy,
 and production rights.
 
+## Native crash reporting
+
+Firebase Crashlytics (Apache 2.0) is approved for the Android and iOS application
+targets. Keep Android versions in the Gradle catalog and the iOS version pinned
+in Xcode's Swift package settings. See [ADR 0029](../../docs/adr/0029-native-crash-reporting.md)
+for the supported toolchain, data sent to Firebase, and production pricing.
+
 ## Kotlin/JS time zones
 
 The shared JavaScript target uses `@js-joda/timezone` (BSD-3-Clause) to load IANA
