@@ -30,7 +30,7 @@
     } catch {}
   </script>
 </head>
-<body class="city-guide">
+<body class="city-guide" data-analytics-page="city">
   <a class="skip" href="#main">Aller au contenu</a>
   <header class="topbar">
     <div class="wrap topbar__row">
@@ -48,8 +48,8 @@
           <h1 id="city-title">Lignes et arrêts de bus à Zougdidi</h1>
           <p>Repérez les lignes de bus qui desservent votre quartier de Zougdidi et les arrêts où vous pouvez les prendre.</p>
           <div class="city-hero__actions">
-            <a class="button city-guide__cta" href="https://app.geotransit.com.ge/">Ouvrir la version web</a>
-            <a href="https://t.me/geo_transit_bot?startapp">Ouvrir dans Telegram</a>
+            <a class="button city-guide__cta" href="https://app.geotransit.com.ge/" data-analytics-platform="web">Ouvrir la version web</a>
+            <a href="https://t.me/geo_transit_bot?startapp" data-analytics-platform="telegram_mini_app">Ouvrir dans Telegram</a>
           </div>
         </div>
         <div class="city-hero__screens">
@@ -83,19 +83,21 @@
         <a href="/kutaisi-fr.html">Les bus de Koutaïssi</a>
       </nav>
       <nav aria-label="Langue">
-        <a href="/zugdidi.html" lang="en" hreflang="en">English</a>
-        <a href="/zugdidi-ka.html" lang="ka" hreflang="ka">ქართული</a>
-        <a href="/zugdidi-ru.html" lang="ru" hreflang="ru">Русский</a>
-        <a href="/zugdidi-zh-hans.html" lang="zh-Hans" hreflang="zh-Hans">简体中文</a>
-        <a href="/zugdidi-fr.html" lang="fr" hreflang="fr" aria-current="page">Français</a>
-        <a href="/zugdidi-de.html" lang="de" hreflang="de">Deutsch</a>
+        <a href="/zugdidi.html" lang="en" hreflang="en" data-analytics-language="en">English</a>
+        <a href="/zugdidi-ka.html" lang="ka" hreflang="ka" data-analytics-language="ka">ქართული</a>
+        <a href="/zugdidi-ru.html" lang="ru" hreflang="ru" data-analytics-language="ru">Русский</a>
+        <a href="/zugdidi-zh-hans.html" lang="zh-Hans" hreflang="zh-Hans" data-analytics-language="zh-Hans">简体中文</a>
+        <a href="/zugdidi-fr.html" lang="fr" hreflang="fr" data-analytics-language="fr" aria-current="page">Français</a>
+        <a href="/zugdidi-de.html" lang="de" hreflang="de" data-analytics-language="de">Deutsch</a>
       </nav>
       <div class="city-guide__footer-links">
         <a href="/fr.html?lang=fr#platforms">Android, iOS</a>
         <a href="/privacy.html?lang=fr">Politique de confidentialité</a>
+        <button type="button" class="analytics-settings" id="analytics-settings" aria-controls="analytics-choice" aria-expanded="false" hidden>Réglages de la mesure d’audience</button>
       </div>
       <p class="footer__small">Données cartographiques des captures d’écran © les contributeurs d’OpenStreetMap.</p>
     </div>
   </footer>
+  <script type="module" src="/analytics.js"></script>
 </body>
 </html>

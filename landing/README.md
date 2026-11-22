@@ -23,6 +23,13 @@ is `null`, the page shows a localized link placeholder. The web and Telegram lin
 The footer button opens [privacy.html](privacy.html) in the selected language. The direct policy
 URL defaults to English and can be used in store listings after the site is deployed.
 
+## Analytics
+
+The home and city pages send page views, language changes, and clicks on app links after the visitor
+allows analytics. The footer opens analytics settings. Render forwards the same-origin
+`POST /v1/analytics` requests to Transit BFF, which holds the Amplitude ingestion key.
+For local browser tests, intercept this endpoint when using a static preview server.
+
 ## Search indexing
 
 The localized landing and city pages, `robots.txt`, and `sitemap.xml` are generated alongside the
@@ -44,5 +51,5 @@ The city guides also show the Kutaisi timetable on Android and the Zugdidi route
 
 Published by the `antik21-georgia-transit-landing` static site in [render.yaml](../render.yaml):
 the `landing/` folder is served as is from `main` (no build step) after the required checks pass,
-and only changes under `landing/` trigger a deploy. The default address is
+and changes under `landing/` or to `render.yaml` trigger a deploy. The default address is
 `https://antik21-georgia-transit-landing.onrender.com`.

@@ -96,7 +96,7 @@ function renderCity(city, language, paths) {
       </section>`).join("\n      ");
   const localeLinks = languages.map(tag => {
     const current = tag === language ? ' aria-current="page"' : "";
-    return `<a href="${paths[tag]}" lang="${tag}" hreflang="${tag}"${current}>${esc(languageLabels[tag])}</a>`;
+    return `<a href="${paths[tag]}" lang="${tag}" hreflang="${tag}" data-analytics-language="${tag}"${current}>${esc(languageLabels[tag])}</a>`;
   }).join("\n        ");
   const related = cities.filter(id => id !== city)
     .map(id => `<a href="${cityPagePath(id, language)}">${esc(copy[id])}</a>`).join("\n        ");
@@ -126,7 +126,7 @@ function renderCity(city, language, paths) {
     } catch {}
   </script>
 </head>
-<body class="city-guide">
+<body class="city-guide" data-analytics-page="city">
   <a class="skip" href="#main">${esc(copy.skip)}</a>
   <header class="topbar">
     <div class="wrap topbar__row">
@@ -144,8 +144,8 @@ function renderCity(city, language, paths) {
           <h1 id="city-title">${esc(heading)}</h1>
           <p>${esc(intro)}</p>
           <div class="city-hero__actions">
-            <a class="button city-guide__cta" href="https://app.geotransit.com.ge/">${esc(copy.ctaWeb)}</a>
-            <a href="https://t.me/geo_transit_bot?startapp">${esc(copy.linkTelegram)}</a>
+            <a class="button city-guide__cta" href="https://app.geotransit.com.ge/" data-analytics-platform="web">${esc(copy.ctaWeb)}</a>
+            <a href="https://t.me/geo_transit_bot?startapp" data-analytics-platform="telegram_mini_app">${esc(copy.linkTelegram)}</a>
           </div>
         </div>
         <div class="city-hero__screens">
@@ -168,10 +168,12 @@ function renderCity(city, language, paths) {
       <div class="city-guide__footer-links">
         <a href="${pages[language]}?lang=${language}#platforms">Android, iOS</a>
         <a href="/privacy.html?lang=${language}">${esc(copy.privacy)}</a>
+        <button type="button" class="analytics-settings" id="analytics-settings" aria-controls="analytics-choice" aria-expanded="false" hidden>${esc(copy.analyticsSettings)}</button>
       </div>
       <p class="footer__small">${esc(copy.footerNote)}</p>
     </div>
   </footer>
+  <script type="module" src="/analytics.js"></script>
 </body>
 </html>
 `;
