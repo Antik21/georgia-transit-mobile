@@ -43,6 +43,60 @@ paths:
               schema: {type: string}
         '404':
           description: Exporter disabled by BFF_METRICS_ENABLED=false.
+  /v1/analytics:
+    post:
+      operationId: recordProductAnalytics
+      description: |
+        Records the launch client, a zoom method, route picker activity, the start of journey planning,
+        a stop opening, or a tap on a vehicle marker.
+        Include one event field or omit all event fields to identify the launch client.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [client, deviceId, sessionId, time]
+              properties:
+                client: {type: string, enum: [android, ios, web, telegram_mini_app]}
+                deviceId: {type: string, format: uuid}
+                sessionId: {type: integer, format: int64, minimum: 1}
+                time: {type: integer, format: int64, minimum: 1}
+                zoomType: {type: string, nullable: true, enum: [finger_double_tap, finger_pinch, button, null]}
+                routesSelection:
+                  type: object
+                  additionalProperties: false
+                  required: [cityId, routeCount, eventId]
+                  properties:
+                    cityId: {type: string, enum: [batumi, demo, kutaisi, tbilisi, zugdidi]}
+                    routeCount: {type: integer, minimum: 0, maximum: 10}
+                    eventId: {type: string, format: uuid}
+                recentRoutesUsed: {type: boolean, default: false}
+                routeSearchUsed: {type: boolean, default: false}
+                journeyPlanning:
+                  type: object
+                  additionalProperties: false
+                  required: [source, eventId]
+                  properties:
+                    source: {type: string, enum: [map_button, long_press]}
+                    eventId: {type: string, format: uuid}
+                stopOpening:
+                  type: object
+                  additionalProperties: false
+                  required: [cityId, eventId]
+                  properties:
+                    cityId: {type: string, enum: [batumi, demo, kutaisi, tbilisi, zugdidi]}
+                    eventId: {type: string, format: uuid}
+                vehicleTapId: {type: string, format: uuid, description: Unique event ID for the vehicle marker tap.}
+      responses:
+        '204':
+          description: Event accepted or analytics delivery disabled.
+          headers: {Cache-Control: {$ref: '#/components/headers/NoStoreCacheControl'}}
+        '400': {description: Invalid analytics event.}
+        '413': {description: Analytics request exceeds 512 bytes.}
+        '429': {description: All analytics upload slots are in use.}
+        '502': {description: Analytics upload failed.}
   /v1/cities:
     get:
       operationId: listCities

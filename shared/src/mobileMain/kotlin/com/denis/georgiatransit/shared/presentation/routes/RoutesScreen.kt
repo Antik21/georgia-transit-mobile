@@ -84,6 +84,7 @@ private fun Content(state: ViewState, onAction: (Action) -> Unit) {
                 isSelectionLimitReached = state.isSelectionLimitReached,
                 onSearchChanged = { onAction(Action.SearchChanged(it)) },
                 onRouteToggled = { onAction(Action.RouteToggled(it)) },
+                onRecentRouteToggled = { onAction(Action.RecentRouteToggled(it)) },
                 onRetry = { onAction(Action.RetryClicked) },
                 modifier = Modifier.weight(1f),
             )

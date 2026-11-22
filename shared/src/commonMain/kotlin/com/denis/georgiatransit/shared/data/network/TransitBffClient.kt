@@ -4,6 +4,7 @@ import com.denis.georgiatransit.shared.core.telemetry.AppTelemetry
 import com.denis.georgiatransit.shared.core.telemetry.NoOpAppTelemetry
 import com.denis.georgiatransit.shared.core.telemetry.NonFatalIssue
 import com.denis.georgiatransit.shared.data.config.BffEndpointConfiguration
+import com.denis.georgiatransit.shared.domain.analytics.AnalyticsRecord
 import com.denis.georgiatransit.shared.domain.model.ArrivalPage
 import com.denis.georgiatransit.shared.domain.model.CityId
 import com.denis.georgiatransit.shared.domain.model.DirectionSchedule
@@ -238,6 +239,28 @@ class TransitBffClient(
         }
         connectionNotices?.rearm()
         return decodeResponse<JourneyPageDto>(response).map(JourneyPageDto::toPlanDomain)
+    }
+
+    internal suspend fun sendAnalytics(record: AnalyticsRecord) {
+        if (configurationFailure() != null) return
+        val configuredEndpoint = requireNotNull(endpoint)
+        try {
+            httpClient.post {
+                url(configuredEndpoint.baseUrl)
+                url { appendPathSegments("v1", "analytics") }
+                contentType(ContentType.Application.Json)
+                setBody(record.toRequest())
+                timeout {
+                    connectTimeoutMillis = 2_000
+                    requestTimeoutMillis = 4_000
+                    socketTimeoutMillis = 4_000
+                }
+            }.bodyAsText()
+        } catch (failure: CancellationException) {
+            throw failure
+        } catch (_: Exception) {
+            // Telemetry delivery cannot change the transit connection state or interrupt the UI.
+        }
     }
 
     private suspend inline fun <reified T> get(

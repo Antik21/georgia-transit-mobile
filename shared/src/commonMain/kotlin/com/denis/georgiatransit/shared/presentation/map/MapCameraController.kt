@@ -7,7 +7,7 @@ import com.denis.georgiatransit.shared.domain.model.TransitCity
 import com.denis.georgiatransit.shared.presentation.location.UserLocationFix
 
 /** Entry-local camera command state; only explicit commands advance its revision. */
-internal class MapCameraController {
+internal class MapCameraController(private val onZoomButton: () -> Unit = {}) {
     private var lastCityId: CityId? = null
     private var lastAcceptedFix: UserLocationFix? = null
     private var nextRevision = 0L
@@ -42,7 +42,8 @@ internal class MapCameraController {
         return checkNotNull(command)
     }
 
-    fun zoomBy(delta: Double): MapZoomStep {
+    fun zoomByButton(delta: Double): MapZoomStep {
+        onZoomButton()
         cancelRouteFrame()
         return MapZoomStep(totalDelta = (zoomStep?.totalDelta ?: 0.0) + delta).also { zoomStep = it }
     }

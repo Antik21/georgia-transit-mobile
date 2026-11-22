@@ -18,6 +18,7 @@ export interface ViewActions extends PlannerActions {
   openRoutes(): void;
   searchRoutes(query: string): void;
   toggleRoute(id: string): void;
+  toggleRecentRoute(id: string): void;
   retryRoutes(): void;
   confirmRoutes(): void;
   cancelRoutes(): void;
@@ -527,7 +528,7 @@ function recentRouteChips(routes: readonly RouteChoice[], limitReached: boolean,
   const list = element("ul", "recent-route-chips");
   for (const route of routes) {
     const row = element("li", "");
-    const chip = button("recent-route-chip", "", () => actions.toggleRoute(route.id), "recent-route-option");
+    const chip = button("recent-route-chip", "", () => actions.toggleRecentRoute(route.id), "recent-route-option");
     chip.dataset.routeId = route.id;
     chip.dataset.focusKey = `recent-${route.id}`;
     chip.disabled = confirming || (limitReached && !route.selected);

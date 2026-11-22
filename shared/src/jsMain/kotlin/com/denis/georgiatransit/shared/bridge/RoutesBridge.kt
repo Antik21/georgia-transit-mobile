@@ -82,6 +82,7 @@ class RoutesBridge internal constructor(
 
     fun setSearch(query: String) = dispatch(Action.SearchChanged(query))
     fun toggleRoute(id: String) = dispatch(Action.RouteToggled(RouteId(id)))
+    fun toggleRecentRoute(id: String) = dispatch(Action.RecentRouteToggled(RouteId(id)))
     fun confirm() = dispatch(Action.ConfirmClicked)
     fun cancel() = dispatch(Action.CancelClicked)
     fun retry() = dispatch(Action.RetryClicked)

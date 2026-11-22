@@ -3,6 +3,7 @@
 package com.denis.georgiatransit.shared.bridge
 
 import androidx.lifecycle.ViewModelStore
+import com.denis.georgiatransit.shared.domain.analytics.ZoomType
 import com.denis.georgiatransit.shared.domain.model.GeoPoint
 import com.denis.georgiatransit.shared.domain.model.RouteId
 import com.denis.georgiatransit.shared.domain.model.StopId
@@ -196,6 +197,11 @@ class MapBridge internal constructor(
     fun myLocation() { if (!disposed) viewModel.dispatchAction(Action.MyLocationClicked) }
     fun zoomIn() { if (!disposed) viewModel.dispatchAction(Action.ZoomClicked(MapZoomDirection.In)) }
     fun zoomOut() { if (!disposed) viewModel.dispatchAction(Action.ZoomClicked(MapZoomDirection.Out)) }
+    fun zoomGesture(pinch: Boolean) {
+        if (!disposed) viewModel.dispatchAction(
+            Action.MapEventReceived(MapPlatformEvent.ZoomGestureStarted(if (pinch) ZoomType.Pinch else ZoomType.DoubleTap)),
+        )
+    }
     fun refreshLocation() { if (!disposed) viewModel.dispatchAction(Action.RefreshLocation) }
 
     fun locationPermission(state: String, precise: Boolean, canRetry: Boolean) =

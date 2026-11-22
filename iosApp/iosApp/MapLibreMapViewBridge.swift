@@ -243,6 +243,12 @@ private final class LocalMapLibreView: UIView, MLNMapViewDelegate {
         let gestures: MLNCameraChangeReason = [
             .gesturePan, .gesturePinch, .gestureRotate, .gestureZoomIn, .gestureZoomOut, .gestureOneFingerZoom, .gestureTilt,
         ]
+        if reason.contains(.gesturePinch) {
+            _ = onMapEvent(MapPlatformEventZoomGestureStarted(type: ZoomType.pinch))
+        }
+        if reason.contains(.gestureZoomIn) {
+            _ = onMapEvent(MapPlatformEventZoomGestureStarted(type: ZoomType.doubletap))
+        }
         if !reason.isDisjoint(with: gestures) {
             zoomSteps.cameraMovedElsewhere()
             _ = onMapEvent(MapPlatformEventUserCameraMoveStarted.shared)

@@ -1,5 +1,7 @@
 package com.denis.georgiatransit.bff
 
+import com.denis.georgiatransit.bff.analytics.ProductAnalyticsPublisher
+import com.denis.georgiatransit.bff.analytics.productAnalyticsRoute
 import com.denis.georgiatransit.bff.api.ApiError
 import com.denis.georgiatransit.bff.api.ErrorEnvelope
 import com.denis.georgiatransit.bff.api.GeoPoint
@@ -256,6 +258,7 @@ fun Application.transitBffModule(config: BffConfig = BffConfig.fromEnvironment()
         audit = environment.log::info,
     ).also(ProbeRunner::start)
 
+    val analytics = config.analytics?.let(::ProductAnalyticsPublisher)
     install(RequestId)
     install(HttpMetrics) { this.observability = observability }
     install(CallLogging) {
@@ -287,6 +290,7 @@ fun Application.transitBffModule(config: BffConfig = BffConfig.fromEnvironment()
         }
     }
     monitor.subscribe(ApplicationStopped) {
+        analytics?.close()
         probeRunner.close()
         capabilityControl.close()
         service.close()
@@ -295,6 +299,7 @@ fun Application.transitBffModule(config: BffConfig = BffConfig.fromEnvironment()
     }
 
     routing {
+        productAnalyticsRoute(analytics?.let { it::publish })
         if (mapProxy != null) mapRoutes(mapProxy, ::kutaisiMapEnabled)
         get("/healthz") {
             call.markHttpOperation(HttpOperation.HEALTH)

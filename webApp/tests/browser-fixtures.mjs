@@ -58,6 +58,7 @@ function plannerVehicles(routeId) {
 
 // Every plan request body, so the smoke can assert rounding and the absence of an origin-kind field.
 export const planRequests = [];
+export const analyticsRequests = [];
 
 const position = { latitude: 41.715137, longitude: 44.827096 };
 const localized = (en) => ({ en, ru: en, ka: en });
@@ -322,6 +323,7 @@ const telegramFixture = `
       platform: 'android',
       version: '9.0',
       colorScheme: 'light',
+      platform: 'ios',
       themeParams: { bg_color: '#ffffff', text_color: '#18201b' },
       viewportHeight: 844,
       viewportStableHeight: 844,
@@ -363,6 +365,10 @@ export function browserFixture(dist, bffRequests, origin) {
     }
     if (target.origin !== origin) return respond(404, 'Fixture has no external network access');
     const path = decodeURIComponent(target.pathname);
+    if (method === 'POST' && path === '/v1/analytics') {
+      analyticsRequests.push(JSON.parse(body));
+      return respond(204);
+    }
     if (method === 'POST' && path === `/v1/cities/${otherCityId}/journeys/plan`) {
       bffRequests.push(path);
       const request = JSON.parse(body);

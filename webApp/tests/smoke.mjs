@@ -7,7 +7,7 @@ import { join, resolve } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
 import { fileURLToPath } from 'node:url';
 import {
-  browserFixture, fallbackMapColor, fixtureAttribution, fixtureCityId, fixtureControl, fixtureHeadsign,
+  analyticsRequests, browserFixture, fallbackMapColor, fixtureAttribution, fixtureCityId, fixtureControl, fixtureHeadsign,
   fixtureRouteColor, fixtureRouteId, fixtureShapePath, fixtureStopId, fixtureTileColor, otherCityId,
   otherRouteId, otherShapePath, fixtureVehiclesPath, vehicleHeadlightColor, userLocationDotColor, stopPinGlyphColor,
   fixtureCityCreditUrl, hiddenCreditCityIds,
@@ -227,6 +227,9 @@ try {
   })()`);
   runtimeHold.resolve();
   await waitFor('Telegram host ready and expanded', 'window.__telegramSmoke?.ready === 1 && window.__telegramSmoke?.expand === 1');
+  await waitFor('The Telegram opening records its analytics client', () => analyticsRequests.some(
+    (event) => event.client === 'telegram_mini_app' && event.zoomType == null,
+  ));
   await waitFor('First launch opens city selection', `${cityScreen} && !${mapScreen} && !${canConfirmCity}`);
   await waitFor('City options fit the mobile viewport', `${visible(cityOption(fixtureCityId))} && ${visible(cityOption(otherCityId))} && window.innerWidth === ${width} && document.documentElement.scrollWidth === ${width}`);
   const cityCredit = `.attribution-links a[href="${fixtureCityCreditUrl}"]`;
@@ -266,6 +269,10 @@ try {
   await waitFor('Nearby stops load as map pins only', async () => Boolean(await stopPinPoint()) && await evaluate(`${panelCollapsed} && !${visible(testId('map-content-status'))}`));
   await tapAt(await stopPinPoint());
   await waitFor('ETA panel shows BFF arrival', etaVisible);
+  const stopOpenEvents = () => analyticsRequests.filter((event) => event.stopOpening);
+  await waitFor('Opening a stop records its city', () => stopOpenEvents().length === 1);
+  assert.equal(stopOpenEvents()[0].stopOpening.cityId, fixtureCityId);
+  assert.deepEqual(Object.keys(stopOpenEvents()[0].stopOpening).sort(), ['cityId', 'eventId']);
   await waitFor('The selected stop uses the mobile green outline', () => mapContainsColor([39, 174, 122], 25));
   await waitFor('Arrival and stop route badges use the BFF route colour', `JSON.stringify(${colorsOf(testId('arrival-route'))}) === ${JSON.stringify(JSON.stringify([['D1', `rgb(${fixtureRouteColor.join(', ')})`, 'rgb(255, 255, 255)']]))}
     && JSON.stringify(${colorsOf(testId('stop-route-chip'))}) === ${JSON.stringify(JSON.stringify([['D1', `rgb(${fixtureRouteColor.join(', ')})`, 'rgb(255, 255, 255)']]))}`);
@@ -279,6 +286,10 @@ try {
   assert.equal(await evaluate(`document.querySelectorAll('.maplibregl-marker').length`), 0, 'Stops must not be DOM markers');
   await tapAt(await stopPinPoint());
   await waitFor('Tapping the canvas pin opens the same BFF arrival', etaVisible);
+  await waitFor('Reopening a stop in the same session records another opening', () => stopOpenEvents().length === 2);
+  assert.equal(stopOpenEvents()[1].sessionId, stopOpenEvents()[0].sessionId);
+  assert.equal(stopOpenEvents()[1].stopOpening.cityId, fixtureCityId);
+  assert.notEqual(stopOpenEvents()[1].stopOpening.eventId, stopOpenEvents()[0].stopOpening.eventId);
   await tap(testId('dismiss-arrivals'));
   await waitFor('In-app close collapses the panel back to the map', `!${arrivalsPanel} && ${panelCollapsed}`);
   let pinPoint;
@@ -291,13 +302,27 @@ try {
 
   await tap(testId('open-routes'));
   await waitFor('Route picker loads both catalog entries', `${routesScreen} && ${visible(routeOption(fixtureRouteId))} && ${visible(routeOption(otherRouteId))}`);
+  const routeSearchEvents = () => analyticsRequests.filter((event) => event.routeSearchUsed);
   await tap(testId('route-search'));
-  await send('Input.insertText', { text: 'D1' });
+  await send('Input.insertText', { text: ' ' });
+  await delay(200);
+  assert.equal(routeSearchEvents().length, 0, 'Focusing search and entering whitespace do not record use');
+  await send('Input.insertText', { text: 'D' });
+  await waitFor('The first search character records usage', () => routeSearchEvents().length === 1);
+  await send('Input.insertText', { text: '1' });
   await waitFor('Route search filters by route number', `${visible(routeOption(fixtureRouteId))} && !${visible(routeOption(otherRouteId))}`);
   await tap(routeOption(fixtureRouteId));
   await waitFor('Tapping a route updates the selection draft', routePressed(fixtureRouteId, true));
   await tap(testId('confirm-routes'));
   await waitFor('Confirm returns to the map', `${mapScreen} && !${routesScreen}`);
+  const routeSelectionEvents = () => analyticsRequests.filter((event) => event.routesSelection);
+  await waitFor('Confirm records the route city and selected count', () => routeSelectionEvents().some(
+    ({ routesSelection }) => routesSelection.cityId === fixtureCityId && routesSelection.routeCount === 1,
+  ));
+  assert.equal(routeSearchEvents().length, 1, 'Further input is deduplicated within the session');
+  assert.deepEqual(Object.keys(routeSearchEvents()[0]).sort(), [
+    'client', 'deviceId', 'routeSearchUsed', 'sessionId', 'time',
+  ], 'The search request carries no query text');
   await waitFor('The selected route geometry draws on the MapLibre canvas', () => mapContainsColor(fixtureRouteColor, 75));
   await waitFor('A stop on the selected route switches to the route-coloured pin', async () => !(await stopPinPoint()));
   await waitFor('The route chip uses the route palette and keeps separate map actions', `(() => {
@@ -344,6 +369,17 @@ try {
   assert.equal(await cursorAt(nearBadge), 'pointer', 'A point beside the badge must fall inside the 48 px vehicle target');
   assert.equal(await cursorAt(awayFromBadge), '', 'A point well clear of the badge must not target the vehicle');
   console.log('PASS The vehicle target extends to 48×48 around the badge');
+  const vehicleTapEvents = () => analyticsRequests.filter((event) => event.vehicleTapId);
+  await tapAt(awayFromBadge);
+  await delay(400);
+  assert.equal(vehicleTapEvents().length, 0, 'Tapping empty map space must not record a vehicle tap');
+  await tapAt(vehicleCenter);
+  await waitFor('Tapping a bus badge records the interaction', () => vehicleTapEvents().length === 1);
+  assert.deepEqual(Object.keys(vehicleTapEvents()[0]).sort(), ['client', 'deviceId', 'sessionId', 'time', 'vehicleTapId']);
+  await delay(400);
+  await tapAt(vehicleCenter);
+  await waitFor('A second tap in the same session records a separate interaction', () => vehicleTapEvents().length === 2);
+  assert.notEqual(vehicleTapEvents()[0].vehicleTapId, vehicleTapEvents()[1].vehicleTapId);
   await send('Emulation.setEmulatedMedia', { features: [] });
 
   const start = await colorCentroid(vehicleHeadlightColor);
@@ -381,12 +417,21 @@ try {
   await tap(routeOption(fixtureRouteId));
   await waitFor('Tapping a selected route removes it from the draft', `${routePressed(fixtureRouteId, false)}
     && document.querySelector('${recentChip}')?.getAttribute('aria-pressed') === 'false' && getComputedStyle(${recentLabel}).backgroundColor !== '${fixtureRouteCss}'`);
+  const recentRouteEvents = () => analyticsRequests.filter((event) => event.recentRoutesUsed);
+  assert.equal(recentRouteEvents().length, 0, 'Rendering Recent and toggling the same route in the catalog are not Recent use');
+  await tap(recentChip);
+  await waitFor('Tapping Recent records use', () => recentRouteEvents().length === 1);
+  await waitFor('Tapping Recent also selects the route', routePressed(fixtureRouteId, true));
+  await tap(recentChip);
+  await waitFor('The same Recent chip can deselect the route', routePressed(fixtureRouteId, false));
   await tap(routeOption(otherRouteId));
   await waitFor('The second route can be added to the draft', routePressed(otherRouteId, true));
   await tap(testId('cancel-routes'));
   await waitFor('Cancel returns to the map with the committed route', async () =>
     await evaluate(`${mapScreen} && !${routesScreen}`) && await mapContainsColor(fixtureRouteColor, 75));
   await waitFor('Vehicle polling resumes after the route picker closes', () => vehicleRequests() > pollsBeforePicker);
+  assert.equal(routeSelectionEvents().length, 1, 'Only the explicit confirmation records routes_selected');
+  assert.equal(recentRouteEvents().length, 1, 'Recent use is recorded only once per session');
 
   const timeOrigin = await evaluate('performance.timeOrigin');
   await send('Page.reload');
@@ -443,19 +488,29 @@ try {
   await waitFor('Second city requests its own nearby stops', () => bffRequests.includes(`/v1/cities/${otherCityId}/stops/nearby`));
   await waitFor('An empty area is reported on the map, not in a list', `${visible(testId('map-content-status'))} && ${panelCollapsed}`);
 
+  const plannerStarts = () => analyticsRequests.filter((event) => event.journeyPlanning);
   await tap(openPlanner);
   await waitFor('The map launcher opens an empty planner and gives it the map controls',
     `${visible(testId('planner-panel'))} && !${visible(openPlanner)} && !${visible(openRoutes)}
     && ${visible(testId('planner-pick-origin'))} && !${visible(testId('planner-pick-destination'))}
     && document.querySelector('${testId('planner-find')}')?.disabled === true`);
+  await waitFor('Opening the planner from the launcher records one start', () => plannerStarts().length === 1);
+  assert.equal(plannerStarts()[0].journeyPlanning.source, 'map_button');
   await tap(testId('planner-close'));
   await waitFor('Closing the planner restores the map launcher and routes', `${visible(openPlanner)} && ${visible(openRoutes)}`);
 
   const planner = plannerSmoke({ send, evaluate, waitFor, tap, visible, testId, mapContainsColor, analyzeMap, bffRequests });
   await planner.pointToPoint(() => evaluate('window.__telegramSmoke.backHandler(); true'));
+  await waitFor('Opening the planner from a long press records another start', () => plannerStarts().length === 2);
+  assert.equal(plannerStarts()[1].journeyPlanning.source, 'long_press');
+  assert.deepEqual(Object.keys(plannerStarts()[1].journeyPlanning).sort(), ['eventId', 'source']);
   await planner.beforeStyleLoads();
   await planner.duringStyleSwap();
+  await waitFor('Both planner launches after a page reload are recorded', () => plannerStarts().length === 4);
   await planner.unavailable();
+  await waitFor('Reopening the planner in the same session records another start', () => plannerStarts().length === 5);
+  assert.equal(plannerStarts()[4].sessionId, plannerStarts()[3].sessionId);
+  assert.equal(new Set(plannerStarts().map((event) => event.journeyPlanning.eventId)).size, 5);
 
   const locationButton = testId('my-location');
   const permissionIs = (value) => `document.querySelector('${locationButton}')?.dataset.permission === '${value}'`;
@@ -486,9 +541,17 @@ try {
     .filter((path) => path.startsWith('/v1/map/tiles/')).map((path) => Number(path.split('/')[4]));
   const settledTileZoom = tileZoomsSince(0).at(-1);
   const beforeZoomIn = bffRequests.length;
-  await tap(zoomIn);
-  await tap(zoomIn);
-  await waitFor('Two zoom-in taps load tiles two levels deeper', () => tileZoomsSince(beforeZoomIn).includes(settledTileZoom + 2));
+  try {
+    assert.equal(await evaluate(`window.__smokeTouchEvent = window.TouchEvent;
+      delete window.TouchEvent;
+      typeof TouchEvent`), 'undefined');
+    await tap(zoomIn);
+    await tap(zoomIn);
+    await waitFor('Zoom buttons load deeper tiles without the TouchEvent constructor',
+      () => tileZoomsSince(beforeZoomIn).includes(settledTileZoom + 2));
+  } finally {
+    await evaluate('window.TouchEvent = window.__smokeTouchEvent; delete window.__smokeTouchEvent');
+  }
   // Lower tile levels are already cached, so zoom-out is measured by the metre-sized accuracy halo.
   const accuracyHaloPixels = () => analyzeMap(`
     let count = 0;
@@ -501,6 +564,39 @@ try {
   for (let step = 0; step < 4; step++) await tap(zoomOut);
   await waitFor('Zoom-out taps shrink the accuracy halo', async () => (await accuracyHaloPixels()) * 16 < zoomedInHalo);
 
+  const telegramSession = analyticsRequests
+    .filter((event) => event.client === 'telegram_mini_app' && event.zoomType === 'button').at(-1)?.sessionId;
+  assert.ok(telegramSession);
+  assert.equal(analyticsRequests.filter((event) => event.sessionId === telegramSession && event.zoomType === 'button').length, 1);
+
+  const telegramZooms = (type) => analyticsRequests.filter((event) =>
+    event.sessionId === telegramSession && event.zoomType === type);
+  const gesturePoint = await evaluate(`(() => {
+    const rect = document.querySelector('.maplibregl-canvas').getBoundingClientRect();
+    return { x: rect.left + rect.width / 3, y: rect.top + rect.height / 3 };
+  })()`);
+  for (let index = 0; index < 2; index++) {
+    await tapAt(gesturePoint);
+    await tapAt(gesturePoint);
+    await delay(400);
+  }
+  await waitFor('A double-tap records its own zoom type once', () => telegramZooms('finger_double_tap').length === 1);
+
+  const fingers = (span) => [
+    { id: 1, x: gesturePoint.x - span, y: gesturePoint.y },
+    { id: 2, x: gesturePoint.x + span, y: gesturePoint.y },
+  ];
+  for (let index = 0; index < 2; index++) {
+    await send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: fingers(15) });
+    await send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: fingers(35) });
+    await send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: fingers(55) });
+    await send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+    await delay(400);
+  }
+  await waitFor('A two-finger pinch records its own zoom type once', () => telegramZooms('finger_pinch').length === 1);
+  assert.deepEqual(analyticsRequests.filter((event) => event.sessionId === telegramSession && event.zoomType)
+    .map((event) => event.zoomType), ['button', 'finger_double_tap', 'finger_pinch']);
+
   // Outside Telegram the same flow runs on navigator.geolocation.
   fixtureControl.telegram = false;
   await devTools.send('Browser.grantPermissions', { origin, permissions: ['geolocation'] });
@@ -509,6 +605,9 @@ try {
   const requestsBeforeBrowserReload = bffRequests.length;
   await send('Page.reload');
   await waitFor('A plain browser reopens the map without Telegram', `performance.timeOrigin !== ${browserTimeOrigin} && !window.Telegram && ${mapScreen} && !${cityScreen}`);
+  await waitFor('The browser opening records its own analytics client', () => analyticsRequests.some(
+    (event) => event.client === 'web' && event.zoomType == null,
+  ));
   await waitFor('The browser restores the most recently chosen city', () =>
     bffRequests.slice(requestsBeforeBrowserReload).includes(`/v1/cities/${otherCityId}/stops/nearby`));
   await waitFor('Previously granted browser geolocation locates the user on open', `${permissionIs('granted')} && !${visible(testId('location-status'))}`);
