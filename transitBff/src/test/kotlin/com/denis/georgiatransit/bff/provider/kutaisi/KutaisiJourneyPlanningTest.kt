@@ -48,8 +48,8 @@ class KutaisiJourneyPlanningTest {
                 val page = plans.plan(city, query, allowUntimedJourneys = true)
                 assertFalse(page.realtime)
                 assertEquals(now.toString(), page.observedAt)
-                assertEquals(listOf(0, 1), page.items.map { it.transfers })
-                val transfer = page.items.last()
+                assertEquals(listOf(1, 0), page.items.map { it.transfers })
+                val transfer = page.items.first()
                 assertNull(transfer.durationSeconds)
                 assertNull(transfer.departureAt)
                 assertNull(transfer.arrivalAt)
@@ -94,7 +94,8 @@ class KutaisiJourneyPlanningTest {
         override suspend fun route(id: String, locale: String) = routes.single { it.id == id }
         override suspend fun directionStops(id: String, pattern: String, locale: String) = stopsByRoute.getValue(id)
         override suspend fun polylines(id: String, patterns: List<String>): Map<String, AzryPolyline> {
-            val points = stopsByRoute.getValue(id).map { GeoPoint(it.lat, it.lon) }
+            val points = if (id == "direct") listOf(from, GeoPoint(42.290, 42.710), to)
+            else stopsByRoute.getValue(id).map { GeoPoint(it.lat, it.lon) }
             return mapOf("out" to AzryPolyline(encodePolyline(points)))
         }
         override suspend fun stops(locale: String): List<AzryStop> = error("planning uses the ordered directions")

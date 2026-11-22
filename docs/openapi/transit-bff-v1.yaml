@@ -380,7 +380,7 @@ paths:
         '200':
           description: >-
             Zero to six ranked journey options. Timed results put OPTIMAL first and rank other
-            options by arrival. Untimed transit options rank by transfers and walking distance.
+            options by arrival. Untimed transit options rank by route length, walking and transfers.
             An empty `items` means no option was found.
           headers:
             X-Request-ID: {$ref: '#/components/headers/RequestId'}
