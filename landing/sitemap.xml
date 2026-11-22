@@ -1,10 +1,28 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url><loc>https://www.geotransit.com.ge/</loc></url>
-  <url><loc>https://www.geotransit.com.ge/ru.html</loc></url>
   <url><loc>https://www.geotransit.com.ge/ka.html</loc></url>
+  <url><loc>https://www.geotransit.com.ge/ru.html</loc></url>
   <url><loc>https://www.geotransit.com.ge/zh-hans.html</loc></url>
   <url><loc>https://www.geotransit.com.ge/fr.html</loc></url>
   <url><loc>https://www.geotransit.com.ge/de.html</loc></url>
   <url><loc>https://www.geotransit.com.ge/privacy.html</loc></url>
+  <url><loc>https://www.geotransit.com.ge/batumi.html</loc></url>
+  <url><loc>https://www.geotransit.com.ge/batumi-ka.html</loc></url>
+  <url><loc>https://www.geotransit.com.ge/batumi-ru.html</loc></url>
+  <url><loc>https://www.geotransit.com.ge/batumi-zh-hans.html</loc></url>
+  <url><loc>https://www.geotransit.com.ge/batumi-fr.html</loc></url>
+  <url><loc>https://www.geotransit.com.ge/batumi-de.html</loc></url>
+  <url><loc>https://www.geotransit.com.ge/kutaisi.html</loc></url>
+  <url><loc>https://www.geotransit.com.ge/kutaisi-ka.html</loc></url>
+  <url><loc>https://www.geotransit.com.ge/kutaisi-ru.html</loc></url>
+  <url><loc>https://www.geotransit.com.ge/kutaisi-zh-hans.html</loc></url>
+  <url><loc>https://www.geotransit.com.ge/kutaisi-fr.html</loc></url>
+  <url><loc>https://www.geotransit.com.ge/kutaisi-de.html</loc></url>
+  <url><loc>https://www.geotransit.com.ge/zugdidi.html</loc></url>
+  <url><loc>https://www.geotransit.com.ge/zugdidi-ka.html</loc></url>
+  <url><loc>https://www.geotransit.com.ge/zugdidi-ru.html</loc></url>
+  <url><loc>https://www.geotransit.com.ge/zugdidi-zh-hans.html</loc></url>
+  <url><loc>https://www.geotransit.com.ge/zugdidi-fr.html</loc></url>
+  <url><loc>https://www.geotransit.com.ge/zugdidi-de.html</loc></url>
 </urlset>
