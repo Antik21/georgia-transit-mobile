@@ -1,5 +1,8 @@
 package com.denis.georgiatransit.shared.domain.interactor
 
+import com.denis.georgiatransit.shared.core.telemetry.AppTelemetry
+import com.denis.georgiatransit.shared.core.telemetry.NoOpAppTelemetry
+import com.denis.georgiatransit.shared.core.telemetry.NonFatalIssue
 import com.denis.georgiatransit.shared.domain.config.RuntimeBootstrapConfiguration
 import com.denis.georgiatransit.shared.domain.config.RuntimeBootstrapConfigurationSource
 import com.denis.georgiatransit.shared.domain.model.TransitCity
@@ -9,6 +12,7 @@ import com.denis.georgiatransit.shared.domain.repository.SelectedCityStore
 import com.denis.georgiatransit.shared.domain.repository.TransitFreshness
 import com.denis.georgiatransit.shared.domain.repository.TransitLoadResult
 import com.denis.georgiatransit.shared.domain.repository.TransitRepository
+import com.denis.georgiatransit.shared.domain.repository.TransitRepositoryException
 import com.denis.georgiatransit.shared.domain.repository.TransitSession
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.TimeoutCancellationException
@@ -20,6 +24,7 @@ class BootstrapTransitSession(
     private val session: TransitSession,
     private val selectedCityStore: SelectedCityStore,
     private val runtimeConfigurationSource: RuntimeBootstrapConfigurationSource,
+    private val telemetry: AppTelemetry = NoOpAppTelemetry,
 ) {
     suspend fun bootstrap(): Result {
         val runtimeConfiguration = when (val result = loadRuntimeConfiguration()) {
@@ -67,7 +72,8 @@ class BootstrapTransitSession(
             restoreOfflineOrError(cachedSelection, Failure.TimedOut)
         } catch (failure: CancellationException) {
             throw failure
-        } catch (_: Throwable) {
+        } catch (failure: Throwable) {
+            if (failure !is TransitRepositoryException) telemetry.recordNonFatal(NonFatalIssue.Startup)
             restoreOfflineOrError(cachedSelection, Failure.Unavailable)
         }
     }
@@ -104,6 +110,7 @@ class BootstrapTransitSession(
     } catch (failure: CancellationException) {
         throw failure
     } catch (_: Throwable) {
+        telemetry.recordNonFatal(NonFatalIssue.Startup)
         RuntimeConfigurationResult.Error(Failure.RuntimeConfigurationUnavailable)
     }
 
@@ -113,6 +120,7 @@ class BootstrapTransitSession(
         } catch (failure: CancellationException) {
             throw failure
         } catch (_: Throwable) {
+            telemetry.recordNonFatal(NonFatalIssue.SelectedCityStorage)
             clearPersistedSelection()
             null
         }
@@ -142,6 +150,7 @@ class BootstrapTransitSession(
             throw failure
         } catch (_: Throwable) {
             // A stale durable value will be revalidated at the next bootstrap attempt.
+            telemetry.recordNonFatal(NonFatalIssue.SelectedCityStorage)
         }
     }
 
@@ -195,7 +204,8 @@ class BootstrapTransitSession(
             emptySet()
         } catch (failure: CancellationException) {
             throw failure
-        } catch (_: Throwable) {
+        } catch (failure: Throwable) {
+            if (failure !is TransitRepositoryException) telemetry.recordNonFatal(NonFatalIssue.Startup)
             emptySet()
         }
     }

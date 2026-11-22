@@ -17,6 +17,7 @@ open class GeorgiaTransitApplication : Application() {
             runtimeConfigurationSource = AndroidRuntimeBootstrapConfigurationSource(),
             transitCacheStore = AndroidTransitCacheStore(this),
             bffEndpointConfiguration = bffEndpointConfiguration,
+            appTelemetry = FirebaseAppTelemetry(this),
         )
     }
 }

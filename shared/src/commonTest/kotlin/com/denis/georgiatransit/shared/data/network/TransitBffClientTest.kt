@@ -1,5 +1,7 @@
 package com.denis.georgiatransit.shared.data.network
 
+import com.denis.georgiatransit.shared.core.telemetry.NonFatalIssue
+import com.denis.georgiatransit.shared.core.telemetry.RecordingAppTelemetry
 import com.denis.georgiatransit.shared.data.config.BffEndpointConfiguration
 import com.denis.georgiatransit.shared.domain.model.CityId
 import com.denis.georgiatransit.shared.domain.model.DirectionId
@@ -208,10 +210,23 @@ class TransitBffClientTest {
             assertEquals("req-123", result.error.requestId)
         }
 
-        val malformedSuccess = TransitBffClient(mockHttpClient { jsonResponse("{") }, endpoint()).cities()
+        val telemetry = RecordingAppTelemetry()
+        val malformedSuccess = TransitBffClient(
+            mockHttpClient { jsonResponse("{") },
+            endpoint(),
+            telemetry = telemetry,
+        ).cities()
         assertIs<TransitFailure.Serialization>(assertIs<TransitLoadResult.Failure>(malformedSuccess).error)
-        val undocumented = TransitBffClient(mockHttpClient { jsonResponse("not-json", HttpStatusCode(418, "Unknown")) }, endpoint()).cities()
+        val undocumented = TransitBffClient(
+            mockHttpClient { jsonResponse("not-json", HttpStatusCode(418, "Unknown")) },
+            endpoint(),
+            telemetry = telemetry,
+        ).cities()
         assertIs<TransitFailure.InvalidResponse>(assertIs<TransitLoadResult.Failure>(undocumented).error)
+        assertEquals(
+            listOf(NonFatalIssue.BffResponseDecode, NonFatalIssue.BffUnexpectedResponse),
+            telemetry.nonFatals,
+        )
         val invalidRetryAfter = TransitBffClient(mockHttpClient {
             jsonResponse(
                 """{"error":{"code":"RATE_LIMITED","message":"contract message","retryAfterSeconds":0,"requestId":"req-123"}}""",

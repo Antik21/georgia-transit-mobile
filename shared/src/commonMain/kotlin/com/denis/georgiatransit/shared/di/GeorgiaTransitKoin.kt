@@ -1,5 +1,8 @@
 package com.denis.georgiatransit.shared.di
 
+import com.denis.georgiatransit.shared.core.telemetry.AppTelemetry
+import com.denis.georgiatransit.shared.core.telemetry.NoOpAppTelemetry
+import com.denis.georgiatransit.shared.core.telemetry.SafeAppTelemetry
 import com.denis.georgiatransit.shared.data.cache.TransitCache
 import com.denis.georgiatransit.shared.data.cache.TransitCacheStore
 import com.denis.georgiatransit.shared.data.config.BffEndpointConfiguration
@@ -38,18 +41,27 @@ internal fun appModule(
     runtimeConfigurationSource: RuntimeBootstrapConfigurationSource,
     transitCacheStore: TransitCacheStore,
     bffEndpointConfiguration: BffEndpointConfiguration?,
+    appTelemetry: AppTelemetry = NoOpAppTelemetry,
 ) = module {
+    single<AppTelemetry> { SafeAppTelemetry(appTelemetry) }
     single<SelectedCityStore> { selectedCityStore }
     single<RuntimeBootstrapConfigurationSource> { runtimeConfigurationSource }
     single<TransitCacheStore> { transitCacheStore }
-    single { TransitCache(get()) }
+    single { TransitCache(get(), telemetry = get()) }
     single<RecentRouteHistory> { StoredRecentRouteHistory(get()) }
     single { createTransitHttpClient() }
     single { ConnectionErrorNotices() }
-    single { TransitBffClient(httpClient = get(), endpoint = bffEndpointConfiguration, connectionNotices = get()) }
+    single {
+        TransitBffClient(
+            httpClient = get(),
+            endpoint = bffEndpointConfiguration,
+            connectionNotices = get(),
+            telemetry = get(),
+        )
+    }
     single<TransitRepository> { BffTransitRepository(client = get(), cache = get()) }
     single<JourneyPlanRepository> { BffJourneyPlanRepository(client = get()) }
-    single<TransitSession> { RuntimeTransitSession(selectedCityStore = get()) }
+    single<TransitSession> { RuntimeTransitSession(selectedCityStore = get(), telemetry = get()) }
     single<LocationSession> { RuntimeLocationSession() }
     single<VehicleRealtimeClock> { SystemVehicleRealtimeClock() }
     single<VehicleRealtimeTickerPolicy> { DefaultVehicleRealtimeTickerPolicy }
@@ -59,6 +71,7 @@ internal fun appModule(
             session = get(),
             selectedCityStore = get(),
             runtimeConfigurationSource = get(),
+            telemetry = get(),
         )
     }
     factory { RouteGeometryCoordinator(repository = get()) }
@@ -86,6 +99,7 @@ fun initGeorgiaTransitKoin(
     runtimeConfigurationSource: RuntimeBootstrapConfigurationSource,
     transitCacheStore: TransitCacheStore,
     bffEndpointConfiguration: BffEndpointConfiguration?,
+    appTelemetry: AppTelemetry,
 ) {
     startKoin {
         modules(
@@ -94,6 +108,7 @@ fun initGeorgiaTransitKoin(
                 runtimeConfigurationSource = runtimeConfigurationSource,
                 transitCacheStore = transitCacheStore,
                 bffEndpointConfiguration = bffEndpointConfiguration,
+                appTelemetry = appTelemetry,
             ),
         )
     }

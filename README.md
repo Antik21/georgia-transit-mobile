@@ -167,6 +167,11 @@ Crash reporting starts automatically. Gradle uses the Crashlytics plugin for map
 when minification is enabled. The last Xcode build phase packages the selected plist and
 runs Firebase's dSYM uploader. Firebase requires Xcode 26.2 or later.
 
+Analytics exposes the active app city as the user-scoped **Selected city** dimension
+(`selected_city`). Crashlytics records handled startup, storage, and BFF response
+failures as non-fatal issues. See [ADR 0030](docs/adr/0030-selected-city-and-handled-failure-telemetry.md)
+for the data and verification details.
+
 For end-to-end verification, use a temporary test crash in Sandbox, launch again to upload the
 report, and look for it under the Sandbox app in the Firebase Console. On iOS trigger the crash
 with the debugger detached.

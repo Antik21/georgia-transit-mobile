@@ -1,5 +1,8 @@
 package com.denis.georgiatransit.shared.data.repository
 
+import com.denis.georgiatransit.shared.core.telemetry.AppTelemetry
+import com.denis.georgiatransit.shared.core.telemetry.NoOpAppTelemetry
+import com.denis.georgiatransit.shared.core.telemetry.NonFatalIssue
 import com.denis.georgiatransit.shared.domain.model.CityCapabilities
 import com.denis.georgiatransit.shared.domain.model.CityId
 import com.denis.georgiatransit.shared.domain.model.GeoPoint
@@ -54,6 +57,7 @@ class PreviewTransitRepository : TransitRepository {
 
 class RuntimeTransitSession(
     private val selectedCityStore: SelectedCityStore = NoOpSelectedCityStore,
+    private val telemetry: AppTelemetry = NoOpAppTelemetry,
 ) : TransitSession {
     private val mutableCity = MutableStateFlow<TransitCity?>(null)
     private val mutableRoutes = MutableStateFlow<Set<RouteId>>(emptySet())
@@ -63,7 +67,7 @@ class RuntimeTransitSession(
 
     override fun selectCity(city: TransitCity) {
         if (mutableCity.value?.id != city.id || !city.capabilities.routes) clearRouteSelection()
-        mutableCity.value = city
+        publishSelectedCity(city)
         persistSelection(city, mutableRoutes.value)
     }
 
@@ -84,14 +88,21 @@ class RuntimeTransitSession(
         // Publish the route portion before city so a collector never sees a selected city paired
         // with a synthetic empty selection during cold-start restoration.
         mutableRoutes.value = restoredRoutes
-        mutableCity.value = city
+        publishSelectedCity(city)
         persistSelection(city, restoredRoutes)
     }
 
     override fun clearSelectedCity() {
         clearRouteSelection()
         mutableCity.value = null
+        telemetry.setSelectedCity(null)
         clearPersistedSelection()
+    }
+
+    private fun publishSelectedCity(city: TransitCity) {
+        val previousId = mutableCity.value?.id
+        mutableCity.value = city
+        if (previousId != city.id) telemetry.setSelectedCity(city.id.value)
     }
 
     private fun clearRouteSelection() {
@@ -110,6 +121,7 @@ class RuntimeTransitSession(
             throw failure
         } catch (_: Throwable) {
             // A failed cache write must not prevent the in-memory selection from opening Map.
+            telemetry.recordNonFatal(NonFatalIssue.SelectedCityStorage)
         }
     }
 
@@ -120,6 +132,7 @@ class RuntimeTransitSession(
             throw failure
         } catch (_: Throwable) {
             // A stale durable value will be revalidated at the next bootstrap attempt.
+            telemetry.recordNonFatal(NonFatalIssue.SelectedCityStorage)
         }
     }
 }
