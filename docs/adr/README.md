@@ -56,3 +56,5 @@ The Kutaisi planning graph and compatibility for journeys without times are reco
 [ADR 0028](0028-kutaisi-untimed-journeys.md).
 Native crash reporting and its telemetry boundary are recorded in
 [ADR 0029](0029-native-crash-reporting.md).
+Selected-city analytics and handled failure diagnostics are recorded in
+[ADR 0030](0030-selected-city-and-handled-failure-telemetry.md).

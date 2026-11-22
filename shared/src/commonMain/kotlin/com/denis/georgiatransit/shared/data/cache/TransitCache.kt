@@ -1,5 +1,8 @@
 package com.denis.georgiatransit.shared.data.cache
 
+import com.denis.georgiatransit.shared.core.telemetry.AppTelemetry
+import com.denis.georgiatransit.shared.core.telemetry.NoOpAppTelemetry
+import com.denis.georgiatransit.shared.core.telemetry.NonFatalIssue
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.encodeToString
@@ -35,13 +38,21 @@ fun interface TransitClock { fun nowEpochMillis(): Long }
 class TransitCache(
     @PublishedApi internal val store: TransitCacheStore,
     @PublishedApi internal val json: Json = Json { encodeDefaults = true; ignoreUnknownKeys = false },
+    @PublishedApi internal val telemetry: AppTelemetry = NoOpAppTelemetry,
 ) {
     inline fun <reified T> read(
         key: String,
         maxEncodedChars: Int,
         nowEpochMillis: Long? = null,
     ): TransitCacheEntry<T>? {
-        val encoded = store.read(key) ?: return null
+        val encoded = try {
+            store.read(key)
+        } catch (failure: CancellationException) {
+            throw failure
+        } catch (_: Throwable) {
+            telemetry.recordNonFatal(NonFatalIssue.TransitCacheStorage)
+            return null
+        } ?: return null
         if (encoded.length > maxEncodedChars) {
             remove(key)
             return null
@@ -51,6 +62,7 @@ class TransitCache(
         } catch (failure: CancellationException) {
             throw failure
         } catch (_: Throwable) {
+            telemetry.recordNonFatal(NonFatalIssue.TransitCacheDecode)
             null
         }
         return decoded?.takeIf {
@@ -67,14 +79,18 @@ class TransitCache(
         } catch (failure: CancellationException) {
             throw failure
         } catch (_: Throwable) {
+            telemetry.recordNonFatal(NonFatalIssue.TransitCacheStorage)
             return false
         }
         if (encoded.length > maxEncodedChars) return false
         return try {
-            store.write(key, encoded)
+            store.write(key, encoded).also { saved ->
+                if (!saved) telemetry.recordNonFatal(NonFatalIssue.TransitCacheStorage)
+            }
         } catch (failure: CancellationException) {
             throw failure
         } catch (_: Throwable) {
+            telemetry.recordNonFatal(NonFatalIssue.TransitCacheStorage)
             false
         }
     }
@@ -86,6 +102,7 @@ class TransitCache(
             throw failure
         } catch (_: Throwable) {
             // Cache eviction must not hide a usable network response.
+            telemetry.recordNonFatal(NonFatalIssue.TransitCacheStorage)
         }
     }
 
@@ -94,6 +111,7 @@ class TransitCache(
     } catch (failure: CancellationException) {
         throw failure
     } catch (_: Throwable) {
+        telemetry.recordNonFatal(NonFatalIssue.TransitCacheStorage)
         emptyList()
     }
 }

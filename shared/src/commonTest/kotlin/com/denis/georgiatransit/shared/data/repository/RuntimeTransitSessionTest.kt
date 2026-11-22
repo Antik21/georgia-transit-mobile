@@ -1,5 +1,8 @@
 package com.denis.georgiatransit.shared.data.repository
 
+import com.denis.georgiatransit.shared.core.telemetry.NonFatalIssue
+import com.denis.georgiatransit.shared.core.telemetry.RecordingAppTelemetry
+import com.denis.georgiatransit.shared.core.telemetry.SafeAppTelemetry
 import com.denis.georgiatransit.shared.domain.model.CityCapabilities
 import com.denis.georgiatransit.shared.domain.model.CityId
 import com.denis.georgiatransit.shared.domain.model.GeoPoint
@@ -43,7 +46,8 @@ class RuntimeTransitSessionTest {
     @Test
     fun differentCityClearsAndPersistsEmptyWhileSameCityRefreshPreservesSelection() {
         val store = RecordingStore()
-        val session = RuntimeTransitSession(store)
+        val telemetry = RecordingAppTelemetry()
+        val session = RuntimeTransitSession(store, telemetry)
         val originalTbilisi = city("tbilisi")
         val refreshedTbilisi = originalTbilisi.copy(name = "Tbilisi refreshed")
         val batumi = city("batumi")
@@ -62,6 +66,19 @@ class RuntimeTransitSessionTest {
         assertEquals(batumi, session.selectedCity.value)
         assertTrue(session.selectedRouteIds.value.isEmpty())
         assertEquals(CachedCitySnapshot(city = batumi), store.saved.last())
+        assertEquals(listOf<String?>("tbilisi", "batumi"), telemetry.cities)
+    }
+
+    @Test
+    fun restoringAndClearingSelectionUpdatesAnalyticsWithOnlyValidCityIds() {
+        val telemetry = RecordingAppTelemetry()
+        val session = RuntimeTransitSession(telemetry = SafeAppTelemetry(telemetry))
+
+        session.restoreCitySelection(city("batumi"), emptySet())
+        session.clearSelectedCity()
+        session.restoreCitySelection(city("41.6,41.6"), emptySet())
+
+        assertEquals(listOf("batumi", null, null), telemetry.cities)
     }
 
     @Test
@@ -83,7 +100,8 @@ class RuntimeTransitSessionTest {
     @Test
     fun clearRemovesDurableSnapshotAndOrdinaryPersistenceFailuresDoNotRollbackMemory() {
         val store = RecordingStore().apply { saveFailure = IllegalStateException("disk unavailable") }
-        val session = RuntimeTransitSession(store)
+        val telemetry = RecordingAppTelemetry()
+        val session = RuntimeTransitSession(store, SafeAppTelemetry(telemetry))
         val city = city("tbilisi")
         val selected = setOf(RouteId("opaque:route:1"))
 
@@ -98,16 +116,19 @@ class RuntimeTransitSessionTest {
         assertNull(session.selectedCity.value)
         assertTrue(session.selectedRouteIds.value.isEmpty())
         assertEquals(1, store.clearCalls)
+        assertEquals(listOf(NonFatalIssue.SelectedCityStorage), telemetry.nonFatals)
     }
 
     @Test
     fun persistenceCancellationIsRethrownAfterTheInMemoryMutation() {
         val store = RecordingStore().apply { saveFailure = CancellationException("cancelled") }
-        val session = RuntimeTransitSession(store)
+        val telemetry = RecordingAppTelemetry()
+        val session = RuntimeTransitSession(store, telemetry)
         val city = city("tbilisi")
 
         assertFailsWith<CancellationException> { session.selectCity(city) }
         assertEquals(city, session.selectedCity.value)
+        assertTrue(telemetry.nonFatals.isEmpty())
     }
 
     private fun city(id: String, routes: Boolean = true) = TransitCity(

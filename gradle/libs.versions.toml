@@ -73,6 +73,7 @@ turbine = { module = "app.cash.turbine:turbine", version.ref = "turbine" }
 maplibre-android = { module = "org.maplibre.gl:android-sdk-opengl", version.ref = "maplibre-android" }
 chucker = { module = "com.github.chuckerteam.chucker:library", version.ref = "chucker" }
 firebase-bom = { module = "com.google.firebase:firebase-bom", version.ref = "firebase-bom" }
+firebase-analytics = { module = "com.google.firebase:firebase-analytics" }
 firebase-crashlytics = { module = "com.google.firebase:firebase-crashlytics" }
 snakeyaml = { module = "org.yaml:snakeyaml", version.ref = "snakeyaml" }
 slf4j-simple = { module = "org.slf4j:slf4j-simple", version.ref = "slf4j" }
