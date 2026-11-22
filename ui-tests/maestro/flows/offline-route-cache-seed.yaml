@@ -1,4 +1,4 @@
-appId: com.denis.georgiatransit
+appId: com.anti.georgiatransit.sandbox
 ---
 # Precondition: run-offline-route-cache-smoke.sh owns the loopback test fixture and reset the app.
 # Seed both native persistence and the durable route list through stable automation IDs only.

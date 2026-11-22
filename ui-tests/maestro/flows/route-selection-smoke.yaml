@@ -1,4 +1,4 @@
-appId: com.denis.georgiatransit
+appId: com.anti.georgiatransit.sandbox
 ---
 # Preconditions are supplied by run-route-selection-smoke.sh: its owned loopback fixture exposes
 # demo and Tbilisi plus eleven demo routes. Every interaction uses a stable ID or list index.

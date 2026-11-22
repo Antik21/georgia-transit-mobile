@@ -288,7 +288,7 @@
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks";
 				MARKETING_VERSION = 0.1.0;
 				OTHER_LDFLAGS = "$(inherited) -framework Shared";
-				PRODUCT_BUNDLE_IDENTIFIER = com.denis.georgiatransit.sandbox;
+				PRODUCT_BUNDLE_IDENTIFIER = com.anti.georgiatransit.sandbox;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SUPPORTED_PLATFORMS = "iphonesimulator iphoneos";
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "$(inherited) DEBUG SANDBOX";
@@ -318,7 +318,7 @@
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks";
 				MARKETING_VERSION = 0.1.0;
 				OTHER_LDFLAGS = "$(inherited) -framework Shared";
-				PRODUCT_BUNDLE_IDENTIFIER = com.denis.georgiatransit;
+				PRODUCT_BUNDLE_IDENTIFIER = com.anti.georgiatransit;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SUPPORTED_PLATFORMS = "iphonesimulator iphoneos";
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "$(inherited) PRODUCTION";

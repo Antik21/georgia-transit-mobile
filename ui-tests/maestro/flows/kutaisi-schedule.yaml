@@ -1,4 +1,4 @@
-appId: com.denis.georgiatransit.sandbox
+appId: com.anti.georgiatransit.sandbox
 ---
 # Run with the live Kutaisi and Batumi city capabilities enabled in the local BFF.
 - launchApp:
