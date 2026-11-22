@@ -103,6 +103,11 @@ services:
     buildFilter:
       paths:
         - landing/**
+        - render.yaml
+    routes:
+      - type: rewrite
+        source: /v1/analytics
+        destination: https://antik21-georgia-transit-bff.onrender.com/v1/analytics
     headers:
       - path: /assets/*
         name: Cache-Control

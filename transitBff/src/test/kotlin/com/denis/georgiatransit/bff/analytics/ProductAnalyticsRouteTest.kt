@@ -85,17 +85,41 @@ class ProductAnalyticsRouteTest {
         assertEquals(HttpStatusCode.BadRequest, submit(Json.encodeToString(vehicle.copy(vehicleTapId = "bus-1"))))
         assertEquals(HttpStatusCode.BadRequest, submit(Json.encodeToString(vehicle.copy(stopOpening = opening))))
         assertEquals(HttpStatusCode.BadRequest, submit(vehicleBody.dropLast(1) + ",\"vehicleId\":\"bus-1\"}"))
-        assertEquals(listOf(event, routes, recent, search, journey, stop, vehicle), delivered)
+        val landing = AnalyticsRequest("landing", DeviceId, 1_000, 1_100, landing = LandingInteraction(
+            LandingAction.PageViewed, "zh-Hans", SelectionId,
+        ))
+        val landingBody = Json.encodeToString(landing)
+        assertEquals(HttpStatusCode.NoContent, submit(landingBody))
+        assertEquals(HttpStatusCode.BadRequest, submit(landingBody.replace("zh-Hans", "es")))
+        assertEquals(HttpStatusCode.BadRequest, submit(landingBody.replace(
+            "\"action\":\"page_viewed\"", "\"action\":\"page_viewed\",\"entrySource\":\"telegram\"",
+        )))
+        assertEquals(HttpStatusCode.BadRequest, submit(Json.encodeToString(landing.copy(zoomType = "button"))))
+        assertEquals(HttpStatusCode.BadRequest, submit(Json.encodeToString(landing.copy(client = "web"))))
+        assertEquals(HttpStatusCode.BadRequest, submit(Json.encodeToString(landing.copy(landing = null))))
+        assertEquals(listOf(event, routes, recent, search, journey, stop, vehicle, landing), delivered)
     }
 
     @Test
-    fun mapsAllClientsAndUsesStablePerSessionDeduplication() {
-        for (client in listOf("android", "ios", "web", "telegram_mini_app")) {
+    fun mapsLaunchesAndUsesStablePerSessionDeduplication() {
+        val entrySources = mapOf("android" to null, "ios" to null, "web" to "browser", "telegram_mini_app" to "telegram")
+        for ((client, entrySource) in entrySources) {
             val opening = AnalyticsRequest(client, DeviceId, 1_000, 1_000)
-            val identify = opening.toAmplitudeEvent()
-            assertEquals("\$identify", identify.getValue("event_type").jsonPrimitive.content)
-            assertEquals(client, identify.getValue("user_properties").jsonObject
-                .getValue("\$set").jsonObject.getValue("client").jsonPrimitive.content)
+            val launch = opening.toAmplitudeEvent()
+            val userProperties = launch.getValue("user_properties").jsonObject
+            if (entrySource == null) {
+                assertEquals("\$identify", launch.getValue("event_type").jsonPrimitive.content)
+                assertEquals(client, userProperties.getValue("\$set").jsonObject.getValue("client").jsonPrimitive.content)
+            } else {
+                assertEquals("web_app_opened", launch.getValue("event_type").jsonPrimitive.content)
+                assertEquals(client, userProperties.getValue("client").jsonPrimitive.content)
+                assertEquals(Json.parseToJsonElement("""{"entry_source":"$entrySource"}"""), launch["event_properties"])
+                assertEquals(DeviceId, launch.getValue("device_id").jsonPrimitive.content)
+                assertEquals(launch["insert_id"], opening.copy(time = 1_100).toAmplitudeEvent()["insert_id"])
+                val nextSession = opening.copy(sessionId = 2_000, time = 2_000).toAmplitudeEvent()
+                assertNotEquals(launch["insert_id"], nextSession["insert_id"])
+                assertEquals(launch["device_id"], nextSession["device_id"])
+            }
 
             val zoom = opening.copy(time = 1_200, zoomType = "button")
             val payload = zoom.toAmplitudeEvent()
@@ -106,6 +130,30 @@ class ProductAnalyticsRouteTest {
             assertNotEquals(payload["insert_id"], zoom.copy(zoomType = "finger_pinch").toAmplitudeEvent()["insert_id"])
             assertNotEquals(payload["insert_id"], zoom.copy(sessionId = 1_100).toAmplitudeEvent()["insert_id"])
         }
+    }
+
+    @Test
+    fun mapsConsentedLandingInteractionsWithOnlyTheirDocumentedProperties() {
+        val view = LandingInteraction(LandingAction.PageViewed, "fr", SelectionId)
+        val language = view.copy(action = LandingAction.LanguageChanged, previousLanguage = "en")
+        val click = view.copy(action = LandingAction.PlatformClicked, targetPlatform = "telegram_mini_app")
+        val cases = listOf(
+            Triple(view, "landing_page_viewed", """{"language":"fr"}"""),
+            Triple(language, "landing_language_changed", """{"language":"fr","previous_language":"en"}"""),
+            Triple(click, "landing_platform_clicked", """{"language":"fr","target_platform":"telegram_mini_app"}"""),
+        )
+        for ((interaction, eventType, properties) in cases) {
+            val request = AnalyticsRequest("landing", DeviceId, 1_000, 1_100, landing = interaction)
+            assertEquals(true, request.isValid())
+            val payload = request.toAmplitudeEvent()
+            assertEquals(eventType, payload.getValue("event_type").jsonPrimitive.content)
+            assertEquals(Json.parseToJsonElement(properties), payload["event_properties"])
+            assertEquals(payload["insert_id"], request.copy(time = 1_200).toAmplitudeEvent()["insert_id"])
+        }
+        assertEquals(false, view.copy(targetPlatform = "web").isValid())
+        assertEquals(false, language.copy(previousLanguage = "fr").isValid())
+        assertEquals(false, language.copy(previousLanguage = null).isValid())
+        assertEquals(false, click.copy(targetPlatform = "windows").isValid())
     }
 
     @Test

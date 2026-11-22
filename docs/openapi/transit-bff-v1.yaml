@@ -48,8 +48,10 @@ paths:
       operationId: recordProductAnalytics
       description: |
         Records the launch client, a zoom method, route picker activity, the start of journey planning,
-        a stop opening, or a tap on a vehicle marker.
-        Include one event field or omit all event fields to identify the launch client.
+        a stop opening, a tap on a vehicle marker, or a consented landing-page interaction.
+        App clients omit event fields at session start. Mobile starts identify the client. Browser
+        and Telegram Mini App starts record a web app opening with the corresponding entry source.
+        The landing client supplies only the landing event field.
       requestBody:
         required: true
         content:
@@ -59,7 +61,7 @@ paths:
               additionalProperties: false
               required: [client, deviceId, sessionId, time]
               properties:
-                client: {type: string, enum: [android, ios, web, telegram_mini_app]}
+                client: {type: string, enum: [android, ios, web, telegram_mini_app, landing]}
                 deviceId: {type: string, format: uuid}
                 sessionId: {type: integer, format: int64, minimum: 1}
                 time: {type: integer, format: int64, minimum: 1}
@@ -89,6 +91,17 @@ paths:
                     cityId: {type: string, enum: [batumi, demo, kutaisi, tbilisi, zugdidi]}
                     eventId: {type: string, format: uuid}
                 vehicleTapId: {type: string, format: uuid, description: Unique event ID for the vehicle marker tap.}
+                landing:
+                  type: object
+                  additionalProperties: false
+                  required: [action, language, eventId]
+                  description: Language changes supply previousLanguage. Platform clicks supply targetPlatform.
+                  properties:
+                    action: {type: string, enum: [page_viewed, language_changed, platform_clicked]}
+                    language: {type: string, enum: [en, ka, ru, zh-Hans, fr, de]}
+                    eventId: {type: string, format: uuid}
+                    previousLanguage: {type: string, enum: [en, ka, ru, zh-Hans, fr, de]}
+                    targetPlatform: {type: string, enum: [web, telegram_mini_app, android, ios]}
       responses:
         '204':
           description: Event accepted or analytics delivery disabled.

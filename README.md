@@ -155,7 +155,7 @@ and accepted only by a loopback development BFF.
 ## Product analytics
 
 The [Amplitude event catalog](docs/development/product-analytics.md) documents the triggers, properties,
-and frequency for Android, iOS, Web, and Telegram Mini App.
+and frequency for Android, iOS, the web app, Telegram Mini App, and the landing site.
 
 ## Firebase Crashlytics
 

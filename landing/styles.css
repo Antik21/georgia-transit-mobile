@@ -272,9 +272,40 @@ a { color: var(--link); }
 .footer__row { display: grid; grid-template-columns: auto 1fr; gap: 16px 24px; align-items: center; }
 .footer__brand { display: flex; align-items: center; gap: 10px; color: var(--ink); font-weight: 700; }
 .footer__brand img { border-radius: 8px; }
+.footer__actions { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; justify-self: end; }
 .footer__privacy { justify-self: end; min-height: 44px; padding-inline: 18px; border: 1px solid var(--edge); text-align: center; background: var(--surface); }
 .footer__privacy:hover { border-color: var(--link); }
 .footer__small { grid-column: 1 / -1; font-size: 14px; max-width: 60em; }
+
+.analytics-settings { border: 0; padding: 0; background: none; color: var(--link); font: inherit; text-decoration: underline; text-underline-offset: 4px; cursor: pointer; }
+.analytics-choice {
+  position: fixed;
+  z-index: 10;
+  inset-inline-end: clamp(12px, 3vw, 28px);
+  inset-block-end: max(12px, env(safe-area-inset-bottom));
+  width: min(420px, calc(100% - 24px));
+  padding: 18px;
+  border: 1px solid var(--edge);
+  border-radius: 16px;
+  background: var(--surface);
+  box-shadow: 0 12px 44px rgb(0 0 0 / .2);
+}
+.analytics-choice h2 { font-size: 22px; }
+.analytics-choice p { margin-top: 8px; color: var(--muted); }
+.analytics-choice__actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin-top: 14px; }
+.analytics-choice__actions button {
+  min-height: 44px;
+  padding-inline: 12px;
+  border: 1px solid var(--edge);
+  border-radius: 10px;
+  background: var(--paper);
+  color: var(--ink);
+  font: inherit;
+  font-weight: 650;
+  cursor: pointer;
+}
+.analytics-choice__actions button:hover { border-color: var(--link); }
+.analytics-choice__actions a { font-size: 14px; text-underline-offset: 4px; }
 
 @media (max-width: 960px) {
   .topbar__nav { display: none; }
@@ -314,6 +345,7 @@ a { color: var(--link); }
   .phone-pair .phone__screen { border-radius: calc(var(--device-radius) - 5px); }
   .platform-list { grid-template-columns: 1fr; }
   .footer__row { grid-template-columns: 1fr; }
+  .footer__actions { justify-self: start; }
   .footer__privacy { justify-self: start; }
   .city-hero__grid, .city-guide__sections { grid-template-columns: 1fr; }
   .city-hero[data-city="kutaisi"] .city-hero__screens { order: 0; }

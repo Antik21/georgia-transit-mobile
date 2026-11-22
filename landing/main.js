@@ -1,4 +1,5 @@
 import { cityPagePath, translations } from "./locales.js";
+import { initLandingAnalytics, trackLandingLanguage } from "./analytics.js";
 
 // Fill in store links here once they exist; null renders a visible "link coming" placeholder.
 const LINKS = {
@@ -41,6 +42,7 @@ function applyLinks(copy) {
     anchor.className = "platform__link";
     anchor.href = url;
     anchor.dataset.link = key;
+    anchor.dataset.analyticsPlatform = key;
     anchor.dataset.i18n = linkLabels[key];
     anchor.textContent = copy[linkLabels[key]];
     element.replaceWith(anchor);
@@ -71,6 +73,7 @@ function currentTheme() {
 
 languageSelect.addEventListener("change", () => {
   const language = languageSelect.value;
+  trackLandingLanguage(language);
   storage.set("gt-landing-lang", language);
   const url = new URL(location.href);
   url.pathname = localizedPaths.get(language);
@@ -96,3 +99,4 @@ for (const stop of document.querySelectorAll(".hero__stop[data-at]")) {
 }
 
 applyLanguage(pickLanguage());
+initLandingAnalytics();

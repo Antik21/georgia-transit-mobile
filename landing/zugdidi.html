@@ -30,7 +30,7 @@
     } catch {}
   </script>
 </head>
-<body class="city-guide">
+<body class="city-guide" data-analytics-page="city">
   <a class="skip" href="#main">Skip to content</a>
   <header class="topbar">
     <div class="wrap topbar__row">
@@ -48,8 +48,8 @@
           <h1 id="city-title">Zugdidi bus routes and stops</h1>
           <p>Find which city bus route runs near you and where to look for a stop in Zugdidi.</p>
           <div class="city-hero__actions">
-            <a class="button city-guide__cta" href="https://app.geotransit.com.ge/">Open the web app</a>
-            <a href="https://t.me/geo_transit_bot?startapp">Open in Telegram</a>
+            <a class="button city-guide__cta" href="https://app.geotransit.com.ge/" data-analytics-platform="web">Open the web app</a>
+            <a href="https://t.me/geo_transit_bot?startapp" data-analytics-platform="telegram_mini_app">Open in Telegram</a>
           </div>
         </div>
         <div class="city-hero__screens">
@@ -83,19 +83,21 @@
         <a href="/kutaisi.html">Buses in Kutaisi</a>
       </nav>
       <nav aria-label="Language">
-        <a href="/zugdidi.html" lang="en" hreflang="en" aria-current="page">English</a>
-        <a href="/zugdidi-ka.html" lang="ka" hreflang="ka">ქართული</a>
-        <a href="/zugdidi-ru.html" lang="ru" hreflang="ru">Русский</a>
-        <a href="/zugdidi-zh-hans.html" lang="zh-Hans" hreflang="zh-Hans">简体中文</a>
-        <a href="/zugdidi-fr.html" lang="fr" hreflang="fr">Français</a>
-        <a href="/zugdidi-de.html" lang="de" hreflang="de">Deutsch</a>
+        <a href="/zugdidi.html" lang="en" hreflang="en" data-analytics-language="en" aria-current="page">English</a>
+        <a href="/zugdidi-ka.html" lang="ka" hreflang="ka" data-analytics-language="ka">ქართული</a>
+        <a href="/zugdidi-ru.html" lang="ru" hreflang="ru" data-analytics-language="ru">Русский</a>
+        <a href="/zugdidi-zh-hans.html" lang="zh-Hans" hreflang="zh-Hans" data-analytics-language="zh-Hans">简体中文</a>
+        <a href="/zugdidi-fr.html" lang="fr" hreflang="fr" data-analytics-language="fr">Français</a>
+        <a href="/zugdidi-de.html" lang="de" hreflang="de" data-analytics-language="de">Deutsch</a>
       </nav>
       <div class="city-guide__footer-links">
         <a href="/?lang=en#platforms">Android, iOS</a>
         <a href="/privacy.html?lang=en">Privacy Policy</a>
+        <button type="button" class="analytics-settings" id="analytics-settings" aria-controls="analytics-choice" aria-expanded="false" hidden>Analytics settings</button>
       </div>
       <p class="footer__small">Map data in screenshots © OpenStreetMap contributors.</p>
     </div>
   </footer>
+  <script type="module" src="/analytics.js"></script>
 </body>
 </html>

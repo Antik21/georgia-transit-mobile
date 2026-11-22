@@ -21,6 +21,7 @@ import io.ktor.utils.io.readRemaining
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.io.readByteArray
+import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.SerializationException
 import kotlinx.serialization.json.Json
@@ -58,6 +59,7 @@ internal data class AnalyticsRequest(
     val journeyPlanning: JourneyPlanning? = null,
     val stopOpening: StopOpening? = null,
     val vehicleTapId: String? = null,
+    val landing: LandingInteraction? = null,
 ) {
     @Serializable
     data class RoutesSelection(val cityId: String, val routeCount: Int, val eventId: String) {
@@ -76,11 +78,13 @@ internal data class AnalyticsRequest(
     }
 
     fun isValid(): Boolean {
+        if (!UuidPattern.matches(deviceId) || sessionId <= 0 || time < sessionId) return false
         val eventCount = listOf(
             zoomType != null, routesSelection != null, recentRoutesUsed,
             routeSearchUsed, journeyPlanning != null, stopOpening != null, vehicleTapId != null,
         ).count { it }
-        return client in Clients && UuidPattern.matches(deviceId) && sessionId > 0 && time >= sessionId &&
+        if (client == "landing") return eventCount == 0 && landing?.isValid() == true
+        return client in Clients && landing == null &&
             eventCount <= 1 && (zoomType == null || zoomType in ZoomTypes) &&
             routesSelection?.isValid() != false && journeyPlanning?.isValid() != false &&
             stopOpening?.isValid() != false && (vehicleTapId == null || UuidPattern.matches(vehicleTapId))
@@ -88,6 +92,7 @@ internal data class AnalyticsRequest(
 
     fun toAmplitudeEvent(): JsonObject = buildJsonObject {
         val eventType = when {
+            landing != null -> landing.action.eventName
             recentRoutesUsed -> "recent_routes_used"
             routeSearchUsed -> "route_search_used"
             journeyPlanning != null -> "journey_planning_started"
@@ -95,13 +100,15 @@ internal data class AnalyticsRequest(
             vehicleTapId != null -> "vehicle_tapped"
             routesSelection != null -> "routes_selected"
             zoomType != null -> "zoom_started"
+            client in WebEntrySources -> "web_app_opened"
             else -> "\$identify"
         }
         put("device_id", deviceId)
         put("event_type", eventType)
         put("session_id", sessionId)
         put("time", time)
-        val interactionId = routesSelection?.eventId ?: journeyPlanning?.eventId ?: stopOpening?.eventId ?: vehicleTapId
+        val interactionId = landing?.eventId ?: routesSelection?.eventId ?: journeyPlanning?.eventId ?:
+            stopOpening?.eventId ?: vehicleTapId
         val eventKey = when {
             interactionId != null -> "$eventType:$interactionId"
             zoomType != null -> zoomType
@@ -114,6 +121,7 @@ internal data class AnalyticsRequest(
             else put("client", client)
         }
         when {
+            landing != null -> put("event_properties", landing.toAmplitudeProperties())
             routesSelection != null -> putJsonObject("event_properties") {
                 put("city", routesSelection.cityId)
                 put("route_count", routesSelection.routeCount)
@@ -121,16 +129,54 @@ internal data class AnalyticsRequest(
             journeyPlanning != null -> putJsonObject("event_properties") { put("source", journeyPlanning.source) }
             stopOpening != null -> putJsonObject("event_properties") { put("city", stopOpening.cityId) }
             zoomType != null -> putJsonObject("event_properties") { put("type", zoomType) }
+            eventType == "web_app_opened" -> putJsonObject("event_properties") {
+                put("entry_source", WebEntrySources.getValue(client))
+            }
         }
     }
 }
 
+@Serializable
+internal enum class LandingAction(val eventName: String) {
+    @SerialName("page_viewed") PageViewed("landing_page_viewed"),
+    @SerialName("language_changed") LanguageChanged("landing_language_changed"),
+    @SerialName("platform_clicked") PlatformClicked("landing_platform_clicked"),
+}
+
+@Serializable
+internal data class LandingInteraction(
+    val action: LandingAction,
+    val language: String,
+    val eventId: String,
+    val previousLanguage: String? = null,
+    val targetPlatform: String? = null,
+) {
+    fun isValid(): Boolean {
+        if (language !in LandingLanguages || !UuidPattern.matches(eventId)) return false
+        return when (action) {
+            LandingAction.PageViewed -> previousLanguage == null && targetPlatform == null
+            LandingAction.LanguageChanged ->
+                previousLanguage in LandingLanguages && previousLanguage != language && targetPlatform == null
+            LandingAction.PlatformClicked -> previousLanguage == null && targetPlatform in LandingPlatforms
+        }
+    }
+
+    fun toAmplitudeProperties(): JsonObject = buildJsonObject {
+        put("language", language)
+        previousLanguage?.let { put("previous_language", it) }
+        targetPlatform?.let { put("target_platform", it) }
+    }
+}
+
 private val Clients = setOf("android", "ios", "web", "telegram_mini_app")
+private val WebEntrySources = mapOf("web" to "browser", "telegram_mini_app" to "telegram")
 private val ZoomTypes = setOf("finger_double_tap", "finger_pinch", "button")
 private val JourneyPlanningSources = setOf("map_button", "long_press")
 private val AnalyticsCities = setOf(
     KnownCityIds.Batumi, KnownCityIds.Demo, KnownCityIds.Kutaisi, KnownCityIds.Tbilisi, KnownCityIds.Zugdidi,
 )
+private val LandingLanguages = setOf("en", "ka", "ru", "zh-Hans", "fr", "de")
+private val LandingPlatforms = setOf("web", "telegram_mini_app", "android", "ios")
 private const val MaximumSelectedRoutes = 10
 private val UuidPattern = Regex("[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}")
 

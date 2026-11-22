@@ -30,7 +30,7 @@
     } catch {}
   </script>
 </head>
-<body class="city-guide">
+<body class="city-guide" data-analytics-page="city">
   <a class="skip" href="#main">跳转到主要内容</a>
   <header class="topbar">
     <div class="wrap topbar__row">
@@ -48,8 +48,8 @@
           <h1 id="city-title">库塔伊西公交时刻表和线路</h1>
           <p>出门前查询时刻表，再在地图上查看库塔伊西公交的位置和下一班车的到站时间。</p>
           <div class="city-hero__actions">
-            <a class="button city-guide__cta" href="https://app.geotransit.com.ge/">打开网页版</a>
-            <a href="https://t.me/geo_transit_bot?startapp">在 Telegram 中打开</a>
+            <a class="button city-guide__cta" href="https://app.geotransit.com.ge/" data-analytics-platform="web">打开网页版</a>
+            <a href="https://t.me/geo_transit_bot?startapp" data-analytics-platform="telegram_mini_app">在 Telegram 中打开</a>
           </div>
         </div>
         <div class="city-hero__screens">
@@ -84,19 +84,21 @@
         <a href="/zugdidi-zh-hans.html">祖格迪迪公交</a>
       </nav>
       <nav aria-label="语言">
-        <a href="/kutaisi.html" lang="en" hreflang="en">English</a>
-        <a href="/kutaisi-ka.html" lang="ka" hreflang="ka">ქართული</a>
-        <a href="/kutaisi-ru.html" lang="ru" hreflang="ru">Русский</a>
-        <a href="/kutaisi-zh-hans.html" lang="zh-Hans" hreflang="zh-Hans" aria-current="page">简体中文</a>
-        <a href="/kutaisi-fr.html" lang="fr" hreflang="fr">Français</a>
-        <a href="/kutaisi-de.html" lang="de" hreflang="de">Deutsch</a>
+        <a href="/kutaisi.html" lang="en" hreflang="en" data-analytics-language="en">English</a>
+        <a href="/kutaisi-ka.html" lang="ka" hreflang="ka" data-analytics-language="ka">ქართული</a>
+        <a href="/kutaisi-ru.html" lang="ru" hreflang="ru" data-analytics-language="ru">Русский</a>
+        <a href="/kutaisi-zh-hans.html" lang="zh-Hans" hreflang="zh-Hans" data-analytics-language="zh-Hans" aria-current="page">简体中文</a>
+        <a href="/kutaisi-fr.html" lang="fr" hreflang="fr" data-analytics-language="fr">Français</a>
+        <a href="/kutaisi-de.html" lang="de" hreflang="de" data-analytics-language="de">Deutsch</a>
       </nav>
       <div class="city-guide__footer-links">
         <a href="/zh-hans.html?lang=zh-Hans#platforms">Android, iOS</a>
         <a href="/privacy.html?lang=zh-Hans">隐私政策</a>
+        <button type="button" class="analytics-settings" id="analytics-settings" aria-controls="analytics-choice" aria-expanded="false" hidden>分析设置</button>
       </div>
       <p class="footer__small">截图中的地图数据 © OpenStreetMap 贡献者。</p>
     </div>
   </footer>
+  <script type="module" src="/analytics.js"></script>
 </body>
 </html>
