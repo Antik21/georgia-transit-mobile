@@ -127,6 +127,14 @@ case "$platform" in
       echo "Refusing target that is not an explicitly booted iOS simulator: $target" >&2
       exit 74
     fi
+    simulator_app_pid() {
+      xcrun simctl spawn "$target" launchctl list |
+        awk -v label_prefix="UIKitApplication:$app_id[" '
+          index($3, label_prefix) == 1 && $1 ~ /^[0-9]+$/ && pid == "" { pid = $1 }
+          END { if (pid != "") print pid }
+        '
+    }
+
     xcrun simctl terminate "$target" "$app_id" 2>/dev/null || true
     xcrun simctl uninstall "$target" "$app_id" 2>/dev/null || true
     xcrun simctl install "$target" "$artifact"
@@ -134,7 +142,7 @@ case "$platform" in
     xcrun simctl launch "$target" "$app_id" >/dev/null
     sleep 10
     verify_owned_fixture || { echo "Fixture ownership/health changed before iOS baseline measurement" >&2; exit 70; }
-    ios_baseline_pid=$(xcrun simctl spawn "$target" launchctl list | awk '/UIKitApplication:com\.denis\.georgiatransit/ { print $1; exit }')
+    ios_baseline_pid=$(simulator_app_pid)
     if [[ -z $ios_baseline_pid ]]; then
       echo "Unable to locate simulator process for baseline memory capture" >&2
       exit 75
@@ -145,7 +153,7 @@ case "$platform" in
     xcrun simctl launch "$target" "$app_id" >/dev/null
     sleep 10
     verify_owned_fixture || { echo "Fixture ownership/health changed before iOS three-cycle measurement" >&2; exit 70; }
-    ios_after_three_pid=$(xcrun simctl spawn "$target" launchctl list | awk '/UIKitApplication:com\.denis\.georgiatransit/ { print $1; exit }')
+    ios_after_three_pid=$(simulator_app_pid)
     if [[ -z $ios_after_three_pid ]]; then
       echo "Unable to locate simulator process after three cycles" >&2
       exit 75
@@ -160,7 +168,7 @@ case "$platform" in
     xcrun simctl launch "$target" "$app_id" >/dev/null
     sleep 10
     verify_owned_fixture || { echo "Fixture ownership/health changed before iOS six-cycle measurement" >&2; exit 70; }
-    ios_pid=$(xcrun simctl spawn "$target" launchctl list | awk '/UIKitApplication:com\.denis\.georgiatransit/ { print $1; exit }')
+    ios_pid=$(simulator_app_pid)
     if [[ -z $ios_pid ]]; then
       echo "Unable to locate simulator process for memory capture" >&2
       exit 75
