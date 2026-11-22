@@ -203,7 +203,7 @@ try {
     return glyph.count >= 20 ? glyph : null;
   }
 
-  async function tap(selector) {
+  async function touchTarget(selector) {
     const point = await evaluate(`(() => {
       const element = document.querySelector(${JSON.stringify(selector)});
       if (!element || element.disabled) return null;
@@ -212,9 +212,10 @@ try {
       return { x: rect.x + rect.width / 2, y: rect.y + rect.height / 2 };
     })()`);
     assert.ok(point, `No enabled touch target: ${selector}`);
-    await send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [point] });
-    await send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+    return point;
   }
+
+  const tap = async (selector) => tapAt(await touchTarget(selector));
 
   await waitFor('Startup shows the app logo and loading bar while the runtime loads', `(() => {
     const loading = document.querySelector('${testId('startup-loading')}');
@@ -400,9 +401,21 @@ try {
   await waitFor('Telegram back closes the route picker', `${mapScreen} && !${routesScreen} && window.__telegramSmoke?.backVisible === false`);
   await tap(testId('open-routes'));
   await waitFor('Telegram back discards the route draft', `${routePressed(fixtureRouteId, true)} && ${routePressed(otherRouteId, false)}`);
-  await tap(testId('cancel-routes'));
-  await waitFor('Closing the route picker restores the map', `${mapScreen} && !${routesScreen}`);
-  await tap(testId('remove-route'));
+  const incomingVehicles = Promise.withResolvers();
+  fixtureControl.vehicleHold = incomingVehicles.promise;
+  try {
+    await tap(testId('cancel-routes'));
+    await waitFor('The map shows the route while vehicle positions start loading',
+      `${mapScreen} && !${routesScreen} && ${visible(testId('remove-route'))} && ${visible(testId('vehicle-status'))}`);
+    const removePoint = await touchTarget(testId('remove-route'));
+    incomingVehicles.resolve();
+    await waitFor('The vehicle status clears when positions arrive', `!${visible(testId('vehicle-status'))}`);
+    assert.deepEqual(await touchTarget(testId('remove-route')), removePoint, 'The vehicle status must not move the route action');
+    await tapAt(removePoint);
+  } finally {
+    fixtureControl.vehicleHold = null;
+    incomingVehicles.resolve();
+  }
   await waitFor('Removing the route clears its chip', `!${visible(testId('route-legend'))}`);
   await tap(testId('change-city'));
   await waitFor('Change-city action reopens city choices', `${visible(testId('city-screen'))} && ${visible(cityOption(otherCityId))}`);

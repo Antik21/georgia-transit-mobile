@@ -91,7 +91,8 @@ export function createTransitView(root: HTMLElement, actions: ViewActions, langu
   const vehicleSummary = element("p", "visually-hidden");
   vehicleSummary.setAttribute("aria-live", "polite");
   vehicleSummary.dataset.testid = "vehicle-summary";
-  mapControls.append(routeSelection, vehicleStatus, openRoutes);
+  // The footer grows upward. Placing status above the chips keeps their targets still as live data arrives.
+  mapControls.append(vehicleStatus, routeSelection, openRoutes);
   const mapCredits = element("div", "map-credits");
   const mapLeftControls = element("div", "map-left-controls");
   const plannerControls = element("div", "map-planner-controls");
