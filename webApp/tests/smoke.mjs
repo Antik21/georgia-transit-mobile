@@ -10,6 +10,7 @@ import {
   browserFixture, fallbackMapColor, fixtureAttribution, fixtureCityId, fixtureControl, fixtureHeadsign,
   fixtureRouteColor, fixtureRouteId, fixtureShapePath, fixtureStopId, fixtureTileColor, otherCityId,
   otherRouteId, otherShapePath, fixtureVehiclesPath, vehicleHeadlightColor, userLocationDotColor, stopPinGlyphColor,
+  fixtureCityCreditUrl, hiddenCreditCityIds,
 } from './browser-fixtures.mjs';
 import { plannerSmoke } from './planner-smoke.mjs';
 
@@ -74,6 +75,9 @@ try {
   const routePressed = (id, value) => `document.querySelector(${JSON.stringify(routeOption(id))})?.getAttribute('aria-pressed') === '${value}'`;
   const routesScreen = visible(testId('routes-screen'));
   const mapScreen = visible(testId('map-screen'));
+  const confirmCity = testId('confirm-city');
+  const canConfirmCity = `document.querySelector('${confirmCity}')?.disabled === false`;
+  const tileAttribution = `${visible('.maplibregl-ctrl-attrib')} && document.querySelector('.maplibregl-ctrl-attrib').textContent.includes(${JSON.stringify(fixtureAttribution)})`;
   const backVisible = 'window.__telegramSmoke?.backVisible === true';
   const arrivalsPanel = visible(testId('arrivals-panel'));
   const arrivalRow = `document.querySelector('${testId('arrival-row')}')`;
@@ -211,9 +215,15 @@ try {
 
   await waitFor('Telegram host ready and expanded', 'window.__telegramSmoke?.ready === 1 && window.__telegramSmoke?.expand === 1');
   await waitFor('City options fit the mobile viewport', `${visible(cityOption(fixtureCityId))} && ${visible(cityOption(otherCityId))} && window.innerWidth === ${width} && document.documentElement.scrollWidth === ${width}`);
+  const cityCredit = `.attribution-links a[href="${fixtureCityCreditUrl}"]`;
+  await waitFor('City selection displays the credit for a city with public attribution', visible(`.city-options ${cityCredit}`));
+  for (const id of hiddenCreditCityIds) {
+    assert.equal(await evaluate(`document.querySelector('${cityOption(id)}').closest('li').querySelector('.attribution-links') === null`),
+      true, `City selection must hide the credit for ${id}`);
+  }
   await tap(cityOption(fixtureCityId));
-  await waitFor('City selection enables confirmation', `document.querySelector('${testId('confirm-city')}')?.disabled === false`);
-  await tap(testId('confirm-city'));
+  await waitFor('City selection enables confirmation', canConfirmCity);
+  await tap(confirmCity);
   await waitFor('Selected city opens a full-width map without a nearby-stops list', `${mapScreen} && ${panelCollapsed}`);
   await waitFor('The header shows the app logo', `(() => {
     const logo = document.querySelector('${testId('brand-logo')}');
@@ -222,7 +232,8 @@ try {
   })()`);
   await waitFor('MapLibre worker loads from the production build', () => workerResponses.includes(200));
   await waitFor('MapLibre renders pixels from the fixture raster tiles', () => mapContainsColor(fixtureTileColor, 2_000));
-  await waitFor('Tile source attribution is visible', `${visible('.maplibregl-ctrl-attrib')} && document.querySelector('.maplibregl-ctrl-attrib').textContent.includes(${JSON.stringify(fixtureAttribution)})`);
+  await waitFor('Tile source attribution is visible', tileAttribution);
+  await waitFor('The map displays the credit for a city with public attribution', visible(`.map-credits ${cityCredit}`));
   await waitFor('Nearby stops load as map pins only', async () => Boolean(await stopPinPoint()) && await evaluate(`${panelCollapsed} && !${visible(testId('map-content-status'))}`));
   await tapAt(await stopPinPoint());
   await waitFor('ETA panel shows BFF arrival', etaVisible);
@@ -347,10 +358,21 @@ try {
   await tap(testId('change-city'));
   await waitFor('Change-city action reopens city choices', `${visible(testId('city-screen'))} && ${visible(cityOption(otherCityId))}`);
 
+  for (const id of hiddenCreditCityIds) {
+    await tap(cityOption(id));
+    await waitFor(`City selection enables confirmation for ${id}`, canConfirmCity);
+    await tap(confirmCity);
+    await waitFor(`The map for ${id} opens`, () => bffRequests.includes(`/v1/cities/${id}/stops/nearby`));
+    assert.equal(await evaluate(`!!document.querySelector('.map-credits a')`), false, `The map must hide the credit for ${id}`);
+    await waitFor(`Tile attribution stays visible for ${id}`, `${mapScreen} && ${tileAttribution}`);
+    await tap(testId('change-city'));
+    await waitFor('City selection reopens', visible(cityOption(otherCityId)));
+  }
+
   fixtureControl.failStyle = true;
   await tap(cityOption(otherCityId));
-  await waitFor('Second city enables confirmation', `document.querySelector('${testId('confirm-city')}')?.disabled === false`);
-  await tap(testId('confirm-city'));
+  await waitFor('Second city enables confirmation', canConfirmCity);
+  await tap(confirmCity);
   await waitFor('Second city opens a fresh map', `${mapScreen} && ${visible('.maplibregl-canvas')} && ${panelCollapsed}`);
   await waitFor('An unavailable BFF style falls back to the local map style', () => mapContainsColor(fallbackMapColor, 2_000));
   fixtureControl.failStyle = false;
