@@ -581,7 +581,7 @@ export function createTransitMap(
     singleFingerTap = originalEvent.touches.length === 1;
   });
   map.on("zoomstart", ({ originalEvent }) => {
-    if (!(originalEvent instanceof TouchEvent)) return;
+    if (typeof TouchEvent === "undefined" || !(originalEvent instanceof TouchEvent)) return;
     if (originalEvent.type === "touchmove" && originalEvent.touches.length >= 2) {
       actions.zoomGesture(true);
     } else if (originalEvent.type === "touchend" && singleFingerTap) {

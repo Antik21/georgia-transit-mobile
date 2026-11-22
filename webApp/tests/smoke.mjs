@@ -539,9 +539,17 @@ try {
     .filter((path) => path.startsWith('/v1/map/tiles/')).map((path) => Number(path.split('/')[4]));
   const settledTileZoom = tileZoomsSince(0).at(-1);
   const beforeZoomIn = bffRequests.length;
-  await tap(zoomIn);
-  await tap(zoomIn);
-  await waitFor('Two zoom-in taps load tiles two levels deeper', () => tileZoomsSince(beforeZoomIn).includes(settledTileZoom + 2));
+  try {
+    assert.equal(await evaluate(`window.__smokeTouchEvent = window.TouchEvent;
+      delete window.TouchEvent;
+      typeof TouchEvent`), 'undefined');
+    await tap(zoomIn);
+    await tap(zoomIn);
+    await waitFor('Zoom buttons load deeper tiles without the TouchEvent constructor',
+      () => tileZoomsSince(beforeZoomIn).includes(settledTileZoom + 2));
+  } finally {
+    await evaluate('window.TouchEvent = window.__smokeTouchEvent; delete window.__smokeTouchEvent');
+  }
   // Lower tile levels are already cached, so zoom-out is measured by the metre-sized accuracy halo.
   const accuracyHaloPixels = () => analyzeMap(`
     let count = 0;
