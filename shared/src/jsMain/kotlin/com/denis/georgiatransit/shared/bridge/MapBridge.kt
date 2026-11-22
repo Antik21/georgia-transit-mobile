@@ -114,6 +114,7 @@ class StopMapState(
     val userLocation: UserLocation? = null,
     val stopLayer: MapStopLayer? = null,
     val zoomStep: MapZoom? = null,
+    val journeyPlanningAvailable: Boolean = false,
 )
 
 private data class VehicleSlice(
@@ -143,6 +144,7 @@ private data class StopSlice(
     val mapStopClusters: List<MapStopCluster>,
     val stopSourceRevision: Long?,
     val zoomStep: MapZoomStep?,
+    val journeyPlanningAvailable: Boolean,
 )
 
 /** Owns the Map entry and its subscriptions; dispose when the host leaves the entry. */
@@ -247,6 +249,7 @@ class MapBridge internal constructor(
                         render?.stopClusters.orEmpty(),
                         render?.stopSourceRevision,
                         render?.zoomStep,
+                        state.journeyPlanningAvailable,
                     )
                 }
                 .distinctUntilChanged()
@@ -399,6 +402,7 @@ private fun StopSlice.toJs(
     userLocation = userLocation?.toJs(),
     stopLayer = stopLayer,
     zoomStep = zoomStep?.let { MapZoom(it.totalDelta) },
+    journeyPlanningAvailable = journeyPlanningAvailable,
 )
 
 private fun StopArrivalsSheetUi.toJs(): ArrivalsState = ArrivalsState(

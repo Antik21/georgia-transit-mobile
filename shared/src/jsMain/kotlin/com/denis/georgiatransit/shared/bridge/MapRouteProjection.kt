@@ -30,6 +30,7 @@ class RouteLegend(
     val status: String,
     val focused: Boolean,
     val canRetry: Boolean,
+    val canFocus: Boolean,
 )
 
 @JsExport
@@ -74,4 +75,5 @@ internal fun RouteGeometryLegendUi.toJs() = RouteLegend(
     },
     focused = isFocused,
     canRetry = canRetry,
+    canFocus = canFocus,
 )

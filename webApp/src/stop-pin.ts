@@ -7,9 +7,6 @@ const cardInset = 0.75;
 const badgeHeight = 15;
 const badgeTextSize = 9;
 const badgeTextPadding = 4;
-const clusterRadius = 12;
-const clusterStrokeWidth = 2;
-const clusterColor = "#264653";
 const fontFamily = "system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif";
 const cssColor = /^#[0-9a-f]{6}$/i;
 
@@ -54,8 +51,8 @@ function drawRouteCard(context: CanvasRenderingContext2D, pin: StopPin) {
   }
 }
 
-function drawPinBody(context: CanvasRenderingContext2D, color: string, glyph: string) {
-  context.fillStyle = "#ffffff";
+function drawPinBody(context: CanvasRenderingContext2D, color: string, glyph: string, outline: string) {
+  context.fillStyle = outline;
   context.beginPath();
   context.moveTo(-5, 20);
   context.lineTo(5, 20);
@@ -93,26 +90,7 @@ export function drawStopPin(pin: StopPin, pixelRatio: number): ImageData {
   }
   context.translate(pin.width / 2, pin.bodyTop);
   context.scale(pin.bodyScale, pin.bodyScale);
-  drawPinBody(context, safeColor(pin.color, "#eef1f5"), safeColor(pin.glyphColor, "#344155"));
-  return context.getImageData(0, 0, canvas.width, canvas.height);
-}
-
-// Native clusters are a plain circle; the count is drawn into the image so no glyph server is needed.
-export function drawStopCluster(count: number, pixelRatio: number): ImageData {
-  const size = (clusterRadius + clusterStrokeWidth) * 2;
-  const { canvas, context } = canvasFor(size, size, pixelRatio);
-  context.beginPath();
-  context.arc(size / 2, size / 2, clusterRadius + clusterStrokeWidth / 2, 0, Math.PI * 2);
-  context.fillStyle = clusterColor;
-  context.fill();
-  context.lineWidth = clusterStrokeWidth;
-  context.strokeStyle = "#ffffff";
-  context.stroke();
-  const label = count > 99 ? "99+" : String(count);
-  context.font = `bold ${label.length > 2 ? 9 : 11}px ${fontFamily}`;
-  context.fillStyle = "#ffffff";
-  context.textAlign = "center";
-  context.textBaseline = "middle";
-  context.fillText(label, size / 2, size / 2 + 0.5);
+  drawPinBody(context, safeColor(pin.color, "#eef1f5"), safeColor(pin.glyphColor, "#344155"),
+    safeColor(pin.outlineColor, "#ffffff"));
   return context.getImageData(0, 0, canvas.width, canvas.height);
 }
