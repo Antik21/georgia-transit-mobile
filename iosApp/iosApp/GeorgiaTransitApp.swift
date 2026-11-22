@@ -53,7 +53,9 @@ private final class GeorgiaTransitAppDelegate: NSObject, UIApplicationDelegate {
             runtimeConfigurationSource: IosRuntimeBootstrapConfigurationSource(),
             transitCacheStore: IosTransitCacheStore(),
             bffEndpointConfiguration: AppEnvironment.bffEndpointConfiguration(),
-            appTelemetry: FirebaseAppTelemetry()
+            appTelemetry: FirebaseAppTelemetry(),
+            analyticsClient: AnalyticsClient.ios,
+            analyticsDeviceId: IosAnalyticsIdentityKt.iosAnalyticsDeviceId()
         )
         return true
     }

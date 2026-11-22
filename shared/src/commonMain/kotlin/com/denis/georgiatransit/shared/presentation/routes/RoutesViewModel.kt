@@ -2,6 +2,7 @@ package com.denis.georgiatransit.shared.presentation.routes
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.denis.georgiatransit.shared.domain.analytics.ProductAnalytics
 import com.denis.georgiatransit.shared.domain.model.LocalizedText
 import com.denis.georgiatransit.shared.domain.model.RouteId
 import com.denis.georgiatransit.shared.domain.model.RouteSelectionPolicy
@@ -28,6 +29,7 @@ class RoutesViewModel(
     private val repository: TransitRepository,
     private val session: TransitSession,
     private val recentHistory: RecentRouteHistory = RecentRouteHistory.None,
+    private val analytics: ProductAnalytics? = null,
 ) : ViewModel(), ContainerHost<ViewState, SideEffect> {
     private var activeCity: TransitCity? = null
     private var catalogRoutes: List<TransitRoute> = emptyList()
@@ -74,6 +76,7 @@ class RoutesViewModel(
     fun dispatchAction(action: Action) {
         when (action) {
             is Action.RouteToggled -> onRouteToggled(action.routeId)
+            is Action.RecentRouteToggled -> onRouteToggled(action.routeId, fromRecent = true)
             is Action.SearchChanged -> onSearchChanged(action.query)
             is Action.LocaleChanged -> onLocaleChanged(action.languageTag)
             Action.RetryClicked -> onRetryClicked()
@@ -216,10 +219,12 @@ class RoutesViewModel(
         }
     }
 
-    private fun onRouteToggled(routeId: RouteId) = intent {
+    private fun onRouteToggled(routeId: RouteId, fromRecent: Boolean = false) = intent {
         if (state.isConfirming || state.catalog !is CatalogState.Available || state.routes.none { it.id == routeId }) {
             return@intent
         }
+        if (fromRecent && (state.searchQuery.isNotBlank() || routeId !in state.recentRouteIds)) return@intent
+
         val updated = draftSelectedIds.toMutableSet().apply {
             if (!add(routeId)) {
                 remove(routeId)
@@ -227,6 +232,7 @@ class RoutesViewModel(
                 remove(routeId)
             }
         }.toSet()
+        if (fromRecent && updated != draftSelectedIds) analytics?.recentRoutesUsed()
         draftSelectedIds = updated
         val routes = catalogRoutes.toRouteItems(currentLocale, updated)
         reduce {
@@ -239,6 +245,7 @@ class RoutesViewModel(
     }
 
     private fun onSearchChanged(query: String) = intent {
+        if (state.catalog is CatalogState.Available && query.isNotBlank()) analytics?.routeSearchUsed()
         reduce { state.copy(searchQuery = query, visibleRoutes = state.routes.filterFor(query)) }
     }
 
@@ -273,24 +280,26 @@ class RoutesViewModel(
 
     private fun onConfirmClicked() = intent {
         val city = activeCity ?: return@intent
+        val selectedIds = draftSelectedIds
         val catalogIds = catalogRoutes.mapTo(mutableSetOf(), TransitRoute::id)
         if (
             !state.canConfirm ||
             state.cityId != city.id ||
             session.selectedCity.value?.id != city.id ||
             !city.capabilities.routes ||
-            !RouteSelectionPolicy.isValid(draftSelectedIds) ||
-            !catalogIds.containsAll(draftSelectedIds)
+            !RouteSelectionPolicy.isValid(selectedIds) ||
+            !catalogIds.containsAll(selectedIds)
         ) {
             return@intent
         }
 
         reduce { state.copy(isConfirming = true) }
-        if (!session.selectRoutes(city.id, draftSelectedIds)) {
+        if (!session.selectRoutes(city.id, selectedIds)) {
             reduce { state.copy(isConfirming = false) }
             return@intent
         }
-        recentHistory.record(city.id, draftSelectedIds)
+        analytics?.routesSelected(city.id, selectedIds.size)
+        recentHistory.record(city.id, selectedIds)
         postSideEffect(NavigationEffect.Confirmed)
     }
 

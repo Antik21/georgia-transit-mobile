@@ -1,5 +1,6 @@
 package com.denis.georgiatransit.bff.config
 
+import com.denis.georgiatransit.bff.analytics.ProductAnalyticsConfig
 import java.net.URI
 import java.nio.charset.StandardCharsets
 import java.nio.file.Path
@@ -53,6 +54,7 @@ data class BffConfig(
     val zugdidiStaticCsv: Path? = null,
     val kutaisiOsmEnabled: Boolean = false,
     val kutaisiAzry: KutaisiAzryConfig = KutaisiAzryConfig.Disabled,
+    val analytics: ProductAnalyticsConfig? = null,
 ) {
     init {
         require(host.isNotBlank()) { "BFF_HOST must not be blank" }
@@ -177,6 +179,7 @@ data class BffConfig(
                     ttc = TtcActivationConfig.fromEnvironment(environment),
                     batumiTheta = BatumiThetaActivationConfig.fromEnvironment(environment),
                     map = MapProxyActivationConfig.fromEnvironment(environment, parseMode(environment["BFF_MODE"] ?: "development")),
+                    analytics = ProductAnalyticsConfig.fromEnvironment(environment),
                     metricsEnabled = parseBoolean(environment, "BFF_METRICS_ENABLED", true),
                     probesEnabled = parseBoolean(environment, "BFF_PROBES_ENABLED", false),
                     probeIntervalSeconds = parseLong(

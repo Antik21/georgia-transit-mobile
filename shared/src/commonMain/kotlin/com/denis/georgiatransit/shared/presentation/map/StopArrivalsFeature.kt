@@ -1,5 +1,6 @@
 package com.denis.georgiatransit.shared.presentation.map
 
+import com.denis.georgiatransit.shared.domain.analytics.ProductAnalytics
 import com.denis.georgiatransit.shared.domain.model.TransitCity
 import com.denis.georgiatransit.shared.domain.model.TransitLocale
 import com.denis.georgiatransit.shared.domain.model.TransitRoute
@@ -9,7 +10,10 @@ import com.denis.georgiatransit.shared.presentation.ui.RouteSelectionProjection
 import kotlinx.coroutines.CoroutineScope
 
 /** Coordinates the selected-stop snapshot, polling generation, and sheet transitions. */
-internal class StopArrivalsFeature(private val repository: TransitRepository) {
+internal class StopArrivalsFeature(
+    private val repository: TransitRepository,
+    private val analytics: ProductAnalytics? = null,
+) {
     private val presentation = StopArrivalsPresentation()
     private val poller = StopArrivalsPoller(repository)
     val stop: TransitStop? get() = presentation.stop
@@ -20,8 +24,10 @@ internal class StopArrivalsFeature(private val repository: TransitRepository) {
     }
 
     fun open(stop: TransitStop, city: TransitCity) {
+        val opensDetails = this.stop?.id != stop.id
         reset()
         presentation.open(stop, cityRoutes(city))
+        if (opensDetails) analytics?.stopOpened(city.id)
     }
 
     fun invalidate() = poller.invalidate()

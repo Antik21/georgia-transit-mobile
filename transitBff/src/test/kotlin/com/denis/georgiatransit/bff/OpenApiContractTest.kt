@@ -49,6 +49,7 @@ class OpenApiContractTest {
         assertEquals(
             expectedSchemas.keys + setOf(
                 "/metrics",
+                "/v1/analytics",
                 "/v1/cities/{cityId}/walking-estimate",
                 "/v1/cities/{cityId}/journeys/plan",
                 "/v1/map/style.json",

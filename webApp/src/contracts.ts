@@ -345,6 +345,7 @@ export interface MapEntry {
   myLocation(): void;
   zoomIn(): void;
   zoomOut(): void;
+  zoomGesture(pinch: boolean): void;
   refreshLocation(): void;
   locationPermission(state: string, precise: boolean, canRetry: boolean): void;
   locationFix(requestId: string, latitude: number, longitude: number, accuracyMeters: number, capturedAt: number): void;
@@ -367,6 +368,7 @@ export interface RoutesEntry {
   subscribe(onState: (state: RoutesState) => void): void;
   setSearch(query: string): void;
   toggleRoute(id: string): void;
+  toggleRecentRoute(id: string): void;
   confirm(): void;
   cancel(): void;
   retry(): void;
@@ -374,6 +376,7 @@ export interface RoutesEntry {
 }
 
 export interface TransitRuntime {
+  setForeground(foreground: boolean): void;
   start(onDestination: (destination: string) => void, onCityState: (state: CityState) => void): void;
   selectCity(id: string): void;
   confirmCity(): void;

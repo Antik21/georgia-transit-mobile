@@ -1,6 +1,7 @@
 package com.denis.georgiatransit.shared.presentation.map
 
 import androidx.compose.runtime.Immutable
+import com.denis.georgiatransit.shared.domain.analytics.ZoomType
 import com.denis.georgiatransit.shared.domain.model.DirectionId
 import com.denis.georgiatransit.shared.domain.model.GeoPoint
 import com.denis.georgiatransit.shared.domain.model.MapBounds
@@ -75,6 +76,7 @@ data class MapPointRequest(val id: Long, val xFraction: Double, val yFraction: D
 
 /** Native map input is reduced to product-level viewport and revision-bound entity interactions. */
 sealed interface MapPlatformEvent {
+    data class ZoomGestureStarted(val type: ZoomType) : MapPlatformEvent
     data class ViewportSettled(val viewport: MapViewport) : MapPlatformEvent
     data class StopTapped(val stopId: StopId, val sourceRevision: Long) : MapPlatformEvent
     data class VehicleTapped(val vehicleId: VehicleId, val sourceRevision: Long) : MapPlatformEvent

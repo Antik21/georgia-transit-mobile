@@ -38,6 +38,7 @@ const view = createTransitView(root, {
   openRoutes: () => runtime?.openRouteSelection(),
   searchRoutes: (query) => activeRoutes?.setSearch(query),
   toggleRoute: (id) => activeRoutes?.toggleRoute(id),
+  toggleRecentRoute: (id) => activeRoutes?.toggleRecentRoute(id),
   confirmRoutes: () => activeRoutes?.confirm(),
   cancelRoutes: () => activeRoutes?.cancel(),
   retryRoutes: () => activeRoutes?.retry(),
@@ -87,6 +88,7 @@ function mapVisible() {
 }
 
 function updateVisibility() {
+  runtime?.setForeground(document.visibilityState === "visible");
   const visible = mapVisible();
   activeMap?.bridge.setVisible(visible);
   if (!activeMap) return;
@@ -114,6 +116,7 @@ async function loadMapRenderer(entry: ActiveMap) {
       updateViewport: (lat, lng, radius, zoom) => entry.bridge.updateViewport(lat, lng, radius, zoom),
       selectVehicle: (id, revision) => entry.bridge.selectVehicle(id, revision),
       setUnavailable,
+      zoomGesture: (pinch) => entry.bridge.zoomGesture(pinch),
       longPress: (lat, lng) => entry.bridge.planner.longPressMap(lat, lng),
       routeHere: () => entry.bridge.planner.routeHere(),
       routeFromHere: () => entry.bridge.planner.routeFromHere(),
@@ -209,8 +212,9 @@ async function start() {
   try {
     const { createTransitRuntime } = await import("./runtime");
     if (revision !== startupRevision) return;
-    const session = createTransitRuntime(window.location.origin, language);
+    const session = createTransitRuntime(window.location.origin, language, telegram.isMiniApp);
     runtime = session;
+    session.setForeground(document.visibilityState === "visible");
     session.start((destination) => {
       if (runtime !== session) return;
       if (destination === "map") {
@@ -239,6 +243,7 @@ document.addEventListener("visibilitychange", () => {
 window.addEventListener("online", retryMap);
 window.addEventListener("pageshow", updateVisibility);
 window.addEventListener("pagehide", (event) => {
+  runtime?.setForeground(false);
   if (event.persisted) {
     activeMap?.bridge.setVisible(false);
     return;

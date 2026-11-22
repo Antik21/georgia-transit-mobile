@@ -8,6 +8,8 @@ import com.denis.georgiatransit.shared.data.cache.TransitCacheStore
 import com.denis.georgiatransit.shared.data.config.BffEndpointConfiguration
 import com.denis.georgiatransit.shared.data.network.TransitBffClient
 import com.denis.georgiatransit.shared.domain.model.CityId
+import com.denis.georgiatransit.shared.domain.analytics.AnalyticsClient
+import com.denis.georgiatransit.shared.domain.analytics.ProductAnalytics
 import com.denis.georgiatransit.shared.domain.repository.ConnectionErrorNotices
 import com.denis.georgiatransit.shared.data.network.createTransitHttpClient
 import com.denis.georgiatransit.shared.data.repository.BffJourneyPlanRepository
@@ -33,6 +35,9 @@ import com.denis.georgiatransit.shared.presentation.map.VehicleRealtimeTickerPol
 import com.denis.georgiatransit.shared.presentation.routes.RoutesViewModel
 import com.denis.georgiatransit.shared.presentation.schedule.ScheduleViewModel
 import com.denis.georgiatransit.shared.presentation.splash.SplashViewModel
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import org.koin.core.context.startKoin
 import org.koin.dsl.module
 
@@ -42,6 +47,8 @@ internal fun appModule(
     transitCacheStore: TransitCacheStore,
     bffEndpointConfiguration: BffEndpointConfiguration?,
     appTelemetry: AppTelemetry = NoOpAppTelemetry,
+    analyticsClient: AnalyticsClient? = null,
+    analyticsDeviceId: String? = null,
 ) = module {
     single<AppTelemetry> { SafeAppTelemetry(appTelemetry) }
     single<SelectedCityStore> { selectedCityStore }
@@ -58,6 +65,16 @@ internal fun appModule(
             connectionNotices = get(),
             telemetry = get(),
         )
+    }
+    if (analyticsClient != null && analyticsDeviceId != null) {
+        single {
+            val bff = get<TransitBffClient>()
+            ProductAnalytics(
+                analyticsClient, analyticsDeviceId,
+                CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate),
+                deliver = bff::sendAnalytics,
+            )
+        }
     }
     single<TransitRepository> { BffTransitRepository(client = get(), cache = get()) }
     single<JourneyPlanRepository> { BffJourneyPlanRepository(client = get()) }
@@ -87,10 +104,11 @@ internal fun appModule(
             routeGeometryCoordinator = get(),
             journeyPlanRepository = get(),
             connectionNotices = get(),
+            analytics = getOrNull(),
             bffStyleUrl = bffEndpointConfiguration?.mapStyleUrlOrNull(),
         )
     }
-    factory { RoutesViewModel(repository = get(), session = get(), recentHistory = get()) }
+    factory { RoutesViewModel(repository = get(), session = get(), recentHistory = get(), analytics = getOrNull()) }
     factory { (cityId: CityId) -> ScheduleViewModel(cityId, repository = get(), session = get()) }
 }
 
@@ -100,6 +118,8 @@ fun initGeorgiaTransitKoin(
     transitCacheStore: TransitCacheStore,
     bffEndpointConfiguration: BffEndpointConfiguration?,
     appTelemetry: AppTelemetry,
+    analyticsClient: AnalyticsClient,
+    analyticsDeviceId: String,
 ) {
     startKoin {
         modules(
@@ -109,6 +129,8 @@ fun initGeorgiaTransitKoin(
                 transitCacheStore = transitCacheStore,
                 bffEndpointConfiguration = bffEndpointConfiguration,
                 appTelemetry = appTelemetry,
+                analyticsClient = analyticsClient,
+                analyticsDeviceId = analyticsDeviceId,
             ),
         )
     }

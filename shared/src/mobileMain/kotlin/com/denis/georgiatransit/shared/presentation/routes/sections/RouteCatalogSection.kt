@@ -69,6 +69,7 @@ internal fun RouteCatalogSection(
     isSelectionLimitReached: Boolean,
     onSearchChanged: (String) -> Unit,
     onRouteToggled: (RouteId) -> Unit,
+    onRecentRouteToggled: (RouteId) -> Unit,
     onRetry: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -89,6 +90,7 @@ internal fun RouteCatalogSection(
             isStaleOffline = catalog.freshness == TransitFreshness.StaleOffline,
             onSearchChanged = onSearchChanged,
             onRouteToggled = onRouteToggled,
+            onRecentRouteToggled = onRecentRouteToggled,
             modifier = modifier,
         )
 
@@ -134,6 +136,7 @@ private fun RouteList(
     isStaleOffline: Boolean,
     onSearchChanged: (String) -> Unit,
     onRouteToggled: (RouteId) -> Unit,
+    onRecentRouteToggled: (RouteId) -> Unit,
     modifier: Modifier,
 ) {
     // The city key resets the list only for another city; Navigation 3 keeps this saveable state
@@ -191,7 +194,7 @@ private fun RouteList(
                     }
                     if (searchQuery.isBlank() && recentRoutes.isNotEmpty()) {
                         item(key = RouteListSection.Recent) {
-                            RecentRoutesSection(recentRoutes, selectedIds, isSelectionLimitReached, onRouteToggled)
+                            RecentRoutesSection(recentRoutes, selectedIds, isSelectionLimitReached, onRecentRouteToggled)
                         }
                     }
                     itemsIndexed(visibleRoutes, key = { _, route -> route.id.value }) { index, route ->

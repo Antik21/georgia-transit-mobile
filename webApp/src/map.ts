@@ -55,6 +55,7 @@ const layerOrder = [
 ];
 
 interface MapActions extends PlannerMapActions {
+  zoomGesture(pinch: boolean): void;
   tapStop(stopId: string, revision: string): void;
   updateViewport(latitude: number, longitude: number, radiusMeters: number, zoom: number): void;
   selectVehicle(vehicleId: string, revision: string): void;
@@ -570,6 +571,18 @@ export function createTransitMap(
   });
   map.on("webglcontextrestored", () => actions.setUnavailable(false));
   // Programmatic moves are reported too, as on mobile: a group tap zooms in and the ViewModel must see the new zoom.
+  let singleFingerTap = false;
+  map.on("touchstart", ({ originalEvent }) => {
+    singleFingerTap = originalEvent.touches.length === 1;
+  });
+  map.on("zoomstart", ({ originalEvent }) => {
+    if (!(originalEvent instanceof TouchEvent)) return;
+    if (originalEvent.type === "touchmove" && originalEvent.touches.length >= 2) {
+      actions.zoomGesture(true);
+    } else if (originalEvent.type === "touchend" && singleFingerTap) {
+      actions.zoomGesture(false);
+    }
+  });
   map.on("movestart", (event) => {
     if (event.originalEvent) pendingZoom = undefined;
   });

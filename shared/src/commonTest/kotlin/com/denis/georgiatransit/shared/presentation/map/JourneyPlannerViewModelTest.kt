@@ -1,6 +1,11 @@
 package com.denis.georgiatransit.shared.presentation.map
 
 import com.denis.georgiatransit.shared.data.repository.RuntimeTransitSession
+import com.denis.georgiatransit.shared.domain.analytics.AnalyticsClient
+import com.denis.georgiatransit.shared.domain.analytics.AnalyticsEvent
+import com.denis.georgiatransit.shared.domain.analytics.AnalyticsRecord
+import com.denis.georgiatransit.shared.domain.analytics.JourneyPlanningSource
+import com.denis.georgiatransit.shared.domain.analytics.ProductAnalytics
 import com.denis.georgiatransit.shared.domain.model.ArrivalSource
 import com.denis.georgiatransit.shared.domain.model.CityCapabilities
 import com.denis.georgiatransit.shared.domain.model.CityId
@@ -60,6 +65,50 @@ class JourneyPlannerViewModelTest {
     private fun runTest(block: suspend TestScope.() -> Unit) = kotlinx.coroutines.test.runTest {
         Dispatchers.setMain(StandardTestDispatcher(testScheduler))
         block(this)
+    }
+
+    @Test
+    fun tracksEveryPlannerOpeningWithItsSourceButNotPinPlacementOrPlanningRequests() = runTest {
+        val records = mutableListOf<AnalyticsRecord>()
+        val analytics = ProductAnalytics(
+            AnalyticsClient.Android, "device", backgroundScope, { NOW_MILLIS }, { records.add(it) },
+        )
+        fun starts() = records.mapNotNull { it.event as? AnalyticsEvent.JourneyPlanningStarted }
+        val viewModel = viewModel(FakePlanRepository(), analytics = analytics)
+
+        viewModel.test(this) {
+            runOnCreate()
+            start(viewModel)
+            longPress(viewModel, A)
+            assertTrue(starts().isEmpty())
+            repeat(2) { viewModel.dispatchAction(JourneyPlannerAction.OpenPlanner) }
+            this@runTest.runCurrent()
+            assertEquals(listOf(JourneyPlanningSource.MapButton), starts().map { it.source })
+
+            viewModel.dispatchAction(JourneyPlannerAction.ClosePlanner)
+            this@runTest.runCurrent()
+            viewModel.dispatchAction(JourneyPlannerAction.RouteHere)
+            this@runTest.runCurrent()
+            assertEquals(1, starts().size)
+
+            longPress(viewModel, B)
+            viewModel.dispatchAction(JourneyPlannerAction.RouteHere)
+            this@runTest.runCurrent()
+            longPress(viewModel, A)
+            viewModel.dispatchAction(JourneyPlannerAction.FindRoute)
+            this@runTest.runCurrent()
+            assertEquals(listOf(JourneyPlanningSource.MapButton, JourneyPlanningSource.LongPress), starts().map { it.source })
+
+            viewModel.dispatchAction(JourneyPlannerAction.ClosePlanner)
+            this@runTest.runCurrent()
+            longPress(viewModel, A)
+            viewModel.dispatchAction(JourneyPlannerAction.RouteFromHere)
+            this@runTest.runCurrent()
+            assertEquals(3, starts().size)
+            assertEquals(JourneyPlanningSource.LongPress, starts().last().source)
+            assertEquals(3, starts().map { it.eventId }.toSet().size)
+            cancelAndIgnoreRemainingItems()
+        }
     }
 
     @Test
@@ -372,11 +421,13 @@ class JourneyPlannerViewModelTest {
         session: RuntimeTransitSession = RuntimeTransitSession().also { it.selectCity(CITY) },
         locationSession: LocationSession = RuntimeLocationSession(scope = this, nowMillis = { NOW_MILLIS + testScheduler.currentTime }),
         repository: TransitRepository = PlannerTransitRepository(),
+        analytics: ProductAnalytics? = null,
     ) = MapViewModel(
         repository = repository,
         session = session,
         locationSession = locationSession,
         journeyPlanRepository = planner,
+        analytics = analytics,
         journeyPlanClock = { NOW_MILLIS + testScheduler.currentTime },
     )
 
