@@ -3,6 +3,8 @@ import { resolve, sep } from 'node:path';
 
 export const fixtureCityId = 'demo';
 export const otherCityId = 'batumi';
+export const hiddenCreditCityIds = ['kutaisi', 'zugdidi'];
+export const fixtureCityCreditUrl = 'https://example.com/transit/demo';
 export const fixtureStopId = 'demo:fixture:stop:center';
 export const fixtureHeadsign = 'Demo Park';
 export const fixtureRouteId = 'demo:fixture:route:blue';
@@ -85,7 +87,7 @@ const demoCity = {
     arrivals: true,
   },
   availability: { readiness: 'DEVELOPMENT_FIXTURE', source: 'FIXTURE' },
-  attribution: [],
+  attribution: [{ id: 'demo-source', label: localized('Demo transit source'), url: fixtureCityCreditUrl }],
 };
 
 const batumiCity = {
@@ -94,7 +96,16 @@ const batumiCity = {
   name: localized('Batumi'),
   center: { latitude: 41.6500, longitude: 41.6390 },
   capabilities: { ...demoCity.capabilities, tripPlanning: true },
+  attribution: [],
 };
+
+const hiddenCreditCities = hiddenCreditCityIds.map((id) => ({
+  ...demoCity,
+  id,
+  name: localized(id),
+  capabilities: { ...demoCity.capabilities, vehiclePositions: false, officialArrivals: false, arrivals: false },
+  attribution: [{ id: `${id}-source`, label: localized(`${id} transit source`), url: `https://example.com/transit/${id}` }],
+}));
 
 const plannerRoute = (name, color) => ({
   id: `batumi:fixture:route:${name}`,
@@ -372,7 +383,7 @@ export function browserFixture(dist, bffRequests, origin) {
 
     if (path.startsWith('/v1/')) bffRequests.push(path);
     switch (path) {
-      case '/v1/cities': return json([demoCity, batumiCity]);
+      case '/v1/cities': return json([demoCity, batumiCity, ...hiddenCreditCities]);
       case '/v1/map/style.json':
         await fixtureControl.styleHold;
         return fixtureControl.failStyle ? json({ error: 'Style unavailable' }, 503) : json(mapStyle());
@@ -389,6 +400,7 @@ export function browserFixture(dist, bffRequests, origin) {
       case `/v1/cities/${otherCityId}/vehicles`: return json(plannerVehicles(target.searchParams.get('routeId') ?? ''));
       case `/v1/cities/${otherCityId}/stops/nearby`: return json([]);
     }
+    if (hiddenCreditCityIds.some((id) => path === `/v1/cities/${id}/stops/nearby`)) return json([]);
     if (/^\/v1\/map\/tiles\/\d+\/\d+\/\d+\.png$/.test(path)) return respond(200, tile, 'image/png');
     if (path.startsWith('/v1/')) return json({ error: 'Fixture path is not implemented' }, 404);
     if (path === '/favicon.ico') return respond(204);

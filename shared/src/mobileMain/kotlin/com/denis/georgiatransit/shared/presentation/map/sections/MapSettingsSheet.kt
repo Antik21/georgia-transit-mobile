@@ -29,6 +29,7 @@ import com.denis.georgiatransit.shared.presentation.ui.component.TransitCloseBut
 import com.denis.georgiatransit.shared.presentation.ui.theme.GeorgiaTransitTheme
 import com.denis.georgiatransit.shared.presentation.ui.theme.TransitSpacing
 import georgiatransit.shared.generated.resources.Res
+import georgiatransit.shared.generated.resources.language_title
 import georgiatransit.shared.generated.resources.map_change_city_action
 import georgiatransit.shared.generated.resources.map_settings
 import kotlinx.coroutines.launch
@@ -38,7 +39,8 @@ import org.jetbrains.compose.resources.stringResource
 @Composable
 internal fun MapSettingsSheet(
     onDismiss: () -> Unit,
-    onChangeCity: () -> Unit,
+    onChangeCity: (() -> Unit)?,
+    onChangeLanguage: (() -> Unit)?,
     modifier: Modifier = Modifier,
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
@@ -57,6 +59,7 @@ internal fun MapSettingsSheet(
                 }
             },
             onChangeCity = onChangeCity,
+            onChangeLanguage = onChangeLanguage,
             modifier = Modifier.enableAutomationResourceIds().testTag(AutomationId.MapSettingsSheet),
         )
     }
@@ -66,7 +69,8 @@ internal fun MapSettingsSheet(
 @Composable
 private fun Content(
     onClose: () -> Unit,
-    onChangeCity: () -> Unit,
+    onChangeCity: (() -> Unit)?,
+    onChangeLanguage: (() -> Unit)?,
     modifier: Modifier = Modifier,
 ) {
     Column(
@@ -98,11 +102,21 @@ private fun Content(
                     tonal = true,
                 )
             }
-            OutlinedButton(
-                onClick = onChangeCity,
-                modifier = Modifier.fillMaxWidth().testTag(AutomationId.MapChangeCity),
-            ) {
-                Text(stringResource(Res.string.map_change_city_action))
+            if (onChangeCity != null) {
+                OutlinedButton(
+                    onClick = onChangeCity,
+                    modifier = Modifier.fillMaxWidth().testTag(AutomationId.MapChangeCity),
+                ) {
+                    Text(stringResource(Res.string.map_change_city_action))
+                }
+            }
+            if (onChangeLanguage != null) {
+                OutlinedButton(
+                    onClick = onChangeLanguage,
+                    modifier = Modifier.fillMaxWidth().testTag(AutomationId.MapChangeLanguage),
+                ) {
+                    Text(stringResource(Res.string.language_title))
+                }
             }
         }
     }
@@ -112,6 +126,6 @@ private fun Content(
 @Composable
 private fun Preview() {
     GeorgiaTransitTheme {
-        Content(onClose = {}, onChangeCity = {})
+        Content(onClose = {}, onChangeCity = {}, onChangeLanguage = {})
     }
 }

@@ -58,6 +58,26 @@ direction.
 This intentionally conservative policy is the approved production ETA behavior. It must remain
 labelled approximate and must never be represented as an official arrival.
 
+### Passenger route names
+
+The route list and route details use the bundled
+[`route-names.json`](../../transitBff/src/main/resources/transit/batumi/route-names.json)
+for the 28 lines present in the Batumi catalog on 2026-11-22. The file stores passenger-facing
+labels in all nine app languages, keyed by the public route ID and guarded by the published
+route number. When the provider adds or renumbers a line, its catalog name is used until a
+reviewed entry matches. The labels describe the whole line. Circular lines name a landmark or
+street on their outbound leg to distinguish the two loops.
+
+The endpoints come from the [municipal M3 route annex](https://matsne.gov.ge/ka/document/view/6300573)
+and [M2 route annex](https://matsne.gov.ge/ka/document/view/6766939), checked against the
+[published BFF route stop lists](https://antik21-georgia-transit-bff.onrender.com/v1/cities/batumi/routes?locale=ka).
+Where published routes differ from the annexes, use the current service. The route pages for
+[9](https://wikiroutes.info/en/batumi?routes=49263) and [12](https://wikiroutes.info/en/batumi?routes=49261)
+confirm Ivane Meskhi Street and Makho Bridge. The BFF stop lists confirm the current ends of
+6 (Buknari), 13 (Cable Car), 16 (Batumi Bus Station), 33 (Lazi Street), 35 (Batumi Bus Station),
+and 37 (Sulfur Baths). The [10A route page](https://wikiroutes.info/en/batumi?routes=154430)
+confirms the Sakhalvasho destination listed in the M3 annex.
+
 ### Journey planning (ADR 0022)
 
 `POST /v1/cities/batumi/journeys/plan` runs the in-house planner on the BFF. Each validated catalog

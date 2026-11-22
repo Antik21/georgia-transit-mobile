@@ -242,4 +242,7 @@
     <string name="schedule_stop_empty">没有计划到站时间</string>
     <string name="schedule_following_day">%1$s（+%2$d 天）</string>
     <string name="map_settings">设置</string>
+    <string name="language_title">应用语言</string>
+    <string name="language_system_default">跟随系统</string>
+    <string name="language_apply">应用</string>
 </resources>

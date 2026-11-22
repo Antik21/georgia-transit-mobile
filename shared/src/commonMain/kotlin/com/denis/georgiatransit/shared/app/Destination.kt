@@ -17,5 +17,8 @@ sealed interface Destination : PlatformNavigationKey {
     data object Routes : Destination
 
     @Serializable
+    data object LanguageSelection : Destination
+
+    @Serializable
     data class Schedules(val cityId: CityId) : Destination
 }

@@ -25,6 +25,7 @@ object NavigationTransitionPolicy {
         restoredStack: List<Destination>,
         selectedCityId: CityId?,
         schedulesAvailable: Boolean = false,
+        languagePickerAvailable: Boolean = false,
     ): List<Destination> {
         if (selectedCityId == null) return listOf(Destination.CitySelection)
 
@@ -35,6 +36,9 @@ object NavigationTransitionPolicy {
                 else listOf(Destination.CitySelection)
             Destination.Map -> listOf(Destination.Map)
             Destination.Routes -> listOf(Destination.Map, Destination.Routes)
+            Destination.LanguageSelection ->
+                if (languagePickerAvailable) listOf(Destination.Map, Destination.LanguageSelection)
+                else listOf(Destination.Map)
             is Destination.Schedules ->
                 if (schedulesAvailable && destination.cityId == selectedCityId) {
                     listOf(Destination.Map, destination)
@@ -50,8 +54,9 @@ object NavigationTransitionPolicy {
         selectedCityId: CityId?,
         event: NavigationEvent,
         schedulesAvailable: Boolean = false,
+        languagePickerAvailable: Boolean = false,
     ): List<Destination> {
-        val safeStack = restore(currentStack, selectedCityId, schedulesAvailable)
+        val safeStack = restore(currentStack, selectedCityId, schedulesAvailable, languagePickerAvailable)
 
         return when (event) {
             NavigationEvent.CityConfirmed ->
@@ -80,6 +85,13 @@ object NavigationTransitionPolicy {
 
             NavigationEvent.ChangeCity ->
                 if (safeStack.last() == Destination.Map) safeStack + Destination.CitySelection else safeStack
+
+            NavigationEvent.OpenLanguageSelection ->
+                if (languagePickerAvailable && safeStack.last() == Destination.Map) {
+                    safeStack + Destination.LanguageSelection
+                } else {
+                    safeStack
+                }
         }
     }
 }
@@ -92,5 +104,6 @@ sealed interface NavigationEvent {
     data object RoutesConfirmed : NavigationEvent
     data object RoutesDismissed : NavigationEvent
     data object ChangeCity : NavigationEvent
+    data object OpenLanguageSelection : NavigationEvent
     data object Back : NavigationEvent
 }

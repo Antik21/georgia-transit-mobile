@@ -179,7 +179,7 @@ export function createTransitView(root: HTMLElement, actions: ViewActions, langu
       if (detail) name.append(element("small", "list-detail", detail));
       select.append(icon("city-icon"), name, icon("selection-indicator"));
       row.append(select);
-      const credits = creditLinks(item.attribution);
+      const credits = cityCreditLinks(item.id, item.attribution);
       if (credits.childElementCount) row.append(credits);
       rows.append(row);
     }
@@ -205,7 +205,7 @@ export function createTransitView(root: HTMLElement, actions: ViewActions, langu
     changeCity.setAttribute("aria-label", name ? `${copy.changeCity} (${name})` : copy.changeCity);
     cityName.hidden = !name || !changeCity.hidden;
     cityName.textContent = name;
-    updateCredits(mapCredits, state?.attribution ?? []);
+    updateCredits(mapCredits, cityCreditLinks(state?.cityId, state?.attribution ?? []));
     openRoutes.hidden = !state?.canOpenRoutes;
     const legends = state?.routeLegends ?? [];
     routeLegends.hidden = legends.length === 0;
@@ -709,8 +709,9 @@ function arrivalSource(copy: Copy, source: string) {
   }
 }
 
-function creditLinks(attribution: readonly Attribution[]) {
+function cityCreditLinks(cityId: string | undefined, attribution: readonly Attribution[]) {
   const credits = element("div", "attribution-links");
+  if (cityId === "kutaisi" || cityId === "zugdidi") return credits;
   for (const item of attribution) {
     const url = safeCreditUrl(item.url);
     if (!url) continue;
@@ -732,8 +733,7 @@ function safeCreditUrl(value: string) {
   }
 }
 
-function updateCredits(container: HTMLElement, attribution: readonly Attribution[]) {
-  const credits = creditLinks(attribution);
+function updateCredits(container: HTMLElement, credits: HTMLElement) {
   container.hidden = !credits.childElementCount;
   if (container.firstElementChild?.isEqualNode(credits)) return;
   container.replaceChildren(credits);

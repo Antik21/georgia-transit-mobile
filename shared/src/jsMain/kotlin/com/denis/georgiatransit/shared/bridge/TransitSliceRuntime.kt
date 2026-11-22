@@ -169,6 +169,7 @@ class TransitSliceRuntime(bffBaseUrl: String, languageTag: String? = null, teleg
                 publishDestination("map")
             }
             Destination.Routes -> publishDestination("routes")
+            Destination.LanguageSelection -> error("Language selection is only available in the mobile host")
             is Destination.Schedules -> error("Schedule navigation is only available in the mobile host")
         }
     }

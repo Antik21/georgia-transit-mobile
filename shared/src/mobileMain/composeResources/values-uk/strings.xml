@@ -245,4 +245,7 @@
     <string name="schedule_stop_empty">Немає прибуттів за розкладом</string>
     <string name="schedule_following_day">%1$s (день +%2$d)</string>
     <string name="map_settings">Налаштування</string>
+    <string name="language_title">Мова застосунку</string>
+    <string name="language_system_default">Мова системи</string>
+    <string name="language_apply">Застосувати</string>
 </resources>
