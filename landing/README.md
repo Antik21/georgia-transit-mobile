@@ -25,9 +25,10 @@ URL defaults to English and can be used in store listings after the site is depl
 
 ## Search indexing
 
-The localized HTML pages, `robots.txt`, and `sitemap.xml` are generated alongside the English
-landing page so Render can serve them as static files. After editing the landing page HTML or
-translations, run `node tools/build-landing-seo.mjs` from the repository root with Node.js 22 or
+The localized landing and city pages, `robots.txt`, and `sitemap.xml` are generated alongside the
+English landing page so Render can serve them as static files. City copy lives in
+[`tools/landing-city-copy.mjs`](../tools/landing-city-copy.mjs). After editing page copy or the
+landing HTML, run `node tools/build-landing-seo.mjs` from the repository root with Node.js 22 or
 later. Run it with `--check` to verify the checked-in output.
 
 ## Screenshots
@@ -36,6 +37,8 @@ later. Run it with `--check` to verify the checked-in output.
 Batumi data. The light and dark live map, stop arrivals and route list were captured on Android.
 The selected routes on the map and the journey planner were captured on iOS. Screens are encoded
 at 900 px wide with their device proportions. CSS supplies the device frames.
+
+The city guides also show the Kutaisi timetable on Android and the Zugdidi route map on iOS.
 
 ## Hosting
 

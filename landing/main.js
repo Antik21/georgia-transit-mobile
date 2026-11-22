@@ -1,4 +1,4 @@
-import { translations } from "./locales.js";
+import { cityPagePath, translations } from "./locales.js";
 
 // Fill in store links here once they exist; null renders a visible "link coming" placeholder.
 const LINKS = {
@@ -57,6 +57,9 @@ function applyLanguage(language) {
   for (const element of document.querySelectorAll("[data-i18n-content]")) element.content = copy[element.dataset.i18nContent];
   languageSelect.value = language;
   privacyLink.href = `privacy.html?lang=${language}`;
+  for (const link of document.querySelectorAll("[data-city-link]")) {
+    link.href = cityPagePath(link.dataset.cityLink, language);
+  }
   applyLinks(copy);
 }
 
