@@ -10,7 +10,7 @@
     <string name="city_title">Выберите город</string>
     <string name="city_catalog_loading">Загружаем доступность городов…</string>
     <string name="city_catalog_empty">Сейчас нет доступных городов.</string>
-    <string name="city_catalog_error">Не удалось загрузить каталог городов.</string>
+    <string name="city_catalog_error">Не удалось загрузить список городов.</string>
     <string name="city_catalog_retry">Повторить</string>
     <string name="city_catalog_offline">В офлайн-режиме показан последний доступный каталог городов.</string>
     <string name="city_experimental">Экспериментальные данные</string>
@@ -82,6 +82,7 @@
     <string name="map_stop_arrivals_retry">Повторить</string>
     <string name="map_stop_arrivals_refreshing">Обновляем прибытия…</string>
     <string name="map_stop_arrivals_stale">Показана более старая информация о прибытиях.</string>
+    <string name="map_stop_arrivals_stale_forecast">Прогноз устарел. Минуты на момент расчёта.</string>
     <string name="map_stop_arrivals_route_unavailable">Сведения о маршруте недоступны</string>
     <string name="map_stop_arrivals_arriving">Прибывает</string>
     <string name="map_stop_arrivals_minutes">%1$d мин</string>
@@ -98,6 +99,7 @@
     <string name="map_vehicle_status_loading">загрузка</string>
     <string name="map_vehicle_status_live">актуальные данные</string>
     <string name="map_vehicle_status_stale">показаны более старые позиции</string>
+    <string name="map_vehicle_no_current_positions">Сейчас нет актуальных позиций автобусов</string>
     <string name="map_vehicle_status_retryable">временно недоступно; показаны более старые позиции</string>
     <string name="map_vehicle_status_unavailable">недоступно</string>
     <string name="map_vehicle_status_mixed">разная доступность маршрутов</string>
@@ -108,6 +110,7 @@
     <string name="routes_selection_limit_warning">Одновременно можно показать не более %1$d маршрутов. Снимите выбор с маршрута, чтобы выбрать другой.</string>
     <string name="routes_show_selected">Показать выбранные</string>
     <string name="routes_selected_title">Выбранные маршруты</string>
+    <string name="routes_selected_hint">Снимите отметку с одного маршрута. Вы вернётесь к поиску.</string>
     <string name="routes_empty">Для этого города каталог маршрутов пока недоступен.</string>
     <string name="routes_loading">Загрузка каталога маршрутов…</string>
     <string name="routes_error">Не удалось загрузить маршруты</string>
@@ -143,6 +146,8 @@
     <string name="map_planner_origin">Откуда</string>
     <string name="map_planner_destination">Куда</string>
     <string name="map_planner_my_location">Моё местоположение</string>
+    <string name="map_planner_my_location_compact">Геопозиция</string>
+    <string name="map_planner_endpoint_description">%1$s. %2$s</string>
     <string name="map_planner_map_point">Точка на карте</string>
     <string name="map_planner_not_set">Не выбрано</string>
     <string name="map_planner_pick_on_map">Выбрать на карте</string>
@@ -165,12 +170,21 @@
     <string name="map_planner_error_busy">Сервис перегружен. Повторите чуть позже.</string>
     <string name="map_planner_error_rejected">Не удалось построить маршрут между этими точками. Обе должны быть в пределах города.</string>
     <string name="map_planner_error_service">Построение маршрута временно недоступно.</string>
-    <string name="map_planner_unavailable">Построение маршрута сейчас недоступно в этом городе.</string>
+    <string name="map_planner_unavailable">Планирование поездок недоступно в этом городе.</string>
     <string name="map_planner_location_permission">Разрешите доступ к геопозиции или выберите точку на карте.</string>
     <string name="map_planner_location_locating">Определяем ваше местоположение…</string>
     <string name="map_planner_location_approximate">Местоположение определено слишком неточно. Выберите точку на карте.</string>
     <string name="map_planner_already_there">Вы уже на месте: около %1$d м пешком (≈ %2$d мин).</string>
     <string name="map_planner_disclaimer">Время расчётное.</string>
+    <string name="map_planner_unknown_travel_time">Время в пути неизвестно</string>
+    <string name="map_planner_summary_walking_distance">%1$s пешком</string>
+    <string name="map_planner_untimed_summary">%1$s · %2$s</string>
+    <plurals name="map_planner_summary_transfers">
+        <item quantity="one">%1$d пересадка</item>
+        <item quantity="few">%1$d пересадки</item>
+        <item quantity="many">%1$d пересадок</item>
+        <item quantity="other">%1$d пересадки</item>
+    </plurals>
     <string name="map_planner_expand">Развернуть панель маршрута</string>
     <string name="map_planner_collapse">Свернуть панель маршрута</string>
     <string name="map_planner_refreshing">Обновляем…</string>

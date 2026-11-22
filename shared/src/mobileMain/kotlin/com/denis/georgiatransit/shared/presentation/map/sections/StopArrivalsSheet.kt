@@ -82,6 +82,7 @@ import georgiatransit.shared.generated.resources.map_stop_arrivals_source_approx
 import georgiatransit.shared.generated.resources.map_stop_arrivals_source_official
 import georgiatransit.shared.generated.resources.map_stop_arrivals_source_schedule
 import georgiatransit.shared.generated.resources.map_stop_arrivals_stale
+import georgiatransit.shared.generated.resources.map_stop_arrivals_stale_forecast
 import georgiatransit.shared.generated.resources.map_stop_arrivals_stop_details_unavailable
 import georgiatransit.shared.generated.resources.map_stop_arrivals_time_unavailable
 import georgiatransit.shared.generated.resources.map_stop_arrivals_title
@@ -108,6 +109,11 @@ internal fun StopArrivalsSheet(
         sheet.rows.first().source.takeIf { source -> sheet.rows.all { it.source == source } }
     }
     val showScheduleInHeader = commonSource == ArrivalSourceUi.Schedule && sheet.rows.isNotEmpty()
+    val showStaleForecast = sheet.isStale && sheet.rows.any { it.source != ArrivalSourceUi.Schedule }
+    val detailsSource = commonSource.takeUnless { source ->
+        showScheduleInHeader || showStaleForecast &&
+            (source == ArrivalSourceUi.OfficialRealtime || source == ArrivalSourceUi.AggregatorRealtime)
+    }
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         modifier = modifier,
@@ -145,6 +151,18 @@ internal fun StopArrivalsSheet(
                         style = MaterialTheme.typography.labelLarge,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
+                    if (sheet.isStale) {
+                        Text(
+                            stringResource(
+                                if (showStaleForecast) Res.string.map_stop_arrivals_stale_forecast
+                                else Res.string.map_stop_arrivals_stale,
+                            ),
+                            modifier = Modifier.testTag(AutomationId.MapStopArrivalsStale)
+                                .semantics { liveRegion = LiveRegionMode.Polite },
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.error,
+                        )
+                    }
                     if (showScheduleInHeader) {
                         Text(
                             stringResource(Res.string.map_stop_arrivals_source_schedule),
@@ -171,10 +189,10 @@ internal fun StopArrivalsSheet(
                 contentPadding = PaddingValues(bottom = TransitSpacing.Medium),
             ) {
                 item(key = "stop-details") {
-                    StopArrivalsDetails(sheet, commonSource.takeUnless { showScheduleInHeader }, onRetry)
+                    StopArrivalsDetails(sheet, detailsSource, onRetry)
                 }
                 itemsIndexed(sheet.rows) { index, row ->
-                    StopArrivalRow(row, showSource = commonSource == null)
+                    StopArrivalRow(row, showSource = commonSource == null, isStale = sheet.isStale)
                     if (index < sheet.rows.lastIndex) {
                         HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                     }
@@ -276,14 +294,6 @@ private fun StopArrivalsDetails(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
-        if (sheet.isStale) {
-            Text(
-                stringResource(Res.string.map_stop_arrivals_stale),
-                modifier = Modifier.testTag(AutomationId.MapStopArrivalsStale),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.error,
-            )
-        }
         commonSource?.let {
             Text(
                 arrivalSourceLabel(it),
@@ -378,7 +388,7 @@ private fun StopArrivalsStatus(sheet: StopArrivalsSheetUi, onRetry: () -> Unit) 
 }
 
 @Composable
-private fun StopArrivalRow(row: StopArrivalRowUi, showSource: Boolean) {
+private fun StopArrivalRow(row: StopArrivalRowUi, showSource: Boolean, isStale: Boolean) {
     val routeLabel = row.routeBadge?.routeLabel ?: row.routeShortName
     val routeTitle = row.routeBadge?.let { it.mode.routeTitle(it.routeLabel) }
         ?: routeLabel ?: stringResource(Res.string.map_stop_arrivals_route_unavailable)
@@ -427,7 +437,7 @@ private fun StopArrivalRow(row: StopArrivalRowUi, showSource: Boolean) {
             }
         }
         Text(
-            arrivalTimeLabel(row.time),
+            arrivalTimeLabel(row.time, isStale),
             modifier = Modifier.fillMaxWidth(0.33f),
             style = MaterialTheme.typography.titleMedium,
             textAlign = TextAlign.End,
@@ -436,8 +446,12 @@ private fun StopArrivalRow(row: StopArrivalRowUi, showSource: Boolean) {
 }
 
 @Composable
-private fun arrivalTimeLabel(time: StopArrivalTimeUi): String = when (time) {
-    StopArrivalTimeUi.Arriving -> stringResource(Res.string.map_stop_arrivals_arriving)
+private fun arrivalTimeLabel(time: StopArrivalTimeUi, isStale: Boolean): String = when (time) {
+    StopArrivalTimeUi.Arriving -> if (isStale) {
+        stringResource(Res.string.map_stop_arrivals_minutes, 0)
+    } else {
+        stringResource(Res.string.map_stop_arrivals_arriving)
+    }
     is StopArrivalTimeUi.Minutes -> stringResource(Res.string.map_stop_arrivals_minutes, time.value)
     StopArrivalTimeUi.Unavailable -> stringResource(Res.string.map_stop_arrivals_time_unavailable)
 }

@@ -37,7 +37,6 @@ import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -54,6 +53,7 @@ import georgiatransit.shared.generated.resources.map_planner_field_collapsed
 import georgiatransit.shared.generated.resources.map_planner_field_expanded
 import georgiatransit.shared.generated.resources.map_planner_map_point
 import georgiatransit.shared.generated.resources.map_planner_my_location
+import georgiatransit.shared.generated.resources.map_planner_my_location_compact
 import georgiatransit.shared.generated.resources.map_planner_not_set
 import georgiatransit.shared.generated.resources.map_planner_origin
 import georgiatransit.shared.generated.resources.map_planner_pick_on_map
@@ -136,11 +136,10 @@ internal fun JourneyEndpointBadge(side: JourneyPlanSide, modifier: Modifier = Mo
 }
 
 @Composable
-internal fun JourneyEndpointSummary(
+private fun JourneyEndpointSummary(
     side: JourneyPlanSide,
     endpoint: JourneyEndpoint?,
     modifier: Modifier = Modifier,
-    compact: Boolean = false,
 ) {
     val isOrigin = side == JourneyPlanSide.Origin
     val valueTag = if (isOrigin) AutomationId.MapPlannerOriginValue else AutomationId.MapPlannerDestinationValue
@@ -151,18 +150,18 @@ internal fun JourneyEndpointSummary(
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         Text(
-            stringResource(when (endpoint) {
-                null -> Res.string.map_planner_not_set
-                JourneyEndpoint.CurrentLocation -> Res.string.map_planner_my_location
-                is JourneyEndpoint.MapPoint -> Res.string.map_planner_map_point
-            }),
+            stringResource(endpoint.labelResource()),
             modifier = Modifier.testTag(valueTag),
-            style = if (compact) MaterialTheme.typography.labelMedium else MaterialTheme.typography.titleMedium,
+            style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.SemiBold,
-            maxLines = if (compact) 2 else Int.MAX_VALUE,
-            overflow = TextOverflow.Ellipsis,
         )
     }
+}
+
+internal fun JourneyEndpoint?.labelResource(compact: Boolean = false): StringResource = when (this) {
+    null -> Res.string.map_planner_not_set
+    JourneyEndpoint.CurrentLocation -> if (compact) Res.string.map_planner_my_location_compact else Res.string.map_planner_my_location
+    is JourneyEndpoint.MapPoint -> Res.string.map_planner_map_point
 }
 
 @Composable

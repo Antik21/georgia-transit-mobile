@@ -1,4 +1,5 @@
 <resources>
     <color name="launch_background">#F7F7F5</color>
+    <color name="map_attribution_link">#147392</color>
     <bool name="launch_use_dark_system_icons">true</bool>
 </resources>

@@ -16,6 +16,7 @@ import com.denis.georgiatransit.shared.presentation.map.VehicleLayerState
 import com.denis.georgiatransit.shared.presentation.map.VehicleRouteAccessibilityUi
 import com.denis.georgiatransit.shared.presentation.ui.automation.AutomationId
 import georgiatransit.shared.generated.resources.Res
+import georgiatransit.shared.generated.resources.map_vehicle_no_current_positions
 import georgiatransit.shared.generated.resources.map_vehicle_route_summary
 import georgiatransit.shared.generated.resources.map_vehicle_status_live
 import georgiatransit.shared.generated.resources.map_vehicle_status_loading
@@ -27,16 +28,27 @@ import georgiatransit.shared.generated.resources.map_vehicles_summary
 import org.jetbrains.compose.resources.stringResource
 
 /**
- * Keeps a live, localized summary for assistive technology and UI automation without adding a
- * production-facing status row to the sheet.
+ * Announces vehicle status and shows a visible explanation when the last stale position expires.
  */
 @Composable
 internal fun VehicleAccessibility(
     layerState: VehicleLayerState,
     routes: List<VehicleRouteAccessibilityUi>,
     modifier: Modifier = Modifier,
+    showStaleNotice: Boolean = false,
 ) {
     if (layerState == VehicleLayerState.Hidden || routes.isEmpty()) return
+    val liveRegionModifier = Modifier.fillMaxWidth().testTag(AutomationId.MapVehicles)
+        .semantics { liveRegion = LiveRegionMode.Polite }
+    if (showStaleNotice) {
+        Text(
+            text = stringResource(Res.string.map_vehicle_no_current_positions),
+            modifier = modifier.then(liveRegionModifier),
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            style = MaterialTheme.typography.bodySmall,
+        )
+        return
+    }
     val status = vehicleStatusLabel(layerState)
     val routeCounts = routes.map { route ->
         stringResource(
@@ -47,13 +59,7 @@ internal fun VehicleAccessibility(
         )
     }.joinToString(separator = " · ")
     val summary = stringResource(Res.string.map_vehicles_summary, status, routeCounts)
-    val summaryModifier = Modifier
-        .fillMaxWidth()
-        .testTag(AutomationId.MapVehicles)
-        .semantics {
-            contentDescription = summary
-            liveRegion = LiveRegionMode.Polite
-        }
+    val summaryModifier = liveRegionModifier.semantics { contentDescription = summary }
     val hasLiveNonemptyRoute = routes.any { route ->
         route.layerState == VehicleLayerState.Live && route.vehicleCount > 0
     }

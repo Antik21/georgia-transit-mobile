@@ -79,7 +79,10 @@ data class JourneyOptionUi(
     /** In [JourneyLabelUi] display order, whatever order the BFF sent. */
     val labels: List<JourneyLabelUi> = emptyList(),
     val boarding: JourneyBoarding? = null,
-)
+) {
+    internal val isUntimedTransit: Boolean
+        get() = totalMinutes == null && arrivalAt == null && legs.any { it is JourneyLegUi.Ride }
+}
 
 /** The first transit boarding of an option: where its nearest buses are looked up. */
 @Immutable

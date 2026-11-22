@@ -37,15 +37,21 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.LayoutCoordinates
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.intl.Locale
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlin.math.roundToInt
@@ -60,6 +66,7 @@ import com.denis.georgiatransit.shared.presentation.map.JourneyPlanSide
 import com.denis.georgiatransit.shared.presentation.map.JourneyPlannerStatus
 import com.denis.georgiatransit.shared.presentation.map.JourneyPlannerUi
 import com.denis.georgiatransit.shared.presentation.map.NearbyStopUi
+import com.denis.georgiatransit.shared.presentation.map.selectedOption
 import com.denis.georgiatransit.shared.presentation.ui.automation.AutomationId
 import com.denis.georgiatransit.shared.presentation.ui.component.CloseIcon
 import com.denis.georgiatransit.shared.presentation.ui.theme.GeorgiaTransitTheme
@@ -72,8 +79,10 @@ import georgiatransit.shared.generated.resources.map_planner_back
 import georgiatransit.shared.generated.resources.map_planner_find
 import georgiatransit.shared.generated.resources.map_planner_close
 import georgiatransit.shared.generated.resources.map_planner_disclaimer
+import georgiatransit.shared.generated.resources.map_planner_destination
 import georgiatransit.shared.generated.resources.map_planner_edit_points
 import georgiatransit.shared.generated.resources.map_planner_empty
+import georgiatransit.shared.generated.resources.map_planner_endpoint_description
 import georgiatransit.shared.generated.resources.map_planner_error_busy
 import georgiatransit.shared.generated.resources.map_planner_error_network
 import georgiatransit.shared.generated.resources.map_planner_error_rejected
@@ -82,11 +91,13 @@ import georgiatransit.shared.generated.resources.map_planner_loading
 import georgiatransit.shared.generated.resources.map_planner_location_approximate
 import georgiatransit.shared.generated.resources.map_planner_location_locating
 import georgiatransit.shared.generated.resources.map_planner_location_permission
+import georgiatransit.shared.generated.resources.map_planner_origin
 import georgiatransit.shared.generated.resources.map_planner_pick_on_map
 import georgiatransit.shared.generated.resources.map_planner_retry
 import georgiatransit.shared.generated.resources.map_planner_stale
 import georgiatransit.shared.generated.resources.map_planner_swap
 import georgiatransit.shared.generated.resources.map_planner_unavailable
+import georgiatransit.shared.generated.resources.map_planner_unknown_travel_time
 import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.stringResource
 
@@ -203,7 +214,7 @@ internal fun JourneyPlannerPanel(
         }
         // Only the body scrolls, so the title and its actions stay reachable over long results.
         Column(
-            modifier = Modifier.weight(1f, fill = planner.showingResults && !isEmpty)
+            modifier = Modifier.weight(1f, fill = planner.showingResults && !status.usesCompactPanel)
                 .onGloballyPositioned { viewportCoordinates = it }
                 .verticalScroll(scrollState),
             verticalArrangement = Arrangement.spacedBy(TransitSpacing.Small),
@@ -242,14 +253,23 @@ internal fun JourneyPlannerPanel(
                 Button(onClick = onEdit, modifier = Modifier.fillMaxWidth().testTag(AutomationId.MapPlannerEditPoints)) {
                     Text(stringResource(Res.string.map_planner_edit_points))
                 }
-            } else if (status.canRetry()) {
+            } else if (status is JourneyPlannerStatus.Error && status.retryable) {
+                Button(onClick = onRetry, modifier = Modifier.fillMaxWidth().testTag(AutomationId.MapPlannerRetry)) {
+                    Text(stringResource(Res.string.map_planner_retry))
+                }
+            } else if (status is JourneyPlannerStatus.Results && status.isStale) {
                 OutlinedButton(onClick = onRetry, modifier = Modifier.testTag(AutomationId.MapPlannerRetry)) {
                     Text(stringResource(Res.string.map_planner_retry))
                 }
             }
-            if (planner.showingResults && !isEmpty) {
+            if (planner.showingResults && !status.usesCompactPanel) {
+                val disclaimer = if (planner.selectedOption()?.isUntimedTransit == true) {
+                    Res.string.map_planner_unknown_travel_time
+                } else {
+                    Res.string.map_planner_disclaimer
+                }
                 Text(
-                    stringResource(Res.string.map_planner_disclaimer),
+                    stringResource(disclaimer),
                     modifier = Modifier.testTag(AutomationId.MapPlannerDisclaimer),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -291,42 +311,85 @@ internal fun JourneyPlannerPanel(
 
 @Composable
 private fun ResultsHeader(origin: JourneyEndpoint?, destination: JourneyEndpoint?, onEdit: () -> Unit) {
-    BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
-        val stackEndpoints = LocalDensity.current.fontScale >= 1.5f || maxWidth < 280.dp
-        Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            HeaderButton(
-                BackArrowIcon, Res.string.map_planner_back, onEdit, AutomationId.MapPlannerEdit,
-                modifier = Modifier.offset(x = -TransitSpacing.Small),
-            )
+    val originLabel = stringResource(origin.labelResource(compact = true))
+    val destinationLabel = stringResource(destination.labelResource(compact = true))
+    val labelStyle = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold)
+    val arrowStyle = MaterialTheme.typography.bodyMedium
+    val arrow = if (LocalLayoutDirection.current == LayoutDirection.Rtl) "←" else "→"
+    val density = LocalDensity.current
+    val measurer = rememberTextMeasurer()
+    val chipOverhead = EndpointChipBadgeSize + TransitSpacing.Small * 2 + TransitSpacing.ExtraSmall
+    val originWidth = with(density) { measurer.measure(originLabel, labelStyle, softWrap = false).size.width.toDp() } + chipOverhead
+    val destinationWidth = with(density) {
+        measurer.measure(destinationLabel, labelStyle, softWrap = false).size.width.toDp()
+    } + chipOverhead
+    val arrowWidth = with(density) { measurer.measure(arrow, arrowStyle, softWrap = false).size.width.toDp() } +
+        TransitSpacing.ExtraSmall * 2
+
+    Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        HeaderButton(
+            BackArrowIcon, Res.string.map_planner_back, onEdit, AutomationId.MapPlannerEdit,
+            modifier = Modifier.offset(x = -TransitSpacing.Small),
+        )
+        BoxWithConstraints(modifier = Modifier.weight(1f)) {
+            val stackEndpoints = density.fontScale >= 1.5f || originWidth + arrowWidth + destinationWidth > maxWidth
             if (stackEndpoints) {
-                Column(
-                    modifier = Modifier.weight(1f),
-                    verticalArrangement = Arrangement.spacedBy(TransitSpacing.ExtraSmall),
-                ) {
-                    EndpointChip(JourneyPlanSide.Origin, origin, Modifier.fillMaxWidth())
-                    EndpointChip(JourneyPlanSide.Destination, destination, Modifier.fillMaxWidth())
+                Column(verticalArrangement = Arrangement.spacedBy(TransitSpacing.ExtraSmall)) {
+                    EndpointChip(JourneyPlanSide.Origin, origin, originLabel, labelStyle, Modifier.fillMaxWidth())
+                    EndpointChip(JourneyPlanSide.Destination, destination, destinationLabel, labelStyle, Modifier.fillMaxWidth())
                 }
             } else {
-                EndpointChip(JourneyPlanSide.Origin, origin, Modifier.weight(1f))
-                Text("→", modifier = Modifier.padding(horizontal = TransitSpacing.ExtraSmall))
-                EndpointChip(JourneyPlanSide.Destination, destination, Modifier.weight(1f))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    EndpointChip(JourneyPlanSide.Origin, origin, originLabel, labelStyle, Modifier.weight(originWidth.value))
+                    Text(
+                        arrow,
+                        modifier = Modifier.padding(horizontal = TransitSpacing.ExtraSmall).clearAndSetSemantics {},
+                        style = arrowStyle,
+                    )
+                    EndpointChip(
+                        JourneyPlanSide.Destination, destination, destinationLabel, labelStyle,
+                        Modifier.weight(destinationWidth.value),
+                    )
+                }
             }
         }
     }
 }
 
 @Composable
-private fun EndpointChip(side: JourneyPlanSide, endpoint: JourneyEndpoint?, modifier: Modifier = Modifier) {
+private fun EndpointChip(
+    side: JourneyPlanSide,
+    endpoint: JourneyEndpoint?,
+    label: String,
+    labelStyle: TextStyle,
+    modifier: Modifier = Modifier,
+) {
+    val isOrigin = side == JourneyPlanSide.Origin
+    val description = stringResource(
+        Res.string.map_planner_endpoint_description,
+        stringResource(if (isOrigin) Res.string.map_planner_origin else Res.string.map_planner_destination),
+        stringResource(endpoint.labelResource()),
+    )
     Row(
         modifier = modifier.background(MaterialTheme.colorScheme.primary.copy(alpha = 0.07f), RoundedCornerShape(12.dp))
             .padding(horizontal = TransitSpacing.Small, vertical = TransitSpacing.Small),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(TransitSpacing.ExtraSmall),
     ) {
-        JourneyEndpointBadge(side, minimumSize = 24.dp)
-        JourneyEndpointSummary(side, endpoint, modifier = Modifier.weight(1f), compact = true)
+        JourneyEndpointBadge(side, minimumSize = EndpointChipBadgeSize)
+        Text(
+            label,
+            modifier = Modifier.weight(1f)
+                .testTag(if (isOrigin) AutomationId.MapPlannerOriginValue else AutomationId.MapPlannerDestinationValue)
+                .clearAndSetSemantics { contentDescription = description },
+            style = labelStyle,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
     }
 }
+
+private val EndpointChipBadgeSize = 24.dp
 
 @Composable
 private fun HeaderButton(
@@ -385,9 +448,6 @@ private fun plannerStatusText(planner: JourneyPlannerUi): String? {
 
 private fun JourneyPlannerStatus.isBusy(): Boolean = this == JourneyPlannerStatus.Loading ||
     (this is JourneyPlannerStatus.LocationNeeded && reason == JourneyLocationReason.Locating)
-
-private fun JourneyPlannerStatus.canRetry(): Boolean = (this is JourneyPlannerStatus.Error && retryable) ||
-    (this is JourneyPlannerStatus.Results && isStale)
 
 @Preview
 @Composable

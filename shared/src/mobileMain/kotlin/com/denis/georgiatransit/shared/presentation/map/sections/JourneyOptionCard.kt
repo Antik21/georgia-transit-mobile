@@ -52,13 +52,17 @@ import georgiatransit.shared.generated.resources.map_planner_label_fastest
 import georgiatransit.shared.generated.resources.map_planner_label_least_walking
 import georgiatransit.shared.generated.resources.map_planner_label_no_transfers
 import georgiatransit.shared.generated.resources.map_planner_label_optimal
+import georgiatransit.shared.generated.resources.map_planner_meters
 import georgiatransit.shared.generated.resources.map_planner_summary_bus
 import georgiatransit.shared.generated.resources.map_planner_summary_ferry
 import georgiatransit.shared.generated.resources.map_planner_summary_metro
 import georgiatransit.shared.generated.resources.map_planner_summary_tram
+import georgiatransit.shared.generated.resources.map_planner_summary_transfers
 import georgiatransit.shared.generated.resources.map_planner_summary_walk
+import georgiatransit.shared.generated.resources.map_planner_summary_walking_distance
 import georgiatransit.shared.generated.resources.map_planner_then
 import georgiatransit.shared.generated.resources.map_planner_total
+import georgiatransit.shared.generated.resources.map_planner_untimed_summary
 import georgiatransit.shared.generated.resources.map_planner_walk_only
 import georgiatransit.shared.generated.resources.map_planner_walk_access
 import georgiatransit.shared.generated.resources.map_planner_walk_direct
@@ -67,6 +71,7 @@ import georgiatransit.shared.generated.resources.map_planner_walk_transfer
 import kotlin.time.Instant
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
+import org.jetbrains.compose.resources.pluralStringResource
 import org.jetbrains.compose.resources.stringResource
 
 /** One planned option; [nearestEtas] is non-empty only for the selected option's soonest buses. */
@@ -128,6 +133,9 @@ internal fun JourneyOptionCard(
                     }
                     if (!isSelected) Icon(ChevronDownIcon, contentDescription = null)
                 }
+                if (option.isUntimedTransit) {
+                    UntimedJourneySummary(option.transfers, option.walkingMeters)
+                }
                 if (option.labels.isNotEmpty()) {
                     FlowRow(
                         horizontalArrangement = Arrangement.spacedBy(TransitSpacing.ExtraSmall),
@@ -159,6 +167,28 @@ internal fun JourneyOptionCard(
             }
         }
     }
+}
+
+@Composable
+private fun UntimedJourneySummary(transfers: Int, walkingMeters: Int?) {
+    val transferLabel = if (transfers == 0) {
+        stringResource(Res.string.map_planner_label_no_transfers)
+    } else {
+        pluralStringResource(Res.plurals.map_planner_summary_transfers, transfers, transfers)
+    }
+    val summary = walkingMeters?.let { meters ->
+        val walkingLabel = stringResource(
+            Res.string.map_planner_summary_walking_distance,
+            stringResource(Res.string.map_planner_meters, meters),
+        )
+        stringResource(Res.string.map_planner_untimed_summary, transferLabel, walkingLabel)
+    } ?: transferLabel
+    Text(
+        text = summary,
+        modifier = Modifier.testTag(AutomationId.MapPlannerUntimedSummary),
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        style = MaterialTheme.typography.bodySmall,
+    )
 }
 
 /** Label text sits inside the card, so it is part of its accessible name and never colour alone. */

@@ -82,6 +82,7 @@
     <string name="map_stop_arrivals_retry">Спробувати ще раз</string>
     <string name="map_stop_arrivals_refreshing">Оновлюємо дані про прибуття…</string>
     <string name="map_stop_arrivals_stale">Показано застарілі дані про прибуття.</string>
+    <string name="map_stop_arrivals_stale_forecast">Прогноз застарів. Хвилини на момент розрахунку.</string>
     <string name="map_stop_arrivals_route_unavailable">Інформація про маршрут недоступна</string>
     <string name="map_stop_arrivals_arriving">Під’їжджає</string>
     <string name="map_stop_arrivals_minutes">%1$d хв</string>
@@ -98,6 +99,7 @@
     <string name="map_vehicle_status_loading">завантаження</string>
     <string name="map_vehicle_status_live">у реальному часі</string>
     <string name="map_vehicle_status_stale">показано попередні позиції</string>
+    <string name="map_vehicle_no_current_positions">Зараз немає актуальних даних про місцеперебування автобусів</string>
     <string name="map_vehicle_status_retryable">тимчасово недоступно, показано попередні позиції</string>
     <string name="map_vehicle_status_unavailable">недоступно</string>
     <string name="map_vehicle_status_mixed">доступність залежить від маршруту</string>
@@ -108,6 +110,7 @@
     <string name="routes_selection_limit_warning">Одночасно можна показати до %1$d маршрутів. Зніміть вибір з одного, щоб додати інший.</string>
     <string name="routes_show_selected">Показати вибрані маршрути</string>
     <string name="routes_selected_title">Вибрані маршрути</string>
+    <string name="routes_selected_hint">Зніміть позначку з одного маршруту. Ви повернетеся до пошуку.</string>
     <string name="routes_empty">Для цього міста ще немає списку маршрутів.</string>
     <string name="routes_loading">Завантажуємо список маршрутів…</string>
     <string name="routes_error">Не вдалося завантажити маршрути</string>
@@ -143,6 +146,8 @@
     <string name="map_planner_origin">Звідки</string>
     <string name="map_planner_destination">Куди</string>
     <string name="map_planner_my_location">Моє місцеположення</string>
+    <string name="map_planner_my_location_compact">Геопозиція</string>
+    <string name="map_planner_endpoint_description">%1$s. %2$s</string>
     <string name="map_planner_map_point">Точка на карті</string>
     <string name="map_planner_not_set">Не вибрано</string>
     <string name="map_planner_pick_on_map">Вибрати на карті</string>
@@ -165,12 +170,21 @@
     <string name="map_planner_error_busy">Сервіс планування перевантажено. Спробуйте трохи згодом.</string>
     <string name="map_planner_error_rejected">Не вдалося побудувати маршрут між цими точками. Обидві мають бути в межах міста.</string>
     <string name="map_planner_error_service">Планування маршрутів тимчасово недоступне.</string>
-    <string name="map_planner_unavailable">Планування маршрутів у цьому місті наразі недоступне.</string>
+    <string name="map_planner_unavailable">Планування поїздок у цьому місті недоступне.</string>
     <string name="map_planner_location_permission">Дозвольте доступ до місцеположення, щоб почати звідти, або виберіть точку на карті.</string>
     <string name="map_planner_location_locating">Визначаємо ваше місцеположення…</string>
     <string name="map_planner_location_approximate">Для маршруту поточне місцеположення недостатньо точне. Виберіть точку на карті.</string>
     <string name="map_planner_already_there">Ви вже поруч: приблизно %1$d м пішки (≈ %2$d хв).</string>
     <string name="map_planner_disclaimer">Час розрахунковий.</string>
+    <string name="map_planner_unknown_travel_time">Час у дорозі невідомий</string>
+    <string name="map_planner_summary_walking_distance">%1$s пішки</string>
+    <string name="map_planner_untimed_summary">%1$s · %2$s</string>
+    <plurals name="map_planner_summary_transfers">
+        <item quantity="one">%1$d пересадка</item>
+        <item quantity="few">%1$d пересадки</item>
+        <item quantity="many">%1$d пересадок</item>
+        <item quantity="other">%1$d пересадки</item>
+    </plurals>
     <string name="map_planner_expand">Розгорнути панель маршруту</string>
     <string name="map_planner_collapse">Згорнути панель маршруту</string>
     <string name="map_planner_refreshing">Оновлюємо…</string>

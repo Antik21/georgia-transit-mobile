@@ -2,6 +2,8 @@ package com.denis.georgiatransit.shared.presentation.map.sections
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.WindowInsetsSides
@@ -73,6 +75,7 @@ internal fun MapCanvas(
     onMyLocationClick: () -> Unit,
     onZoomClick: (MapZoomDirection) -> Unit,
     journeyPlanningAvailable: Boolean,
+    plannerNotice: MapToastNotice?,
     onOpenPlanner: (() -> Unit)?,
     onPlannerLauncherPositioned: (Rect) -> Unit,
     onMapEvent: (MapPlatformEvent) -> Unit,
@@ -167,13 +170,18 @@ internal fun MapCanvas(
             modifier = Modifier.align(Alignment.BottomEnd).then(controlInsets),
         )
         if (onOpenPlanner != null) {
-            MapPlannerLauncher(
-                available = journeyPlanningAvailable,
-                onClick = onOpenPlanner,
+            Column(
                 modifier = Modifier.align(Alignment.BottomStart).then(controlInsets)
-                    .padding(end = MapControlSize + TransitSpacing.Small)
-                    .onGloballyPositioned { onPlannerLauncherPositioned(it.boundsInRoot()) },
-            )
+                    .padding(end = MapControlSize + TransitSpacing.Small),
+                verticalArrangement = Arrangement.spacedBy(TransitSpacing.Small),
+            ) {
+                MapToast(notice = plannerNotice)
+                MapPlannerLauncher(
+                    available = journeyPlanningAvailable,
+                    onClick = onOpenPlanner,
+                    modifier = Modifier.onGloballyPositioned { onPlannerLauncherPositioned(it.boundsInRoot()) },
+                )
+            }
         }
         if (baseLayerState == MapBaseLayerState.BffStyle) {
             OpenStreetMapAttribution(

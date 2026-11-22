@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="maplibre_attributionsDialogTitle">地图来源</string>
+    <string name="maplibre_attributionsIconContentDescription">打开地图来源</string>
+</resources>

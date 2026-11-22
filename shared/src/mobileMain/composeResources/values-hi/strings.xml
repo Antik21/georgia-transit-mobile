@@ -82,6 +82,7 @@
     <string name="map_stop_arrivals_retry">फिर कोशिश करें</string>
     <string name="map_stop_arrivals_refreshing">आने वाली गाड़ियों की जानकारी अपडेट हो रही है…</string>
     <string name="map_stop_arrivals_stale">आने वाली गाड़ियों की पुरानी जानकारी दिखाई जा रही है।</string>
+    <string name="map_stop_arrivals_stale_forecast">पूर्वानुमान पुराना है। मिनट पिछली गणना के समय के हैं।</string>
     <string name="map_stop_arrivals_route_unavailable">लाइन का विवरण उपलब्ध नहीं है</string>
     <string name="map_stop_arrivals_arriving">बस पहुँचने वाली है</string>
     <string name="map_stop_arrivals_minutes">%1$d मि॰</string>
@@ -98,6 +99,7 @@
     <string name="map_vehicle_status_loading">लोड हो रहा है</string>
     <string name="map_vehicle_status_live">लाइव</string>
     <string name="map_vehicle_status_stale">पुराने स्थान दिख रहे हैं</string>
+    <string name="map_vehicle_no_current_positions">अभी बसों की ताज़ा लोकेशन उपलब्ध नहीं है</string>
     <string name="map_vehicle_status_retryable">फ़िलहाल उपलब्ध नहीं, पुराने स्थान दिख रहे हैं</string>
     <string name="map_vehicle_status_unavailable">उपलब्ध नहीं</string>
     <string name="map_vehicle_status_mixed">लाइन के अनुसार उपलब्धता अलग है</string>
@@ -108,6 +110,7 @@
     <string name="routes_selection_limit_warning">आप एक साथ %1$d तक लाइनें दिखा सकते हैं। दूसरी लाइन चुनने के लिए पहले किसी लाइन का चयन हटाएँ।</string>
     <string name="routes_show_selected">चुनी गई लाइनें दिखाएँ</string>
     <string name="routes_selected_title">चुनी गई लाइनें</string>
+    <string name="routes_selected_hint">किसी एक लाइन का चयन हटाएँ। आप खोज पर वापस आ जाएँगे।</string>
     <string name="routes_empty">इस शहर की लाइनों की सूची अभी उपलब्ध नहीं है।</string>
     <string name="routes_loading">लाइनों की सूची लोड हो रही है…</string>
     <string name="routes_error">लाइनें लोड नहीं हो सकीं</string>
@@ -143,6 +146,8 @@
     <string name="map_planner_origin">कहाँ से</string>
     <string name="map_planner_destination">कहाँ तक</string>
     <string name="map_planner_my_location">मेरा स्थान</string>
+    <string name="map_planner_my_location_compact">मेरा स्थान</string>
+    <string name="map_planner_endpoint_description">%1$s। %2$s</string>
     <string name="map_planner_map_point">नक्शे पर स्थान</string>
     <string name="map_planner_not_set">नहीं चुना गया</string>
     <string name="map_planner_pick_on_map">नक्शे पर चुनें</string>
@@ -165,12 +170,19 @@
     <string name="map_planner_error_busy">मार्ग खोजने की सेवा व्यस्त है। थोड़ी देर में फिर कोशिश करें।</string>
     <string name="map_planner_error_rejected">इन स्थानों के बीच मार्ग नहीं बन सका। दोनों स्थान शहर की सीमा में होने चाहिए।</string>
     <string name="map_planner_error_service">मार्ग बनाने की सुविधा कुछ समय के लिए उपलब्ध नहीं है।</string>
-    <string name="map_planner_unavailable">इस शहर में मार्ग बनाने की सुविधा फ़िलहाल उपलब्ध नहीं है।</string>
+    <string name="map_planner_unavailable">इस शहर में यात्रा की योजना बनाने की सुविधा उपलब्ध नहीं है।</string>
     <string name="map_planner_location_permission">अपने स्थान से शुरू करने के लिए स्थान की अनुमति दें या नक्शे पर कोई स्थान चुनें।</string>
     <string name="map_planner_location_locating">आपका स्थान खोजा जा रहा है…</string>
     <string name="map_planner_location_approximate">मार्ग बनाने के लिए आपका स्थान पर्याप्त सटीक नहीं है। नक्शे पर कोई स्थान चुनें।</string>
     <string name="map_planner_already_there">आप गंतव्य के पास हैं: पैदल लगभग %1$d मी (≈ %2$d मि॰)।</string>
     <string name="map_planner_disclaimer">समय अनुमानित हैं।</string>
+    <string name="map_planner_unknown_travel_time">यात्रा का समय अज्ञात है</string>
+    <string name="map_planner_summary_walking_distance">%1$s पैदल</string>
+    <string name="map_planner_untimed_summary">%1$s · %2$s</string>
+    <plurals name="map_planner_summary_transfers">
+        <item quantity="one">%1$d बार गाड़ी बदलें</item>
+        <item quantity="other">%1$d बार गाड़ी बदलें</item>
+    </plurals>
     <string name="map_planner_expand">मार्ग का पैनल खोलें</string>
     <string name="map_planner_collapse">मार्ग का पैनल समेटें</string>
     <string name="map_planner_refreshing">अपडेट हो रहा है…</string>

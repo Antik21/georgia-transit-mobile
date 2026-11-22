@@ -82,6 +82,7 @@
     <string name="map_stop_arrivals_retry">إعادة المحاولة</string>
     <string name="map_stop_arrivals_refreshing">جارٍ تحديث مواعيد الوصول…</string>
     <string name="map_stop_arrivals_stale">مواعيد الوصول المعروضة قديمة.</string>
+    <string name="map_stop_arrivals_stale_forecast">التوقع قديم. الدقائق كما حُسبت آخر مرة.</string>
     <string name="map_stop_arrivals_route_unavailable">تفاصيل الخط غير متاحة</string>
     <string name="map_stop_arrivals_arriving">على وشك الوصول</string>
     <string name="map_stop_arrivals_minutes">%1$d د</string>
@@ -98,6 +99,7 @@
     <string name="map_vehicle_status_loading">جارٍ التحميل</string>
     <string name="map_vehicle_status_live">مباشرة</string>
     <string name="map_vehicle_status_stale">تُعرض مواقع سابقة</string>
+    <string name="map_vehicle_no_current_positions">لا تتوفر حاليًا مواقع محدّثة للحافلات</string>
     <string name="map_vehicle_status_retryable">غير متاحة مؤقتًا، تُعرض مواقع سابقة</string>
     <string name="map_vehicle_status_unavailable">غير متاحة</string>
     <string name="map_vehicle_status_mixed">يختلف التوفر حسب الخط</string>
@@ -108,6 +110,7 @@
     <string name="routes_selection_limit_warning">يمكنك عرض %1$d من الخطوط في آن واحد. ألغِ تحديد أحدها لتختار خطًا آخر.</string>
     <string name="routes_show_selected">عرض الخطوط المحددة</string>
     <string name="routes_selected_title">الخطوط المحددة</string>
+    <string name="routes_selected_hint">أزل علامة الاختيار عن أحد الخطوط. ستعود إلى البحث.</string>
     <string name="routes_empty">قائمة الخطوط لهذه المدينة غير متاحة بعد.</string>
     <string name="routes_loading">جارٍ تحميل قائمة الخطوط…</string>
     <string name="routes_error">تعذّر تحميل الخطوط</string>
@@ -143,6 +146,8 @@
     <string name="map_planner_origin">نقطة الانطلاق</string>
     <string name="map_planner_destination">الوجهة</string>
     <string name="map_planner_my_location">موقعي</string>
+    <string name="map_planner_my_location_compact">موقعي</string>
+    <string name="map_planner_endpoint_description">%1$s. %2$s</string>
     <string name="map_planner_map_point">نقطة على الخريطة</string>
     <string name="map_planner_not_set">لم تُحدَّد</string>
     <string name="map_planner_pick_on_map">اختر على الخريطة</string>
@@ -165,12 +170,22 @@
     <string name="map_planner_error_busy">خدمة تخطيط المسارات مشغولة. حاول مجددًا بعد قليل.</string>
     <string name="map_planner_error_rejected">تعذّر تخطيط مسار بين النقطتين. يجب أن تكونا داخل المدينة.</string>
     <string name="map_planner_error_service">تخطيط المسارات غير متاح مؤقتًا.</string>
-    <string name="map_planner_unavailable">تخطيط المسارات غير متاح حاليًا في هذه المدينة.</string>
+    <string name="map_planner_unavailable">تخطيط الرحلات غير متاح في هذه المدينة.</string>
     <string name="map_planner_location_permission">اسمح بالوصول إلى موقعك للانطلاق منه، أو اختر نقطة على الخريطة.</string>
     <string name="map_planner_location_locating">جارٍ تحديد موقعك…</string>
     <string name="map_planner_location_approximate">موقعك غير دقيق بما يكفي لتخطيط مسار. اختر نقطة على الخريطة.</string>
     <string name="map_planner_already_there">أنت قريب من وجهتك: نحو %1$d م سيرًا (≈ %2$d د).</string>
     <string name="map_planner_disclaimer">الأوقات تقديرية.</string>
+    <string name="map_planner_unknown_travel_time">مدة الرحلة غير معروفة</string>
+    <string name="map_planner_summary_walking_distance">مشيًا مسافة %1$s</string>
+    <string name="map_planner_untimed_summary">%1$s · %2$s</string>
+    <plurals name="map_planner_summary_transfers">
+        <item quantity="one">تبديل واحد</item>
+        <item quantity="two">تبديلان</item>
+        <item quantity="few">%1$d تبديلات</item>
+        <item quantity="many">%1$d تبديلًا</item>
+        <item quantity="other">%1$d تبديل</item>
+    </plurals>
     <string name="map_planner_expand">توسيع لوحة المسار</string>
     <string name="map_planner_collapse">طي لوحة المسار</string>
     <string name="map_planner_refreshing">جارٍ التحديث…</string>

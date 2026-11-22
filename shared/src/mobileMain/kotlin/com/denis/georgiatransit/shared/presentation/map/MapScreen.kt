@@ -1,11 +1,9 @@
 package com.denis.georgiatransit.shared.presentation.map
 
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.fillMaxSize
@@ -15,12 +13,7 @@ import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.windowInsetsPadding
-import androidx.compose.material3.Button
-import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedIconButton
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -50,7 +43,6 @@ import androidx.navigationevent.NavigationEventInfo
 import androidx.navigationevent.compose.NavigationBackHandler
 import androidx.navigationevent.compose.rememberNavigationEventState
 import com.denis.georgiatransit.shared.domain.model.JourneyEndpoint
-import com.denis.georgiatransit.shared.domain.model.RouteId
 import com.denis.georgiatransit.shared.domain.model.TransitLocale
 import com.denis.georgiatransit.shared.presentation.location.LocationPermissionState
 import com.denis.georgiatransit.shared.presentation.location.LocationPlatformCommand
@@ -61,26 +53,21 @@ import com.denis.georgiatransit.shared.presentation.map.sections.JourneyMapPickP
 import com.denis.georgiatransit.shared.presentation.map.sections.JourneyPlannerPanel
 import com.denis.georgiatransit.shared.presentation.map.sections.JourneyPlannerSheet
 import com.denis.georgiatransit.shared.presentation.map.sections.MapCameraControlsHeight
+import com.denis.georgiatransit.shared.presentation.map.sections.MapControls
 import com.denis.georgiatransit.shared.presentation.map.sections.MapSettingsSheet
 import com.denis.georgiatransit.shared.presentation.map.sections.MapLocationPermissionSheet
 import com.denis.georgiatransit.shared.presentation.map.sections.MapToast
 import com.denis.georgiatransit.shared.presentation.map.sections.MapToastKind
 import com.denis.georgiatransit.shared.presentation.map.sections.MapToastNotice
-import com.denis.georgiatransit.shared.presentation.map.sections.RouteGeometryLegend
 import com.denis.georgiatransit.shared.presentation.map.sections.StopArrivalsSheet
-import com.denis.georgiatransit.shared.presentation.map.sections.VehicleAccessibility
 import com.denis.georgiatransit.shared.presentation.map.sections.rememberJourneyStopNames
+import com.denis.georgiatransit.shared.presentation.map.sections.usesCompactPanel
 import com.denis.georgiatransit.shared.presentation.ui.automation.AutomationId
 import com.denis.georgiatransit.shared.presentation.ui.theme.GeorgiaTransitTheme
 import com.denis.georgiatransit.shared.presentation.ui.theme.TransitSpacing
 import georgiatransit.shared.generated.resources.Res
 import georgiatransit.shared.generated.resources.location_action_location_settings
 import georgiatransit.shared.generated.resources.map_my_location_action
-import georgiatransit.shared.generated.resources.map_routes_action
-import georgiatransit.shared.generated.resources.map_settings
-import georgiatransit.shared.generated.resources.map_settings_gear
-import georgiatransit.shared.generated.resources.schedule_title
-import org.jetbrains.compose.resources.painterResource
 import org.jetbrains.compose.resources.stringResource
 import org.orbitmvi.orbit.compose.collectAsState
 import org.orbitmvi.orbit.compose.collectSideEffect
@@ -238,6 +225,7 @@ private fun Content(
                     },
                     onZoomClick = { onAction(Action.ZoomClicked(it)) },
                     journeyPlanningAvailable = state.journeyPlanningAvailable,
+                    plannerNotice = toastNotice?.takeIf { it.kind == MapToastKind.PlannerUnavailable && !state.journeyPlanningAvailable },
                     onOpenPlanner = when {
                         !showPlannerLauncher -> null
                         !state.journeyPlanningAvailable -> onPlannerUnavailable
@@ -262,7 +250,7 @@ private fun Content(
                     },
                 )
                 MapToast(
-                    notice = toastNotice,
+                    notice = toastNotice?.takeUnless { it.kind == MapToastKind.PlannerUnavailable },
                     modifier = Modifier
                         .align(Alignment.BottomCenter)
                         .padding(
@@ -311,7 +299,7 @@ private fun Content(
                 JourneyPlannerSheet(
                     maxHeight = resultsMaxHeight,
                     floating = planner.showingResults,
-                    compact = planner.status == JourneyPlannerStatus.Empty,
+                    compact = planner.status.usesCompactPanel,
                     onClose = { onAction(JourneyPlannerAction.ClosePlanner) },
                 ) { sheetModifier, headerModifier ->
                     JourneyPlannerPanel(
@@ -371,57 +359,6 @@ private fun Content(
                     }
                 },
             )
-        }
-    }
-}
-
-@Composable
-private fun MapControls(
-    vehicleLayerState: VehicleLayerState,
-    vehicleRoutes: List<VehicleRouteAccessibilityUi>,
-    routeGeometryLegends: List<RouteGeometryLegendUi>,
-    settingsAvailable: Boolean,
-    routesAvailable: Boolean,
-    schedulesAvailable: Boolean,
-    onFocusRoute: (RouteId) -> Unit,
-    onRetryRoute: (RouteId) -> Unit,
-    onRemoveRoute: (RouteId) -> Unit,
-    onSettings: () -> Unit,
-    onRoutes: () -> Unit,
-    onSchedules: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    Surface(modifier = modifier, color = MaterialTheme.colorScheme.surface, contentColor = MaterialTheme.colorScheme.onSurface) {
-        Box {
-            VehicleAccessibility(layerState = vehicleLayerState, routes = vehicleRoutes)
-            Column(verticalArrangement = Arrangement.spacedBy(TransitSpacing.Small)) {
-                RouteGeometryLegend(routes = routeGeometryLegends, onFocus = onFocusRoute, onRetry = onRetryRoute, onRemove = onRemoveRoute)
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(TransitSpacing.Small),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    if (settingsAvailable) {
-                        OutlinedIconButton(onClick = onSettings, modifier = Modifier.testTag(AutomationId.MapSettings)) {
-                            Icon(
-                                painter = painterResource(Res.drawable.map_settings_gear),
-                                contentDescription = stringResource(Res.string.map_settings),
-                            )
-                        }
-                    }
-                    if (routesAvailable) {
-                        Button(
-                            onClick = onRoutes,
-                            modifier = Modifier.weight(1f).testTag(AutomationId.MapRoutes),
-                        ) { Text(stringResource(Res.string.map_routes_action)) }
-                    }
-                }
-                if (schedulesAvailable) {
-                    OutlinedButton(
-                        onClick = onSchedules,
-                        modifier = Modifier.fillMaxWidth().testTag(AutomationId.MapSchedules),
-                    ) { Text(stringResource(Res.string.schedule_title)) }
-                }
-            }
         }
     }
 }
