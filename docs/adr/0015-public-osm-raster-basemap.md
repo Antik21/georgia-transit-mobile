@@ -1,6 +1,6 @@
 # ADR 0015: Public OpenStreetMap raster basemap by default
 
-- Status: Accepted
+- Status: Superseded by [ADR 0032](0032-localized-vector-basemap.md)
 - Date: 2026-09-15
 - Supersedes: the production public-tile rejection in ADR 0002 and map-proxy-disabled decision in
   ADR 0014

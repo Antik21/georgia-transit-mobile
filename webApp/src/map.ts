@@ -74,11 +74,17 @@ export interface TransitMap {
   dispose(): void;
 }
 
+const mapStylePath = "/v1/map/style.json";
+
 function mapAssetRequest(rawUrl: string) {
   const url = new URL(rawUrl, window.location.origin);
-  if (url.pathname === "/v1/map/style.json" || /^\/v1\/map\/tiles\/\d+\/\d+\/\d+\.png$/.test(url.pathname)) {
-    // The BFF style uses its public hostname. Keep style and tiles on the app's same-origin proxy.
-    return { url: new URL(url.pathname, window.location.origin).href };
+  const isStyle = url.pathname === mapStylePath && /^(|\?lang=(ka|ru|en))$/.test(url.search);
+  const isAsset = !url.search && (
+    /^\/v1\/map\/vector\/\d+\/\d+\/\d+\.pbf$/.test(url.pathname) ||
+    /^\/v1\/map\/fonts\/Noto%20Sans%20Regular\/\d+-\d+\.pbf$/.test(url.pathname)
+  );
+  if (isStyle || isAsset) {
+    return { url: new URL(url.pathname + url.search, window.location.origin).href };
   }
   throw new Error("Unsupported map asset");
 }
@@ -216,7 +222,7 @@ export function createTransitMap(
   if (!camera) throw new Error("Map camera is missing");
   const map = new MapLibreMap({
     container,
-    style: styleUrl ? "/v1/map/style.json" : localStyle,
+    style: styleUrl ? mapAssetRequest(styleUrl).url : localStyle,
     center: [camera.longitude, camera.latitude],
     zoom: camera.zoom,
     maxZoom: 20,
@@ -234,6 +240,7 @@ export function createTransitMap(
   let zoomTotal = initial.zoomStep?.totalDelta ?? 0;
   // Taps during our own ease build on its target; interrupting it reports an interim zoom.
   let pendingZoom: { zoom: number; at: number } | undefined;
+  let activeStyleUrl = styleUrl ?? null;
   let remoteStyleLoading = Boolean(styleUrl);
   let usingFallbackStyle = false;
   let styleReady = false;
@@ -546,27 +553,30 @@ export function createTransitMap(
     map.getCanvas().style.cursor = stopAt(event) || vehicleAt(event) ? "pointer" : "";
   });
   map.on("error", (event) => {
-    // Any error listener replaces MapLibre's default logging, so tile failures must be logged here.
-    if (!remoteStyleLoading) {
+    const sourceId = "sourceId" in event ? event.sourceId : undefined;
+    const vectorAsset = (typeof sourceId === "string" && sourceId.startsWith("gt-vector-")) ||
+      (event.error instanceof Error && event.error.message.includes("/v1/map/fonts/"));
+    if (activeStyleUrl && (remoteStyleLoading || vectorAsset)) {
+      usingFallbackStyle = true;
+      loadStyle(null);
+    } else {
       console.error(event.error);
-      return;
     }
-    remoteStyleLoading = false;
-    usingFallbackStyle = true;
-    styleReady = false;
-    actions.setMapPointReady(false);
-    planner.styleLost();
-    map.setStyle(localStyle, { diff: false });
   });
 
-  function retry() {
-    if (!usingFallbackStyle || !styleUrl) return;
-    usingFallbackStyle = false;
-    remoteStyleLoading = true;
+  function loadStyle(url: string | null) {
+    activeStyleUrl = url;
+    remoteStyleLoading = Boolean(url);
     styleReady = false;
     actions.setMapPointReady(false);
     planner.styleLost();
-    map.setStyle("/v1/map/style.json", { diff: false });
+    map.setStyle(url ? mapAssetRequest(url).url : localStyle, { diff: false });
+  }
+
+  function retry() {
+    if (!usingFallbackStyle || !latestState.styleUrl) return;
+    usingFallbackStyle = false;
+    loadStyle(latestState.styleUrl);
   }
   map.on("webglcontextlost", () => {
     styleReady = false;
@@ -604,7 +614,12 @@ export function createTransitMap(
   });
 
   function update(state: MapState) {
+    const styleChanged = state.styleUrl !== latestState.styleUrl;
     latestState = state;
+    if (styleChanged) {
+      usingFallbackStyle = false;
+      loadStyle(state.styleUrl ?? null);
+    }
     renderRouteLines();
     renderUserLocation();
     if (state.camera && state.camera.revision !== cameraRevision) {

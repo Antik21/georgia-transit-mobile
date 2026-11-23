@@ -38,6 +38,7 @@ private final class LocalMapLibreView: UIView, MLNMapViewDelegate {
     private var lastPointRequestId: Int64?
     private var layersInstalled = false
     private var requestedBffStyleURL: URL?
+    private var usesRemoteStyle = false
     private var mapCoverage: MapBounds?
     private var coverageViewportSize: CGSize = .zero
     private var lastAppliedCameraRevision: Int64?
@@ -178,12 +179,14 @@ private final class LocalMapLibreView: UIView, MLNMapViewDelegate {
         requestedBffStyleURL = styleURL
         // The common layer derives this exact URL from BffEndpointConfiguration. It is never a
         // tile-provider URL; MapLibre resolves tiles solely from the BFF-generated style.
+        usesRemoteStyle = true
         mapView.styleURL = styleURL
     }
 
     private func isBffStyleURL(_ url: URL) -> Bool {
-        guard url.user == nil, url.password == nil, url.query == nil, url.fragment == nil,
-              url.path == "/v1/map/style.json" else { return false }
+        guard url.user == nil, url.password == nil, url.fragment == nil,
+              url.path == "/v1/map/style.json",
+              url.query.map({ ["lang=ka", "lang=ru", "lang=en"].contains($0) }) ?? true else { return false }
         if url.scheme == "https" { return url.host != nil }
 #if SANDBOX
         return url.scheme == "http" && url.host.map(isPrivateSandboxHost) == true
@@ -221,8 +224,6 @@ private final class LocalMapLibreView: UIView, MLNMapViewDelegate {
     func mapView(_ mapView: MLNMapView, didFinishLoading style: MLNStyle) {
         guard !released else { return }
         layersInstalled = false
-        lastAppliedCameraRevision = nil
-        lastAppliedCamera = nil
         clearRenderedLayerState()
         installSourcesAndLayersIfNeeded(style: style)
         pendingRenderState.map { render($0, style: style) }
@@ -230,10 +231,25 @@ private final class LocalMapLibreView: UIView, MLNMapViewDelegate {
     }
 
     func mapView(_ mapView: MLNMapView, didFailLoadingMapWithError error: Error) {
-        guard !released, requestedBffStyleURL != nil,
+        useFallbackStyle()
+    }
+
+    func mapView(
+        _ mapView: MLNMapView, tileDidTriggerAction operation: MLNTileOperation, x: Int, y: Int,
+        z: Int, wrap: Int, overscaledZ: Int, sourceID: String
+    ) {
+        guard operation == .error, sourceID.hasPrefix("gt-vector-") else { return }
+        DispatchQueue.main.async { [weak self] in self?.useFallbackStyle() }
+    }
+
+    func mapView(_ mapView: MLNMapView, glyphsDidError fontStack: [String], range: NSRange) {
+        DispatchQueue.main.async { [weak self] in self?.useFallbackStyle() }
+    }
+
+    private func useFallbackStyle() {
+        guard !released, usesRemoteStyle,
               let localStyle = Bundle.main.url(forResource: "MapLibrePrototypeStyle", withExtension: "json") else { return }
-        // Retain the failed URL to avoid a render-frame retry loop. A newly created map may retry;
-        // this view keeps all transit source/layer rendering on the bundled fallback meanwhile.
+        usesRemoteStyle = false
         mapView.styleURL = localStyle
     }
 

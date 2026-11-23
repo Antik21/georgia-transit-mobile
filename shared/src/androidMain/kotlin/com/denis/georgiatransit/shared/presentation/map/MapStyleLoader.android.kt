@@ -4,6 +4,7 @@ import org.maplibre.android.MapLibre
 import org.maplibre.android.maps.MapLibreMap
 import org.maplibre.android.maps.MapView
 import org.maplibre.android.maps.Style
+import org.maplibre.android.tile.TileOperation
 
 /**
  * Owns the base style: the asset-free local fallback, the optional same-BFF remote style, and the
@@ -21,42 +22,56 @@ internal class MapStyleLoader(
         private set
     private var styleRequestGeneration = 0L
     private var acceptedStyleGeneration = 0L
-    private var loadingRemoteStyle = false
+    private var activeBffStyleUrl: String? = null
     private var destroyed = false
     private val styleLoadedListener = MapView.OnDidFinishLoadingStyleListener {
         val loadedStyle = map?.style ?: return@OnDidFinishLoadingStyleListener
         val uri = loadedStyle.uri.takeIf(String::isNotBlank)
-        if (loadingRemoteStyle && uri != requestedBffStyleUrl) return@OnDidFinishLoadingStyleListener
-        if (!loadingRemoteStyle && uri != null) return@OnDidFinishLoadingStyleListener
+        if (uri != activeBffStyleUrl) return@OnDidFinishLoadingStyleListener
         acceptStyle(loadedStyle)
     }
     private val styleFailureListener = MapView.OnDidFailLoadingMapListener {
-        if (destroyed || !loadingRemoteStyle) return@OnDidFailLoadingMapListener
-        // Keep the last requested URL to avoid an update-frame retry loop; a recreated map can
-        // attempt it again. Transit overlays are reinstalled on the local style below.
-        MapLibre.setConnected(false)
-        map?.let { loadStyle(it, Style.Builder().fromJson(LOCAL_STYLE_JSON), remote = false) }
+        scheduleFallback()
     }
+    private val tileListener = MapView.OnTileActionListener { operation, _, _, _, _, _, source ->
+        if (operation == TileOperation.Error && source.startsWith("gt-vector-")) scheduleFallback()
+    }
+    private val glyphErrorListener = MapView.OnGlyphsErrorListener { _, _, _ -> scheduleFallback() }
 
     init {
         mapView.addOnDidFinishLoadingStyleListener(styleLoadedListener)
         mapView.addOnDidFailLoadingMapListener(styleFailureListener)
+        mapView.addOnTileActionListener(tileListener)
+        mapView.addOnGlyphsErrorListener(glyphErrorListener)
     }
 
     fun attach(mapLibreMap: MapLibreMap) {
         map = mapLibreMap
-        loadStyle(mapLibreMap, Style.Builder().fromJson(LOCAL_STYLE_JSON), remote = false)
+        loadStyle(mapLibreMap, Style.Builder().fromJson(LOCAL_STYLE_JSON))
     }
 
     fun request(bffStyleUrl: String?) {
         if (requestedBffStyleUrl == bffStyleUrl || destroyed) return
-        val mapLibreMap = map ?: return
+        if (map == null) return
         requestedBffStyleUrl = bffStyleUrl
-        // The URL is derived by BffEndpointConfiguration after strict validation. No upstream
-        // provider URL is ever accepted by this native adapter.
-        MapLibre.setConnected(bffStyleUrl != null)
-        val builder = bffStyleUrl?.let { Style.Builder().fromUri(it) } ?: Style.Builder().fromJson(LOCAL_STYLE_JSON)
-        loadStyle(mapLibreMap, builder, remote = bffStyleUrl != null)
+        loadStyleUrl(bffStyleUrl)
+    }
+
+    private fun scheduleFallback() {
+        if (activeBffStyleUrl == null || destroyed) return
+        val generation = styleRequestGeneration
+        // Errors from an older request must not replace a newer language style.
+        mapView.post {
+            if (!destroyed && generation == styleRequestGeneration) loadStyleUrl(null)
+        }
+    }
+
+    private fun loadStyleUrl(url: String?) {
+        val mapLibreMap = map ?: return
+        activeBffStyleUrl = url
+        MapLibre.setConnected(url != null)
+        val builder = url?.let { Style.Builder().fromUri(it) } ?: Style.Builder().fromJson(LOCAL_STYLE_JSON)
+        loadStyle(mapLibreMap, builder)
     }
 
     fun destroy() {
@@ -64,16 +79,17 @@ internal class MapStyleLoader(
         destroyed = true
         mapView.removeOnDidFinishLoadingStyleListener(styleLoadedListener)
         mapView.removeOnDidFailLoadingMapListener(styleFailureListener)
+        mapView.removeOnTileActionListener(tileListener)
+        mapView.removeOnGlyphsErrorListener(glyphErrorListener)
         map = null
+        activeBffStyleUrl = null
         style = null
         styleRequestGeneration++
         acceptedStyleGeneration = styleRequestGeneration
-        loadingRemoteStyle = false
     }
 
-    private fun loadStyle(mapLibreMap: MapLibreMap, builder: Style.Builder, remote: Boolean) {
+    private fun loadStyle(mapLibreMap: MapLibreMap, builder: Style.Builder) {
         val generation = ++styleRequestGeneration
-        loadingRemoteStyle = remote
         style = null
         onStyleReset()
         mapLibreMap.setStyle(builder) styleLoaded@{ loadedStyle ->
@@ -85,7 +101,6 @@ internal class MapStyleLoader(
     private fun acceptStyle(loadedStyle: Style) {
         if (destroyed || acceptedStyleGeneration == styleRequestGeneration) return
         acceptedStyleGeneration = styleRequestGeneration
-        loadingRemoteStyle = false
         style = loadedStyle
         onStyleAccepted(loadedStyle)
     }

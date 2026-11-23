@@ -20,7 +20,7 @@ export const stopPinGlyphColor = [52, 65, 85];
 export const fixtureVehiclesPath = `/v1/cities/${fixtureCityId}/vehicles`;
 export const fixtureAttribution = 'Fixture tiles';
 // Toggled by the smoke to exercise the local-style fallback and its recovery.
-export const fixtureControl = { failStyle: false, staleVehicles: false, telegram: true, vehicleAdvanced: false, planStatus: 200, styleHold: null, runtimeHold: null, vehicleHold: null, lastPlan: null };
+export const fixtureControl = { failStyle: false, failVectorTile: false, staleVehicles: false, telegram: true, vehicleAdvanced: false, planStatus: 200, styleHold: null, runtimeHold: null, vehicleHold: null, lastPlan: null };
 export const plannerRouteColors = { orange: [228, 87, 46], yellow: [242, 193, 78] };
 // The buses the planner should highlight: the two soonest of a route at the first boarding stop.
 export const plannerArrivalMinutes = { orange: [3, 11], yellow: [5] };
@@ -149,22 +149,24 @@ const stop = {
   mode: 'bus',
 };
 
-// A 32 × 32 solid green PNG. Its color lets the smoke assert raster pixels reached the canvas.
-const tile = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAAL0lEQVR4nO3OIQEAAAgDMILQlkr0gxg3E/Or3rmkEhAQEBAQEBAQEBAQEBAQSAceAoxIiGVzOuYAAAAASUVORK5CYII=', 'base64');
+// A single tile-sized polygon in an MVT layer named preview. Its fill proves the tile reached the canvas.
+const tile = Buffer.from('GiJ4AgoHcHJldmlldxISGAMiDgkAABqAQAAAgED/PwAPKIAg', 'base64');
 
-// The production BFF advertises tiles on its public hostname; the client must rebase them to its own origin.
 function mapStyle() {
   return {
     version: 8,
     sources: {
-      fixture: {
-        type: 'raster',
-        tiles: ['https://bff.example.invalid/v1/map/tiles/{z}/{x}/{y}.png'],
-        tileSize: 256,
+      'gt-vector-fixture': {
+        type: 'vector',
+        tiles: ['https://bff.example.invalid/v1/map/vector/{z}/{x}/{y}.pbf'],
+        maxzoom: 19,
         attribution: fixtureAttribution,
       },
     },
-    layers: [{ id: 'fixture-raster', type: 'raster', source: 'fixture', paint: { 'raster-fade-duration': 0 } }],
+    layers: [{
+      id: 'fixture-fill', type: 'fill', source: 'gt-vector-fixture', 'source-layer': 'preview',
+      paint: { 'fill-color': 'rgb(' + fixtureTileColor.join(',') + ')', 'fill-antialias': false },
+    }],
   };
 }
 
@@ -386,7 +388,8 @@ export function browserFixture(dist, bffRequests, origin) {
       case '/v1/cities': return json([demoCity, batumiCity, ...hiddenCreditCities]);
       case '/v1/map/style.json':
         await fixtureControl.styleHold;
-        return fixtureControl.failStyle ? json({ error: 'Style unavailable' }, 503) : json(mapStyle());
+        if (fixtureControl.failStyle) return json({ error: 'Style unavailable' }, 503);
+        return json(mapStyle());
       case `/v1/cities/${fixtureCityId}/routes`: return json([route, otherRoute]);
       case `/v1/cities/${fixtureCityId}/routes/${fixtureRouteId}`: return json(route);
       case `/v1/cities/${fixtureCityId}/routes/${otherRouteId}`: return json(otherRoute);
@@ -403,7 +406,11 @@ export function browserFixture(dist, bffRequests, origin) {
       case `/v1/cities/${otherCityId}/stops/nearby`: return json([]);
     }
     if (hiddenCreditCityIds.some((id) => path === `/v1/cities/${id}/stops/nearby`)) return json([]);
-    if (/^\/v1\/map\/tiles\/\d+\/\d+\/\d+\.png$/.test(path)) return respond(200, tile, 'image/png');
+    if (/^\/v1\/map\/vector\/\d+\/\d+\/\d+\.pbf$/.test(path)) {
+      return fixtureControl.failVectorTile
+        ? json({ error: 'Vector tile unavailable' }, 502)
+        : respond(200, tile, 'application/vnd.mapbox-vector-tile');
+    }
     if (path.startsWith('/v1/')) return json({ error: 'Fixture path is not implemented' }, 404);
     if (path === '/favicon.ico') return respond(204);
 

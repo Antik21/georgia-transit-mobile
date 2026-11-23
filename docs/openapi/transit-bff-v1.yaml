@@ -136,34 +136,50 @@ paths:
   /v1/map/style.json:
     get:
       operationId: getMapStyle
-      summary: Return the configured BFF-owned raster style.
+      summary: Return a BFF-owned basemap style.
       description: |
-        Available while the BFF map proxy is activated. The style contains only
-        an absolute configured BFF tile endpoint and the configured required attribution; it
-        never reveals an upstream tile template, request host header, or credentials.
-        Kutaisi raster coverage is included while the city's effective stops capability is enabled.
+        Returns the OpenFreeMap vector basemap in the Natural-inspired style.
+        Georgian is used when lang is omitted. All tile and glyph URLs point to the
+        BFF. Tiles are restricted to active city coverage.
+      parameters:
+        - {name: lang, in: query, schema: {type: string, enum: [ka, ru, en], default: ka}}
       responses:
         '200':
           description: MapLibre style JSON.
           headers: {Cache-Control: {schema: {type: string}}}
           content: {application/json: {schema: {type: object}}}
+        '400': {$ref: '#/components/responses/InvalidArgument'}
         '404': {description: Basemap proxy disabled.}
-  /v1/map/tiles/{z}/{x}/{y}.png:
+  /v1/map/vector/{z}/{x}/{y}.pbf:
     get:
-      operationId: getMapTile
-      summary: Return one BFF-proxied raster tile.
-      description: Tiles are limited to the Batumi area and, while its stops capability is enabled, the Kutaisi area.
+      operationId: getMapVectorTile
+      summary: Return one OpenFreeMap vector tile within configured city coverage.
       parameters:
-        - {name: z, in: path, required: true, schema: {type: integer, minimum: 8, maximum: 19}}
+        - {name: z, in: path, required: true, schema: {type: integer, minimum: 8, maximum: 14}}
         - {name: x, in: path, required: true, schema: {type: integer, minimum: 0}}
         - {name: y, in: path, required: true, schema: {type: integer, minimum: 0}}
       responses:
         '200':
-          description: PNG tile from the configured upstream under bounded BFF controls and cache policy.
+          description: Vector tile shared by all supported map languages.
           headers: {Cache-Control: {schema: {type: string}}}
-          content: {image/png: {schema: {type: string, format: binary}}}
+          content: {application/vnd.mapbox-vector-tile: {schema: {type: string, format: binary}}}
         '400': {$ref: '#/components/responses/InvalidArgument'}
-        '404': {description: Basemap proxy disabled.}
+        '404': {description: OpenFreeMap integration disabled.}
+        '502': {$ref: '#/components/responses/UpstreamBadResponse'}
+  /v1/map/fonts/{font}/{range}.pbf:
+    get:
+      operationId: getMapGlyphs
+      summary: Return glyphs for a 256-character range used by the vector style.
+      parameters:
+        - {name: font, in: path, required: true, schema: {type: string, enum: [Noto Sans Regular]}}
+        - {name: range, in: path, required: true, schema: {type: string, example: 1024-1279}}
+      responses:
+        '200':
+          description: MapLibre glyph range in PBF format.
+          headers: {Cache-Control: {schema: {type: string}}}
+          content: {application/x-protobuf: {schema: {type: string, format: binary}}}
+        '400': {$ref: '#/components/responses/InvalidArgument'}
+        '404': {description: OpenFreeMap integration disabled.}
         '502': {$ref: '#/components/responses/UpstreamBadResponse'}
   /v1/cities/{cityId}/routes:
     get:

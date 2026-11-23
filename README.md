@@ -13,20 +13,13 @@ Kotlin Multiplatform shell for a Georgia public-transit app. Shared Compose UI c
 
 ## Maps
 
-The screen uses a same-BFF MapLibre style by default. The BFF endpoints
-`/v1/map/style.json` and `/v1/map/tiles/{z}/{x}/{y}.png` proxy the public OpenStreetMap raster
-tiles configured by the operator; the generated style contains only BFF tile URLs and the required
-OpenStreetMap attribution, never the upstream URL. Both Sandbox and Prod therefore show a basemap
-without an API key. The bundled, source-free local style remains an emergency fallback when map
-assets are disabled or unavailable. Stops, vehicles, and route polylines continue to come only from
-the shared, SDK-free typed render state, and synthetic transit data is never presented as real data.
-
-Public OSM tiles are a best-effort dependency with no SLA. The proxy identifies Georgia Transit,
-serves a seven-day cache policy, does not prefetch or offer offline downloads, and retains visible
-OSM attribution. Operator-owned Georgia vector tiles remain the long-term escape hatch if public
-capacity or policy becomes a product problem. See [ADR 0002](docs/adr/0002-maplibre-native-and-map-assets.md)
-for the renderer and owned-asset direction and
-[ADR 0015](docs/adr/0015-public-osm-raster-basemap.md) for the accepted temporary production source.
+The map loads the Natural-inspired OpenFreeMap vector basemap through the Transit BFF.
+The style at `/v1/map/style.json` selects Georgian, Russian, or English labels. If the
+selected name is missing, MapLibre uses the Georgian name and then the local name.
+The BFF serves vector tiles and glyphs through its own origin with visible attribution.
+The bundled background can render stops, vehicles, and route polylines when map assets
+are disabled or unavailable. See [ADR 0032](docs/adr/0032-localized-vector-basemap.md)
+for the source, hosting terms, and cache policy.
 
 Android version declarations remain in `gradle/libs.versions.toml`. iOS uses a
 direct Xcode Swift Package Manager dependency instead of CocoaPods; its exact
@@ -140,8 +133,6 @@ Run the Transit BFF with the local ordered-stop CSV used for the Zugdidi preview
 BFF_PORT=18776 \
 BFF_ZUGDIDI_PREVIEW_CSV=/absolute/path/zugdidi-yandex-stops.csv \
 BFF_MAP_ENABLED=true \
-BFF_MAP_TILE_TEMPLATE='https://tile.openstreetmap.org/{z}/{x}/{y}.png' \
-BFF_MAP_ATTRIBUTION='<a href="https://www.openstreetmap.org/copyright">© OpenStreetMap contributors</a>' \
 BFF_MAP_PUBLIC_BASE_URL=http://10.0.2.2:18776 \
 ./gradlew :transitBff:run
 ```

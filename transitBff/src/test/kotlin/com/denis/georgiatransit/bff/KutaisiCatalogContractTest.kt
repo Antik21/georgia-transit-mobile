@@ -24,13 +24,13 @@ import kotlin.test.assertTrue
 
 class KutaisiCatalogContractTest {
     @Test
-    fun `registration alone does not expose Kutaisi stops or raster coverage`() = testApplication {
+    fun `registration alone does not expose Kutaisi stops or vector coverage`() = testApplication {
         application { transitBffModule(BffConfig.fromEnvironment(mapSettings + ("BFF_KUTAISI_OSM_ENABLED" to "true"))) }
 
         assertEquals(emptyList(), Json.decodeFromString<List<City>>(client.get("/v1/cities").bodyAsText()))
         assertEquals(HttpStatusCode.NotFound, client.get(nearbyPath()).status)
-        assertEquals(setOf("bff-raster"), styleSources(client.get("/v1/map/style.json").bodyAsText()))
-        assertEquals(HttpStatusCode.BadRequest, client.get("/v1/map/tiles/15/20271/12130.png").status)
+        assertEquals(setOf("gt-vector-batumi"), styleSources(client.get("/v1/map/style.json").bodyAsText()))
+        assertEquals(HttpStatusCode.BadRequest, client.get("/v1/map/vector/14/10135/6065.pbf").status)
     }
 
     @Test
@@ -57,7 +57,7 @@ class KutaisiCatalogContractTest {
             assertFalse(kutaisi.capabilities.tripPlanning)
             assertEquals("https://www.openstreetmap.org/copyright", kutaisi.attribution.single().url)
             assertEquals(
-                setOf("bff-raster", "kutaisi-raster"),
+                setOf("gt-vector-batumi", "gt-vector-kutaisi"),
                 styleSources(client.get("/v1/map/style.json").bodyAsText()),
             )
 
@@ -129,8 +129,6 @@ class KutaisiCatalogContractTest {
 
     private val mapSettings = mapOf(
         "BFF_MAP_ENABLED" to "true",
-        "BFF_MAP_TILE_TEMPLATE" to "https://tiles.example/{z}/{x}/{y}.png",
-        "BFF_MAP_ATTRIBUTION" to "© OpenStreetMap",
         "BFF_MAP_PUBLIC_BASE_URL" to "http://127.0.0.1:8080",
     )
 }

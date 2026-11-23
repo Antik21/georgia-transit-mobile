@@ -39,8 +39,6 @@ start_container() {
             --env BFF_HOST=0.0.0.0 \
             --env BFF_FIXTURES_ENABLED=false \
             --env BFF_MAP_ENABLED=true \
-            --env 'BFF_MAP_TILE_TEMPLATE=https://tile.openstreetmap.org/{z}/{x}/{y}.png' \
-            --env 'BFF_MAP_ATTRIBUTION=<a href="https://www.openstreetmap.org/copyright">© OpenStreetMap contributors</a>' \
             --env BFF_MAP_PUBLIC_BASE_URL=https://smoke.invalid \
             --env BFF_METRICS_ENABLED=false \
             --env BFF_PROBES_ENABLED=false \
@@ -66,10 +64,10 @@ wait_until_ready() {
             printf '%s' "$response" | grep --quiet '"source":"REVIEWED_ADAPTER"'
             [ "$(printf '%s' "$response" | grep -o '"id":' | wc -l | tr -d ' ')" -eq 1 ]
             style="$(curl --fail --silent --show-error "http://${address}/v1/map/style.json")"
-            printf '%s' "$style" | grep --quiet 'https://smoke.invalid/v1/map/tiles/{z}/{x}/{y}.png'
+            printf '%s' "$style" | grep --quiet 'https://smoke.invalid/v1/map/vector/{z}/{x}/{y}.pbf'
             printf '%s' "$style" | grep --quiet 'OpenStreetMap contributors'
-            # The raster source is registered only after the bundled catalog loads.
-            printf '%s' "$style" | grep --quiet '"zugdidi-raster"'
+            # The vector source is registered only after the bundled catalog loads.
+            printf '%s' "$style" | grep --quiet '"gt-vector-zugdidi"'
             return
         fi
         attempt=$((attempt + 1))

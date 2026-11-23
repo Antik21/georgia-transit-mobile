@@ -3,7 +3,12 @@
 The production BFF is defined by the repository-root [`render.yaml`](../../render.yaml). It creates
 one paid Docker web service in Frankfurt with a 1 GB persistent disk. The initial deployment
 serves Batumi. Fixtures, Tbilisi adapters, probes, and public metrics remain disabled. The map
-proxy uses the public OpenStreetMap raster endpoint with visible attribution and requires no key.
+proxy uses OpenFreeMap for the localized Natural-inspired vector basemap. The
+[basemap decision](../adr/0032-localized-vector-basemap.md) documents the integration and provider terms.
+For a rollout from the legacy basemap, publish the rebuilt web client with the BFF. The updated
+BFF serves vector tiles and glyphs, and older web bundles only understand the removed PNG tile path.
+Mobile clients requesting the style without a language receive Georgian labels. Set
+`BFF_MAP_ENABLED=false` to disable the basemap.
 
 ## Before the first deployment
 
@@ -81,7 +86,7 @@ The persistent capability document controls city visibility across deploys. On a
 Zugdidi by adding a `zugdidi` entry to that document under a new revision while retaining the
 existing city entries. Use `PRODUCTION_READY` and `REVIEWED_ADAPTER`. Set `routes`, `stops`,
 and `routeGeometry` to `true` and the remaining capabilities to `false`. The service supplies
-regional raster coverage alongside Batumi and draws direct segments between the ordered
+regional vector coverage alongside Batumi and draws direct segments between the ordered
 coordinates. To roll back a catalog update, redeploy the previous image. Before reverting to an
 image without the Zugdidi adapter, disable Zugdidi in a new control revision.
 

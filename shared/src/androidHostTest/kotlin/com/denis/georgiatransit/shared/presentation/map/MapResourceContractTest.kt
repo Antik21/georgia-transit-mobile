@@ -812,7 +812,7 @@ class MapResourceContractTest {
         )
         assertCodePath(
             androidStyleLoader.functionBody("fun attach("),
-            "loadStyle(mapLibreMap, Style.Builder().fromJson(LOCAL_STYLE_JSON), remote = false)",
+            "loadStyle(mapLibreMap, Style.Builder().fromJson(LOCAL_STYLE_JSON))",
         )
         assertCodePath(
             swift,
