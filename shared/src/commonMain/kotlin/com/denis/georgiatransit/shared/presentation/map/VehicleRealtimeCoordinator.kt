@@ -156,7 +156,8 @@ internal object VehicleRealtimeReducer {
         val sameRoute = allPrevious.filter { it.routeId == requestedRouteId }
         val claimedPreviousIds = mutableSetOf<VehicleId>()
         val accepted = mutableListOf<VehicleTrack>()
-        var rejectedExactUpdate = false
+        val repeatedSnapshot = page.observedAt == previousObservedAt
+        var hasStaleExactTrack = false
 
         // Exact opaque VehicleId equality is always preferred; no provider namespace is inspected.
         incoming.forEach { vehicle ->
@@ -168,15 +169,12 @@ internal object VehicleRealtimeReducer {
                     deadline = deadline,
                     freshness = freshness,
                     monotonicNowMillis = monotonicNowMillis,
+                    repeatedSnapshot = repeatedSnapshot,
                 )
-                if (updated == null) {
-                    // A newer route page is not proof that this particular row advanced. Keep the
-                    // last known geometry rather than allowing a duplicate/regressing ID to jump.
-                    accepted += previous.holdStale()
-                    rejectedExactUpdate = true
-                } else {
-                    accepted += updated
-                }
+                // Keep the last known geometry when the incoming observation cannot be accepted.
+                val track = updated ?: previous.holdStale()
+                accepted += track
+                hasStaleExactTrack = hasStaleExactTrack || track.isStale
             }
         }
 
@@ -223,7 +221,7 @@ internal object VehicleRealtimeReducer {
                 routePhases = state.routePhases.put(
                     requestedRouteId,
                     when {
-                        rejectedExactUpdate || page.stale || freshness == TransitFreshness.StaleOffline -> VehicleRoutePhase.Stale
+                        hasStaleExactTrack || page.stale || freshness == TransitFreshness.StaleOffline -> VehicleRoutePhase.Stale
                         else -> VehicleRoutePhase.Live
                     },
                 ),
@@ -331,11 +329,17 @@ internal object VehicleRealtimeReducer {
         deadline: Instant,
         freshness: TransitFreshness,
         monotonicNowMillis: Long,
+        repeatedSnapshot: Boolean,
     ): VehicleTrack? {
         val observation = vehicle.observedAt ?: page.observedAt
-        val observationEpochMillis = observation.toEpochMilliseconds()
         val isStale = page.stale || freshness == TransitFreshness.StaleOffline
         val routeChanged = routeId != vehicle.routeId || directionId != vehicle.directionId
+        // A BFF cache hit keeps the current frame and its original expiry.
+        if (repeatedSnapshot && !isStale && !routeChanged && observation == observedAt &&
+            vehicle.position == to && vehicle.bearing == bearingDegrees && vehicle.positionKind == positionKind
+        ) return this
+
+        val observationEpochMillis = observation.toEpochMilliseconds()
         val gapMillis = observationEpochMillis - this.observationEpochMillis
         val distanceMeters = distanceMeters(from = to, to = vehicle.position)
         val validMovement = !isStale && !routeChanged &&

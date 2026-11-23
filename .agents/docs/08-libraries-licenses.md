@@ -4,11 +4,24 @@
 
 Before adding/upgrading, confirm no existing API fits; check KMP targets/minimum OS, compatibility, maintenance, transitive graph, license/notices, and production cost; then compile both targets. Parallel libraries for the same concern require an ADR.
 
-MapLibre Native is the approved renderer. ADR 0015 temporarily approves public OpenStreetMap raster
-tiles for normal interactive Sandbox and Prod use through the BFF, with visible attribution, an
-identifiable User-Agent, seven-day caching, no prefetch/offline downloads, and an accepted lack of
-SLA. Any replacement provider still requires a separate review of cost, quota, attribution, privacy,
-and production rights.
+MapLibre Native is the approved renderer. [ADR 0032](../../docs/adr/0032-localized-vector-basemap.md)
+approves OpenFreeMap vector tiles through the BFF for interactive use with localized labels, visible
+attribution, an identifiable User-Agent, bounded caching, and best-effort availability. Any
+replacement provider requires a review of cost, quota, attribution, privacy, and production rights.
+
+## Native crash reporting
+
+Firebase Crashlytics (Apache 2.0) is approved for the Android and iOS application
+targets. Keep Android versions in the Gradle catalog and the iOS version pinned
+in Xcode's Swift package settings. See [ADR 0029](../../docs/adr/0029-native-crash-reporting.md)
+for the supported toolchain, data sent to Firebase, and production pricing.
+
+## Kotlin/JS time zones
+
+The shared JavaScript target uses `@js-joda/timezone` (BSD-3-Clause) to load IANA
+rules into the `@js-joda/core` runtime that Kotlinx Datetime already uses.
+The timezone package version is pinned in the Gradle catalog and must remain
+compatible with the core version selected by Kotlinx Datetime.
 
 ## Web client (`webApp`)
 

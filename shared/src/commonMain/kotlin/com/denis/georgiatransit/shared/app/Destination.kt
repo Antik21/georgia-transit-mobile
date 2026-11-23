@@ -1,5 +1,6 @@
 package com.denis.georgiatransit.shared.app
 
+import com.denis.georgiatransit.shared.domain.model.CityId
 import kotlinx.serialization.Serializable
 
 expect interface PlatformNavigationKey
@@ -14,4 +15,10 @@ sealed interface Destination : PlatformNavigationKey {
 
     @Serializable
     data object Routes : Destination
+
+    @Serializable
+    data object LanguageSelection : Destination
+
+    @Serializable
+    data class Schedules(val cityId: CityId) : Destination
 }

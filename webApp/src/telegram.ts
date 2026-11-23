@@ -22,6 +22,7 @@ export interface TelegramLocationManager {
 }
 
 interface TelegramWebApp {
+  readonly platform?: string;
   readonly colorScheme?: "light" | "dark";
   readonly BackButton?: TelegramBackButton;
   readonly LocationManager?: TelegramLocationManager;
@@ -58,6 +59,7 @@ export function connectTelegram(onBack: () => void) {
   if (webApp?.isVersionAtLeast?.("7.7")) webApp.disableVerticalSwipes?.();
 
   return {
+    isMiniApp: Boolean(webApp?.platform && webApp.platform !== "unknown"),
     // Bot API 8.0 location access lives in Telegram's own permission, not the WebView's geolocation.
     locationManager: webApp?.isVersionAtLeast?.("8.0") ? webApp.LocationManager : undefined,
     setBackVisible(visible: boolean) {

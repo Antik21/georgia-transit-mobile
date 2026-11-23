@@ -1,0 +1,20 @@
+{
+  "revision": "kutaisi-azry-initial",
+  "cities": [
+    {
+      "id": "kutaisi",
+      "enabled": true,
+      "availability": {"readiness": "PRODUCTION_READY", "source": "REVIEWED_ADAPTER"},
+      "capabilities": {
+        "routes": true,
+        "stops": true,
+        "routeGeometry": true,
+        "vehiclePositions": true,
+        "officialArrivals": true,
+        "tripPlanning": false,
+        "arrivals": true,
+        "schedules": true
+      }
+    }
+  ]
+}

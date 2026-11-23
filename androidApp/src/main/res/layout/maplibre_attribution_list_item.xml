@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- MapLibre Android 13.6.0 inflates this row in its attribution dialog. -->
+<TextView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@android:id/text1"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:gravity="center_vertical"
+    android:minHeight="?android:attr/listPreferredItemHeightSmall"
+    android:paddingStart="24dp"
+    android:paddingEnd="24dp"
+    android:textAllCaps="true"
+    android:textIsSelectable="false"
+    android:textAppearance="?android:attr/textAppearanceButton"
+    android:textColor="@color/map_attribution_link" />

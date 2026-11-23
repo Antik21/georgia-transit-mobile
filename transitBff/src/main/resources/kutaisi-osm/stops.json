@@ -1,0 +1,2179 @@
+{
+  "attribution": "© OpenStreetMap contributors",
+  "license": "https://opendatacommons.org/licenses/odbl/1-0/",
+  "sourceTimestamp": "2026-11-17T21:24:30Z",
+  "sourcePbfSha256": "62469b0a3d328dbc02d3534153d8fd830b7eaffeef1289050adb76d9bfbb3a4c",
+  "boundaryRelation": 2024547,
+  "stops": [
+    {
+      "nodeId": 1178385100,
+      "latitude": 42.2682042,
+      "longitude": 42.7160687,
+      "ref": null,
+      "name": "Circular Bus",
+      "nameKa": null,
+      "nameEn": null,
+      "nameRu": null
+    },
+    {
+      "nodeId": 1313958173,
+      "latitude": 42.234341,
+      "longitude": 42.7122112,
+      "ref": null,
+      "name": "აკაკი წერეთლის სახელმწიფო უნივერსიტეტი (ტექნიკური ფაკულტეტი)",
+      "nameKa": null,
+      "nameEn": null,
+      "nameRu": null
+    },
+    {
+      "nodeId": 2069821664,
+      "latitude": 42.2668927,
+      "longitude": 42.6932158,
+      "ref": "35",
+      "name": "ასლანიკაშვილის მოედანი",
+      "nameKa": "ასლანიკაშვილის მოედანი",
+      "nameEn": "Aslanikashvili Square",
+      "nameRu": null
+    },
+    {
+      "nodeId": 2069821666,
+      "latitude": 42.2705998,
+      "longitude": 42.700077,
+      "ref": null,
+      "name": null,
+      "nameKa": null,
+      "nameEn": "Tourist Information",
+      "nameRu": null
+    },
+    {
+      "nodeId": 2069821667,
+      "latitude": 42.2700327,
+      "longitude": 42.6747354,
+      "ref": "122",
+      "name": "ყინულის მოედანი",
+      "nameKa": "ყინულის მოედანი",
+      "nameEn": "Ice Palace",
+      "nameRu": "Ледовый каток"
+    },
+    {
+      "nodeId": 2069821668,
+      "latitude": 42.2666951,
+      "longitude": 42.6830868,
+      "ref": "38",
+      "name": "გამარჯვების მოედანი",
+      "nameKa": "გამარჯვების მოედანი",
+      "nameEn": "Victory Square",
+      "nameRu": null
+    },
+    {
+      "nodeId": 2069821669,
+      "latitude": 42.2701527,
+      "longitude": 42.7047245,
+      "ref": "40",
+      "name": "ქარვასლა",
+      "nameKa": "ქარვასლა",
+      "nameEn": "Karvasla",
+      "nameRu": null
+    },
+    {
+      "nodeId": 2069821670,
+      "latitude": 42.27116,
+      "longitude": 42.6996209,
+      "ref": null,
+      "name": null,
+      "nameKa": null,
+      "nameEn": null,
+      "nameRu": null
+    },
+    {
+      "nodeId": 2069821671,
+      "latitude": 42.2695201,
+      "longitude": 42.6764594,
+      "ref": null,
+      "name": "ჭონქაძე",
+      "nameKa": "ჭონქაძე",
+      "nameEn": "Chonkadze",
+      "nameRu": null
+    },
+    {
+      "nodeId": 2069821672,
+      "latitude": 42.2676668,
+      "longitude": 42.6955534,
+      "ref": null,
+      "name": "გრიშაშვილი-დუმბაძე",
+      "nameKa": "გრიშაშვილი-დუმბაძე",
+      "nameEn": "Grishashvili-Dumbadze",
+      "nameRu": null
+    },
+    {
+      "nodeId": 2069821673,
+      "latitude": 42.2672948,
+      "longitude": 42.6932055,
+      "ref": "34",
+      "name": "ასლანიკაშვილის მოედანი",
+      "nameKa": "ასლანიკაშვილის მოედანი",
+      "nameEn": "Aslanikashvili Square",
+      "nameRu": null
+    },
+    {
+      "nodeId": 2069821674,
+      "latitude": 42.267323,
+      "longitude": 42.6837104,
+      "ref": "118",
+      "name": "შემოსავლების სამსახური",
+      "nameKa": "შემოსავლების სამსახური",
+      "nameEn": "Revenue Service",
+      "nameRu": null
+    },
+    {
+      "nodeId": 2069821675,
+      "latitude": 42.2713461,
+      "longitude": 42.7049632,
+      "ref": "263",
+      "name": "აღმაშენებლის მოედანი",
+      "nameKa": "აღმაშენებლის მოედანი",
+      "nameEn": "Aghmashenebeli Square",
+      "nameRu": null
+    },
+    {
+      "nodeId": 2069821676,
+      "latitude": 42.2714002,
+      "longitude": 42.705951,
+      "ref": null,
+      "name": null,
+      "nameKa": null,
+      "nameEn": null,
+      "nameRu": null
+    },
+    {
+      "nodeId": 2069821679,
+      "latitude": 42.2699374,
+      "longitude": 42.6745906,
+      "ref": "121",
+      "name": "ყინულის მოედანი",
+      "nameKa": "ყინულის მოედანი",
+      "nameEn": "Ice Palace",
+      "nameRu": "Ледовый каток"
+    },
+    {
+      "nodeId": 2069821681,
+      "latitude": 42.2694241,
+      "longitude": 42.6761831,
+      "ref": null,
+      "name": "ჭონქაძე",
+      "nameKa": "ჭონქაძე",
+      "nameEn": "Chonkadze",
+      "nameRu": null
+    },
+    {
+      "nodeId": 2069821682,
+      "latitude": 42.2683456,
+      "longitude": 42.6803627,
+      "ref": "120",
+      "name": "ცხინვალი",
+      "nameKa": "ცხინვალი",
+      "nameEn": "Tskhinvali",
+      "nameRu": null
+    },
+    {
+      "nodeId": 2069821683,
+      "latitude": 42.2681509,
+      "longitude": 42.6804474,
+      "ref": "123",
+      "name": "ცხინვალი",
+      "nameKa": "ცხინვალი",
+      "nameEn": "Tskhinvali",
+      "nameRu": null
+    },
+    {
+      "nodeId": 2069821684,
+      "latitude": 42.2668292,
+      "longitude": 42.6853193,
+      "ref": "31",
+      "name": "გამარჯვების მოედანი",
+      "nameKa": "გამარჯვების მოედანი",
+      "nameEn": "Victory Square",
+      "nameRu": null
+    },
+    {
+      "nodeId": 3621372955,
+      "latitude": 42.2515656,
+      "longitude": 42.6830123,
+      "ref": "7",
+      "name": "ახალგაზრდობის პარკი",
+      "nameKa": "ახალგაზრდობის პარკი",
+      "nameEn": "Youth Park",
+      "nameRu": null
+    },
+    {
+      "nodeId": 3621372956,
+      "latitude": 42.2518706,
+      "longitude": 42.6829895,
+      "ref": null,
+      "name": null,
+      "nameKa": null,
+      "nameEn": null,
+      "nameRu": null
+    },
+    {
+      "nodeId": 3764171196,
+      "latitude": 42.2624973,
+      "longitude": 42.7112425,
+      "ref": "258",
+      "name": null,
+      "nameKa": null,
+      "nameEn": null,
+      "nameRu": null
+    },
+    {
+      "nodeId": 4269561095,
+      "latitude": 42.2607257,
+      "longitude": 42.6430767,
+      "ref": "103",
+      "name": "ლეჟავა",
+      "nameKa": "ლეჟავა",
+      "nameEn": "Lezhava",
+      "nameRu": null
+    },
+    {
+      "nodeId": 4269725591,
+      "latitude": 42.2566078,
+      "longitude": 42.6717076,
+      "ref": null,
+      "name": null,
+      "nameKa": null,
+      "nameEn": null,
+      "nameRu": null
+    },
+    {
+      "nodeId": 4269975701,
+      "latitude": 42.2541081,
+      "longitude": 42.6608528,
+      "ref": null,
+      "name": null,
+      "nameKa": null,
+      "nameEn": null,
+      "nameRu": null
+    },
+    {
+      "nodeId": 4325641723,
+      "latitude": 42.2563093,
+      "longitude": 42.6723978,
+      "ref": null,
+      "name": null,
+      "nameKa": null,
+      "nameEn": null,
+      "nameRu": null
+    },
+    {
+      "nodeId": 4325642512,
+      "latitude": 42.2553885,
+      "longitude": 42.6507114,
+      "ref": null,
+      "name": null,
+      "nameKa": null,
+      "nameEn": null,
+      "nameRu": null
+    },
+    {
+      "nodeId": 4326490189,
+      "latitude": 42.2494893,
+      "longitude": 42.7179231,
+      "ref": null,
+      "name": null,
+      "nameKa": null,
+      "nameEn": null,
+      "nameRu": null
+    },
+    {
+      "nodeId": 4447980090,
+      "latitude": 42.2638181,
+      "longitude": 42.6988033,
+      "ref": null,
+      "name": "ჩეჩელაშვილი",
+      "nameKa": "ჩეჩელაშვილი",
+      "nameEn": "Chechelashvili",
+      "nameRu": null
+    },
+    {
+      "nodeId": 4505989390,
+      "latitude": 42.2584741,
+      "longitude": 42.6524594,
+      "ref": null,
+      "name": null,
+      "nameKa": null,
+      "nameEn": null,
+      "nameRu": null
+    },
+    {
+      "nodeId": 4506054189,
+      "latitude": 42.2549022,
+      "longitude": 42.6626305,
+      "ref": null,
+      "name": null,
+      "nameKa": null,
+      "nameEn": null,
+      "nameRu": null
+    },
+    {
+      "nodeId": 4919086221,
+      "latitude": 42.2748832,
+      "longitude": 42.7035019,
+      "ref": null,
+      "name": null,
+      "nameKa": null,
+      "nameEn": null,
+      "nameRu": "Остановка на Амбролаури"
+    },
+    {
+      "nodeId": 5063546922,
+      "latitude": 42.2713232,
+      "longitude": 42.6986792,
+      "ref": null,
+      "name": null,
+      "nameKa": null,
+      "nameEn": "Bus to Bagrati",
+      "nameRu": "Маршрутная Волга на Баграти"
+    },
+    {
+      "nodeId": 5063547522,
+      "latitude": 42.2715892,
+      "longitude": 42.700838,
+      "ref": null,
+      "name": "ფალიაშვილი",
+      "nameKa": "ფალიაშვილი",
+      "nameEn": "Paliashvli",
+      "nameRu": null
+    },
+    {
+      "nodeId": 5213152622,
+      "latitude": 42.2680523,
+      "longitude": 42.6742294,
+      "ref": null,
+      "name": "ოღასკურა",
+      "nameKa": "ოღასკურა",
+      "nameEn": "Oghaskura",
+      "nameRu": null
+    },
+    {
+      "nodeId": 5519716724,
+      "latitude": 42.2586387,
+      "longitude": 42.6687667,
+      "ref": null,
+      "name": "ჭავჭავაძის მოედანი",
+      "nameKa": "ჭავჭავაძის მოედანი",
+      "nameEn": "Chavchavadze Square",
+      "nameRu": null
+    },
+    {
+      "nodeId": 5519716725,
+      "latitude": 42.2587359,
+      "longitude": 42.6684421,
+      "ref": null,
+      "name": "ჭავჭავაძის მოედანი",
+      "nameKa": "ჭავჭავაძის მოედანი",
+      "nameEn": "Chavchavadze Square",
+      "nameRu": null
+    },
+    {
+      "nodeId": 5520092994,
+      "latitude": 42.2640648,
+      "longitude": 42.705909,
+      "ref": null,
+      "name": null,
+      "nameKa": null,
+      "nameEn": null,
+      "nameRu": null
+    },
+    {
+      "nodeId": 5520092996,
+      "latitude": 42.2615478,
+      "longitude": 42.7031826,
+      "ref": null,
+      "name": "აღმაშენებლის ხიდი",
+      "nameKa": "აღმაშენებლის ხიდი",
+      "nameEn": "Aghmashenebeli Bridge",
+      "nameRu": null
+    },
+    {
+      "nodeId": 5520092997,
+      "latitude": 42.2615498,
+      "longitude": 42.7009737,
+      "ref": null,
+      "name": null,
+      "nameKa": null,
+      "nameEn": null,
+      "nameRu": null
+    },
+    {
+      "nodeId": 5520092998,
+      "latitude": 42.2613143,
+      "longitude": 42.6987136,
+      "ref": null,
+      "name": "ასათიანი-ტაბიძე",
+      "nameKa": "ასათიანი-ტაბიძე",
+      "nameEn": "Asatiani-Tabidze",
+      "nameRu": null
+    },
+    {
+      "nodeId": 5520092999,
+      "latitude": 42.2572557,
+      "longitude": 42.6972544,
+      "ref": null,
+      "name": null,
+      "nameKa": null,
+      "nameEn": null,
+      "nameRu": null
+    },
+    {
+      "nodeId": 5520093000,
+      "latitude": 42.2544947,
+      "longitude": 42.6962371,
+      "ref": null,
+      "name": null,
+      "nameKa": null,
+      "nameEn": null,
+      "nameRu": null
+    },
+    {
+      "nodeId": 5520093001,
+      "latitude": 42.2491211,
+      "longitude": 42.6942578,
+      "ref": null,
+      "name": null,
+      "nameKa": null,
+      "nameEn": null,
+      "nameRu": null
+    },
+    {
+      "nodeId": 5520093002,
+      "latitude": 42.2500948,
+      "longitude": 42.6870961,
+      "ref": null,
+      "name": null,
+      "nameKa": null,
+      "nameEn": null,
+      "nameRu": null
+    },
+    {
+      "nodeId": 5520104516,
+      "latitude": 42.2543538,
+      "longitude": 42.6773689,
+      "ref": null,
+      "name": "ფიროსმანი",
+      "nameKa": "ფიროსმანი",
+      "nameEn": "Pirosmani",
+      "nameRu": null
+    },
+    {
+      "nodeId": 5520104517,
+      "latitude": 42.2548747,
+      "longitude": 42.6762166,
+      "ref": null,
+      "name": null,
+      "nameKa": null,
+      "nameEn": null,
+      "nameRu": null
+    },
+    {
+      "nodeId": 5520104518,
+      "latitude": 42.2566853,
+      "longitude": 42.6721041,
+      "ref": null,
+      "name": "ქუთაისი 2",
+      "nameKa": "ქუთაისი 2",
+      "nameEn": "Kutaisi 2",
+      "nameRu": null
+    },
+    {
+      "nodeId": 5520104519,
+      "latitude": 42.2606407,
+      "longitude": 42.6720746,
+      "ref": null,
+      "name": "შარტავა",
+      "nameKa": "შარტავა",
+      "nameEn": "Shartava",
+      "nameRu": null
+    },
+    {
+      "nodeId": 5520104520,
+      "latitude": 42.2624986,
+      "longitude": 42.6750814,
+      "ref": null,
+      "name": "ლურჯი სუფრა",
+      "nameKa": "ლურჯი სუფრა",
+      "nameEn": "Blue Tabla",
+      "nameRu": null
+    },
+    {
+      "nodeId": 5520106257,
+      "latitude": 42.2644196,
+      "longitude": 42.6783322,
+      "ref": null,
+      "name": null,
+      "nameKa": null,
+      "nameEn": null,
+      "nameRu": null
+    },
+    {
+      "nodeId": 5520356157,
+      "latitude": 42.2486232,
+      "longitude": 42.6946474,
+      "ref": null,
+      "name": null,
+      "nameKa": null,
+      "nameEn": null,
+      "nameRu": null
+    },
+    {
+      "nodeId": 5609937721,
+      "latitude": 42.2645283,
+      "longitude": 42.6774277,
+      "ref": null,
+      "name": null,
+      "nameKa": null,
+      "nameEn": null,
+      "nameRu": null
+    },
+    {
+      "nodeId": 6133122318,
+      "latitude": 42.2468005,
+      "longitude": 42.7090731,
+      "ref": null,
+      "name": null,
+      "nameKa": null,
+      "nameEn": null,
+      "nameRu": null
+    },
+    {
+      "nodeId": 6133122319,
+      "latitude": 42.247021,
+      "longitude": 42.7087573,
+      "ref": null,
+      "name": null,
+      "nameKa": null,
+      "nameEn": null,
+      "nameRu": null
+    },
+    {
+      "nodeId": 6322523587,
+      "latitude": 42.2645013,
+      "longitude": 42.7088814,
+      "ref": "257",
+      "name": "უნივერსიტეტი",
+      "nameKa": "უნივერსიტეტი (თამარ მეფის ქუჩა №59)",
+      "nameEn": "University",
+      "nameRu": "Университет им. Акакия Церетели"
+    },
+    {
+      "nodeId": 6322523588,
+      "latitude": 42.2614042,
+      "longitude": 42.7118724,
+      "ref": null,
+      "name": "რკინიგზის სადგური",
+      "nameKa": null,
+      "nameEn": "Train Station",
+      "nameRu": "ЖД Вокзал"
+    },
+    {
+      "nodeId": 6404032297,
+      "latitude": 42.2616839,
+      "longitude": 42.7076454,
+      "ref": "44",
+      "name": "ბალახვანი",
+      "nameKa": "ბალახვანი",
+      "nameEn": "Balakhvani",
+      "nameRu": null
+    },
+    {
+      "nodeId": 6404035632,
+      "latitude": 42.2617621,
+      "longitude": 42.6925028,
+      "ref": "267",
+      "name": null,
+      "nameKa": null,
+      "nameEn": null,
+      "nameRu": null
+    },
+    {
+      "nodeId": 6618685153,
+      "latitude": 42.2590536,
+      "longitude": 42.7090258,
+      "ref": "265",
+      "name": "მე-12 სკოლა",
+      "nameKa": "მე-12 სკოლა",
+      "nameEn": "School #12",
+      "nameRu": null
+    },
+    {
+      "nodeId": 6706762988,
+      "latitude": 42.2681901,
+      "longitude": 42.7063847,
+      "ref": null,
+      "name": "ქორქიას ქუჩა",
+      "nameKa": "ქორქიას ქუჩა",
+      "nameEn": "Korkia Street",
+      "nameRu": null
+    },
+    {
+      "nodeId": 6717787986,
+      "latitude": 42.2623788,
+      "longitude": 42.6608722,
+      "ref": "113",
+      "name": "პარლამენტი",
+      "nameKa": "პარლამენტი",
+      "nameEn": "Parliament",
+      "nameRu": null
+    },
+    {
+      "nodeId": 6768678294,
+      "latitude": 42.2696817,
+      "longitude": 42.6741859,
+      "ref": "129",
+      "name": "ყინულის მოედანი",
+      "nameKa": "ყინულის მოედანი",
+      "nameEn": "Ice Palace",
+      "nameRu": "Ледовый каток"
+    },
+    {
+      "nodeId": 6851049463,
+      "latitude": 42.1981676,
+      "longitude": 42.7120421,
+      "ref": null,
+      "name": null,
+      "nameKa": null,
+      "nameEn": null,
+      "nameRu": null
+    },
+    {
+      "nodeId": 6902072852,
+      "latitude": 42.2737548,
+      "longitude": 42.7241393,
+      "ref": null,
+      "name": null,
+      "nameKa": null,
+      "nameEn": null,
+      "nameRu": null
+    },
+    {
+      "nodeId": 6902073828,
+      "latitude": 42.2681473,
+      "longitude": 42.7164818,
+      "ref": null,
+      "name": null,
+      "nameKa": null,
+      "nameEn": null,
+      "nameRu": null
+    },
+    {
+      "nodeId": 6902091648,
+      "latitude": 42.2703001,
+      "longitude": 42.7230718,
+      "ref": null,
+      "name": null,
+      "nameKa": null,
+      "nameEn": null,
+      "nameRu": null
+    },
+    {
+      "nodeId": 6902096266,
+      "latitude": 42.2706414,
+      "longitude": 42.7104786,
+      "ref": null,
+      "name": null,
+      "nameKa": null,
+      "nameEn": null,
+      "nameRu": null
+    },
+    {
+      "nodeId": 6902096409,
+      "latitude": 42.2730417,
+      "longitude": 42.7051704,
+      "ref": null,
+      "name": "Bus (#39) for Motsameta hike",
+      "nameKa": null,
+      "nameEn": null,
+      "nameRu": null
+    },
+    {
+      "nodeId": 6902104736,
+      "latitude": 42.2662685,
+      "longitude": 42.7183073,
+      "ref": "49",
+      "name": null,
+      "nameKa": null,
+      "nameEn": null,
+      "nameRu": null
+    },
+    {
+      "nodeId": 6902109075,
+      "latitude": 42.2757969,
+      "longitude": 42.7328454,
+      "ref": null,
+      "name": "Final stop bus #39",
+      "nameKa": null,
+      "nameEn": null,
+      "nameRu": null
+    },
+    {
+      "nodeId": 6902109332,
+      "latitude": 42.2740934,
+      "longitude": 42.7278811,
+      "ref": null,
+      "name": null,
+      "nameKa": null,
+      "nameEn": null,
+      "nameRu": null
+    },
+    {
+      "nodeId": 6965902385,
+      "latitude": 42.2632024,
+      "longitude": 42.6663483,
+      "ref": "112",
+      "name": "იუსტიციის სახლი",
+      "nameKa": null,
+      "nameEn": "Public Service Hall",
+      "nameRu": null
+    },
+    {
+      "nodeId": 6965902485,
+      "latitude": 42.2630122,
+      "longitude": 42.6666853,
+      "ref": "111",
+      "name": "იუსტიციის სახლი",
+      "nameKa": "იუსტიციის სახლი",
+      "nameEn": "Public Service Hall",
+      "nameRu": null
+    },
+    {
+      "nodeId": 6968369886,
+      "latitude": 42.2642367,
+      "longitude": 42.677597,
+      "ref": "447",
+      "name": null,
+      "nameKa": null,
+      "nameEn": null,
+      "nameRu": null
+    },
+    {
+      "nodeId": 6982656376,
+      "latitude": 42.2730597,
+      "longitude": 42.7027696,
+      "ref": null,
+      "name": null,
+      "nameKa": null,
+      "nameEn": null,
+      "nameRu": null
+    },
+    {
+      "nodeId": 6982713393,
+      "latitude": 42.3186195,
+      "longitude": 42.7082649,
+      "ref": null,
+      "name": null,
+      "nameKa": null,
+      "nameEn": null,
+      "nameRu": null
+    },
+    {
+      "nodeId": 6982713394,
+      "latitude": 42.3106161,
+      "longitude": 42.7087798,
+      "ref": null,
+      "name": null,
+      "nameKa": null,
+      "nameEn": null,
+      "nameRu": null
+    },
+    {
+      "nodeId": 6982713395,
+      "latitude": 42.2954126,
+      "longitude": 42.7152104,
+      "ref": null,
+      "name": null,
+      "nameKa": null,
+      "nameEn": null,
+      "nameRu": null
+    },
+    {
+      "nodeId": 6982713396,
+      "latitude": 42.2837372,
+      "longitude": 42.7198111,
+      "ref": null,
+      "name": null,
+      "nameKa": null,
+      "nameEn": null,
+      "nameRu": null
+    },
+    {
+      "nodeId": 6982713397,
+      "latitude": 42.2798845,
+      "longitude": 42.7089407,
+      "ref": null,
+      "name": null,
+      "nameKa": null,
+      "nameEn": null,
+      "nameRu": null
+    },
+    {
+      "nodeId": 10989864109,
+      "latitude": 42.2615152,
+      "longitude": 42.6904007,
+      "ref": "386",
+      "name": "მე-21 სკოლა",
+      "nameKa": "მე-21 სკოლა",
+      "nameEn": "21st School",
+      "nameRu": null
+    },
+    {
+      "nodeId": 10992459705,
+      "latitude": 42.2647697,
+      "longitude": 42.677601,
+      "ref": null,
+      "name": null,
+      "nameKa": null,
+      "nameEn": null,
+      "nameRu": null
+    },
+    {
+      "nodeId": 10997378805,
+      "latitude": 42.2638212,
+      "longitude": 42.6732594,
+      "ref": "114",
+      "name": "მინერალების სააგენტო",
+      "nameKa": "მინერალების სააგენტო",
+      "nameEn": "Minerals Institute",
+      "nameRu": null
+    },
+    {
+      "nodeId": 11016485273,
+      "latitude": 42.2664184,
+      "longitude": 42.689093,
+      "ref": "33",
+      "name": "თორთლაძე",
+      "nameKa": "თორთლაძე",
+      "nameEn": "Tortladze",
+      "nameRu": null
+    },
+    {
+      "nodeId": 11016485276,
+      "latitude": 42.2667066,
+      "longitude": 42.688071,
+      "ref": "36",
+      "name": "ფარნავაზ მეფე",
+      "nameKa": "ფარნავაზ მეფე",
+      "nameEn": "Parnavaz Mepe",
+      "nameRu": null
+    },
+    {
+      "nodeId": 11016653736,
+      "latitude": 42.2616847,
+      "longitude": 42.69896,
+      "ref": null,
+      "name": "ასათიანი-ტაბიძე",
+      "nameKa": "ასათიანი-ტაბიძე",
+      "nameEn": "Asatiani-Tabidze",
+      "nameRu": null
+    },
+    {
+      "nodeId": 11017535834,
+      "latitude": 42.2495882,
+      "longitude": 42.687915,
+      "ref": null,
+      "name": null,
+      "nameKa": null,
+      "nameEn": null,
+      "nameRu": null
+    },
+    {
+      "nodeId": 11017537940,
+      "latitude": 42.2529357,
+      "longitude": 42.6956617,
+      "ref": null,
+      "name": null,
+      "nameKa": null,
+      "nameEn": null,
+      "nameRu": null
+    },
+    {
+      "nodeId": 11017581246,
+      "latitude": 42.249362,
+      "longitude": 42.6945537,
+      "ref": null,
+      "name": null,
+      "nameKa": null,
+      "nameEn": null,
+      "nameRu": null
+    },
+    {
+      "nodeId": 11017582699,
+      "latitude": 42.2529415,
+      "longitude": 42.695845,
+      "ref": null,
+      "name": null,
+      "nameKa": null,
+      "nameEn": null,
+      "nameRu": null
+    },
+    {
+      "nodeId": 11017593018,
+      "latitude": 42.2546697,
+      "longitude": 42.6965447,
+      "ref": null,
+      "name": null,
+      "nameKa": null,
+      "nameEn": null,
+      "nameRu": null
+    },
+    {
+      "nodeId": 11019888354,
+      "latitude": 42.2496978,
+      "longitude": 42.6868821,
+      "ref": null,
+      "name": null,
+      "nameKa": null,
+      "nameEn": null,
+      "nameRu": null
+    },
+    {
+      "nodeId": 11022716454,
+      "latitude": 42.2604441,
+      "longitude": 42.671281,
+      "ref": null,
+      "name": "შარტავა",
+      "nameKa": "შარტავა",
+      "nameEn": "Shartava",
+      "nameRu": null
+    },
+    {
+      "nodeId": 11026006769,
+      "latitude": 42.2626417,
+      "longitude": 42.6749563,
+      "ref": null,
+      "name": "ლურჯი სუფრა",
+      "nameKa": "ლურჯი სუფრა",
+      "nameEn": "Blue Tabla",
+      "nameRu": null
+    },
+    {
+      "nodeId": 11033111002,
+      "latitude": 42.2673427,
+      "longitude": 42.6831385,
+      "ref": "125",
+      "name": "შემოსავლების სამსახური",
+      "nameKa": "შემოსავლების სამსახური",
+      "nameEn": "Revenue Servuce",
+      "nameRu": null
+    },
+    {
+      "nodeId": 11033111005,
+      "latitude": 42.2649892,
+      "longitude": 42.6740453,
+      "ref": "128",
+      "name": "ბუხაიძე",
+      "nameKa": "ბუხაიძე",
+      "nameEn": "Bukhaidze",
+      "nameRu": null
+    },
+    {
+      "nodeId": 11033111006,
+      "latitude": 42.2653184,
+      "longitude": 42.6742588,
+      "ref": "127",
+      "name": "ბუხაიძე",
+      "nameKa": "ბუხაიძე",
+      "nameEn": "Bukhaidze",
+      "nameRu": null
+    },
+    {
+      "nodeId": 11034166934,
+      "latitude": 42.2665935,
+      "longitude": 42.7044078,
+      "ref": "42",
+      "name": "მუსიკალური სკოლა",
+      "nameKa": "მუსიკალური სკოლა",
+      "nameEn": "Music School",
+      "nameRu": "Музыкальная школа"
+    },
+    {
+      "nodeId": 11035619206,
+      "latitude": 42.248817,
+      "longitude": 42.6954682,
+      "ref": null,
+      "name": null,
+      "nameKa": null,
+      "nameEn": null,
+      "nameRu": null
+    },
+    {
+      "nodeId": 11035646748,
+      "latitude": 42.2587675,
+      "longitude": 42.7084908,
+      "ref": null,
+      "name": null,
+      "nameKa": null,
+      "nameEn": null,
+      "nameRu": null
+    },
+    {
+      "nodeId": 11045268330,
+      "latitude": 42.2624471,
+      "longitude": 42.6931359,
+      "ref": null,
+      "name": "დიდების ბაღი",
+      "nameKa": "დიდების ბაღი",
+      "nameEn": "Garden of Glory",
+      "nameRu": null
+    },
+    {
+      "nodeId": 11055101263,
+      "latitude": 42.263433,
+      "longitude": 42.6716566,
+      "ref": "109",
+      "name": "სულიკო",
+      "nameKa": "სულიკო",
+      "nameEn": "Suliko",
+      "nameRu": null
+    },
+    {
+      "nodeId": 11074933595,
+      "latitude": 42.2807917,
+      "longitude": 42.7128441,
+      "ref": null,
+      "name": null,
+      "nameKa": null,
+      "nameEn": null,
+      "nameRu": null
+    },
+    {
+      "nodeId": 11074933596,
+      "latitude": 42.2808942,
+      "longitude": 42.7127836,
+      "ref": null,
+      "name": null,
+      "nameKa": null,
+      "nameEn": null,
+      "nameRu": null
+    },
+    {
+      "nodeId": 11081771842,
+      "latitude": 42.2674498,
+      "longitude": 42.6953411,
+      "ref": null,
+      "name": "გრიშაშვილი-დუმბაძე",
+      "nameKa": "გრიშაშვილი-დუმბაძე",
+      "nameEn": "Grishashvili-Dumbadze",
+      "nameRu": null
+    },
+    {
+      "nodeId": 11162920932,
+      "latitude": 42.2470268,
+      "longitude": 42.6853719,
+      "ref": null,
+      "name": null,
+      "nameKa": null,
+      "nameEn": null,
+      "nameRu": null
+    },
+    {
+      "nodeId": 11162954062,
+      "latitude": 42.2425954,
+      "longitude": 42.6924949,
+      "ref": null,
+      "name": null,
+      "nameKa": null,
+      "nameEn": null,
+      "nameRu": null
+    },
+    {
+      "nodeId": 11162954063,
+      "latitude": 42.2397122,
+      "longitude": 42.6925,
+      "ref": null,
+      "name": null,
+      "nameKa": null,
+      "nameEn": null,
+      "nameRu": null
+    },
+    {
+      "nodeId": 11162954064,
+      "latitude": 42.2394146,
+      "longitude": 42.6921254,
+      "ref": null,
+      "name": null,
+      "nameKa": null,
+      "nameEn": null,
+      "nameRu": null
+    },
+    {
+      "nodeId": 11162977696,
+      "latitude": 42.2365338,
+      "longitude": 42.69177,
+      "ref": null,
+      "name": null,
+      "nameKa": null,
+      "nameEn": null,
+      "nameRu": null
+    },
+    {
+      "nodeId": 11162982359,
+      "latitude": 42.2304866,
+      "longitude": 42.6908468,
+      "ref": null,
+      "name": null,
+      "nameKa": null,
+      "nameEn": null,
+      "nameRu": null
+    },
+    {
+      "nodeId": 11162982360,
+      "latitude": 42.2308071,
+      "longitude": 42.6913949,
+      "ref": null,
+      "name": null,
+      "nameKa": null,
+      "nameEn": null,
+      "nameRu": null
+    },
+    {
+      "nodeId": 11163697110,
+      "latitude": 42.2566784,
+      "longitude": 42.7098957,
+      "ref": null,
+      "name": null,
+      "nameKa": null,
+      "nameEn": null,
+      "nameRu": null
+    },
+    {
+      "nodeId": 11163697487,
+      "latitude": 42.2029317,
+      "longitude": 42.7094423,
+      "ref": null,
+      "name": null,
+      "nameKa": null,
+      "nameEn": null,
+      "nameRu": null
+    },
+    {
+      "nodeId": 11247008407,
+      "latitude": 42.257919,
+      "longitude": 42.6678565,
+      "ref": null,
+      "name": "ჭავჭავაძის მოედანი",
+      "nameKa": "ჭავჭავაძის მოედანი",
+      "nameEn": "Chavchavadze Square",
+      "nameRu": null
+    },
+    {
+      "nodeId": 11247008408,
+      "latitude": 42.2545579,
+      "longitude": 42.6763278,
+      "ref": null,
+      "name": "ფიროსმანი",
+      "nameKa": "ფიროსმანი",
+      "nameEn": "Pirosmani",
+      "nameRu": null
+    },
+    {
+      "nodeId": 11247008409,
+      "latitude": 42.257504,
+      "longitude": 42.6974429,
+      "ref": null,
+      "name": null,
+      "nameKa": null,
+      "nameEn": null,
+      "nameRu": null
+    },
+    {
+      "nodeId": 11247008410,
+      "latitude": 42.2614457,
+      "longitude": 42.6991854,
+      "ref": null,
+      "name": "ასათიანი-ტაბიძე",
+      "nameKa": "ასათიანი-ტაბიძე",
+      "nameEn": "Asatiani-Tabidze",
+      "nameRu": null
+    },
+    {
+      "nodeId": 11247008411,
+      "latitude": 42.2614162,
+      "longitude": 42.7017213,
+      "ref": null,
+      "name": null,
+      "nameKa": null,
+      "nameEn": null,
+      "nameRu": null
+    },
+    {
+      "nodeId": 11247008412,
+      "latitude": 42.2613947,
+      "longitude": 42.7032203,
+      "ref": null,
+      "name": "აღმაშენებლის ხიდი",
+      "nameKa": "აღმაშენებლის ხიდი",
+      "nameEn": "Aghmashenebeli Bridge",
+      "nameRu": null
+    },
+    {
+      "nodeId": 11247008413,
+      "latitude": 42.2613218,
+      "longitude": 42.7076326,
+      "ref": null,
+      "name": "ბალახვანი",
+      "nameKa": "ბალახვანი",
+      "nameEn": "Balakhvani",
+      "nameRu": null
+    },
+    {
+      "nodeId": 11247008414,
+      "latitude": 42.2613013,
+      "longitude": 42.7123604,
+      "ref": "256",
+      "name": "სადგური „ქუთაისი 1“",
+      "nameKa": "სადგური „ქუთაისი 1“",
+      "nameEn": "Railway Station “Kutaisi 1”",
+      "nameRu": null
+    },
+    {
+      "nodeId": 11889833179,
+      "latitude": 42.269241,
+      "longitude": 42.7148545,
+      "ref": null,
+      "name": null,
+      "nameKa": null,
+      "nameEn": null,
+      "nameRu": null
+    },
+    {
+      "nodeId": 11889833180,
+      "latitude": 42.2317685,
+      "longitude": 42.7120194,
+      "ref": null,
+      "name": null,
+      "nameKa": null,
+      "nameEn": null,
+      "nameRu": null
+    },
+    {
+      "nodeId": 11889833181,
+      "latitude": 42.2312611,
+      "longitude": 42.7116264,
+      "ref": null,
+      "name": null,
+      "nameKa": null,
+      "nameEn": null,
+      "nameRu": null
+    },
+    {
+      "nodeId": 11889833182,
+      "latitude": 42.2343046,
+      "longitude": 42.7119564,
+      "ref": null,
+      "name": null,
+      "nameKa": null,
+      "nameEn": null,
+      "nameRu": null
+    },
+    {
+      "nodeId": 11889833183,
+      "latitude": 42.2372556,
+      "longitude": 42.7124968,
+      "ref": null,
+      "name": null,
+      "nameKa": null,
+      "nameEn": null,
+      "nameRu": null
+    },
+    {
+      "nodeId": 11889833184,
+      "latitude": 42.2373012,
+      "longitude": 42.7122983,
+      "ref": null,
+      "name": null,
+      "nameKa": null,
+      "nameEn": null,
+      "nameRu": null
+    },
+    {
+      "nodeId": 11889833185,
+      "latitude": 42.2404249,
+      "longitude": 42.7129072,
+      "ref": null,
+      "name": null,
+      "nameKa": null,
+      "nameEn": null,
+      "nameRu": null
+    },
+    {
+      "nodeId": 11889833186,
+      "latitude": 42.2409292,
+      "longitude": 42.7127033,
+      "ref": null,
+      "name": null,
+      "nameKa": null,
+      "nameEn": null,
+      "nameRu": null
+    },
+    {
+      "nodeId": 11889833187,
+      "latitude": 42.2435851,
+      "longitude": 42.7123453,
+      "ref": null,
+      "name": null,
+      "nameKa": null,
+      "nameEn": null,
+      "nameRu": null
+    },
+    {
+      "nodeId": 11889833188,
+      "latitude": 42.2616204,
+      "longitude": 42.6977896,
+      "ref": null,
+      "name": null,
+      "nameKa": null,
+      "nameEn": null,
+      "nameRu": null
+    },
+    {
+      "nodeId": 11889833190,
+      "latitude": 42.2615494,
+      "longitude": 42.6933029,
+      "ref": null,
+      "name": "დიდების ბაღი",
+      "nameKa": "დიდების ბაღი",
+      "nameEn": "Garden of Glory",
+      "nameRu": null
+    },
+    {
+      "nodeId": 11889833191,
+      "latitude": 42.2615425,
+      "longitude": 42.6884416,
+      "ref": null,
+      "name": null,
+      "nameKa": null,
+      "nameEn": null,
+      "nameRu": null
+    },
+    {
+      "nodeId": 11889833192,
+      "latitude": 42.2616129,
+      "longitude": 42.6827042,
+      "ref": null,
+      "name": "თავისუფლება",
+      "nameKa": "თავისუფლება",
+      "nameEn": "Autonomy",
+      "nameRu": null
+    },
+    {
+      "nodeId": 11889833193,
+      "latitude": 42.2616854,
+      "longitude": 42.6788954,
+      "ref": null,
+      "name": "ნუცუბიძე",
+      "nameKa": "ნუცუბიძე",
+      "nameEn": "Nutsubidze",
+      "nameRu": null
+    },
+    {
+      "nodeId": 11889833194,
+      "latitude": 42.262658,
+      "longitude": 42.6612385,
+      "ref": null,
+      "name": "პარლამენტი",
+      "nameKa": "პარლამენტი",
+      "nameEn": "Parliament",
+      "nameRu": null
+    },
+    {
+      "nodeId": 11889833195,
+      "latitude": 42.2621429,
+      "longitude": 42.6553524,
+      "ref": "108",
+      "name": "აგრარული ფაკულტეტი",
+      "nameKa": "აგრარული ფაკულტეტი",
+      "nameEn": "Faculty of Agriculture",
+      "nameRu": null
+    },
+    {
+      "nodeId": 11889833196,
+      "latitude": 42.2619017,
+      "longitude": 42.6548628,
+      "ref": "115",
+      "name": "აგრარული ფაკულტეტი",
+      "nameKa": "აგრარული ფაკულტეტი",
+      "nameEn": "Faculty of Agriculture",
+      "nameRu": null
+    },
+    {
+      "nodeId": 11889864391,
+      "latitude": 42.2455151,
+      "longitude": 42.7120583,
+      "ref": null,
+      "name": null,
+      "nameKa": null,
+      "nameEn": null,
+      "nameRu": null
+    },
+    {
+      "nodeId": 11891142278,
+      "latitude": 42.2662211,
+      "longitude": 42.7179967,
+      "ref": null,
+      "name": null,
+      "nameKa": null,
+      "nameEn": null,
+      "nameRu": null
+    },
+    {
+      "nodeId": 11895843203,
+      "latitude": 42.2565469,
+      "longitude": 42.6705068,
+      "ref": null,
+      "name": null,
+      "nameKa": null,
+      "nameEn": null,
+      "nameRu": null
+    },
+    {
+      "nodeId": 11896631618,
+      "latitude": 42.2604219,
+      "longitude": 42.6376612,
+      "ref": "98",
+      "name": "თვალჭრელიძე",
+      "nameKa": "თვალჭრელიძე",
+      "nameEn": "Tvalchrelidze",
+      "nameRu": null
+    },
+    {
+      "nodeId": 11896631619,
+      "latitude": 42.2601866,
+      "longitude": 42.6347208,
+      "ref": "100",
+      "name": "ძოძუაშვილი",
+      "nameKa": "ძოძუაშვილი",
+      "nameEn": "Dzodzuashvili",
+      "nameRu": null
+    },
+    {
+      "nodeId": 11896631620,
+      "latitude": 42.2612194,
+      "longitude": 42.6457769,
+      "ref": "92",
+      "name": "#32-ე საჯარო სკოლა",
+      "nameKa": "#32-ე საჯარო სკოლა",
+      "nameEn": "32nd School",
+      "nameRu": null
+    },
+    {
+      "nodeId": 11896631621,
+      "latitude": 42.2609842,
+      "longitude": 42.6458084,
+      "ref": "105",
+      "name": "მე-32 სკოლა",
+      "nameKa": "მე-32 სკოლა",
+      "nameEn": "School #32",
+      "nameRu": null
+    },
+    {
+      "nodeId": 11896631622,
+      "latitude": 42.2609787,
+      "longitude": 42.643324,
+      "ref": "94",
+      "name": "ლეჟავა",
+      "nameKa": "ლეჟავა",
+      "nameEn": "Lezhava",
+      "nameRu": null
+    },
+    {
+      "nodeId": 11896631623,
+      "latitude": 42.2607276,
+      "longitude": 42.6406351,
+      "ref": "94",
+      "name": "ჩხობაძე",
+      "nameKa": "ჩხობაძე",
+      "nameEn": "Chkhobadze",
+      "nameRu": null
+    },
+    {
+      "nodeId": 11896631624,
+      "latitude": 42.2604546,
+      "longitude": 42.6403373,
+      "ref": "101",
+      "name": "ჩხობაძე",
+      "nameKa": "ჩხობაძე",
+      "nameEn": "Chkhobadze",
+      "nameRu": null
+    },
+    {
+      "nodeId": 11896631625,
+      "latitude": 42.2602596,
+      "longitude": 42.6377396,
+      "ref": "99",
+      "name": "თვალჭრელიძე",
+      "nameKa": "თვალჭრელიძე",
+      "nameEn": "Tvalchrelidze",
+      "nameRu": null
+    },
+    {
+      "nodeId": 11896631626,
+      "latitude": 42.2600427,
+      "longitude": 42.6349555,
+      "ref": "97",
+      "name": "ძოძუაშვილი",
+      "nameKa": "ძოძუაშვილი",
+      "nameEn": "Dzodzuashvili",
+      "nameRu": null
+    },
+    {
+      "nodeId": 11896631627,
+      "latitude": 42.2598431,
+      "longitude": 42.6322794,
+      "ref": null,
+      "name": "დადიანი",
+      "nameKa": "დადიანი",
+      "nameEn": "Dadiani",
+      "nameRu": null
+    },
+    {
+      "nodeId": 11896631628,
+      "latitude": 42.2588834,
+      "longitude": 42.6222418,
+      "ref": "95",
+      "name": "ჰუალინგი",
+      "nameKa": "ჰუალინგი",
+      "nameEn": "Hualing",
+      "nameRu": null
+    },
+    {
+      "nodeId": 11896631629,
+      "latitude": 42.2587459,
+      "longitude": 42.6189326,
+      "ref": null,
+      "name": "ხარებავა",
+      "nameKa": "ხარებავა",
+      "nameEn": "Kharebava",
+      "nameRu": null
+    },
+    {
+      "nodeId": 11896631630,
+      "latitude": 42.2584725,
+      "longitude": 42.6160526,
+      "ref": "93",
+      "name": "სამხედრო ლიცეუმი",
+      "nameKa": "სამხედრო ლიცეუმი",
+      "nameEn": "Military Lyceum",
+      "nameRu": null
+    },
+    {
+      "nodeId": 11896631631,
+      "latitude": 42.2582879,
+      "longitude": 42.6115197,
+      "ref": "106",
+      "name": "ციხე",
+      "nameKa": "ციხე",
+      "nameEn": "Prison",
+      "nameRu": null
+    },
+    {
+      "nodeId": 11896631632,
+      "latitude": 42.2580606,
+      "longitude": 42.6116243,
+      "ref": "91",
+      "name": "ციხე",
+      "nameKa": "ციხე",
+      "nameEn": "Prison",
+      "nameRu": null
+    },
+    {
+      "nodeId": 11897628108,
+      "latitude": 42.2320197,
+      "longitude": 42.6710151,
+      "ref": null,
+      "name": null,
+      "nameKa": null,
+      "nameEn": null,
+      "nameRu": null
+    },
+    {
+      "nodeId": 11897628109,
+      "latitude": 42.2320912,
+      "longitude": 42.6714684,
+      "ref": null,
+      "name": null,
+      "nameKa": null,
+      "nameEn": null,
+      "nameRu": null
+    },
+    {
+      "nodeId": 11897628110,
+      "latitude": 42.2344466,
+      "longitude": 42.6730616,
+      "ref": null,
+      "name": null,
+      "nameKa": null,
+      "nameEn": null,
+      "nameRu": null
+    },
+    {
+      "nodeId": 11897628111,
+      "latitude": 42.2345687,
+      "longitude": 42.6727317,
+      "ref": null,
+      "name": null,
+      "nameKa": null,
+      "nameEn": null,
+      "nameRu": null
+    },
+    {
+      "nodeId": 11897628112,
+      "latitude": 42.2496518,
+      "longitude": 42.6870641,
+      "ref": null,
+      "name": null,
+      "nameKa": null,
+      "nameEn": null,
+      "nameRu": null
+    },
+    {
+      "nodeId": 11897628113,
+      "latitude": 42.2469873,
+      "longitude": 42.6855889,
+      "ref": null,
+      "name": null,
+      "nameKa": null,
+      "nameEn": null,
+      "nameRu": null
+    },
+    {
+      "nodeId": 11897628114,
+      "latitude": 42.2442751,
+      "longitude": 42.6794627,
+      "ref": null,
+      "name": null,
+      "nameKa": null,
+      "nameEn": null,
+      "nameRu": null
+    },
+    {
+      "nodeId": 11897628115,
+      "latitude": 42.242758,
+      "longitude": 42.6783952,
+      "ref": null,
+      "name": null,
+      "nameKa": null,
+      "nameEn": null,
+      "nameRu": null
+    },
+    {
+      "nodeId": 11897628116,
+      "latitude": 42.2406512,
+      "longitude": 42.6769844,
+      "ref": null,
+      "name": null,
+      "nameKa": null,
+      "nameEn": null,
+      "nameRu": null
+    },
+    {
+      "nodeId": 11897628117,
+      "latitude": 42.2366757,
+      "longitude": 42.6743317,
+      "ref": null,
+      "name": null,
+      "nameKa": null,
+      "nameEn": null,
+      "nameRu": null
+    },
+    {
+      "nodeId": 11897628118,
+      "latitude": 42.2367174,
+      "longitude": 42.674168,
+      "ref": null,
+      "name": null,
+      "nameKa": null,
+      "nameEn": null,
+      "nameRu": null
+    },
+    {
+      "nodeId": 11897628119,
+      "latitude": 42.2407029,
+      "longitude": 42.6768516,
+      "ref": null,
+      "name": null,
+      "nameKa": null,
+      "nameEn": null,
+      "nameRu": null
+    },
+    {
+      "nodeId": 11897628120,
+      "latitude": 42.2428042,
+      "longitude": 42.678245,
+      "ref": null,
+      "name": null,
+      "nameKa": null,
+      "nameEn": null,
+      "nameRu": null
+    },
+    {
+      "nodeId": 11897628121,
+      "latitude": 42.2443331,
+      "longitude": 42.6792596,
+      "ref": null,
+      "name": null,
+      "nameKa": null,
+      "nameEn": null,
+      "nameRu": null
+    },
+    {
+      "nodeId": 11897628122,
+      "latitude": 42.2583772,
+      "longitude": 42.6912537,
+      "ref": null,
+      "name": null,
+      "nameKa": null,
+      "nameEn": null,
+      "nameRu": null
+    },
+    {
+      "nodeId": 11899263055,
+      "latitude": 42.2716245,
+      "longitude": 42.7015055,
+      "ref": null,
+      "name": "ფალიაშვილი",
+      "nameKa": "ფალიაშვილი",
+      "nameEn": "Paliashvili",
+      "nameRu": null
+    },
+    {
+      "nodeId": 12092979071,
+      "latitude": 42.2564347,
+      "longitude": 42.6709851,
+      "ref": null,
+      "name": null,
+      "nameKa": null,
+      "nameEn": "Central bus station",
+      "nameRu": null
+    },
+    {
+      "nodeId": 12100560182,
+      "latitude": 42.2278096,
+      "longitude": 42.6901326,
+      "ref": null,
+      "name": null,
+      "nameKa": null,
+      "nameEn": null,
+      "nameRu": null
+    },
+    {
+      "nodeId": 12170664723,
+      "latitude": 42.2706631,
+      "longitude": 42.7105214,
+      "ref": null,
+      "name": null,
+      "nameKa": null,
+      "nameEn": null,
+      "nameRu": null
+    },
+    {
+      "nodeId": 12170664724,
+      "latitude": 42.2741731,
+      "longitude": 42.7279115,
+      "ref": null,
+      "name": null,
+      "nameKa": null,
+      "nameEn": null,
+      "nameRu": null
+    },
+    {
+      "nodeId": 12170664725,
+      "latitude": 42.2738079,
+      "longitude": 42.7241671,
+      "ref": null,
+      "name": null,
+      "nameKa": null,
+      "nameEn": null,
+      "nameRu": null
+    },
+    {
+      "nodeId": 12170664726,
+      "latitude": 42.2702096,
+      "longitude": 42.7230915,
+      "ref": null,
+      "name": null,
+      "nameKa": null,
+      "nameEn": null,
+      "nameRu": null
+    },
+    {
+      "nodeId": 12568430361,
+      "latitude": 42.2521687,
+      "longitude": 42.6823177,
+      "ref": "10",
+      "name": "ახალგაზრდობის პარკი",
+      "nameKa": "ახალგაზრდობის პარკი",
+      "nameEn": "Youth Park",
+      "nameRu": null
+    },
+    {
+      "nodeId": 12587669083,
+      "latitude": 42.3148854,
+      "longitude": 42.7067016,
+      "ref": null,
+      "name": null,
+      "nameKa": null,
+      "nameEn": null,
+      "nameRu": null
+    },
+    {
+      "nodeId": 12762388037,
+      "latitude": 42.2693019,
+      "longitude": 42.6676642,
+      "ref": "126",
+      "name": "ონკოლოგიის ცენტრი",
+      "nameKa": "ონკოლოგიის ცენტრი",
+      "nameEn": "Oncology Center",
+      "nameRu": null
+    },
+    {
+      "nodeId": 12765986563,
+      "latitude": 42.2593512,
+      "longitude": 42.622587,
+      "ref": null,
+      "name": "ჰუალინგი",
+      "nameKa": "ჰუალინგი",
+      "nameEn": "Hualing",
+      "nameRu": null
+    },
+    {
+      "nodeId": 12961200099,
+      "latitude": 42.256677,
+      "longitude": 42.6717413,
+      "ref": null,
+      "name": "ქუთაისი 2",
+      "nameKa": "ქუთაისი 2",
+      "nameEn": "Kutaisi 2",
+      "nameRu": null
+    },
+    {
+      "nodeId": 12961200100,
+      "latitude": 42.2516808,
+      "longitude": 42.6821053,
+      "ref": null,
+      "name": "ახალგაზრდობის პარკი",
+      "nameKa": "ახალგაზრდობის პარკი",
+      "nameEn": "Youth Park",
+      "nameRu": null
+    },
+    {
+      "nodeId": 12962359474,
+      "latitude": 42.2616961,
+      "longitude": 42.6756845,
+      "ref": null,
+      "name": "ლურჯი სუფრა",
+      "nameKa": "ლურჯი სუფრა",
+      "nameEn": "Blue Tabla",
+      "nameRu": null
+    },
+    {
+      "nodeId": 12962359475,
+      "latitude": 42.2352434,
+      "longitude": 42.6604154,
+      "ref": null,
+      "name": "ავტობუსების დეპო",
+      "nameKa": "ავტობუსების დეპო",
+      "nameEn": "Bus Depot",
+      "nameRu": null
+    },
+    {
+      "nodeId": 12962359476,
+      "latitude": 42.2353427,
+      "longitude": 42.660162,
+      "ref": null,
+      "name": "ავტობუსების დეპო",
+      "nameKa": "ავტობუსების დეპო",
+      "nameEn": "Bus Depot",
+      "nameRu": null
+    },
+    {
+      "nodeId": 12962359477,
+      "latitude": 42.2377435,
+      "longitude": 42.662383,
+      "ref": null,
+      "name": null,
+      "nameKa": null,
+      "nameEn": null,
+      "nameRu": null
+    },
+    {
+      "nodeId": 12962359478,
+      "latitude": 42.2377474,
+      "longitude": 42.6621118,
+      "ref": null,
+      "name": null,
+      "nameKa": null,
+      "nameEn": null,
+      "nameRu": null
+    },
+    {
+      "nodeId": 12962359479,
+      "latitude": 42.2387644,
+      "longitude": 42.6632226,
+      "ref": null,
+      "name": null,
+      "nameKa": null,
+      "nameEn": null,
+      "nameRu": null
+    },
+    {
+      "nodeId": 12962359480,
+      "latitude": 42.238769,
+      "longitude": 42.6629431,
+      "ref": null,
+      "name": null,
+      "nameKa": null,
+      "nameEn": null,
+      "nameRu": null
+    },
+    {
+      "nodeId": 12962359481,
+      "latitude": 42.2403289,
+      "longitude": 42.6645285,
+      "ref": null,
+      "name": null,
+      "nameKa": null,
+      "nameEn": null,
+      "nameRu": null
+    },
+    {
+      "nodeId": 12962359482,
+      "latitude": 42.2404215,
+      "longitude": 42.6643126,
+      "ref": null,
+      "name": null,
+      "nameKa": null,
+      "nameEn": null,
+      "nameRu": null
+    },
+    {
+      "nodeId": 12962359483,
+      "latitude": 42.2417118,
+      "longitude": 42.6653494,
+      "ref": null,
+      "name": null,
+      "nameKa": null,
+      "nameEn": null,
+      "nameRu": null
+    },
+    {
+      "nodeId": 12962359484,
+      "latitude": 42.2415744,
+      "longitude": 42.6656268,
+      "ref": null,
+      "name": null,
+      "nameKa": null,
+      "nameEn": null,
+      "nameRu": null
+    },
+    {
+      "nodeId": 12962359485,
+      "latitude": 42.2443194,
+      "longitude": 42.6677369,
+      "ref": null,
+      "name": null,
+      "nameKa": null,
+      "nameEn": null,
+      "nameRu": null
+    },
+    {
+      "nodeId": 12962359486,
+      "latitude": 42.2443866,
+      "longitude": 42.6675595,
+      "ref": null,
+      "name": null,
+      "nameKa": null,
+      "nameEn": null,
+      "nameRu": null
+    },
+    {
+      "nodeId": 12962359487,
+      "latitude": 42.2461254,
+      "longitude": 42.66922,
+      "ref": null,
+      "name": null,
+      "nameKa": null,
+      "nameEn": null,
+      "nameRu": null
+    },
+    {
+      "nodeId": 12962359488,
+      "latitude": 42.2460536,
+      "longitude": 42.6688957,
+      "ref": null,
+      "name": null,
+      "nameKa": null,
+      "nameEn": null,
+      "nameRu": null
+    },
+    {
+      "nodeId": 12962359489,
+      "latitude": 42.2494377,
+      "longitude": 42.6720373,
+      "ref": null,
+      "name": null,
+      "nameKa": null,
+      "nameEn": null,
+      "nameRu": null
+    },
+    {
+      "nodeId": 12962359490,
+      "latitude": 42.249579,
+      "longitude": 42.6719309,
+      "ref": null,
+      "name": null,
+      "nameKa": null,
+      "nameEn": null,
+      "nameRu": null
+    },
+    {
+      "nodeId": 12962359491,
+      "latitude": 42.267087,
+      "longitude": 42.6982343,
+      "ref": null,
+      "name": "გალაევი-ნიჟარაძე",
+      "nameKa": "გალაევი-ნიჟარაძე",
+      "nameEn": "Auli Galaevi-Nizharadze",
+      "nameRu": null
+    },
+    {
+      "nodeId": 12962408834,
+      "latitude": 42.2281418,
+      "longitude": 42.6911279,
+      "ref": null,
+      "name": null,
+      "nameKa": null,
+      "nameEn": null,
+      "nameRu": null
+    },
+    {
+      "nodeId": 12962408835,
+      "latitude": 42.2336172,
+      "longitude": 42.6916531,
+      "ref": null,
+      "name": null,
+      "nameKa": null,
+      "nameEn": null,
+      "nameRu": null
+    },
+    {
+      "nodeId": 12962408836,
+      "latitude": 42.2356236,
+      "longitude": 42.691971,
+      "ref": null,
+      "name": null,
+      "nameKa": null,
+      "nameEn": null,
+      "nameRu": null
+    },
+    {
+      "nodeId": 12962408837,
+      "latitude": 42.2378495,
+      "longitude": 42.6922685,
+      "ref": null,
+      "name": "დროშა",
+      "nameKa": "დროშა",
+      "nameEn": "Flag",
+      "nameRu": null
+    },
+    {
+      "nodeId": 12962408838,
+      "latitude": 42.2425248,
+      "longitude": 42.6928341,
+      "ref": null,
+      "name": null,
+      "nameKa": null,
+      "nameEn": null,
+      "nameRu": null
+    },
+    {
+      "nodeId": 12962408839,
+      "latitude": 42.2459771,
+      "longitude": 42.6935704,
+      "ref": null,
+      "name": null,
+      "nameKa": null,
+      "nameEn": null,
+      "nameRu": null
+    },
+    {
+      "nodeId": 13004173302,
+      "latitude": 42.1983609,
+      "longitude": 42.7104301,
+      "ref": null,
+      "name": "Rioni Station",
+      "nameKa": null,
+      "nameEn": null,
+      "nameRu": null
+    },
+    {
+      "nodeId": 13183453205,
+      "latitude": 42.2567322,
+      "longitude": 42.6709693,
+      "ref": null,
+      "name": null,
+      "nameKa": null,
+      "nameEn": null,
+      "nameRu": null
+    },
+    {
+      "nodeId": 13236632860,
+      "latitude": 42.2147729,
+      "longitude": 42.7106325,
+      "ref": null,
+      "name": null,
+      "nameKa": null,
+      "nameEn": null,
+      "nameRu": null
+    },
+    {
+      "nodeId": 13340499696,
+      "latitude": 42.2540926,
+      "longitude": 42.6640159,
+      "ref": null,
+      "name": null,
+      "nameKa": null,
+      "nameEn": null,
+      "nameRu": null
+    },
+    {
+      "nodeId": 13340501321,
+      "latitude": 42.25356,
+      "longitude": 42.664669,
+      "ref": null,
+      "name": null,
+      "nameKa": null,
+      "nameEn": null,
+      "nameRu": null
+    },
+    {
+      "nodeId": 13515529658,
+      "latitude": 42.1978952,
+      "longitude": 42.7201472,
+      "ref": null,
+      "name": null,
+      "nameKa": null,
+      "nameEn": null,
+      "nameRu": null
+    },
+    {
+      "nodeId": 13515529681,
+      "latitude": 42.2534136,
+      "longitude": 42.7096621,
+      "ref": null,
+      "name": null,
+      "nameKa": null,
+      "nameEn": null,
+      "nameRu": null
+    }
+  ]
+}

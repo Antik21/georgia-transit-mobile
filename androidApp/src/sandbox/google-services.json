@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "765760130737",
+    "project_id": "georgia-transit-mobile",
+    "storage_bucket": "georgia-transit-mobile.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:765760130737:android:34ef8bad3a261019511c90",
+        "android_client_info": {
+          "package_name": "com.anti.georgiatransit.sandbox"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDLIQFoL5lcgEQwSkhjzkbuE8l1anCKodE"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

@@ -18,6 +18,9 @@ import kotlinx.coroutines.launch
 
 internal data class SelectedRouteStopKey(val routeId: RouteId, val directionId: DirectionId)
 
+internal fun List<TransitRoute>.directionKeys(): List<SelectedRouteStopKey> =
+    flatMap { route -> route.directions.map { SelectedRouteStopKey(route.id, it.id) } }
+
 internal data class UserLocationStopKey(
     val cityId: CityId,
     val point: GeoPoint,
@@ -122,7 +125,7 @@ internal class MapSupplementalStops(private val repository: TransitRepository) {
         onChanged: () -> Unit,
     ) {
         val generation = selectedGeneration
-        routes.flatMap { route -> route.directions.map { SelectedRouteStopKey(route.id, it.id) } }.forEach { key ->
+        routes.directionKeys().forEach { key ->
             if (key in completedSelectedKeys || key in selectedJobs) return@forEach
             selectedJobs[key] = scope.launch {
                 val result = try {

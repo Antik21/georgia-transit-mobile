@@ -57,7 +57,7 @@ class JourneyPlanResponseValidatorTest {
         arrivalAt = segments.last().arrivalAt,
         transfers = (segments.count { it.mode == JourneySegmentMode.TRANSIT } - 1).coerceAtLeast(0),
         legs = segments.filter { it.mode == JourneySegmentMode.TRANSIT }.map {
-            JourneyLeg(it.routeId!!, it.directionId!!, it.fromStopId!!, it.toStopId!!, it.departureAt, it.arrivalAt)
+            JourneyLeg(it.routeId!!, it.directionId!!, it.fromStopId!!, it.toStopId!!, checkNotNull(it.departureAt), checkNotNull(it.arrivalAt))
         },
         segments = segments,
         durationSeconds = java.time.Duration.between(

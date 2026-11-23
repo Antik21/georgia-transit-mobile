@@ -22,10 +22,14 @@ request to the fixed BatBus `getAllBuses` endpoint every five seconds for the wh
 validated generation atomically replaces the prior snapshot and feeds vehicles plus every stop and
 route arrival board. Failed refreshes retain the prior normalized generation: it becomes stale after
 15 seconds and unavailable after 60 seconds. Runtime capability control gates the poller, so
-disabling both Batumi vehicle positions and arrivals stops live-feed upstream egress. Raw payloads
-are neither logged nor cached. Upstream `Name` becomes a short-lived namespaced internal ID only; it
-is never shown as a bus/fleet number. The old route-specific client remains only as an injected
-test/manual fallback.
+disabling both Batumi vehicle positions and arrivals stops live-feed upstream egress. The worker
+uses ThetaMaps live positions after three minutes of unsuccessful BatBus refreshes. It surveys
+the entire catalog with at most four concurrent route requests and publishes the generation after
+all routes return valid arrays. Empty arrays are valid. The worker probes BatBus first on every
+iteration and returns to it when a valid bulk generation arrives. The same age limits apply to
+both sources. Transition logs use `batumi_live_source_changed`. The feed omits upstream payloads
+from logs and cache. Upstream `Name` becomes a short-lived namespaced vehicle ID.
+[Failover decision and loopback test](../adr/0027-batumi-theta-live-failover.md)
 
 `officialArrivals` remains false. `arrivals=true` means only that the BFF can sometimes supply a
 `CLIENT_ESTIMATE`; empty arrival lists are expected whenever status projection is unavailable.
@@ -53,6 +57,26 @@ passenger direction, destination, or route label. The current catalog exposes on
 direction.
 This intentionally conservative policy is the approved production ETA behavior. It must remain
 labelled approximate and must never be represented as an official arrival.
+
+### Passenger route names
+
+The route list and route details use the bundled
+[`route-names.json`](../../transitBff/src/main/resources/transit/batumi/route-names.json)
+for the 28 lines present in the Batumi catalog on 2026-11-22. The file stores passenger-facing
+labels in all nine app languages, keyed by the public route ID and guarded by the published
+route number. When the provider adds or renumbers a line, its catalog name is used until a
+reviewed entry matches. The labels describe the whole line. Circular lines name a landmark or
+street on their outbound leg to distinguish the two loops.
+
+The endpoints come from the [municipal M3 route annex](https://matsne.gov.ge/ka/document/view/6300573)
+and [M2 route annex](https://matsne.gov.ge/ka/document/view/6766939), checked against the
+[published BFF route stop lists](https://antik21-georgia-transit-bff.onrender.com/v1/cities/batumi/routes?locale=ka).
+Where published routes differ from the annexes, use the current service. The route pages for
+[9](https://wikiroutes.info/en/batumi?routes=49263) and [12](https://wikiroutes.info/en/batumi?routes=49261)
+confirm Ivane Meskhi Street and Makho Bridge. The BFF stop lists confirm the current ends of
+6 (Buknari), 13 (Cable Car), 16 (Batumi Bus Station), 33 (Lazi Street), 35 (Batumi Bus Station),
+and 37 (Sulfur Baths). The [10A route page](https://wikiroutes.info/en/batumi?routes=154430)
+confirms the Sakhalvasho destination listed in the M3 annex.
 
 ### Journey planning (ADR 0022)
 
@@ -87,8 +111,8 @@ credential. The acknowledgement does not approve a configurable BatBus URL or an
 
 Copy `transitBff/batumi-theta-capability-control.example.json` into that private control path with
 the ownership/mode requirements in the capability-control runbook. The operator can separately
-disable `vehiclePositions` or `arrivals` immediately; repeated malformed live responses also latch
-the corresponding schema-drift interlock and fail closed. Keep the production service at one
+disable `vehiclePositions` or `arrivals` immediately. Repeated malformed ThetaMaps live generations
+also latch the corresponding schema-drift interlock. Keep the production service at one
 instance until an aggregate request budget or single-feed-owner design is approved. Verify one
 catalog-backed routes, nearby-stops, shape, vehicle, and arrivals request without adding a live
 upstream request to CI or logging an upstream payload.
@@ -102,11 +126,9 @@ persistent mount with the exact POSIX modes required by the capability-control r
 environment secret or secret file alone does not replace the writable state directory. Keep the
 service at one instance and verify the mount initialization before enabling automatic deploys.
 
-To run the basemap in the same development process, additionally set `BFF_MAP_ENABLED=true`, an
-explicit HTTPS raster template, and required attribution. `BFF_MAP_PUBLIC_BASE_URL` is target-specific and is never inferred from a request Host
-header: for Android emulator use `http://10.0.2.2:8080`; for an Android physical device first run
-`adb reverse tcp:8080 tcp:8080` and use `http://127.0.0.1:8080`; for iOS Simulator use
-`http://127.0.0.1:8080`. Run a BFF instance with the matching value for the target under test.
-The BFF style emits that absolute same-BFF tile URL, while host-side `curl` can still call the
-listener at `127.0.0.1`. Production uses public OSM raster tiles under the best-effort conditions in
-[ADR 0015](../adr/0015-public-osm-raster-basemap.md).
+To enable the OpenFreeMap basemap in the same development process, set `BFF_MAP_ENABLED=true`
+and `BFF_MAP_PUBLIC_BASE_URL` to the origin the client can reach. For an Android emulator use
+`http://10.0.2.2:8080`. A physical Android device can use `http://127.0.0.1:8080` after
+`adb reverse tcp:8080 tcp:8080`. The iOS Simulator uses `http://127.0.0.1:8080`.
+The BFF puts this origin in the tile and glyph URLs, independent of the request's Host header.
+See [ADR 0032](../adr/0032-localized-vector-basemap.md).

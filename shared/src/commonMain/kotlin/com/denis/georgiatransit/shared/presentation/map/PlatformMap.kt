@@ -1,8 +1,10 @@
 package com.denis.georgiatransit.shared.presentation.map
 
 import androidx.compose.runtime.Immutable
+import com.denis.georgiatransit.shared.domain.analytics.ZoomType
 import com.denis.georgiatransit.shared.domain.model.DirectionId
 import com.denis.georgiatransit.shared.domain.model.GeoPoint
+import com.denis.georgiatransit.shared.domain.model.MapBounds
 import com.denis.georgiatransit.shared.domain.model.RouteId
 import com.denis.georgiatransit.shared.domain.model.StopId
 import com.denis.georgiatransit.shared.domain.model.VehicleId
@@ -30,6 +32,7 @@ data class MapCameraCommand(
     /** Semantic map occlusion; native adapters convert it to their own pixel/point padding. */
     val viewportInsets: MapViewportInsets = MapViewportInsets.None,
     val animated: Boolean = false,
+    val routeBounds: MapRouteBounds? = null,
 )
 
 /**
@@ -73,6 +76,7 @@ data class MapPointRequest(val id: Long, val xFraction: Double, val yFraction: D
 
 /** Native map input is reduced to product-level viewport and revision-bound entity interactions. */
 sealed interface MapPlatformEvent {
+    data class ZoomGestureStarted(val type: ZoomType) : MapPlatformEvent
     data class ViewportSettled(val viewport: MapViewport) : MapPlatformEvent
     data class StopTapped(val stopId: StopId, val sourceRevision: Long) : MapPlatformEvent
     data class VehicleTapped(val vehicleId: VehicleId, val sourceRevision: Long) : MapPlatformEvent
@@ -84,6 +88,7 @@ sealed interface MapPlatformEvent {
     data class MapPointResolved(val requestId: Long, val point: GeoPoint?) : MapPlatformEvent
     /** Any camera motion begins; the next [ViewportSettled] ends it. */
     data object CameraMoveStarted : MapPlatformEvent
+    data object UserCameraMoveStarted : MapPlatformEvent
 }
 
 /** A compact SDK-free map marker; labels and stop details stay in future product flows. */
@@ -220,6 +225,8 @@ data class MapRenderState(
     val journey: MapJourneyOverlay? = null,
     /** UI-owned one-shot map projection; does not move the camera. */
     val pointRequest: MapPointRequest? = null,
+    /** Optional service area for maps with local basemap coverage. */
+    val cameraBounds: MapBounds? = null,
 ) {
     /**
      * Converts arbitrary caller-owned iterables into persistent snapshots, which is the convenient

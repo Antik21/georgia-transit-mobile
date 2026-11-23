@@ -1,7 +1,7 @@
 [versions]
 agp = "9.1.1"
 android-compileSdk = "37"
-android-minSdk = "33"
+android-minSdk = "31"
 android-targetSdk = "36"
 androidx-activity = "1.13.0"
 compose-multiplatform = "1.12.0"
@@ -15,11 +15,15 @@ jetbrains-lifecycle = "2.11.0-beta01"
 orbit = "11.0.0"
 ktor = "3.3.3"
 kotlinx-datetime = "0.8.0"
+js-joda-timezone = "2.23.0"
 kotlinx-collections-immutable = "0.4.0"
 turbine = "1.2.1"
 maplibre-android = "13.6.0"
 spotless = "8.10.2"
 chucker = "4.3.1"
+firebase-bom = "35.2.0"
+firebase-crashlytics-plugin = "3.0.8"
+google-services = "4.6.0"
 snakeyaml = "2.4"
 slf4j = "2.0.17"
 
@@ -68,6 +72,9 @@ orbit-test = { module = "org.orbit-mvi:orbit-test", version.ref = "orbit" }
 turbine = { module = "app.cash.turbine:turbine", version.ref = "turbine" }
 maplibre-android = { module = "org.maplibre.gl:android-sdk-opengl", version.ref = "maplibre-android" }
 chucker = { module = "com.github.chuckerteam.chucker:library", version.ref = "chucker" }
+firebase-bom = { module = "com.google.firebase:firebase-bom", version.ref = "firebase-bom" }
+firebase-analytics = { module = "com.google.firebase:firebase-analytics" }
+firebase-crashlytics = { module = "com.google.firebase:firebase-crashlytics" }
 snakeyaml = { module = "org.yaml:snakeyaml", version.ref = "snakeyaml" }
 slf4j-simple = { module = "org.slf4j:slf4j-simple", version.ref = "slf4j" }
 
@@ -75,6 +82,8 @@ slf4j-simple = { module = "org.slf4j:slf4j-simple", version.ref = "slf4j" }
 android-application = { id = "com.android.application", version.ref = "agp" }
 android-multiplatform-library = { id = "com.android.kotlin.multiplatform.library", version.ref = "agp" }
 compose-compiler = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
+firebase-crashlytics = { id = "com.google.firebase.crashlytics", version.ref = "firebase-crashlytics-plugin" }
+google-services = { id = "com.google.gms.google-services", version.ref = "google-services" }
 jetbrains-compose = { id = "org.jetbrains.compose", version.ref = "compose-multiplatform" }
 kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }
 kotlin-multiplatform = { id = "org.jetbrains.kotlin.multiplatform", version.ref = "kotlin" }

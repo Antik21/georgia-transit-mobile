@@ -184,7 +184,7 @@ class ApplicationContractTest {
         val bodies = listOf(
             "{",
             """{"from":{"latitude":91,"longitude":44.8},"to":{"latitude":41.7,"longitude":44.8},"locale":"en"}""",
-            """{"from":{"latitude":41.7,"longitude":44.8},"to":{"latitude":41.7,"longitude":44.8},"locale":"fr"}""",
+            """{"from":{"latitude":41.7,"longitude":44.8},"to":{"latitude":41.7,"longitude":44.8},"locale":"es"}""",
         )
 
         bodies.forEach { body ->
@@ -380,7 +380,7 @@ class ApplicationContractTest {
             "/v1/cities/demo/vehicles?routeId=demo:fixture:route" to Pair(HttpStatusCode.BadRequest, "INVALID_ARGUMENT"),
             "/v1/cities/demo/vehicles?routeId=other:fixture:route:blue" to Pair(HttpStatusCode.BadRequest, "INVALID_ARGUMENT"),
             "/v1/cities/demo/vehicles?routeId=demo:fixture:stop:blue" to Pair(HttpStatusCode.BadRequest, "INVALID_ARGUMENT"),
-            "/v1/cities/demo/routes?locale=fr" to Pair(HttpStatusCode.BadRequest, "INVALID_ARGUMENT"),
+            "/v1/cities/demo/routes?locale=es" to Pair(HttpStatusCode.BadRequest, "INVALID_ARGUMENT"),
             "/v1/cities/demo/routes?mode=train" to Pair(HttpStatusCode.BadRequest, "INVALID_ARGUMENT"),
             "/v1/cities/demo/stops/nearby?lat=NaN&lon=0&radiusMeters=1&limit=1" to Pair(HttpStatusCode.BadRequest, "INVALID_ARGUMENT"),
             "/v1/cities/demo/stops/nearby?lat=0&lon=181&radiusMeters=1&limit=1" to Pair(HttpStatusCode.BadRequest, "INVALID_ARGUMENT"),

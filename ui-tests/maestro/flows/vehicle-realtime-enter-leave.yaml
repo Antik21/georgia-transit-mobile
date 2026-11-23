@@ -1,4 +1,4 @@
-appId: com.denis.georgiatransit
+appId: com.anti.georgiatransit.sandbox
 ---
 # Precondition: vehicle-realtime-smoke.yaml selected the route in the current app process.
 # Re-enters the map without text or coordinate selectors. The selected route survives every cycle.

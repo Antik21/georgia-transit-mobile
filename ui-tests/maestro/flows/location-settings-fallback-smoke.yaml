@@ -1,4 +1,4 @@
-appId: com.denis.georgiatransit
+appId: com.anti.georgiatransit.sandbox
 ---
 # Precondition: Android harness configures a prior, permanently denied foreground permission.
 - launchApp:
@@ -13,6 +13,16 @@ appId: com.denis.georgiatransit
     id: map.location-settings
 - assertNotVisible:
     id: map.user-location
+- tapOn:
+    id: map.location-settings
+- assertVisible:
+    id: map.location.permission.sheet
+- assertVisible:
+    id: map.location.permission.confirm
+- tapOn:
+    id: map.location.permission.close
+- assertNotVisible:
+    id: map.location.permission.sheet
 - tapOn:
     id: map.routes
 - assertVisible:

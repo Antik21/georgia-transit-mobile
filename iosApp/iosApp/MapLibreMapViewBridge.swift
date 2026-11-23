@@ -38,7 +38,12 @@ private final class LocalMapLibreView: UIView, MLNMapViewDelegate {
     private var lastPointRequestId: Int64?
     private var layersInstalled = false
     private var requestedBffStyleURL: URL?
+    private var usesRemoteStyle = false
+    private var mapCoverage: MapBounds?
+    private var coverageViewportSize: CGSize = .zero
     private var lastAppliedCameraRevision: Int64?
+    private lazy var defaultScreenBounds = mapView.maximumScreenBounds
+    private lazy var defaultMinimumZoom = mapView.minimumZoomLevel
     private var lastAppliedCamera: AppliedCamera?
     private let zoomSteps = MapZoomStepTracker(
         minZoom: LocalMapLibreView.minimumZoom,
@@ -109,7 +114,11 @@ private final class LocalMapLibreView: UIView, MLNMapViewDelegate {
     override func layoutSubviews() {
         super.layoutSubviews()
         mapView.frame = bounds
-        pendingRenderState.map { applyViewportInsets($0.camera.viewportInsets) }
+        updateCoverageViewport()
+        if let command = pendingRenderState?.camera {
+            applyViewportInsets(command.viewportInsets)
+            if layersInstalled && command.routeBounds != nil { applyCameraIfNeeded(command) }
+        }
     }
 
     override func didMoveToWindow() {
@@ -125,6 +134,7 @@ private final class LocalMapLibreView: UIView, MLNMapViewDelegate {
     func update(renderState: MapRenderState) {
         guard !released else { return }
         pendingRenderState = renderState
+        applyCoverageBounds(renderState.cameraBounds)
         updateBaseStyle(renderState.bffStyleUrl)
         if let style = mapView.style {
             installSourcesAndLayersIfNeeded(style: style)
@@ -158,7 +168,8 @@ private final class LocalMapLibreView: UIView, MLNMapViewDelegate {
     private func applyZoomStep(_ step: MapZoomStep?) {
         let readyZoom = lastAppliedCameraRevision == nil ? Double.nan : mapView.zoomLevel
         if let target = zoomSteps.targetZoom(step: step, currentZoom: readyZoom) {
-            mapView.setZoomLevel(target.doubleValue, animated: true)
+            mapView.setZoomLevel(target.doubleValue, animated: mapCoverage == nil)
+            if mapCoverage != nil { zoomSteps.cameraMovedElsewhere() }
         }
     }
 
@@ -168,12 +179,14 @@ private final class LocalMapLibreView: UIView, MLNMapViewDelegate {
         requestedBffStyleURL = styleURL
         // The common layer derives this exact URL from BffEndpointConfiguration. It is never a
         // tile-provider URL; MapLibre resolves tiles solely from the BFF-generated style.
+        usesRemoteStyle = true
         mapView.styleURL = styleURL
     }
 
     private func isBffStyleURL(_ url: URL) -> Bool {
-        guard url.user == nil, url.password == nil, url.query == nil, url.fragment == nil,
-              url.path == "/v1/map/style.json" else { return false }
+        guard url.user == nil, url.password == nil, url.fragment == nil,
+              url.path == "/v1/map/style.json",
+              url.query.map({ ["lang=ka", "lang=ru", "lang=en"].contains($0) }) ?? true else { return false }
         if url.scheme == "https" { return url.host != nil }
 #if SANDBOX
         return url.scheme == "http" && url.host.map(isPrivateSandboxHost) == true
@@ -211,8 +224,6 @@ private final class LocalMapLibreView: UIView, MLNMapViewDelegate {
     func mapView(_ mapView: MLNMapView, didFinishLoading style: MLNStyle) {
         guard !released else { return }
         layersInstalled = false
-        lastAppliedCameraRevision = nil
-        lastAppliedCamera = nil
         clearRenderedLayerState()
         installSourcesAndLayersIfNeeded(style: style)
         pendingRenderState.map { render($0, style: style) }
@@ -220,10 +231,25 @@ private final class LocalMapLibreView: UIView, MLNMapViewDelegate {
     }
 
     func mapView(_ mapView: MLNMapView, didFailLoadingMapWithError error: Error) {
-        guard !released, requestedBffStyleURL != nil,
+        useFallbackStyle()
+    }
+
+    func mapView(
+        _ mapView: MLNMapView, tileDidTriggerAction operation: MLNTileOperation, x: Int, y: Int,
+        z: Int, wrap: Int, overscaledZ: Int, sourceID: String
+    ) {
+        guard operation == .error, sourceID.hasPrefix("gt-vector-") else { return }
+        DispatchQueue.main.async { [weak self] in self?.useFallbackStyle() }
+    }
+
+    func mapView(_ mapView: MLNMapView, glyphsDidError fontStack: [String], range: NSRange) {
+        DispatchQueue.main.async { [weak self] in self?.useFallbackStyle() }
+    }
+
+    private func useFallbackStyle() {
+        guard !released, usesRemoteStyle,
               let localStyle = Bundle.main.url(forResource: "MapLibrePrototypeStyle", withExtension: "json") else { return }
-        // Retain the failed URL to avoid a render-frame retry loop. A newly created map may retry;
-        // this view keeps all transit source/layer rendering on the bundled fallback meanwhile.
+        usesRemoteStyle = false
         mapView.styleURL = localStyle
     }
 
@@ -233,8 +259,18 @@ private final class LocalMapLibreView: UIView, MLNMapViewDelegate {
         let gestures: MLNCameraChangeReason = [
             .gesturePan, .gesturePinch, .gestureRotate, .gestureZoomIn, .gestureZoomOut, .gestureOneFingerZoom, .gestureTilt,
         ]
-        if !reason.isDisjoint(with: gestures) { zoomSteps.cameraMovedElsewhere() }
-        _ = onMapEvent(MapPlatformEventCameraMoveStarted.shared)
+        if reason.contains(.gesturePinch) {
+            _ = onMapEvent(MapPlatformEventZoomGestureStarted(type: ZoomType.pinch))
+        }
+        if reason.contains(.gestureZoomIn) {
+            _ = onMapEvent(MapPlatformEventZoomGestureStarted(type: ZoomType.doubletap))
+        }
+        if !reason.isDisjoint(with: gestures) {
+            zoomSteps.cameraMovedElsewhere()
+            _ = onMapEvent(MapPlatformEventUserCameraMoveStarted.shared)
+        } else {
+            _ = onMapEvent(MapPlatformEventCameraMoveStarted.shared)
+        }
     }
 
     func mapView(_ mapView: MLNMapView, regionDidChangeAnimated animated: Bool) {
@@ -401,8 +437,76 @@ private final class LocalMapLibreView: UIView, MLNMapViewDelegate {
         source.shape = shape
     }
 
+    private func applyCoverageBounds(_ area: MapBounds?) {
+        guard mapCoverage != area else { return }
+        let screenBounds = defaultScreenBounds
+        let minimumZoom = defaultMinimumZoom
+        mapCoverage = area
+        coverageViewportSize = .zero
+        mapView.minimumZoomLevel = minimumZoom
+        mapView.maximumScreenBounds = area.map {
+            MLNCoordinateBounds(
+                sw: CLLocationCoordinate2D(latitude: $0.south, longitude: $0.west),
+                ne: CLLocationCoordinate2D(latitude: $0.north, longitude: $0.east)
+            )
+        } ?? screenBounds
+        updateCoverageViewport()
+    }
+
+    private func updateCoverageViewport() {
+        let size = mapView.bounds.size
+        guard let area = mapCoverage, size != coverageViewportSize, size.width > 2, size.height > 2 else { return }
+        let viewport = mapView.visibleCoordinateBounds
+        let visibleWidth = viewport.ne.longitude - viewport.sw.longitude
+        let visibleHeight = mercatorLatitude(viewport.ne.latitude) - mercatorLatitude(viewport.sw.latitude)
+        let areaWidth = area.east - area.west
+        let south = mercatorLatitude(area.south)
+        let north = mercatorLatitude(area.north)
+        let areaHeight = north - south
+        let scale = max(visibleWidth / areaWidth, visibleHeight / areaHeight)
+        guard scale.isFinite, scale > 0, visibleWidth > 0, visibleHeight > 0 else { return }
+        // The SDK rounds viewport dimensions when constraining the camera. Keep one map point
+        // inside each edge at the widest zoom to cover that difference throughout the zoom range.
+        let longitudeInset = visibleWidth / (scale * Double(size.width))
+        let latitudeInset = visibleHeight / (scale * Double(size.height))
+        let minimum = mapView.zoomLevel + log2(max(
+            visibleWidth / (areaWidth - 2 * longitudeInset),
+            visibleHeight / (areaHeight - 2 * latitudeInset)
+        ))
+        guard minimum.isFinite else { return }
+        coverageViewportSize = size
+        mapView.maximumScreenBounds = MLNCoordinateBounds(
+            sw: CLLocationCoordinate2D(latitude: latitude(fromMercator: south + latitudeInset),
+                                       longitude: area.west + longitudeInset),
+            ne: CLLocationCoordinate2D(latitude: latitude(fromMercator: north - latitudeInset),
+                                       longitude: area.east - longitudeInset)
+        )
+        mapView.minimumZoomLevel = min(Self.maximumZoom, max(Self.minimumZoom, minimum))
+    }
+
+    private func mercatorLatitude(_ latitude: CLLocationDegrees) -> Double {
+        asinh(tan(latitude * .pi / 180))
+    }
+
+    private func latitude(fromMercator value: Double) -> CLLocationDegrees {
+        atan(sinh(value)) * 180 / .pi
+    }
+
     private func applyCameraIfNeeded(_ command: MapCameraCommand) {
-        guard lastAppliedCameraRevision != command.revision, isCoordinateValid(command.center), command.zoom.isFinite else { return }
+        guard lastAppliedCameraRevision != command.revision else {
+            applyViewportInsets(command.viewportInsets)
+            return
+        }
+        guard isCoordinateValid(command.center), command.zoom.isFinite else { return }
+        if let route = command.routeBounds {
+            guard !mapView.bounds.isEmpty else { return }
+            lastAppliedCameraRevision = command.revision
+            lastAppliedCamera = nil
+            zoomSteps.cameraMovedElsewhere()
+            frameRoute(route, insets: command.viewportInsets)
+            DispatchQueue.main.async { [weak self] in self?.reportSettledViewport() }
+            return
+        }
         let target = CLLocationCoordinate2D(latitude: command.center.latitude, longitude: command.center.longitude)
         let nextCamera = AppliedCamera(
             latitude: command.center.latitude,
@@ -439,6 +543,22 @@ private final class LocalMapLibreView: UIView, MLNMapViewDelegate {
         lastAppliedCamera = nextCamera
         zoomSteps.cameraMovedElsewhere()
         if !command.animated { DispatchQueue.main.async { [weak self] in self?.reportSettledViewport() } }
+    }
+
+    private func frameRoute(_ route: MapRouteBounds, insets: MapViewportInsets) {
+        let visible = MLNCoordinateBounds(
+            sw: CLLocationCoordinate2D(latitude: route.southwest.latitude, longitude: route.southwest.longitude),
+            ne: CLLocationCoordinate2D(latitude: route.northeast.latitude, longitude: route.northeast.longitude)
+        )
+        let margin = min(52, min(mapView.bounds.width, mapView.bounds.height) / 4)
+        applyViewportInsets(insets)
+        mapView.setVisibleCoordinateBounds(
+            visible,
+            edgePadding: UIEdgeInsets(top: margin, left: margin, bottom: margin, right: margin),
+            animated: false,
+            completionHandler: nil
+        )
+        if mapView.zoomLevel > 16 { mapView.setZoomLevel(16, animated: false) }
     }
 
     private func applyViewportInsets(_ insets: MapViewportInsets) {
@@ -1263,7 +1383,7 @@ private func mapColor(_ argb: Int64) -> String {
     String(format: "#%06llX", UInt64(argb) & 0x00FF_FFFF)
 }
 
-private extension UIColor {
+extension UIColor {
     convenience init(argb: Int64) {
         self.init(
             red: CGFloat((argb >> 16) & 0xFF) / 255,

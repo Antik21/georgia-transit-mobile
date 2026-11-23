@@ -1,5 +1,7 @@
 package com.denis.georgiatransit.shared.presentation.map
 
+import com.denis.georgiatransit.shared.domain.analytics.JourneyPlanningSource
+import com.denis.georgiatransit.shared.domain.analytics.ProductAnalytics
 import com.denis.georgiatransit.shared.domain.model.CityId
 import com.denis.georgiatransit.shared.domain.model.GeoPoint
 import com.denis.georgiatransit.shared.domain.model.JourneyPage
@@ -39,6 +41,7 @@ internal class JourneyPlannerWorkflow(
     private val clock: LocationFreshnessClock,
     vehicleIntervalMillis: Long,
     private val refreshIntervalMillis: Long = JOURNEY_REFRESH_INTERVAL_MILLIS,
+    private val analytics: ProductAnalytics? = null,
 ) {
     private val buses = JourneyBusesWorkflow(catalog, vehicleIntervalMillis)
     private var generation = 0L
@@ -56,8 +59,18 @@ internal class JourneyPlannerWorkflow(
     fun onLongPress(state: JourneyPlannerUi, point: GeoPoint, context: JourneyPlannerContext) =
         JourneyPlannerReducer.longPress(state, point, context)
 
-    fun onAction(state: JourneyPlannerUi, action: JourneyPlannerAction, context: JourneyPlannerContext) =
-        JourneyPlannerReducer.action(state, action, context)
+    fun onAction(state: JourneyPlannerUi, action: JourneyPlannerAction, context: JourneyPlannerContext): JourneyPlannerStep {
+        val step = JourneyPlannerReducer.action(state, action, context)
+        if (context.available && context.visible && !state.isOpen && step.state.isOpen) {
+            when (action) {
+                JourneyPlannerAction.OpenPlanner -> analytics?.journeyPlanningStarted(JourneyPlanningSource.MapButton)
+                JourneyPlannerAction.RouteHere, JourneyPlannerAction.RouteFromHere ->
+                    analytics?.journeyPlanningStarted(JourneyPlanningSource.LongPress)
+                else -> Unit
+            }
+        }
+        return step
+    }
 
     /** Only a capability that comes back re-plans; a BFF 501 under an enabled capability must not loop. */
     fun onContext(state: JourneyPlannerUi, context: JourneyPlannerContext, cityChanged: Boolean): JourneyPlannerStep {
@@ -87,8 +100,10 @@ internal class JourneyPlannerWorkflow(
         when {
             city == null || !context.visible || !context.available -> cancel()
             step.query != null -> launch(scope, context, step.query, step.currentPoint) { onEvent(JourneyPlannerEvent.Planned(it)) }
-            status is JourneyPlannerStatus.Results && !status.isRefreshing ->
-                scheduleRefresh(scope) { onEvent(JourneyPlannerEvent.RefreshDue) }
+            status is JourneyPlannerStatus.Results && !status.isRefreshing -> {
+                if (status.options.none { it.arrivalAt == null }) scheduleRefresh(scope) { onEvent(JourneyPlannerEvent.RefreshDue) }
+                else refreshJob?.cancel()
+            }
             status != JourneyPlannerStatus.Loading && status !is JourneyPlannerStatus.Results -> cancel()
         }
         buses.sync(scope, busKey(step.state, context)) { onEvent(JourneyPlannerEvent.Buses(it)) }

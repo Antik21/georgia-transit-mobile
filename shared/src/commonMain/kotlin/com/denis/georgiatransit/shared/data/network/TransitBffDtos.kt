@@ -1,5 +1,7 @@
 package com.denis.georgiatransit.shared.data.network
 
+import kotlinx.serialization.EncodeDefault
+import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
@@ -19,9 +21,23 @@ internal data class CityDto(
     val capabilities: CityCapabilitiesDto,
     val availability: CityAvailabilityDto,
     val attribution: List<AttributionLinkDto> = emptyList(),
+    val mapBounds: MapBoundsDto? = null,
 )
 
-@Serializable internal data class LocalizedTextDto(val ru: String, val en: String, val ka: String)
+@Serializable internal data class MapBoundsDto(val west: Double, val south: Double, val east: Double, val north: Double)
+
+@Serializable
+internal data class LocalizedTextDto(
+    val ru: String,
+    val en: String,
+    val ka: String,
+    val uk: String? = null,
+    val de: String? = null,
+    val fr: String? = null,
+    val ar: String? = null,
+    val hi: String? = null,
+    val zh: String? = null,
+)
 @Serializable internal data class GeoPointDto(val latitude: Double, val longitude: Double)
 
 @Serializable
@@ -33,6 +49,9 @@ internal data class CityCapabilitiesDto(
     val officialArrivals: Boolean,
     val tripPlanning: Boolean,
     val arrivals: Boolean = officialArrivals,
+    @OptIn(ExperimentalSerializationApi::class)
+    @EncodeDefault(EncodeDefault.Mode.NEVER)
+    val schedules: Boolean = false,
 )
 
 @Serializable
@@ -175,8 +194,8 @@ internal enum class JourneySegmentModeDto {
 
 @Serializable
 internal data class JourneySegmentDto(
-    val departureAt: String,
-    val arrivalAt: String,
+    val departureAt: String? = null,
+    val arrivalAt: String? = null,
     val mode: JourneySegmentModeDto,
     val routeId: String? = null,
     val directionId: String? = null,
@@ -192,13 +211,15 @@ internal data class JourneySegmentDto(
     // Additive enums stay strings so a newer BFF value degrades to "unknown" instead of failing the page.
     val waitBasis: String? = null,
     val vehicleId: String? = null,
+    val fromStopName: LocalizedTextDto? = null,
+    val toStopName: LocalizedTextDto? = null,
 )
 
 @Serializable
 internal data class JourneyDto(
     val id: String,
-    val departureAt: String,
-    val arrivalAt: String,
+    val departureAt: String? = null,
+    val arrivalAt: String? = null,
     val transfers: Int,
     val legs: List<JourneyLegDto>,
     val segments: List<JourneySegmentDto> = emptyList(),

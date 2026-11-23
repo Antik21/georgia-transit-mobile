@@ -5,6 +5,7 @@ import com.denis.georgiatransit.shared.domain.model.ArrivalSource
 import com.denis.georgiatransit.shared.domain.model.CityId
 import com.denis.georgiatransit.shared.domain.model.GeoPoint
 import com.denis.georgiatransit.shared.domain.model.JourneyLabel
+import com.denis.georgiatransit.shared.domain.model.JourneyPage
 import com.denis.georgiatransit.shared.domain.model.JourneyPlanQuery
 import com.denis.georgiatransit.shared.domain.model.JourneySegmentMode
 import com.denis.georgiatransit.shared.domain.model.JourneyTimingQuality
@@ -13,6 +14,8 @@ import com.denis.georgiatransit.shared.domain.model.TransitLocale
 import com.denis.georgiatransit.shared.domain.model.VehicleId
 import com.denis.georgiatransit.shared.domain.repository.TransitFailure
 import com.denis.georgiatransit.shared.domain.repository.TransitLoadResult
+import com.denis.georgiatransit.shared.presentation.map.JourneyLegUi
+import com.denis.georgiatransit.shared.presentation.map.JourneyPlanUiMapper
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.mock.MockEngine
 import io.ktor.client.engine.mock.MockRequestHandleScope
@@ -51,7 +54,8 @@ class JourneyPlanClientTest {
         val request = requests.single()
         assertEquals("POST", request.method.value)
         assertEquals("/v1/cities/demo/journeys/plan", request.url.encodedPath)
-        assertTrue(request.url.parameters.isEmpty(), "Coordinates must never travel in the URL")
+        assertEquals(setOf("untimedJourneys"), request.url.parameters.names(), "Coordinates must never travel in the URL")
+        assertEquals("true", request.url.parameters["untimedJourneys"])
         val body = Json.parseToJsonElement((request.body as OutgoingContent.ByteArrayContent).bytes().decodeToString()).jsonObject
         assertEquals(setOf("from", "to", "maxTransfers", "transferBufferSeconds", "locale"), body.keys, "mode is no longer sent")
         assertEquals("41.7151", body.getValue("from").jsonObject.getValue("latitude").jsonPrimitive.content)
@@ -81,6 +85,40 @@ class JourneyPlanClientTest {
         assertEquals(false, ride.geometryApproximate)
         assertEquals("o~a~Fg`toG}EiL", journey.segments[0].geometry)
         assertEquals(true, journey.segments[0].geometryApproximate)
+    }
+
+    @Test
+    fun transferWithUnknownTimesKeepsBothRidesAndHasNoTotalOrArrival() = runTest {
+        val client = TransitBffClient(mockHttpClient {
+            jsonResponse(
+                """
+                {
+                  "items": [{
+                    "id": "kutaisi:azry:journey:transfer", "transfers": 1, "legs": [],
+                    "segments": [
+                      {"mode": "TRANSIT", "routeId": "kutaisi:azry:route:1", "directionId": "kutaisi:azry:direction:1",
+                       "fromStopId": "kutaisi:azry:stop:A", "toStopId": "kutaisi:azry:stop:B"},
+                      {"mode": "TRANSIT", "routeId": "kutaisi:azry:route:2", "directionId": "kutaisi:azry:direction:2",
+                       "fromStopId": "kutaisi:azry:stop:B", "toStopId": "kutaisi:azry:stop:C",
+                       "fromStopName": {"en": "Transfer", "ru": "Пересадка", "ka": "გადაჯდომა"}}
+                    ]
+                  }],
+                  "observedAt": "2030-01-01T00:00:00Z", "source": "CLIENT_ESTIMATE", "realtime": false, "stale": false
+                }
+                """.trimIndent(),
+            )
+        }, endpoint())
+
+        val page = assertIs<TransitLoadResult.Data<JourneyPage>>(client.planJourney(CityId("kutaisi"), query())).value
+        val option = JourneyPlanUiMapper.options(page, emptyList(), TransitLocale.Russian).single()
+        assertEquals(1, option.transfers)
+        assertNull(option.totalMinutes)
+        assertNull(option.arrivalAt)
+        assertNull(option.timing)
+        val secondRide = assertIs<JourneyLegUi.Ride>(option.legs[1])
+        assertEquals("Пересадка", secondRide.fromStopName)
+        assertNull(secondRide.waitMinutes)
+        assertNull(secondRide.rideMinutes)
     }
 
     @Test

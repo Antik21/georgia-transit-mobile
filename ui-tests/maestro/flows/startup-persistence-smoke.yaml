@@ -1,4 +1,4 @@
-appId: com.denis.georgiatransit
+appId: com.anti.georgiatransit.sandbox
 ---
 # Establish a selected city from a cold first launch, then prove the native store hands it back
 # to the common bootstrap gate after the app process is terminated.

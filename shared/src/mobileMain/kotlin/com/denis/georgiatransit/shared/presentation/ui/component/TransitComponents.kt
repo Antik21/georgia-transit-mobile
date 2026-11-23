@@ -32,11 +32,11 @@ fun TransitScaffold(
 fun LoadingState(
     message: String? = null,
     modifier: Modifier = Modifier,
+    compact: Boolean = false,
 ) {
     Column(
         modifier = modifier
-            .fillMaxSize()
-            .padding(TransitSpacing.Large)
+            .stateLayout(compact)
             .semantics { liveRegion = LiveRegionMode.Polite },
         verticalArrangement = Arrangement.spacedBy(TransitSpacing.Medium, Alignment.CenterVertically),
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -56,6 +56,7 @@ fun EmptyState(
     actionLabel: String? = null,
     onAction: (() -> Unit)? = null,
     actionModifier: Modifier = Modifier,
+    compact: Boolean = false,
 ) {
     StateMessage(
         title = title,
@@ -64,6 +65,7 @@ fun EmptyState(
         actionLabel = actionLabel,
         onAction = onAction,
         actionModifier = actionModifier,
+        compact = compact,
     )
 }
 
@@ -75,6 +77,7 @@ fun ErrorState(
     retryLabel: String? = null,
     onRetry: (() -> Unit)? = null,
     retryModifier: Modifier = Modifier,
+    compact: Boolean = false,
 ) {
     StateMessage(
         title = title,
@@ -83,6 +86,7 @@ fun ErrorState(
         actionLabel = retryLabel,
         onAction = onRetry,
         actionModifier = retryModifier,
+        compact = compact,
     )
 }
 
@@ -94,11 +98,11 @@ private fun StateMessage(
     actionLabel: String?,
     onAction: (() -> Unit)?,
     actionModifier: Modifier = Modifier,
+    compact: Boolean,
 ) {
     Column(
         modifier = modifier
-            .fillMaxSize()
-            .padding(TransitSpacing.Large)
+            .stateLayout(compact)
             .semantics { liveRegion = LiveRegionMode.Polite },
         verticalArrangement = Arrangement.spacedBy(TransitSpacing.Small, Alignment.CenterVertically),
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -120,4 +124,10 @@ private fun StateMessage(
             }
         }
     }
+}
+
+private fun Modifier.stateLayout(compact: Boolean): Modifier = if (compact) {
+    fillMaxWidth().padding(vertical = TransitSpacing.Medium)
+} else {
+    fillMaxSize().padding(TransitSpacing.Large)
 }

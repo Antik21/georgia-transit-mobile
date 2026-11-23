@@ -2,6 +2,8 @@ package com.denis.georgiatransit.shared.presentation.map.sections
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.WindowInsetsSides
@@ -17,6 +19,9 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.layout.boundsInRoot
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.contentDescription
@@ -69,6 +74,10 @@ internal fun MapCanvas(
     locationActionEnabled: Boolean,
     onMyLocationClick: () -> Unit,
     onZoomClick: (MapZoomDirection) -> Unit,
+    journeyPlanningAvailable: Boolean,
+    plannerNotice: MapToastNotice?,
+    onOpenPlanner: (() -> Unit)?,
+    onPlannerLauncherPositioned: (Rect) -> Unit,
     onMapEvent: (MapPlatformEvent) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -144,26 +153,36 @@ internal fun MapCanvas(
                 )
                 .padding(TransitSpacing.Medium),
         )
+        val controlInsets = Modifier
+            .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal))
+            .padding(
+                start = TransitSpacing.Medium,
+                top = TransitSpacing.Medium,
+                end = TransitSpacing.Medium,
+                bottom = bottomOverlayHeight + TransitSpacing.Large,
+            )
         MapCameraControls(
             locationActionLabel = locationActionLabel,
             locationActionAutomationId = locationActionAutomationId,
             locationActionEnabled = locationActionEnabled,
             onMyLocationClick = onMyLocationClick,
             onZoomClick = onZoomClick,
-            modifier = Modifier
-                .align(Alignment.BottomEnd)
-                .windowInsetsPadding(
-                    // This canvas ends above the screen controls, outside the bottom system inset.
-                    WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal),
-                )
-                // Reserve the bottom-right edge for the compact OSM attribution.
-                .padding(
-                    start = TransitSpacing.Medium,
-                    top = TransitSpacing.Medium,
-                    end = TransitSpacing.Medium,
-                    bottom = bottomOverlayHeight + TransitSpacing.ExtraLarge + TransitSpacing.Medium,
-                ),
+            modifier = Modifier.align(Alignment.BottomEnd).then(controlInsets),
         )
+        if (onOpenPlanner != null) {
+            Column(
+                modifier = Modifier.align(Alignment.BottomStart).then(controlInsets)
+                    .padding(end = MapControlSize + TransitSpacing.Small),
+                verticalArrangement = Arrangement.spacedBy(TransitSpacing.Small),
+            ) {
+                MapToast(notice = plannerNotice)
+                MapPlannerLauncher(
+                    available = journeyPlanningAvailable,
+                    onClick = onOpenPlanner,
+                    modifier = Modifier.onGloballyPositioned { onPlannerLauncherPositioned(it.boundsInRoot()) },
+                )
+            }
+        }
         if (baseLayerState == MapBaseLayerState.BffStyle) {
             OpenStreetMapAttribution(
                 modifier = Modifier

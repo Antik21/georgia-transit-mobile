@@ -1,9 +1,14 @@
 # Render production deployment
 
 The production BFF is defined by the repository-root [`render.yaml`](../../render.yaml). It creates
-one paid Docker web service in Frankfurt with a 1 GB persistent disk. The Blueprint intentionally
-serves Batumi only; fixtures, Tbilisi adapters, probes, and public metrics remain disabled. The map
-proxy uses the public OpenStreetMap raster endpoint with visible attribution and requires no key.
+one paid Docker web service in Frankfurt with a 1 GB persistent disk. The initial deployment
+serves Batumi. Fixtures, Tbilisi adapters, probes, and public metrics remain disabled. The map
+proxy uses OpenFreeMap for the localized Natural-inspired vector basemap. The
+[basemap decision](../adr/0032-localized-vector-basemap.md) documents the integration and provider terms.
+For a rollout from the legacy basemap, publish the rebuilt web client with the BFF. The updated
+BFF serves vector tiles and glyphs, and older web bundles only understand the removed PNG tile path.
+Mobile clients requesting the style without a language receive Georgian labels. Set
+`BFF_MAP_ENABLED=false` to disable the basemap.
 
 ## Before the first deployment
 
@@ -68,6 +73,22 @@ Render's shell requirements, while the JVM itself runs as the non-root `transit`
 rollback and schema-interlock recovery
 rules in [`bff-capability-control.md`](bff-capability-control.md); never edit history files directly.
 The service polls for a new document, so a deploy is not required for a kill switch.
+
+## Zugdidi static catalog
+
+The ordered stops and coordinates sourced from Yandex Maps are versioned in
+[`transitBff/data/zugdidi/stops.csv`](../../transitBff/data/zugdidi/stops.csv). The Docker build
+copies the catalog to `/app/config/zugdidi-stops.csv`, which the BFF loads at startup. Merging
+catalog updates triggers the normal Render deploy after CI passes. An existing disk copy at
+`/app/storage/zugdidi/stops.csv` can stay in place for rollback to an older image.
+
+The persistent capability document controls city visibility across deploys. On a new disk, enable
+Zugdidi by adding a `zugdidi` entry to that document under a new revision while retaining the
+existing city entries. Use `PRODUCTION_READY` and `REVIEWED_ADAPTER`. Set `routes`, `stops`,
+and `routeGeometry` to `true` and the remaining capabilities to `false`. The service supplies
+regional vector coverage alongside Batumi and draws direct segments between the ordered
+coordinates. To roll back a catalog update, redeploy the previous image. Before reverting to an
+image without the Zugdidi adapter, disable Zugdidi in a new control revision.
 
 ## Telegram web client
 

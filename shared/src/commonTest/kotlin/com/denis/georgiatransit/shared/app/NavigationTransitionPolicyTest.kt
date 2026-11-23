@@ -8,6 +8,7 @@ class NavigationTransitionPolicyTest {
     private val cityId = CityId("tbilisi")
     private val citySelectionStack: List<Destination> = listOf(Destination.CitySelection)
     private val mapStack: List<Destination> = listOf(Destination.Map)
+    private val changeCityStack: List<Destination> = listOf(Destination.Map, Destination.CitySelection)
     private val routesStack: List<Destination> = listOf(Destination.Map, Destination.Routes)
 
     @Test
@@ -32,9 +33,11 @@ class NavigationTransitionPolicyTest {
         restoredDestinationPermutations().forEach { restoredStack ->
             val expected = when (restoredStack.lastOrNull()) {
                 null -> mapStack
-                Destination.CitySelection -> citySelectionStack
+                Destination.CitySelection -> if (restoredStack == changeCityStack) changeCityStack else citySelectionStack
                 Destination.Map -> mapStack
                 Destination.Routes -> routesStack
+                Destination.LanguageSelection -> mapStack
+                is Destination.Schedules -> mapStack
             }
 
             assertEquals(
@@ -70,10 +73,12 @@ class NavigationTransitionPolicyTest {
         val events = listOf(
             NavigationEvent.CityConfirmed,
             NavigationEvent.OpenRoutes,
+            NavigationEvent.OpenSchedules,
             NavigationEvent.RoutesConfirmed,
             NavigationEvent.RoutesDismissed,
             NavigationEvent.Back,
             NavigationEvent.ChangeCity,
+            NavigationEvent.OpenLanguageSelection,
         )
 
         restoredDestinationPermutations().forEach { currentStack ->
@@ -114,17 +119,55 @@ class NavigationTransitionPolicyTest {
     }
 
     @Test
-    fun changeCityAlwaysResetsToCitySelection() {
-        listOf(citySelectionStack, mapStack, routesStack).forEach { currentStack ->
-            assertEquals(
-                citySelectionStack,
-                NavigationTransitionPolicy.transition(currentStack, selectedCityId = cityId, NavigationEvent.ChangeCity),
-            )
-        }
+    fun changeCityPushesSelectionOverMapAndReturnsToMapOnBackOrConfirmation() {
         assertEquals(
-            citySelectionStack,
-            NavigationTransitionPolicy.transition(mapStack, selectedCityId = null, NavigationEvent.ChangeCity),
+            changeCityStack,
+            NavigationTransitionPolicy.transition(mapStack, selectedCityId = cityId, NavigationEvent.ChangeCity),
         )
+        assertEquals(changeCityStack, NavigationTransitionPolicy.restore(changeCityStack, cityId))
+        assertEquals(citySelectionStack, NavigationTransitionPolicy.restore(changeCityStack, selectedCityId = null))
+        listOf(NavigationEvent.Back, NavigationEvent.CityConfirmed).forEach { event ->
+            assertEquals(mapStack, NavigationTransitionPolicy.transition(changeCityStack, cityId, event))
+        }
+        listOf(citySelectionStack, changeCityStack, routesStack).forEach { currentStack ->
+            assertEquals(currentStack, NavigationTransitionPolicy.transition(currentStack, cityId, NavigationEvent.ChangeCity))
+        }
+    }
+
+    @Test
+    fun languageSelectionRequiresPlatformCapabilityAndReturnsToMap() {
+        val pickerStack = mapStack + Destination.LanguageSelection
+        val openPicker = NavigationEvent.OpenLanguageSelection
+        assertEquals(mapStack, NavigationTransitionPolicy.transition(mapStack, cityId, openPicker))
+        assertEquals(pickerStack, NavigationTransitionPolicy.transition(mapStack, cityId, openPicker, languagePickerAvailable = true))
+        assertEquals(pickerStack, NavigationTransitionPolicy.restore(pickerStack, cityId, languagePickerAvailable = true))
+        assertEquals(mapStack, NavigationTransitionPolicy.restore(pickerStack, cityId))
+        assertEquals(citySelectionStack, NavigationTransitionPolicy.restore(pickerStack, null, languagePickerAvailable = true))
+        assertEquals(
+            mapStack,
+            NavigationTransitionPolicy.transition(pickerStack, cityId, NavigationEvent.Back, languagePickerAvailable = true),
+        )
+    }
+
+    @Test
+    fun schedulesRequireCapabilityAndRestoreOnlyForTheSameCity() {
+        val kutaisi = CityId("kutaisi")
+        val batumi = CityId("batumi")
+        val schedulesStack = listOf(Destination.Map, Destination.Schedules(kutaisi))
+        assertEquals(
+            schedulesStack,
+            NavigationTransitionPolicy.transition(mapStack, kutaisi, NavigationEvent.OpenSchedules, schedulesAvailable = true),
+        )
+        assertEquals(mapStack, NavigationTransitionPolicy.transition(mapStack, batumi, NavigationEvent.OpenSchedules))
+        assertEquals(
+            mapStack,
+            NavigationTransitionPolicy.transition(schedulesStack, kutaisi, NavigationEvent.Back, schedulesAvailable = true),
+        )
+        assertEquals(schedulesStack, NavigationTransitionPolicy.restore(schedulesStack, kutaisi, schedulesAvailable = true))
+        assertEquals(mapStack, NavigationTransitionPolicy.restore(schedulesStack, kutaisi))
+        assertEquals(mapStack, NavigationTransitionPolicy.restore(schedulesStack, batumi, schedulesAvailable = true))
+        assertEquals(citySelectionStack, NavigationTransitionPolicy.restore(schedulesStack, null, schedulesAvailable = true))
+        assertEquals(routesStack, NavigationTransitionPolicy.transition(mapStack, batumi, NavigationEvent.OpenRoutes))
     }
 
     private fun restoredDestinationPermutations(): List<List<Destination>> = buildList {

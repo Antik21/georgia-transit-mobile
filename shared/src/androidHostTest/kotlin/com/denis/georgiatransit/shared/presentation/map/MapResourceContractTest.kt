@@ -108,6 +108,10 @@ class MapResourceContractTest {
             AutomationId.MapScreen,
             AutomationId.MapRoutes,
             AutomationId.MapChangeCity,
+            AutomationId.MapSettings,
+            AutomationId.MapSettingsSheet,
+            AutomationId.MapSettingsClose,
+            AutomationId.MapSettingsHandle,
             AutomationId.MapMyLocation,
             AutomationId.MapLocationSettings,
             AutomationId.MapUserLocation,
@@ -117,8 +121,9 @@ class MapResourceContractTest {
             AutomationId.MapNearbyStop,
             AutomationId.MapVehicles,
             AutomationId.MapVehiclesLiveNonempty,
-            AutomationId.MapAttribution,
+            AutomationId.MapOpenStreetMapAttribution,
             AutomationId.MapStopArrivalsSheet,
+            AutomationId.MapStopArrivalsClose,
             AutomationId.MapStopArrivalsHandle,
             AutomationId.MapStopArrivalsLoading,
             AutomationId.MapStopArrivalsEmpty,
@@ -146,8 +151,9 @@ class MapResourceContractTest {
         assertEquals("map.vehicles", AutomationId.MapVehicles)
         assertEquals("map.vehicles.live-nonempty", AutomationId.MapVehiclesLiveNonempty)
         assertEquals("map.connection.error", AutomationId.MapConnectionError)
-        assertEquals("map.attribution.link.transitous", AutomationId.mapAttributionLink("transitous"))
+        assertEquals("map.attribution.openstreetmap", AutomationId.MapOpenStreetMapAttribution)
         assertEquals("map.stop-arrivals.sheet", AutomationId.MapStopArrivalsSheet)
+        assertEquals("map.stop-arrivals.close", AutomationId.MapStopArrivalsClose)
         assertEquals("map.stop-arrivals.handle", AutomationId.MapStopArrivalsHandle)
         assertEquals("map.stop-arrivals.row", AutomationId.MapStopArrivalsRow)
     }
@@ -156,6 +162,7 @@ class MapResourceContractTest {
     fun commonStopArrivalsSheetContractUsesLocalizedLabelsAndNeverRendersOpaqueIds() {
         val stopArrivals = projectRoot().mapSectionSource("StopArrivalsSheet.kt")
         val sheet = stopArrivals.functionBody("fun StopArrivalsSheet")
+        val details = stopArrivals.functionBody("private fun StopArrivalsDetails")
         val routeChip = stopArrivals.functionBody("private fun StopRouteChip")
         val status = stopArrivals.functionBody("private fun StopArrivalsStatus")
         val row = stopArrivals.functionBody("private fun StopArrivalRow")
@@ -163,11 +170,12 @@ class MapResourceContractTest {
         assertCodePath(
             sheet,
             "MapStopArrivalsSheet",
-            "MapStopArrivalsHandle",
-            "sheet.stopName",
-            "passingRouteShortNames",
+            "MapStopArrivalsStale",
+            "MapStopArrivalsClose",
             "MapStopArrivalsRows",
+            "StopArrivalsDetails(",
         )
+        assertCodePath(details, "sheet.stopName", "passingRouteShortNames", "MapStopArrivalsSource")
         assertCodePath(
             routeChip,
             "InputChipDefaults.Height",
@@ -194,11 +202,12 @@ class MapResourceContractTest {
         )
         assertCodePath(
             row,
-            "row.routeShortName ?: stringResource",
-            "row.headsign.ifBlank",
+            "row.routeShortName",
+            "mode.routeTitle",
+            "row.headsign.takeIf",
             "arrivalSourceLabel(row.source)",
             "MapStopArrivalsSource",
-            "arrivalTimeLabel(row.time)",
+            "arrivalTimeLabel(row.time, isStale)",
         )
         assertFalse(row.contains("routeId"), "Rows must render catalogue labels, never opaque route IDs.")
         assertFalse(row.contains("stopId"), "Rows must never surface opaque stop IDs.")
@@ -218,18 +227,19 @@ class MapResourceContractTest {
             "shared/src/commonMain/kotlin/com/denis/georgiatransit/shared/presentation/map/MapStopsProjector.kt",
         ).readText()
         val canvas = canvasSource.functionBody("fun MapCanvas")
-        val connectionToast = projectRoot().mapSectionSource("MapConnectionToast.kt")
+        val mapToast = projectRoot().mapSectionSource("MapToast.kt")
         val baseLayerOverlay = canvasSource.functionBody("private fun BaseLayerOverlay")
         val content = screen.functionBody("private fun Content")
         val stopArrivalsSheet = stopArrivalsSource.functionBody("fun StopArrivalsSheet")
+        val stopArrivalsHandle = stopArrivalsSource.functionBody("private fun StopArrivalsHandle")
         val selectedStopUi = stopsProjector.functionBody("fun selectedStopUi")
         val stopDisplayName = stopsProjector.functionBody("private fun TransitStop.displayName")
         val stopAccessibilityLabel = stopsProjector.functionBody("private fun TransitStop.accessibilityLabel")
 
         assertCodePath(baseLayerOverlay, "MapBaseLayerState.LocalPreview", "map_preview_note", "MapLocalPreview")
         assertFalse(canvasSource.contains("MapContentState"), "Nearby-stop loading status must not be drawn over the map.")
-        assertCodePath(connectionToast, "LaunchedEffect(noticeId)", "delay(TOAST_DURATION_MILLIS)", "MapConnectionError", "map_connection_error")
-        assertCodePath(screen, "SideEffect.ShowConnectionError -> connectionNoticeId++", "MapConnectionToast(")
+        assertCodePath(mapToast, "map_connection_error, AutomationId.MapConnectionError", "LaunchedEffect(notice.id, timeoutMillis)", "delay(timeoutMillis)")
+        assertCodePath(screen, "SideEffect.ShowConnectionError -> toastNotice", "MapToast(")
         assertTrue(viewModel.compactWhitespace().contains("contentState = MapContentState.Loading"))
         val userLocationTag = canvas.indexOf("AutomationId.MapUserLocation")
         val platformMapCall = canvas.indexOf("PlatformMap(")
@@ -266,18 +276,23 @@ class MapResourceContractTest {
         assertCodePath(content, "StopArrivalsSheet(", "onDismiss = { onAction(Action.StopArrivalsDismissed) }")
         assertCodePath(
             stopArrivalsSheet,
+            "sheetState.hasPartiallyExpandedState",
+            "SheetValue.Expanded",
             "onDismissRequest = onDismiss",
             "dragHandle = null",
+            "sheetState.partialExpand()",
+            "TransitCloseButton(",
+        )
+        assertCodePath(
+            stopArrivalsHandle,
+            "map_stop_arrivals_handle_accessibility",
+            "map_stop_arrivals_collapse_accessibility",
+            "map_stop_arrivals_expand_accessibility",
             ".clickable(",
             "indication = null",
-            "onClickLabel = handleActionLabel",
-            "SheetValue.Expanded",
+            "onClickLabel = actionLabel",
             "StopArrivalsHandleWidth",
-            "sheet.stopName",
         )
-        assertTrue(stopArrivalsSheet.contains("map_stop_arrivals_handle_accessibility"))
-        assertTrue(stopArrivalsSheet.contains("map_stop_arrivals_expand_accessibility"))
-        assertTrue(stopArrivalsSheet.contains("map_stop_arrivals_hide_accessibility"))
         assertCodePath(
             canvas,
             "MapBaseLayerState.BffStyle",
@@ -341,7 +356,7 @@ class MapResourceContractTest {
             AutomationId.MapScreen,
             AutomationId.MapNearbyStop,
             AutomationId.MapStopArrivalsSheet,
-            AutomationId.MapStopArrivalsHandle,
+            AutomationId.MapStopArrivalsClose,
             AutomationId.MapStopArrivalsLoading,
             AutomationId.MapStopArrivalsRows,
             AutomationId.MapStopArrivalsRow,
@@ -797,7 +812,7 @@ class MapResourceContractTest {
         )
         assertCodePath(
             androidStyleLoader.functionBody("fun attach("),
-            "loadStyle(mapLibreMap, Style.Builder().fromJson(LOCAL_STYLE_JSON), remote = false)",
+            "loadStyle(mapLibreMap, Style.Builder().fromJson(LOCAL_STYLE_JSON))",
         )
         assertCodePath(
             swift,
@@ -809,7 +824,12 @@ class MapResourceContractTest {
             androidCamera,
             "lastAppliedCameraRevision == command.revision",
             "viewportBottomPadding(command)",
+            "recordApplied(command)",
+        )
+        assertCodePath(
+            androidCameraAdapter.functionBody("private fun recordApplied"),
             "lastAppliedCameraRevision = command.revision",
+            "zoomSteps.cameraMovedElsewhere()",
         )
         assertCodePath(
             androidCameraAdapter.functionBody("private fun viewportBottomPadding"),
@@ -1061,8 +1081,14 @@ class MapResourceContractTest {
             "map_preview_note",
             "map_routes_action",
             "map_change_city_action",
+            "map_settings",
             "map_my_location_action",
             "map_selected_routes",
+            "map_planner_my_location_compact",
+            "map_planner_endpoint_description",
+            "map_planner_unknown_travel_time",
+            "map_planner_summary_walking_distance",
+            "map_planner_untimed_summary",
             "map_stop_arrivals_title",
             "map_stop_arrivals_stop_details_unavailable",
             "map_stop_arrivals_routes",
@@ -1076,8 +1102,8 @@ class MapResourceContractTest {
             "map_stop_arrivals_retry",
             "map_stop_arrivals_refreshing",
             "map_stop_arrivals_stale",
+            "map_stop_arrivals_stale_forecast",
             "map_stop_arrivals_route_unavailable",
-            "map_stop_arrivals_headsign_unavailable",
             "map_stop_arrivals_arriving",
             "map_stop_arrivals_minutes",
             "map_stop_arrivals_time_unavailable",
@@ -1085,9 +1111,10 @@ class MapResourceContractTest {
             "map_stop_arrivals_source_aggregator",
             "map_stop_arrivals_source_schedule",
             "map_stop_arrivals_source_approximate",
-            "map_stop_arrivals_page_source",
+            "map_stop_arrivals_collapse_accessibility",
             "map_nearby_stops_title",
             "map_vehicles_summary",
+            "map_vehicle_no_current_positions",
             "map_vehicle_route_summary",
             "map_vehicle_status_loading",
             "map_vehicle_status_live",
@@ -1097,7 +1124,6 @@ class MapResourceContractTest {
             "map_vehicle_status_mixed",
             "map_cluster_stops",
             "map_connection_error",
-            "map_attribution_title",
         )
         const val ShellSmokeFlow = "ui-tests/maestro/flows/shell-smoke.yaml"
         const val LocationSettingsFallbackFlow = "ui-tests/maestro/flows/location-settings-fallback-smoke.yaml"

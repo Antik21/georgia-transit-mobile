@@ -1,5 +1,7 @@
 package com.denis.georgiatransit.bff
 
+import com.denis.georgiatransit.bff.analytics.ProductAnalyticsPublisher
+import com.denis.georgiatransit.bff.analytics.productAnalyticsRoute
 import com.denis.georgiatransit.bff.api.ApiError
 import com.denis.georgiatransit.bff.api.ErrorEnvelope
 import com.denis.georgiatransit.bff.api.GeoPoint
@@ -34,6 +36,9 @@ import com.denis.georgiatransit.bff.provider.DemoFixtureTransitProviderAdapter
 import com.denis.georgiatransit.bff.provider.JourneyQuery
 import com.denis.georgiatransit.bff.provider.WalkingQuery
 import com.denis.georgiatransit.bff.provider.ProviderRegistry
+import com.denis.georgiatransit.bff.provider.kutaisi.AzryClient
+import com.denis.georgiatransit.bff.provider.kutaisi.KutaisiAzryTransitProviderAdapter
+import com.denis.georgiatransit.bff.provider.kutaisi.KutaisiOsmTransitProviderAdapter
 import com.denis.georgiatransit.bff.provider.SyntheticProbeProvider
 import com.denis.georgiatransit.bff.provider.TransitousTransitProviderAdapter
 import com.denis.georgiatransit.bff.provider.TransitousClient
@@ -42,11 +47,11 @@ import com.denis.georgiatransit.bff.provider.TtcTransitProviderAdapter
 import com.denis.georgiatransit.bff.provider.BatumiThetaTransitProviderAdapter
 import com.denis.georgiatransit.bff.provider.BatumiThetaClient
 import com.denis.georgiatransit.bff.provider.BatumiBatBusAllBusesClient
+import com.denis.georgiatransit.bff.provider.zugdidi.ZugdidiStaticAdapter
 import com.denis.georgiatransit.bff.service.JourneyPlanService
 import com.denis.georgiatransit.bff.service.TransitService
+import com.denis.georgiatransit.bff.map.MapArea
 import com.denis.georgiatransit.bff.map.MapProxy
-import com.denis.georgiatransit.bff.map.MapProxyFailure
-import com.denis.georgiatransit.bff.map.MapTileCacheSeconds
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.ContentType
@@ -71,7 +76,6 @@ import io.ktor.server.request.receive
 import io.ktor.server.response.header
 import io.ktor.server.response.respond
 import io.ktor.server.response.respondText
-import io.ktor.server.response.respondBytes
 import io.ktor.server.routing.get
 import io.ktor.server.routing.post
 import io.ktor.server.routing.route
@@ -140,21 +144,28 @@ fun main() {
 }
 
 fun Application.transitBffModule(config: BffConfig = BffConfig.fromEnvironment()) {
+    val zugdidi = (config.zugdidiStaticCsv ?: config.zugdidiPreviewCsv)?.let { csv ->
+        ZugdidiStaticAdapter(csv, production = config.zugdidiStaticCsv != null)
+    }
     val observability = BffObservability(
         config = config,
         allowedProviders = buildSet {
             if (config.mode == RuntimeMode.DEVELOPMENT && config.fixturesEnabled) {
                 add(KnownCityIds.Demo to TelemetryProvider.FIXTURE)
             }
+            zugdidi?.let { add(KnownCityIds.Zugdidi to it.telemetryProvider) }
             if (config.transitous.isActivated) add(KnownCityIds.Tbilisi to TelemetryProvider.TRANSITOUS)
             if (config.ttc.isActivated) add(KnownCityIds.Tbilisi to TelemetryProvider.TTC)
             if (config.batumiTheta.isActivated) add(KnownCityIds.Batumi to TelemetryProvider.BATUMI_THETA)
+            if (config.kutaisiOsmEnabled) add(KnownCityIds.Kutaisi to TelemetryProvider.KUTAISI_OSM)
+            if (config.kutaisiAzry.enabled) add(KnownCityIds.Kutaisi to TelemetryProvider.KUTAISI_AZRY)
         },
     )
     val adapters = buildList {
         if (config.mode == RuntimeMode.DEVELOPMENT && config.fixturesEnabled) {
             add(DemoFixtureTransitProviderAdapter())
         }
+        zugdidi?.let(::add)
         // Construction is the final activation gate: no Transitous HTTP client exists before the
         // explicit policy/contact prerequisites pass. It performs no startup probe.
         if (config.transitous.isActivated) {
@@ -185,6 +196,10 @@ fun Application.transitBffModule(config: BffConfig = BffConfig.fromEnvironment()
                 ),
             )
         }
+        if (config.kutaisiOsmEnabled) add(KutaisiOsmTransitProviderAdapter())
+        if (config.kutaisiAzry.enabled) {
+            add(KutaisiAzryTransitProviderAdapter(AzryClient(requireNotNull(config.kutaisiAzry.apiKey))))
+        }
     }
     val registry = ProviderRegistry(adapters)
     if (config.mode == RuntimeMode.PRODUCTION && !registry.isReady) {
@@ -193,7 +208,8 @@ fun Application.transitBffModule(config: BffConfig = BffConfig.fromEnvironment()
         )
     }
     val capabilityControl = RuntimeCapabilityControl(
-        config = config,
+        // An explicit Zugdidi CSV opts into fixture visibility without registering the demo city.
+        config = if (config.zugdidiPreviewCsv == null) config else config.copy(fixturesEnabled = true),
         registry = registry,
         audit = environment.log::info,
         capabilityTelemetryObserver = observability::recordCapabilitySnapshot,
@@ -210,6 +226,12 @@ fun Application.transitBffModule(config: BffConfig = BffConfig.fromEnvironment()
             },
         )
     }
+    adapters.filterIsInstance<KutaisiAzryTransitProviderAdapter>().forEach { adapter ->
+        adapter.startJourneyPlanning(
+            enabled = { capabilityControl.current().cities[KnownCityIds.Kutaisi]?.city?.capabilities?.tripPlanning == true },
+            onFailure = { environment.log.warn("Kutaisi journey planning could not refresh the network") },
+        )
+    }
     val service = TransitService(
         capabilitySnapshots = capabilityControl,
         directoryCacheTtlSeconds = config.directoryCacheTtlSeconds,
@@ -219,7 +241,15 @@ fun Application.transitBffModule(config: BffConfig = BffConfig.fromEnvironment()
         schemaDriftObserver = capabilityControl::observeSchemaDrift,
     )
     val journeyPlanService = JourneyPlanService(capabilityControl, observability)
-    val mapProxy = config.map.takeIf { it.isActivated }?.let(::MapProxy)
+    val mapProxy = config.map.takeIf { it.isActivated }?.let {
+        val areas = buildSet {
+            if (config.zugdidiPreviewCsv == null) add(MapArea.Batumi)
+            if (zugdidi != null) add(MapArea.Zugdidi)
+        }
+        MapProxy(it, areas = areas)
+    }
+    fun kutaisiMapEnabled(): Boolean =
+        capabilityControl.current().cities[KnownCityIds.Kutaisi]?.city?.capabilities?.stops == true
     val probeRunner = ProbeRunner(
         config = config,
         service = service,
@@ -228,6 +258,7 @@ fun Application.transitBffModule(config: BffConfig = BffConfig.fromEnvironment()
         audit = environment.log::info,
     ).also(ProbeRunner::start)
 
+    val analytics = config.analytics?.let(::ProductAnalyticsPublisher)
     install(RequestId)
     install(HttpMetrics) { this.observability = observability }
     install(CallLogging) {
@@ -259,6 +290,7 @@ fun Application.transitBffModule(config: BffConfig = BffConfig.fromEnvironment()
         }
     }
     monitor.subscribe(ApplicationStopped) {
+        analytics?.close()
         probeRunner.close()
         capabilityControl.close()
         service.close()
@@ -267,30 +299,8 @@ fun Application.transitBffModule(config: BffConfig = BffConfig.fromEnvironment()
     }
 
     routing {
-        if (mapProxy != null) {
-            get("/v1/map/style.json") {
-                call.markHttpOperation(HttpOperation.MAP_STYLE)
-                call.response.header(HttpHeaders.CacheControl, "public, max-age=300")
-                call.respondText(mapProxy.styleJson(), ContentType.Application.Json)
-            }
-            get("/v1/map/tiles/{z}/{x}/{y}.png") {
-                call.markHttpOperation(HttpOperation.MAP_TILE)
-                val z = call.parameters["z"]?.toIntOrNull()
-                val x = call.parameters["x"]?.toIntOrNull()
-                val y = call.parameters["y"]?.toIntOrNull()
-                if (z == null || x == null || y == null) throw InvalidArgument("tile coordinates must be integers")
-                try {
-                    MapProxy.validate(z, x, y)
-                    val bytes = mapProxy.tile(z, x, y)
-                    call.response.header(HttpHeaders.CacheControl, "public, max-age=$MapTileCacheSeconds")
-                    call.respondBytes(bytes, ContentType.Image.PNG)
-                } catch (failure: IllegalArgumentException) {
-                    throw InvalidArgument(failure.message ?: "invalid tile coordinates")
-                } catch (_: MapProxyFailure) {
-                    throw com.denis.georgiatransit.bff.api.UpstreamBadGateway("Map tile is unavailable")
-                }
-            }
-        }
+        productAnalyticsRoute(analytics?.let { it::publish })
+        if (mapProxy != null) mapRoutes(mapProxy, ::kutaisiMapEnabled)
         get("/healthz") {
             call.markHttpOperation(HttpOperation.HEALTH)
             val ready = service.isReady
@@ -315,7 +325,8 @@ fun Application.transitBffModule(config: BffConfig = BffConfig.fromEnvironment()
         route("/v1/cities") {
             get {
                 call.markHttpOperation(HttpOperation.CITIES)
-                call.respond(service.cities())
+                val cities = service.cities(allowUntimedJourneys = call.request.queryParameters["untimedJourneys"] == "true")
+                call.respond(mapProxy?.withCityCoverage(cities) ?: cities)
             }
 
             route("/{cityId}") {
@@ -358,6 +369,7 @@ fun Application.transitBffModule(config: BffConfig = BffConfig.fromEnvironment()
                     val directionId = call.requiredPathPublicId(DirectionIdParameter, cityId, PublicEntityType.Direction)
                     call.respond(service.shape(cityId, routeId, directionId))
                 }
+                transitScheduleRoute(service)
                 get("/vehicles") {
                     call.markHttpOperation(HttpOperation.VEHICLES)
                     val cityId = call.pathCityId()
@@ -428,7 +440,7 @@ fun Application.transitBffModule(config: BffConfig = BffConfig.fromEnvironment()
                     call.disallowCaching()
                     val cityId = call.pathCityId()
                     val query = call.receivePrivateBody<JourneyPlanRequest>("journey plan request").toQuery(Instant.now())
-                    call.respond(journeyPlanService.plan(cityId, query))
+                    call.respond(journeyPlanService.plan(cityId, query, call.request.queryParameters["untimedJourneys"] == "true"))
                 }
             }
         }
@@ -455,7 +467,7 @@ private suspend inline fun <reified T : Any> ApplicationCall.receivePrivateBody(
         throw InvalidArgument("$name must be valid JSON")
     }
 
-private fun ApplicationCall.markHttpOperation(operation: HttpOperation) {
+internal fun ApplicationCall.markHttpOperation(operation: HttpOperation) {
     if (!attributes.contains(HttpOperationAttribute)) attributes.put(HttpOperationAttribute, operation)
 }
 

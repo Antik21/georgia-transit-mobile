@@ -2,7 +2,9 @@ package com.denis.georgiatransit.shared.presentation.map.sections
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
@@ -22,6 +24,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.selected
@@ -31,6 +34,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.denis.georgiatransit.shared.domain.model.JourneyId
 import com.denis.georgiatransit.shared.domain.model.RouteId
+import com.denis.georgiatransit.shared.domain.model.StopId
 import com.denis.georgiatransit.shared.domain.model.TransitMode
 import com.denis.georgiatransit.shared.presentation.map.JourneyLabelUi
 import com.denis.georgiatransit.shared.presentation.map.JourneyLegUi
@@ -48,13 +52,18 @@ import georgiatransit.shared.generated.resources.map_planner_label_fastest
 import georgiatransit.shared.generated.resources.map_planner_label_least_walking
 import georgiatransit.shared.generated.resources.map_planner_label_no_transfers
 import georgiatransit.shared.generated.resources.map_planner_label_optimal
+import georgiatransit.shared.generated.resources.map_planner_meters
 import georgiatransit.shared.generated.resources.map_planner_summary_bus
 import georgiatransit.shared.generated.resources.map_planner_summary_ferry
 import georgiatransit.shared.generated.resources.map_planner_summary_metro
 import georgiatransit.shared.generated.resources.map_planner_summary_tram
+import georgiatransit.shared.generated.resources.map_planner_summary_transfers
 import georgiatransit.shared.generated.resources.map_planner_summary_walk
+import georgiatransit.shared.generated.resources.map_planner_summary_walking_distance
 import georgiatransit.shared.generated.resources.map_planner_then
 import georgiatransit.shared.generated.resources.map_planner_total
+import georgiatransit.shared.generated.resources.map_planner_untimed_summary
+import georgiatransit.shared.generated.resources.map_planner_walk_only
 import georgiatransit.shared.generated.resources.map_planner_walk_access
 import georgiatransit.shared.generated.resources.map_planner_walk_direct
 import georgiatransit.shared.generated.resources.map_planner_walk_egress
@@ -62,6 +71,7 @@ import georgiatransit.shared.generated.resources.map_planner_walk_transfer
 import kotlin.time.Instant
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
+import org.jetbrains.compose.resources.pluralStringResource
 import org.jetbrains.compose.resources.stringResource
 
 /** One planned option; [nearestEtas] is non-empty only for the selected option's soonest buses. */
@@ -73,10 +83,12 @@ internal fun JourneyOptionCard(
     nearestEtas: List<Int>,
     onSelect: () -> Unit,
     modifier: Modifier = Modifier,
+    stopNames: Map<StopId, String> = emptyMap(),
 ) {
+    val walkOnly = option.legs.isNotEmpty() && option.legs.all { it is JourneyLegUi.Walk }
+    val hasTiming = option.totalMinutes != null || option.arrivalAt != null
     Surface(
-        onClick = onSelect,
-        modifier = modifier.fillMaxWidth().testTag(AutomationId.MapPlannerOption).semantics { selected = isSelected },
+        modifier = modifier.fillMaxWidth(),
         shape = TransitShapes.Medium,
         color = MaterialTheme.colorScheme.surface,
         border = BorderStroke(
@@ -84,41 +96,99 @@ internal fun JourneyOptionCard(
             if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant,
         ),
     ) {
-        Column(
-            modifier = Modifier.padding(TransitSpacing.Small + TransitSpacing.ExtraSmall),
-            verticalArrangement = Arrangement.spacedBy(TransitSpacing.ExtraSmall + 2.dp),
-        ) {
-            if (option.labels.isNotEmpty()) {
-                FlowRow(
-                    horizontalArrangement = Arrangement.spacedBy(TransitSpacing.ExtraSmall),
-                    verticalArrangement = Arrangement.spacedBy(TransitSpacing.ExtraSmall),
-                ) {
-                    option.labels.forEach { label -> JourneyLabelPill(label) }
+        Column {
+            Column(
+                modifier = Modifier.fillMaxWidth()
+                    .testTag(AutomationId.MapPlannerOption)
+                    .semantics(mergeDescendants = true) { selected = isSelected }
+                    .then(if (isSelected) Modifier else Modifier.clickable(role = Role.Button, onClick = onSelect))
+                    .padding(CardPadding),
+                verticalArrangement = Arrangement.spacedBy(TransitSpacing.ExtraSmall + 2.dp),
+            ) {
+                Row(horizontalArrangement = Arrangement.spacedBy(TransitSpacing.Small), verticalAlignment = Alignment.CenterVertically) {
+                    if (hasTiming) {
+                        FlowRow(
+                            modifier = Modifier.weight(1f),
+                            horizontalArrangement = Arrangement.spacedBy(TransitSpacing.Small),
+                            verticalArrangement = Arrangement.spacedBy(TransitSpacing.ExtraSmall),
+                            itemVerticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            option.totalMinutes?.let { minutes ->
+                                Text(
+                                    stringResource(Res.string.map_planner_total, minutes),
+                                    modifier = Modifier.testTag(AutomationId.MapPlannerTotal),
+                                    style = MaterialTheme.typography.titleLarge,
+                                    fontWeight = FontWeight.Bold,
+                                )
+                            }
+                            option.arrivalAt?.let { time ->
+                                Text(
+                                    stringResource(Res.string.map_planner_arrival, time.localClock()),
+                                    style = MaterialTheme.typography.bodyMedium,
+                                )
+                            }
+                        }
+                    } else {
+                        Box(Modifier.weight(1f)) { JourneyItinerary(option.legs) }
+                    }
+                    if (!isSelected) Icon(ChevronDownIcon, contentDescription = null)
+                }
+                if (option.isUntimedTransit) {
+                    UntimedJourneySummary(option.transfers, option.walkingMeters)
+                }
+                if (option.labels.isNotEmpty()) {
+                    FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(TransitSpacing.ExtraSmall),
+                        verticalArrangement = Arrangement.spacedBy(TransitSpacing.ExtraSmall),
+                    ) {
+                        option.labels.forEach { JourneyLabelPill(it) }
+                    }
+                }
+                if (walkOnly) {
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(TransitSpacing.ExtraSmall),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Icon(WalkIcon, contentDescription = null, modifier = Modifier.size(GlyphSize))
+                        Text(stringResource(Res.string.map_planner_walk_only), style = MaterialTheme.typography.bodyMedium)
+                    }
+                } else if (!isSelected && hasTiming) {
+                    JourneyItinerary(option.legs)
                 }
             }
-            FlowRow(
-                horizontalArrangement = Arrangement.spacedBy(TransitSpacing.Small),
-                verticalArrangement = Arrangement.spacedBy(TransitSpacing.ExtraSmall),
-                itemVerticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(
-                    stringResource(Res.string.map_planner_total, option.totalMinutes),
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold,
-                )
-                Text(
-                    stringResource(Res.string.map_planner_arrival, option.arrivalAt.localClock()),
-                    style = MaterialTheme.typography.bodyMedium,
-                )
-            }
             if (isSelected) {
-                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-                JourneyLegTimeline(option.legs, nearestEtas)
-            } else {
-                JourneyItinerary(option.legs)
+                HorizontalDivider(modifier = Modifier.padding(horizontal = CardPadding), color = MaterialTheme.colorScheme.outlineVariant)
+                JourneyLegTimeline(
+                    option.legs,
+                    nearestEtas,
+                    modifier = Modifier.padding(horizontal = CardPadding).padding(bottom = TransitSpacing.ExtraSmall),
+                    stopNames = stopNames,
+                )
             }
         }
     }
+}
+
+@Composable
+private fun UntimedJourneySummary(transfers: Int, walkingMeters: Int?) {
+    val transferLabel = if (transfers == 0) {
+        stringResource(Res.string.map_planner_label_no_transfers)
+    } else {
+        pluralStringResource(Res.plurals.map_planner_summary_transfers, transfers, transfers)
+    }
+    val summary = walkingMeters?.let { meters ->
+        val walkingLabel = stringResource(
+            Res.string.map_planner_summary_walking_distance,
+            stringResource(Res.string.map_planner_meters, meters),
+        )
+        stringResource(Res.string.map_planner_untimed_summary, transferLabel, walkingLabel)
+    } ?: transferLabel
+    Text(
+        text = summary,
+        modifier = Modifier.testTag(AutomationId.MapPlannerUntimedSummary),
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        style = MaterialTheme.typography.bodySmall,
+    )
 }
 
 /** Label text sits inside the card, so it is part of its accessible name and never colour alone. */
@@ -235,6 +305,7 @@ private fun Instant.localClock(): String = toLocalDateTime(TimeZone.currentSyste
     "${time.hour.toString().padStart(2, '0')}:${time.minute.toString().padStart(2, '0')}"
 }
 
+private val CardPadding = TransitSpacing.Small + TransitSpacing.ExtraSmall
 private val GlyphSize = 16.dp
 
 internal val PreviewJourneyOption = JourneyOptionUi(

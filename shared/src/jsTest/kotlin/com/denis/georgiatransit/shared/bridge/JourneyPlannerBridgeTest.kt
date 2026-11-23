@@ -87,9 +87,7 @@ class JourneyPlannerBridgeTest {
 
                 entry.planner.longPressMap(B.latitude, B.longitude)
                 settle()
-                assertTrue(queries.isEmpty(), "Choosing points must not start planning")
-                entry.planner.findRoute()
-                settle()
+                assertEquals(B, queries.firstOrNull()?.to, "Choosing the second point starts planning")
                 val results = assertNotNull(state)
                 assertEquals("results", results.status)
                 val option = results.options.single()
@@ -142,7 +140,7 @@ class JourneyPlannerBridgeTest {
                 assertEquals("locationNeeded", state?.status)
                 assertEquals("permissionRequired", state?.reason)
                 entry.planner.pickPointFor("origin")
-                entry.planner.longPressMap(B.latitude, B.longitude)
+                entry.planner.confirmMapPick(B.latitude, B.longitude)
                 settle()
                 entry.planner.findRoute()
                 settle()
@@ -169,6 +167,48 @@ class JourneyPlannerBridgeTest {
     }
 
     @Test
+    fun pickingAProjectedMapPointRequiresConfirmationAndCanBeCancelled() = runTest {
+        Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+        val store = ViewModelStore()
+        try {
+            val entry = MapBridge(viewModel(store, JourneyPlanRepository { _, _ -> plan() }), store, CITY) {}
+            try {
+                var state: PlannerState? = null
+                entry.planner.subscribe { state = it }
+                entry.setVisible(true)
+                settle()
+                entry.planner.open()
+                entry.planner.pickPointFor("origin")
+                settle()
+                assertEquals("origin", state?.mapPick)
+
+                entry.planner.longPressMap(A.latitude, A.longitude)
+                settle()
+                assertEquals("none", state?.origin?.kind)
+                entry.planner.cancelMapPick()
+                settle()
+                assertNull(state?.mapPick)
+                assertEquals("none", state?.origin?.kind)
+
+                entry.planner.pickPointFor("destination")
+                settle()
+                assertEquals("destination", state?.mapPick)
+                entry.planner.confirmMapPick(B.latitude, B.longitude)
+                settle()
+                assertNull(state?.mapPick)
+                assertEquals(B.latitude, state?.destination?.point?.latitude)
+                assertEquals(B.longitude, state?.destination?.point?.longitude)
+                assertEquals("none", state?.origin?.kind)
+            } finally {
+                entry.dispose()
+            }
+        } finally {
+            store.clear()
+            Dispatchers.resetMain()
+        }
+    }
+
+    @Test
     fun aResubscribedRendererNeverSeesARouteRevisionTwice() = runTest {
         Dispatchers.setMain(StandardTestDispatcher(testScheduler))
         val store = ViewModelStore()
@@ -183,8 +223,6 @@ class JourneyPlannerBridgeTest {
                 entry.planner.routeFromHere()
                 settle()
                 entry.planner.longPressMap(B.latitude, B.longitude)
-                settle()
-                entry.planner.findRoute()
                 settle()
                 val before = revisions.maxOf(String::toLong)
                 // A renderer keeps its "already framed" revision across a re-subscribe; a restarted counter would reuse it.
@@ -220,8 +258,6 @@ class JourneyPlannerBridgeTest {
                 entry.planner.routeFromHere()
                 settle()
                 entry.planner.longPressMap(B.latitude, B.longitude)
-                settle()
-                entry.planner.findRoute()
                 settle()
 
                 val ride = assertNotNull(state).options.first()

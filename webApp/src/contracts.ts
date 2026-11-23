@@ -77,6 +77,7 @@ export interface StopPin {
   readonly imageId: string;
   readonly color: string;
   readonly glyphColor: string;
+  readonly outlineColor: string;
   readonly width: number;
   readonly height: number;
   readonly bodyTop: number;
@@ -136,6 +137,7 @@ export interface RouteLegend {
   readonly status: string;
   readonly focused: boolean;
   readonly canRetry: boolean;
+  readonly canFocus: boolean;
 }
 
 export interface VehicleItem {
@@ -217,6 +219,7 @@ export interface MapState {
   readonly cityName: string;
   readonly canChangeCity: boolean;
   readonly canOpenRoutes: boolean;
+  readonly journeyPlanningAvailable: boolean;
   readonly routePolylines: readonly RoutePolyline[];
   readonly routePolylineRevision: string;
   readonly routeLegends: readonly RouteLegend[];
@@ -239,6 +242,8 @@ export interface PlannerPoint {
   readonly longitude: number;
 }
 
+export type PlannerSide = "origin" | "destination";
+
 export interface PlannerEndpoint {
   readonly kind: string;
   readonly point: PlannerPoint | null | undefined;
@@ -246,7 +251,7 @@ export interface PlannerEndpoint {
 
 export interface PlannerLeg {
   readonly kind: string;
-  readonly minutes: number;
+  readonly minutes: number | null | undefined;
   readonly role: string | null | undefined;
   readonly meters: number | null | undefined;
   readonly approximate: boolean;
@@ -258,6 +263,8 @@ export interface PlannerLeg {
   readonly waitMinutes: number | null | undefined;
   readonly waitLive: boolean;
   readonly routeMode: string | null | undefined;
+  readonly fromStopName: string | null | undefined;
+  readonly toStopName: string | null | undefined;
 }
 
 export interface PlannerLabel {
@@ -279,8 +286,8 @@ export interface PlannerBus {
 
 export interface PlannerOption {
   readonly id: string;
-  readonly totalMinutes: number;
-  readonly arrivalEpochMillis: number;
+  readonly totalMinutes: number | null | undefined;
+  readonly arrivalEpochMillis: number | null | undefined;
   readonly transfers: number;
   readonly walkingMeters: number | null | undefined;
   readonly timing: string | null | undefined;
@@ -299,6 +306,8 @@ export interface PlannerRoute {
 
 export interface PlannerState {
   readonly open: boolean;
+  readonly mapPick: string | null | undefined;
+  readonly defaultExpandedSide: string | null | undefined;
   readonly showingResults: boolean;
   readonly status: string;
   readonly pin: PlannerPoint | null | undefined;
@@ -319,12 +328,15 @@ export interface PlannerState {
 
 export interface PlannerEntry {
   subscribe(onState: (state: PlannerState) => void): void;
+  open(): void;
   longPressMap(latitude: number, longitude: number): void;
   routeHere(): void;
   routeFromHere(): void;
   dismissPin(): void;
-  useMyLocationFor(side: string): void;
-  pickPointFor(side: string): void;
+  useMyLocationFor(side: PlannerSide): void;
+  pickPointFor(side: PlannerSide): void;
+  confirmMapPick(latitude: number, longitude: number): void;
+  cancelMapPick(): void;
   swap(): void;
   clear(): void;
   findRoute(): void;
@@ -343,6 +355,7 @@ export interface MapEntry {
   myLocation(): void;
   zoomIn(): void;
   zoomOut(): void;
+  zoomGesture(pinch: boolean): void;
   refreshLocation(): void;
   locationPermission(state: string, precise: boolean, canRetry: boolean): void;
   locationFix(requestId: string, latitude: number, longitude: number, accuracyMeters: number, capturedAt: number): void;
@@ -365,6 +378,7 @@ export interface RoutesEntry {
   subscribe(onState: (state: RoutesState) => void): void;
   setSearch(query: string): void;
   toggleRoute(id: string): void;
+  toggleRecentRoute(id: string): void;
   confirm(): void;
   cancel(): void;
   retry(): void;
@@ -372,6 +386,7 @@ export interface RoutesEntry {
 }
 
 export interface TransitRuntime {
+  setForeground(foreground: boolean): void;
   start(onDestination: (destination: string) => void, onCityState: (state: CityState) => void): void;
   selectCity(id: string): void;
   confirmCity(): void;

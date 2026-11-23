@@ -1,4 +1,4 @@
-appId: com.denis.georgiatransit
+appId: com.anti.georgiatransit.sandbox
 ---
 # Precondition: the Debug app is configured with a BFF catalog where Tbilisi has stops=false
 # and the reviewed Transitous/OpenStreetMap attribution links. This flow intentionally never

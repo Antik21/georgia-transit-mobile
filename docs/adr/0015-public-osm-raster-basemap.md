@@ -1,6 +1,6 @@
 # ADR 0015: Public OpenStreetMap raster basemap by default
 
-- Status: Accepted
+- Status: Superseded by [ADR 0032](0032-localized-vector-basemap.md)
 - Date: 2026-09-15
 - Supersedes: the production public-tile rejection in ADR 0002 and map-proxy-disabled decision in
   ADR 0014
@@ -25,9 +25,10 @@ bulk download, prefetch, or offline feature. Access may be limited or withdrawn 
 - Send a stable `GeorgiaTransit` User-Agent with a public repository contact URL.
 - Cache successful tiles in the BFF and advertise a seven-day client cache lifetime. Do not add
   bulk download, region prefetch, or offline map support while this source is active.
-- Restrict tile coordinates to the Batumi/Adjara operating area and zooms 8–19, bound cache memory
-  by bytes, cap concurrency, and reject upstream cache misses after the global request budget is
-  exhausted. These controls prevent the public BFF from becoming an unrestricted tile relay.
+- Restrict tile coordinates to the Batumi/Adjara operating area and zooms 8–19. When the
+  Zugdidi catalog is loaded, include its separately bounded regional coverage for the
+  stops and surrounding streets. Both areas share the same byte-bounded cache, concurrency cap,
+  and global upstream request budget. These controls prevent the public BFF from becoming an unrestricted tile relay.
 - Display and link `© OpenStreetMap contributors` through the MapLibre source attribution.
 - Keep the source configurable on the BFF. Mobile binaries contain neither the upstream URL nor a
   provider key, and the local source-free style remains the failure fallback.

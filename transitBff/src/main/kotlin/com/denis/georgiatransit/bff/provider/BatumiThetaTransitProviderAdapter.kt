@@ -33,6 +33,8 @@ import com.denis.georgiatransit.bff.planning.GeoBounds
 import com.denis.georgiatransit.bff.planning.JourneyPlanQuery
 import com.denis.georgiatransit.bff.planning.PlanningBudget
 import com.denis.georgiatransit.bff.provider.batumi.BatumiJourneyPlanning
+import com.denis.georgiatransit.bff.provider.batumi.BatumiRouteNames
+import com.denis.georgiatransit.bff.provider.batumi.BatumiStopNames
 import com.denis.georgiatransit.bff.provider.batumi.BatumiServiceBounds
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.cio.CIO
@@ -44,6 +46,7 @@ import io.ktor.client.request.get
 import io.ktor.client.request.url
 import io.ktor.client.statement.bodyAsChannel
 import io.ktor.http.HttpStatusCode
+import io.ktor.http.HttpHeaders
 import io.ktor.utils.io.readAvailable
 import java.io.ByteArrayOutputStream
 import java.nio.charset.StandardCharsets
@@ -62,6 +65,7 @@ import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
+import org.slf4j.LoggerFactory
 
 private const val BatumiCityId = KnownCityIds.Batumi
 private const val BatumiProviderId = "theta"
@@ -77,11 +81,11 @@ private val BatumiLiveCacheTtl = Duration.ofSeconds(4)
 private val BatumiLiveMaximumAge = Duration.ofSeconds(60)
 private val BatumiGlobalFeedFreshAge = Duration.ofSeconds(15)
 private val BatumiJson = Json { ignoreUnknownKeys = true; explicitNulls = false }
+private val BatumiFeedLog = LoggerFactory.getLogger("TransitBff.BatumiFeed")
 
 /**
- * Production-approved Theta adapter. Catalog and live responses are independently validated
- * before publication. No raw upstream payload is retained. Live snapshots have a four-second
- * cadence and may be served stale only for one minute after an upstream outage.
+ * Production-approved Batumi adapter. The catalog and each live generation are validated before
+ * publication. Live positions and estimated arrivals share one city snapshot.
  */
 internal class BatumiThetaTransitProviderAdapter(
     private val activation: BatumiThetaActivationConfig,
@@ -92,7 +96,7 @@ internal class BatumiThetaTransitProviderAdapter(
     private val allBusesClient: BatumiAllBusesClient? = null,
     private val cityFeedPollInterval: Duration = Duration.ofSeconds(5),
     private val observability: BffObservability? = null,
-) : CityTransitProviderAdapter, AutoCloseable {
+) : CityTransitProviderAdapter, ProviderCircuitProtectedAdapter, AutoCloseable {
     init { require(activation.isActivated) { "Batumi Theta adapter requires explicit operator activation" } }
 
     override val telemetryProvider: TelemetryProvider = TelemetryProvider.BATUMI_THETA
@@ -130,23 +134,32 @@ internal class BatumiThetaTransitProviderAdapter(
         loader = ::refreshRouteArrivalSnapshot,
     )
     @Volatile private var cityFeedWorker: ContinuousSnapshotWorker<BatumiAllRoutesSnapshot>? = null
+    private var lastPublishedSource: BatumiLiveSource? = null
+
+    override fun bypassServiceCircuit(operation: TelemetryOperation): Boolean =
+        cityFeedWorker != null && (operation == TelemetryOperation.VEHICLES || operation == TelemetryOperation.ARRIVALS)
 
     /** Starts once after runtime capability control has published its effective snapshot. */
     internal fun startGlobalFeed(
         onSchemaFailure: (TelemetryCapability) -> Boolean = { false },
         enabled: () -> Boolean,
     ) {
-        if (allBusesClient == null || cityFeedWorker != null) return
+        val primary = allBusesClient ?: return
         synchronized(this) {
             if (cityFeedWorker == null) {
+                val liveFeed = BatumiLiveFeed(primary, client, clock, enabled)
                 cityFeedWorker = ContinuousSnapshotWorker(
                     pollInterval = cityFeedPollInterval,
                     onSuccess = ::recordGlobalFeedSuccess,
                     onFailure = { failure, durationNanos ->
                         recordGlobalFeedFailure(failure, durationNanos, onSchemaFailure)
                     },
-                    isEnabled = enabled,
-                    loader = ::refreshAllRoutesSnapshot,
+                    isEnabled = liveFeed::enabled,
+                    loader = {
+                        val snapshot = catalog()
+                        val generation = liveFeed.load(snapshot)
+                        buildCitySnapshot(snapshot, generation)
+                    },
                 )
             }
         }
@@ -178,10 +191,10 @@ internal class BatumiThetaTransitProviderAdapter(
     }
 
     override suspend fun routes(locale: String, mode: String?): List<Route> =
-        if (mode == null || mode == TransitModeValues.Bus) catalog().routes else emptyList()
+        if (mode == null || mode == TransitModeValues.Bus) catalog().routes.map(BatumiRouteNames::apply) else emptyList()
 
     override suspend fun route(routeId: String, locale: String): Route =
-        catalog().routes.singleOrNull { it.id == routeId } ?: throw ProviderRouteNotFound("The requested route was not found")
+        BatumiRouteNames.apply(catalog().route(routeId))
 
     override suspend fun directionStops(routeId: String, directionId: String, locale: String): List<Stop> {
         val snapshot = catalog()
@@ -311,7 +324,12 @@ internal class BatumiThetaTransitProviderAdapter(
     private fun <T> unavailable(): T = throw ProviderCapabilityUnavailable("This capability is not available for Batumi")
 
     private suspend fun globalSnapshot(): GlobalSnapshotResult {
-        val snapshot = requireNotNull(cityFeedWorker).get()
+        val snapshot = try {
+            requireNotNull(cityFeedWorker).get()
+        } catch (_: ProviderNormalizedSchemaFailure) {
+            // The worker counts each invalid generation once, regardless of concurrent readers.
+            throw ProviderUnavailable("Batumi global live data is unavailable")
+        }
         val age = Duration.between(snapshot.observedAt, clock.instant())
         if (age.isNegative || age > BatumiLiveMaximumAge) {
             throw ProviderUnavailable("Batumi global live data is unavailable")
@@ -320,6 +338,13 @@ internal class BatumiThetaTransitProviderAdapter(
     }
 
     private fun recordGlobalFeedSuccess(snapshot: BatumiAllRoutesSnapshot, durationNanos: Long) {
+        if (lastPublishedSource != snapshot.source) {
+            BatumiFeedLog.info(
+                "batumi_live_source_changed source={} routes={} vehicles={}",
+                snapshot.source.name, snapshot.vehiclesByRoute.size, snapshot.vehiclesByRoute.values.sumOf { it.size },
+            )
+            lastPublishedSource = snapshot.source
+        }
         observability?.recordProviderResult(GlobalFeedTelemetryLabels, ProviderOutcome.SUCCESS, durationNanos)
         observability?.recordDataResult(
             labels = GlobalFeedTelemetryLabels,
@@ -340,28 +365,24 @@ internal class BatumiThetaTransitProviderAdapter(
             is ProviderTimeout -> ProviderOutcome.TIMEOUT
             is ProviderJsonDecodeFailure -> ProviderOutcome.JSON_DECODE
             is ProviderNormalizedSchemaFailure -> ProviderOutcome.NORMALIZED_SCHEMA
+            is ProviderRateLimited -> ProviderOutcome.RATE_LIMITED
             is ProviderBadGateway -> ProviderOutcome.BAD_GATEWAY
             else -> ProviderOutcome.UNAVAILABLE
         }
         observability?.recordProviderResult(GlobalFeedTelemetryLabels, outcome, durationNanos)
         if (failure is ProviderJsonDecodeFailure || failure is ProviderNormalizedSchemaFailure) {
+            // The worker stops polling when the latch closes. Log the reason on the first failure too.
+            BatumiFeedLog.warn("batumi_feed_schema_failure outcome={}", outcome)
             GlobalFeedSchemaTelemetryLabels.forEach { labels ->
                 if (onSchemaFailure(labels.capability)) observability?.recordSchemaInterlock(labels)
             }
         }
     }
 
-    /** One city-wide fetch, one normalized generation, and one atomic ETA board for all routes. */
-    private suspend fun refreshAllRoutesSnapshot(): BatumiAllRoutesSnapshot {
-        val snapshot = catalog()
-        val response = requireNotNull(allBusesClient).getAllBuses()
-        val observedAt = clock.instant()
-        val vehiclesByRoute = BatumiAllBusesParser.parse(response, snapshot, observedAt)
-        validateEtaWorkload(snapshot.routes.map { route ->
-            vehiclesByRoute[route.id].orEmpty().size to snapshot.cycle(route.id).chain.size
-        })
-        val trackedByRoute = snapshot.routes.associate { route ->
-            route.id to vehiclesByRoute[route.id].orEmpty()
+    private suspend fun buildCitySnapshot(snapshot: BatumiCatalog, generation: BatumiLiveGeneration): BatumiAllRoutesSnapshot {
+        val (source, trackedByRoute, observedAt) = generation
+        if (lastPublishedSource != source) {
+            arrivalCandidateMutex.withLock { arrivalCandidates.clear() }
         }
         val arrivalsByRoute = mutableMapOf<String, List<Arrival>>()
         snapshot.routes.forEach { route ->
@@ -377,7 +398,7 @@ internal class BatumiThetaTransitProviderAdapter(
                 liveSnapshots[routeId] = TimedLiveSnapshot(LiveSnapshot(tracked, observedAt, stale = false))
             }
         }
-        return BatumiAllRoutesSnapshot(trackedByRoute, arrivalsByRoute, observedAt)
+        return BatumiAllRoutesSnapshot(trackedByRoute, arrivalsByRoute, observedAt, source)
     }
 
     /** One in-process owner fetches a route; followers receive the same validated snapshot. */
@@ -630,6 +651,7 @@ internal data class BatumiAllRoutesSnapshot(
     val vehiclesByRoute: Map<String, List<BatumiLiveVehicle>>,
     val arrivalsByRoute: Map<String, List<Arrival>>,
     val observedAt: Instant,
+    val source: BatumiLiveSource,
 )
 private data class GlobalSnapshotResult(val snapshot: BatumiAllRoutesSnapshot, val stale: Boolean)
 internal data class BatumiLiveVehicle(val vehicle: Vehicle, val status: Int?)
@@ -686,6 +708,10 @@ internal class BatumiThetaClient(private val activation: BatumiThetaActivationCo
 
     override suspend fun getBusLocsOnRoute(rawRouteId: String): String = try {
         val response = http.get { url(activation.baseUrl.toString() + "/getBusLocsOnRoute?routeId=" + java.net.URLEncoder.encode(rawRouteId, StandardCharsets.UTF_8)) }
+        if (response.status == HttpStatusCode.TooManyRequests) {
+            val retryAfter = response.headers[HttpHeaders.RetryAfter]?.toIntOrNull()?.coerceIn(1, 86_400) ?: 30
+            throw ProviderRateLimited("Batumi route source is rate limited", retryAfter)
+        }
         if (response.status != HttpStatusCode.OK) throw ProviderUnavailable("Batumi live upstream is unavailable")
         response.readBoundedUtf8(BatumiMaximumBodyBytes)
     } catch (exception: CancellationException) { throw exception
@@ -776,11 +802,12 @@ internal object BatumiThetaCatalogParser {
         } }
         if (rawStopEntries.map(RawStop::rawId).toSet().size != rawStopEntries.size) invalid()
         val stopsByRawId = rawStopEntries.associate { raw ->
+            val id = BatumiIds.stop(raw.rawId)
             raw.rawId to Stop(
-                BatumiIds.stop(raw.rawId),
+                id,
                 BatumiIds.opaque(raw.rawId),
                 raw.code,
-                LocalizedText(raw.name, raw.name, raw.ka),
+                BatumiStopNames.find(id, raw.code, raw.position) ?: LocalizedText(raw.name, raw.name, raw.ka),
                 raw.position,
                 raw.memberships.map { routeIds.getValue(it.rawRouteId) }.sorted(),
                 TransitModeValues.Bus,
@@ -871,13 +898,14 @@ private object BatumiIds {
 
 /** Defensive parser for getBusLocsOnRoute. `data:null` is a valid empty snapshot. */
 internal object BatumiThetaLiveParser {
-    fun parse(payload: String, route: Route, observedAt: Instant): List<BatumiLiveVehicle> {
+    fun parse(payload: String, route: Route, observedAt: Instant, requireArray: Boolean = false): List<BatumiLiveVehicle> {
         if (payload.toByteArray(StandardCharsets.UTF_8).size > BatumiMaximumBodyBytes) invalid()
         val root = try { BatumiJson.parseToJsonElement(payload) } catch (_: Exception) { invalid() }
         val data = when (root) {
             is JsonObject -> root["data"] ?: invalid()
             else -> invalid()
         }
+        if (requireArray && data !is JsonArray) invalid()
         val records = when (data) {
             is JsonArray -> data.toList()
             is JsonObject -> when {
@@ -1018,7 +1046,7 @@ private fun buildRouteCycle(stops: List<RouteStop>): RouteCycle {
     return RouteCycle(chain, total)
 }
 
-private const val BatumiMaximumGlobalVehicles = 4_096
+internal const val BatumiMaximumGlobalVehicles = 4_096
 private const val BatumiMaximumEtaWorkItems = 100_000L
 private val GlobalFeedTelemetryLabels = ProviderTelemetryLabels(
     city = BatumiCityId,

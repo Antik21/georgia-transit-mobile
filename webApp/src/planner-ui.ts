@@ -1,6 +1,7 @@
 import type { getCopy } from "./copy";
-import type { PlannerEndpoint, PlannerLeg, PlannerOption, PlannerState } from "./contracts";
+import type { PlannerEndpoint, PlannerLeg, PlannerOption, PlannerSide, PlannerState } from "./contracts";
 import { applyRouteColors, button, element, heading, icon, status } from "./dom";
+import { mapIcon } from "./map-icons";
 
 type Copy = ReturnType<typeof getCopy>;
 
@@ -8,8 +9,8 @@ export interface PlannerActions {
   closePlanner(): void;
   editPlannerPoints(): void;
   findPlannerRoute(): void;
-  pickPointFor(side: string): void;
-  useMyLocationFor(side: string): void;
+  pickPointFor(side: PlannerSide): void;
+  useMyLocationFor(side: PlannerSide): void;
   swapPlanner(): void;
   clearPlanner(): void;
   selectPlannerOption(id: string): void;
@@ -17,89 +18,136 @@ export interface PlannerActions {
 }
 
 /** The planner replaces the stop list in the map panel while it is open. */
-export function renderPlannerPanel(state: PlannerState, copy: Copy, actions: PlannerActions, language: string) {
-  const panel = element("div", "panel-content planner-panel");
+export function renderPlannerPanel(
+  state: PlannerState,
+  copy: Copy,
+  actions: PlannerActions,
+  language: string,
+  expandedSide: PlannerSide | undefined,
+  toggleSide: (side: PlannerSide) => void,
+) {
+  const panel = element("div", state.showingResults ? "panel-content planner-panel" : "planner-panel planner-form");
   panel.dataset.testid = "planner-panel";
-  const close = button("back-button", "", state.showingResults ? actions.editPlannerPoints : actions.closePlanner,
-    state.showingResults ? "planner-edit" : "planner-close");
-  close.dataset.focusKey = "planner-close";
-  close.append(icon("arrow-left"), element("span", "", copy.plannerClose));
+  const body = element("div", state.showingResults ? "planner-results-body" : "planner-form-body");
   if (state.showingResults) {
+    const edit = button("back-button", "", actions.editPlannerPoints, "planner-edit");
+    edit.dataset.focusKey = "planner-close";
+    edit.append(icon("arrow-left"), element("span", "", copy.plannerEdit));
     const header = element("div", "planner-results-header");
-    header.append(close, element("span", "planner-endpoint-chip", endpointLabel(state.origin, copy)),
-      element("span", "planner-header-arrow", "→"), element("span", "planner-endpoint-chip", endpointLabel(state.destination, copy)));
-    panel.append(header);
+    header.append(edit, endpointChip("origin", state.origin.kind, copy),
+      element("span", "planner-header-arrow", "→"), endpointChip("destination", state.destination.kind, copy));
+    panel.append(header, body);
   } else {
-    panel.append(close, heading(copy.plannerTitle), endpoints(state, copy, actions));
+    body.append(endpoints(state, copy, actions, expandedSide, toggleSide));
     const find = button("primary-button planner-find", copy.plannerFind, actions.findPlannerRoute, "planner-find");
     find.disabled = state.origin.kind === "none" || state.destination.kind === "none" || state.status === "unavailable";
-    panel.append(find);
+    panel.append(formHeader(state, copy, actions), body, find);
   }
 
   const message = statusText(state, copy);
   if (message) {
     const note = status(message, state.status === "loading" || (state.status === "locationNeeded" && state.reason === "locating"));
     note.dataset.testid = "planner-status";
-    panel.append(note);
+    body.append(note);
   }
-  if (state.status === "locationNeeded" && state.side) {
+  if (state.status === "locationNeeded" && (state.side === "origin" || state.side === "destination")) {
     const side = state.side;
-    panel.append(button("secondary-button", copy.plannerPickOnMap, () => actions.pickPointFor(side), "planner-pick-instead"));
+    body.append(button("secondary-button", copy.plannerPickOnMap, () => actions.pickPointFor(side), "planner-pick-instead"));
   }
   if (state.retryable || state.status === "empty" || state.stale) {
-    panel.append(button("secondary-button", copy.retry, actions.retryPlanner, "planner-retry"));
+    body.append(button("secondary-button", copy.retry, actions.retryPlanner, "planner-retry"));
   }
   if (state.options.length) {
     const list = element("ul", "planner-options");
     list.setAttribute("aria-label", copy.plannerTitle);
     for (const option of state.options) list.append(optionCard(option, copy, actions, language));
-    panel.append(list);
+    body.append(list);
   }
   if (state.showingResults) {
     const disclaimer = element("p", "planner-disclaimer", copy.plannerDisclaimer);
     disclaimer.dataset.testid = "planner-disclaimer";
-    panel.append(disclaimer);
+    body.append(disclaimer);
   }
   return panel;
 }
 
-function endpoints(state: PlannerState, copy: Copy, actions: PlannerActions) {
+function endpointChip(side: PlannerSide, kind: PlannerEndpoint["kind"], copy: Copy) {
+  const label = kind === "myLocation" ? copy.plannerLocationChip
+    : kind === "point" ? copy.plannerPointChip : copy.plannerNotSet;
+  const direction = side === "origin" ? copy.plannerOrigin : copy.plannerDestination;
+  const chip = element("span", "planner-endpoint-chip");
+  chip.append(endpointBadge(side), element("span", "visually-hidden", `${direction} `),
+    element("span", "planner-endpoint-chip-label", label));
+  return chip;
+}
+
+function endpointBadge(side: PlannerSide) {
+  const badge = element("span", `planner-endpoint-badge planner-endpoint-${side}`, side === "origin" ? "A" : "B");
+  badge.setAttribute("aria-hidden", "true");
+  return badge;
+}
+
+function formHeader(state: PlannerState, copy: Copy, actions: PlannerActions) {
+  const header = element("div", "planner-form-header");
+  header.append(heading(copy.planTrip));
+  const hasOrigin = state.origin.kind !== "none";
+  const hasDestination = state.destination.kind !== "none";
+  if (hasOrigin && hasDestination) header.append(headerButton("swap", copy.plannerSwap, actions.swapPlanner, "planner-swap"));
+  if (hasOrigin || hasDestination) header.append(headerButton("trash", copy.plannerClear, actions.clearPlanner, "planner-clear"));
+  header.append(headerButton("close", copy.plannerClose, actions.closePlanner, "planner-close"));
+  return header;
+}
+
+function headerButton(glyph: "swap" | "trash" | "close", label: string, onClick: () => void, id: string) {
+  const action = button("planner-header-button", "", onClick, id);
+  action.dataset.focusKey = id;
+  action.title = label;
+  action.setAttribute("aria-label", label);
+  action.append(mapIcon(glyph));
+  return action;
+}
+
+function endpoints(
+  state: PlannerState, copy: Copy, actions: PlannerActions,
+  expandedSide: PlannerSide | undefined, toggleSide: (side: PlannerSide) => void,
+) {
   const section = element("div", "planner-endpoints");
-  for (const [side, endpoint, letter, label] of [
-    ["origin", state.origin, "A", copy.plannerOrigin],
-    ["destination", state.destination, "B", copy.plannerDestination],
+  for (const [side, endpoint, label] of [
+    ["origin", state.origin, copy.plannerOrigin],
+    ["destination", state.destination, copy.plannerDestination],
   ] as const) {
     const row = element("div", "planner-endpoint");
     row.dataset.side = side;
-    const picking = state.status === "pickingPoint" && state.side === side;
-    const badge = element("span", `planner-endpoint-badge planner-endpoint-${side}`, letter);
-    badge.setAttribute("aria-hidden", "true");
+    const expanded = expandedSide === side;
+    row.dataset.expanded = String(expanded);
+    const toggle = button("planner-endpoint-toggle", "", () => toggleSide(side), `planner-${side}-toggle`);
+    toggle.dataset.focusKey = `planner-${side}-toggle`;
+    toggle.setAttribute("aria-expanded", String(expanded));
+    toggle.setAttribute("aria-controls", `planner-${side}-actions`);
     const text = element("span", "planner-endpoint-text");
     const value = element("span", "planner-endpoint-value", endpointLabel(endpoint, copy));
     value.dataset.testid = `planner-${side}-value`;
-    text.append(element("small", "list-detail", label), value);
-    if (picking) text.append(element("small", "planner-endpoint-hint", copy.plannerPickHint));
-    const pick = button("planner-chip", copy.plannerPickOnMap, () => actions.pickPointFor(side), `planner-pick-${side}`);
-    pick.dataset.focusKey = `planner-pick-${side}`;
-    pick.setAttribute("aria-pressed", String(picking));
-    const mine = button("planner-chip", copy.plannerUseMyLocation, () => actions.useMyLocationFor(side), `planner-my-location-${side}`);
-    mine.dataset.focusKey = `planner-mine-${side}`;
-    mine.setAttribute("aria-pressed", String(endpoint.kind === "myLocation"));
+    text.append(element("span", "planner-endpoint-label", label), value);
+    toggle.append(endpointBadge(side), text, mapIcon("chevron"));
     const buttons = element("div", "planner-endpoint-actions");
-    buttons.append(pick, mine);
-    row.append(badge, text, buttons);
+    buttons.id = `planner-${side}-actions`;
+    buttons.hidden = !expanded;
+    buttons.append(
+      endpointChoice("place", copy.plannerPickOnMap, endpoint.kind === "point", () => actions.pickPointFor(side), `planner-pick-${side}`),
+      endpointChoice("location", copy.plannerMyLocation, endpoint.kind === "myLocation", () => actions.useMyLocationFor(side), `planner-my-location-${side}`),
+    );
+    row.append(toggle, buttons);
     section.append(row);
   }
-  const tools = element("div", "planner-tools");
-  const swap = button("planner-chip", "⇅", actions.swapPlanner, "planner-swap");
-  swap.setAttribute("aria-label", copy.plannerSwap);
-  swap.title = copy.plannerSwap;
-  swap.dataset.focusKey = "planner-swap";
-  const clear = button("planner-chip", copy.plannerClear, actions.clearPlanner, "planner-clear");
-  clear.dataset.focusKey = "planner-clear";
-  tools.append(swap, clear);
-  section.append(tools);
   return section;
+}
+
+function endpointChoice(glyph: "place" | "location", label: string, chosen: boolean, onClick: () => void, id: string) {
+  const choice = button("planner-endpoint-choice", "", onClick, id);
+  choice.dataset.focusKey = id;
+  choice.setAttribute("aria-pressed", String(chosen));
+  choice.append(mapIcon(glyph), element("span", "", label));
+  return choice;
 }
 
 function optionCard(option: PlannerOption, copy: Copy, actions: PlannerActions, language: string) {
@@ -121,10 +169,13 @@ function optionCard(option: PlannerOption, copy: Copy, actions: PlannerActions, 
     card.append(labels);
   }
   const summary = element("span", "planner-option-summary");
-  summary.append(
-    element("strong", "planner-option-total", format(copy.plannerTotal, option.totalMinutes)),
-    element("span", "planner-option-arrival", copy.plannerArrival.replace("%1$s", clock(option.arrivalEpochMillis, language))),
-  );
+  if (option.totalMinutes != null) {
+    summary.append(element("strong", "planner-option-total", format(copy.plannerTotal, option.totalMinutes)));
+  }
+  if (option.arrivalEpochMillis != null) {
+    summary.append(element("span", "planner-option-arrival",
+      copy.plannerArrival.replace("%1$s", clock(option.arrivalEpochMillis, language))));
+  }
   const legs = element("span", "planner-legs");
   let firstRide = true;
   for (const leg of option.legs) {
@@ -132,7 +183,7 @@ function optionCard(option: PlannerOption, copy: Copy, actions: PlannerActions, 
     if (leg.kind === "ride") firstRide = false;
     legs.append(legRow(leg, copy, etas));
   }
-  card.append(summary);
+  if (summary.childElementCount) card.append(summary);
   if (option.selected) card.append(legs);
   else card.append(itinerary(option.legs, copy));
   row.append(card);
@@ -195,7 +246,8 @@ function legRow(leg: PlannerLeg, copy: Copy, nearestEtas: readonly number[]) {
   if (leg.kind === "ride") {
     const badge = element("span", "route-number", leg.routeLabel ?? "?");
     applyRouteColors(badge, leg.routeColor ?? "", leg.routeTextColor ?? "");
-    const parts = [leg.stopCount != null ? format(copy.plannerStops, leg.stopCount) : null, format(copy.plannerMinutes, leg.minutes)];
+    const parts = [leg.stopCount != null ? format(copy.plannerStops, leg.stopCount) : null,
+      leg.minutes != null ? format(copy.plannerMinutes, leg.minutes) : null];
     const detail = element("span", "planner-leg-detail");
     const rideDetails = element("span", "", parts.filter(Boolean).join(" · "));
     if (nearestEtas.length) {
@@ -203,16 +255,21 @@ function legRow(leg: PlannerLeg, copy: Copy, nearestEtas: readonly number[]) {
       arrival.dataset.testid = "planner-nearest";
       detail.append(arrival);
     }
-    detail.append(rideDetails);
-    if (!nearestEtas.length && leg.waitMinutes != null) {
-      detail.append(element("small", "planner-leg-wait",
-        format(copy.plannerWaitEstimate, leg.waitMinutes)));
+    if (leg.fromStopName && leg.toStopName) {
+      const stopNames = [leg.fromStopName, leg.toStopName];
+      detail.append(element("span", "", copy.plannerRideStops.replace(/%([12])\$s/g, (_, index) => stopNames[Number(index) - 1])));
+    }
+    if (parts.some(Boolean)) detail.append(rideDetails);
+    if (!nearestEtas.length) {
+      detail.append(element("small", "planner-leg-wait", leg.waitMinutes == null
+        ? copy.plannerWaitUnknown : format(copy.plannerWaitEstimate, leg.waitMinutes)));
     }
     row.append(badge, detail);
   } else {
     const role = { access: copy.plannerWalkAccess, transfer: copy.plannerWalkTransfer, egress: copy.plannerWalkEgress }[leg.role ?? ""]
       ?? copy.plannerWalkDirect;
-    const parts = [leg.meters != null ? format(copy.plannerMeters, leg.meters) : null, format(copy.plannerMinutes, leg.minutes)];
+    const parts = [leg.meters != null ? format(copy.plannerMeters, leg.meters) : null,
+      leg.minutes != null ? format(copy.plannerMinutes, leg.minutes) : null];
     const walkIcon = element("span", "planner-walk-icon");
     walkIcon.setAttribute("aria-hidden", "true");
     walkIcon.dataset.testid = "planner-leg-walk-icon";
@@ -226,8 +283,8 @@ function statusText(state: PlannerState, copy: Copy) {
   if (state.refreshing) return copy.plannerRefreshing;
   if (state.stale) return copy.plannerStale;
   switch (state.status) {
-    case "pickingPoint": return null;
-    case "endpointsIncomplete": return copy.plannerIncomplete;
+    case "pickingPoint":
+    case "endpointsIncomplete": return null;
     case "loading": return copy.plannerLoading;
     case "empty": return copy.plannerEmpty;
     case "unavailable": return copy.plannerUnavailable;

@@ -10,10 +10,18 @@ class JourneyEndpointExpansionTest {
     private val point = JourneyEndpoint.MapPoint(GeoPoint(41.64, 41.63))
 
     @Test
-    fun theMissingSideOpensAndBothChosenCollapseEverything() {
+    fun findsTheMissingSideOnlyWhenExactlyOneEndpointIsSet() {
         assertEquals(JourneyPlanSide.Destination, journeyExpandedSideFor(point, null))
         assertEquals(JourneyPlanSide.Origin, journeyExpandedSideFor(null, JourneyEndpoint.CurrentLocation))
         assertNull(journeyExpandedSideFor(point, JourneyEndpoint.CurrentLocation))
-        assertNull(journeyExpandedSideFor(null, null), "A cleared planner starts collapsed")
+        assertNull(journeyExpandedSideFor(null, null))
+    }
+
+    @Test
+    fun opensTheStartOfAnEmptyFormAndOnlyUnselectedEndpointsAfterThat() {
+        assertEquals(JourneyPlanSide.Origin, journeyDefaultExpandedSideFor(null, null))
+        assertEquals(JourneyPlanSide.Destination, journeyDefaultExpandedSideFor(point, null))
+        assertEquals(JourneyPlanSide.Origin, journeyDefaultExpandedSideFor(null, point))
+        assertNull(journeyDefaultExpandedSideFor(point, JourneyEndpoint.CurrentLocation))
     }
 }

@@ -1,4 +1,4 @@
-appId: com.denis.georgiatransit
+appId: com.anti.georgiatransit.sandbox
 ---
 # Preconditions are supplied by run-route-selection-smoke.sh: its owned loopback fixture exposes
 # demo and Tbilisi plus eleven demo routes. Every interaction uses a stable ID or list index.
@@ -132,15 +132,31 @@ appId: com.denis.georgiatransit
           id: routes.option
           index: 0
           enabled: true
-      - eraseText
-      - inputText: "1"
+      - tapOn:
+          id: routes.show-selected
+      - assertVisible:
+          id: routes.selected-sheet
+      - assertVisible:
+          id: routes.selected-hint
+      - tapOn:
+          id: routes.selected-close
+      - assertNotVisible:
+          id: routes.selected-sheet
+      - tapOn:
+          id: routes.show-selected
+      - assertVisible:
+          id: routes.selected-sheet
       - tapOn:
           id: routes.option
           index: 0
       - assertNotVisible:
+          id: routes.selected-sheet
+      - assertNotVisible:
           id: routes.selection-warning
-      - eraseText
-      - inputText: "11"
+      - assertVisible:
+          id: routes.option
+          index: 0
+          enabled: true
       - tapOn:
           id: routes.option
           index: 0
@@ -151,6 +167,8 @@ appId: com.denis.georgiatransit
 - assertVisible:
     id: map.screen
 # A new city starts with its own empty selection and cannot inherit demo's draft/commit.
+- tapOn:
+    id: map.settings
 - tapOn:
     id: map.change-city
 - assertVisible:

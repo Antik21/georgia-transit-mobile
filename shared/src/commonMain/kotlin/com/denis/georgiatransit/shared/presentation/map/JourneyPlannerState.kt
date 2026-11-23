@@ -13,7 +13,10 @@ import kotlinx.collections.immutable.PersistentList
 import kotlinx.collections.immutable.persistentListOf
 import kotlin.time.Instant
 
-enum class JourneyPlanSide { Origin, Destination }
+enum class JourneyPlanSide(val markerLabel: String, val markerArgb: Long) {
+    Origin("A", 0xFF2E7D32L),
+    Destination("B", 0xFF8E1B2DL),
+}
 
 /** Why "My location" cannot be used yet; every reason still allows picking a map point instead. */
 enum class JourneyLocationReason { PermissionRequired, Locating, Approximate }
@@ -30,8 +33,10 @@ data class JourneyPlannerUi(
     val pin: GeoPoint? = null,
     val origin: JourneyEndpoint? = null,
     val destination: JourneyEndpoint? = null,
-    /** True after the user requests a plan, including loading and error states. */
+    /** True while the results panel is open, including loading and error states. */
     val showingResults: Boolean = false,
+    /** Once results have opened in this planner session, editing requires manual submission. */
+    internal val hasOpenedResults: Boolean = false,
     val status: JourneyPlannerStatus = JourneyPlannerStatus.Idle,
     val render: JourneyPlanRenderUi = JourneyPlanRenderUi(),
     /** The soonest buses for the selected option's first boarding; kept apart from [render] so they never re-frame the map. */
@@ -62,12 +67,12 @@ sealed interface JourneyPlannerStatus {
     @Immutable data class LocationNeeded(val side: JourneyPlanSide, val reason: JourneyLocationReason) : JourneyPlannerStatus
 }
 
-/** Every time is approximate: the planner is a `CLIENT_ESTIMATE`, never an official timetable. */
+/** Times are approximate when available. */
 @Immutable
 data class JourneyOptionUi(
     val id: JourneyId,
-    val totalMinutes: Int,
-    val arrivalAt: Instant,
+    val totalMinutes: Int?,
+    val arrivalAt: Instant?,
     val transfers: Int,
     val walkingMeters: Int?,
     val timing: JourneyTimingUi?,
@@ -76,7 +81,10 @@ data class JourneyOptionUi(
     /** In [JourneyLabelUi] display order, whatever order the BFF sent. */
     val labels: List<JourneyLabelUi> = emptyList(),
     val boarding: JourneyBoarding? = null,
-)
+) {
+    internal val isUntimedTransit: Boolean
+        get() = totalMinutes == null && arrivalAt == null && legs.any { it is JourneyLegUi.Ride }
+}
 
 /** The first transit boarding of an option: where its nearest buses are looked up. */
 @Immutable
@@ -121,13 +129,17 @@ sealed interface JourneyLegUi {
         val isApproximate: Boolean,
     ) : JourneyLegUi
 
-    /** [waitIsLive] is true only for a projected live vehicle; anything else is an estimate. */
+    /** A null [waitMinutes] means the wait is unknown. */
     @Immutable data class Ride(
         val route: JourneyRouteBadgeUi,
         val stopCount: Int?,
-        val rideMinutes: Int,
+        val rideMinutes: Int?,
         val waitMinutes: Int?,
         val waitIsLive: Boolean,
+        val fromStopId: StopId? = null,
+        val toStopId: StopId? = null,
+        val fromStopName: String? = null,
+        val toStopName: String? = null,
     ) : JourneyLegUi
 }
 
@@ -159,6 +171,7 @@ data class JourneyPlanRenderUi(
 
 /** Planner commands; the long press arrives as [MapPlatformEvent.MapLongPressed]. */
 sealed interface JourneyPlannerAction : Action {
+    data object OpenPlanner : JourneyPlannerAction
     data object RouteHere : JourneyPlannerAction
     data object RouteFromHere : JourneyPlannerAction
     data object DismissPin : JourneyPlannerAction

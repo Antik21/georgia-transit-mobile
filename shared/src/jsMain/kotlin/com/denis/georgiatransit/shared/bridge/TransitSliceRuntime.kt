@@ -14,6 +14,9 @@ import com.denis.georgiatransit.shared.data.config.BffEndpointConfiguration
 import com.denis.georgiatransit.shared.data.config.BrowserRuntimeBootstrapConfigurationSource
 import com.denis.georgiatransit.shared.data.persistence.BrowserSelectedCityStore
 import com.denis.georgiatransit.shared.di.appModule
+import com.denis.georgiatransit.shared.domain.analytics.AnalyticsClient
+import com.denis.georgiatransit.shared.domain.analytics.ProductAnalytics
+import com.denis.georgiatransit.shared.domain.analytics.loadAnalyticsDeviceId
 import com.denis.georgiatransit.shared.domain.interactor.BootstrapTransitSession
 import com.denis.georgiatransit.shared.domain.model.CityId
 import com.denis.georgiatransit.shared.domain.model.TransitAttribution
@@ -57,7 +60,7 @@ class CityState(val status: String, val cities: Array<CityItem>, val selectedId:
 
 /** Owns browser bootstrap and navigation entry lifetimes. */
 @JsExport
-class TransitSliceRuntime(bffBaseUrl: String, languageTag: String? = null) {
+class TransitSliceRuntime(bffBaseUrl: String, languageTag: String? = null, telegramMiniApp: Boolean = false) {
     private val language = languageTag?.substringBefore('-')?.lowercase().orEmpty()
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private val cityStore = ViewModelStore()
@@ -72,6 +75,7 @@ class TransitSliceRuntime(bffBaseUrl: String, languageTag: String? = null) {
     private val koin: org.koin.core.Koin
     private val httpClient: HttpClient
     private val navigation: SessionNavigationEventApplier
+    private val analytics: ProductAnalytics
 
     init {
         val endpoint = browserBffEndpoint(bffBaseUrl, window.location.origin, window.location.hostname)
@@ -83,13 +87,21 @@ class TransitSliceRuntime(bffBaseUrl: String, languageTag: String? = null) {
                     BrowserRuntimeBootstrapConfigurationSource(),
                     BrowserTransitCacheStore(),
                     endpoint,
+                    analyticsClient = if (telegramMiniApp) AnalyticsClient.TelegramMiniApp else AnalyticsClient.Web,
+                    analyticsDeviceId = loadAnalyticsDeviceId(
+                        { window.localStorage.getItem("transit:analytics-device") },
+                        { window.localStorage.setItem("transit:analytics-device", it) },
+                    ),
                 ),
             )
         }
         koin = application.koin
         httpClient = koin.get()
+        analytics = koin.get()
         navigation = SessionNavigationEventApplier(koin.get())
     }
+
+    fun setForeground(foreground: Boolean) { if (!closed) analytics.setForeground(foreground) }
 
     fun start(onDestination: (String) -> Unit, onCityState: (CityState) -> Unit) {
         check(!closed && host == null)
@@ -157,6 +169,8 @@ class TransitSliceRuntime(bffBaseUrl: String, languageTag: String? = null) {
                 publishDestination("map")
             }
             Destination.Routes -> publishDestination("routes")
+            Destination.LanguageSelection -> error("Language selection is only available in the mobile host")
+            is Destination.Schedules -> error("Schedule navigation is only available in the mobile host")
         }
     }
 
@@ -193,6 +207,7 @@ class TransitSliceRuntime(bffBaseUrl: String, languageTag: String? = null) {
                 when (effect) {
                     MapNavigationEffect.OpenCitySelection -> navigate(NavigationEvent.ChangeCity)
                     MapNavigationEffect.OpenRoutes -> navigate(NavigationEvent.OpenRoutes)
+                    MapNavigationEffect.OpenSchedules -> Unit
                 }
             }
         }, locationSession = koin.get()) { map = null }.also { map = it }
@@ -223,6 +238,7 @@ class TransitSliceRuntime(bffBaseUrl: String, languageTag: String? = null) {
         map?.dispose()
         city = null
         cityStore.clear()
+        analytics.close()
         httpClient.close()
         application.close()
     }

@@ -1,5 +1,6 @@
 package com.denis.georgiatransit.shared.presentation.map
 
+import com.denis.georgiatransit.shared.domain.analytics.ProductAnalytics
 import com.denis.georgiatransit.shared.domain.model.CityId
 import com.denis.georgiatransit.shared.domain.model.TransitCity
 import com.denis.georgiatransit.shared.domain.model.TransitRoute
@@ -13,6 +14,7 @@ internal class MapVehicleFeature(
     repository: TransitRepository,
     clock: VehicleRealtimeClock,
     tickerPolicy: VehicleRealtimeTickerPolicy,
+    private val analytics: ProductAnalytics?,
 ) {
     val presentation = MapVehiclePresentation(clock, tickerPolicy)
     private val poller = MapVehiclePoller(repository, tickerPolicy)
@@ -42,11 +44,10 @@ internal class MapVehicleFeature(
         generation == poller.generation && visible && city?.id == cityId &&
             city?.capabilities?.vehiclePositions == true && routes.isNotEmpty()
 
-    /** DEN-60: stale-safe vehicle hit testing with no vehicle-detail outcome yet; a validated no-op. */
-    fun acceptTap(vehicleId: VehicleId, sourceRevision: Long): Boolean {
-        if (sourceRevision != presentation.vehicleFrameRevision) return false
-        if (presentation.vehicleMarkers.none { it.id == vehicleId }) return false
-        return true
+    fun acceptTap(vehicleId: VehicleId, sourceRevision: Long) {
+        if (sourceRevision != presentation.vehicleFrameRevision) return
+        if (presentation.vehicleMarkers.none { it.id == vehicleId }) return
+        analytics?.vehicleTapped()
     }
 
     fun start(scope: CoroutineScope, onChanged: (VehiclePollKey?) -> Unit) {

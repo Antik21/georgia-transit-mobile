@@ -1,0 +1,103 @@
+appId: com.anti.georgiatransit.sandbox
+---
+# Start the local BFF with the AZRY and Batumi adapters and both city entries enabled.
+- launchApp:
+    clearState: true
+- extendedWaitUntil:
+    visible:
+      id: city-selection.kutaisi
+    timeout: 20000
+- assertNotVisible:
+    id: city-selection.back
+- tapOn:
+    id: city-selection.kutaisi
+- tapOn:
+    id: city-selection.continue
+- extendedWaitUntil:
+    visible:
+      id: map.nearby-stop
+    timeout: 20000
+- assertNotVisible:
+    id: map.attribution
+- tapOn:
+    id: map.planner.open
+- assertVisible:
+    id: map.planner.unavailable
+- assertNotVisible:
+    id: map.planner.panel
+- longPressOn:
+    id: map.nearby-stop
+- assertNotVisible:
+    id: map.planner.pin
+- tapOn:
+    id: map.routes
+- extendedWaitUntil:
+    visible:
+      id: routes.option
+    timeout: 20000
+- tapOn:
+    id: routes.option
+    index: 0
+- tapOn:
+    id: routes.confirm
+- extendedWaitUntil:
+    visible:
+      id: map.route-geometry.chip
+    timeout: 20000
+- tapOn:
+    id: map.settings
+- assertVisible:
+    id: map.settings.sheet
+- assertNotVisible:
+    id: map.attribution
+- tapOn:
+    id: map.change-city
+- assertVisible:
+    id: city-selection.back
+- tapOn:
+    id: city-selection.batumi
+- runFlow:
+    when:
+      platform: Android
+    commands:
+      - pressKey: BACK
+- runFlow:
+    when:
+      platform: iOS
+    commands:
+      - tapOn:
+          id: city-selection.back
+- assertNotVisible:
+    id: city-selection.screen
+- assertVisible:
+    id: map.route-geometry.chip
+- tapOn:
+    id: map.settings
+- tapOn:
+    id: map.change-city
+- tapOn:
+    id: city-selection.batumi
+- tapOn:
+    id: city-selection.continue
+- extendedWaitUntil:
+    visible:
+      id: map.routes
+    timeout: 20000
+- assertNotVisible:
+    id: map.route-geometry.chip
+- tapOn:
+    id: map.routes
+- extendedWaitUntil:
+    visible:
+      id: routes.option
+    timeout: 20000
+- tapOn:
+    id: routes.cancel
+- assertVisible:
+    id: map.screen
+- tapOn:
+    id: map.settings
+- assertVisible:
+    id: map.settings.sheet
+- assertNotVisible:
+    id: map.attribution

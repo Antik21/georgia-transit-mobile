@@ -8,6 +8,7 @@ internal object MapSessionStateReducer {
     fun reduce(previous: ViewState, input: MapSessionStateInput): ViewState = previous.copy(
         cityName = input.city?.name.orEmpty(),
         routesAvailable = input.city?.capabilities?.routes == true,
+        schedulesAvailable = input.city?.capabilities?.schedules == true,
         renderState = input.render,
         contentState = if (input.change.resetStops) {
             if (input.city?.capabilities?.stops == true) MapContentState.Loading else MapContentState.Unavailable
@@ -22,6 +23,7 @@ internal object MapSessionStateReducer {
         vehicleLayerState = input.vehicleLayer,
         vehicleRoutes = input.vehicleRoutes,
         journeyPlanner = input.planner,
+        journeyPlanningAvailable = input.city?.capabilities?.tripPlanning == true,
     )
 }
 

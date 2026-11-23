@@ -14,6 +14,5 @@ class TransitColorsTest {
         assertEquals(Color(0xFFA8ADB4), TransitColors.SecondaryGray)
         assertEquals(Color(0xFF7C8188), TransitColors.LightOutline)
         assertEquals(Color(0xFF27AE7A), TransitColors.Success)
-        assertEquals(TransitColors.Background, TransitColors.LaunchBackground)
     }
 }

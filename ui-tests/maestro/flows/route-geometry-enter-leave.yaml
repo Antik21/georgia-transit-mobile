@@ -1,4 +1,4 @@
-appId: com.denis.georgiatransit
+appId: com.anti.georgiatransit.sandbox
 ---
 # Precondition: route-geometry-load-prime.yaml selected all ten routes in this app process.
 - tapOn:

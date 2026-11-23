@@ -38,6 +38,29 @@ import com.denis.georgiatransit.shared.presentation.map.JourneyPlannerStatus as 
 
 class JourneyPlannerReducerTest {
     @Test
+    fun openPlannerClearsThePinAndOpensEmptyEndpointsWithoutRequestingLocation() {
+        val initial = JourneyPlannerUi(pin = B)
+        val unsupported = JourneyPlannerReducer.action(initial, JourneyPlannerAction.OpenPlanner, context(tripPlanning = false))
+        val opened = JourneyPlannerReducer.action(initial, JourneyPlannerAction.OpenPlanner, context(location = fix(A)))
+
+        assertFalse(unsupported.state.isOpen)
+        assertTrue(opened.state.isOpen)
+        assertEquals(Status.EndpointsIncomplete, opened.state.status)
+        assertNull(opened.state.pin)
+        assertNull(opened.state.origin)
+        assertNull(opened.state.destination)
+        assertNull(opened.query)
+        assertNull(opened.location)
+
+        val picking = JourneyPlannerReducer.action(
+            opened.state, JourneyPlannerAction.StartMapPick(JourneyPlanSide.Origin), context(),
+        ).state
+        val repeated = JourneyPlannerReducer.action(picking, JourneyPlannerAction.OpenPlanner, context())
+        assertEquals(picking, repeated.state)
+        assertFalse(JourneyPlannerReducer.action(picking, JourneyPlannerAction.ClosePlanner, context()).state.isOpen)
+    }
+
+    @Test
     fun longPressNeedsTheTripPlanningCapabilityAndOnlyDropsAPin() {
         val unavailable = JourneyPlannerReducer.longPress(JourneyPlannerUi(), B, context(tripPlanning = false))
         val available = JourneyPlannerReducer.longPress(JourneyPlannerUi(), B, context(location = denied()))
@@ -68,16 +91,15 @@ class JourneyPlannerReducerTest {
     }
 
     @Test
-    fun pickingAPointByLongPressWaitsForSubmission() {
+    fun pickingTheSecondPointByLongPressOpensResults() {
         val picking = JourneyPlannerUi(isOpen = true, destination = JourneyEndpoint.MapPoint(B),
             status = Status.PickingPoint(JourneyPlanSide.Origin))
 
         val step = JourneyPlannerReducer.longPress(picking, GeoPoint(41.640049, 41.630051), context(location = denied()))
 
-        assertEquals(Status.Idle, step.state.status)
-        assertNull(step.query)
-        val submitted = JourneyPlannerReducer.action(step.state, JourneyPlannerAction.FindRoute, context())
-        assertEquals(GeoPoint(41.64, 41.6301), assertNotNull(submitted.query).from)
+        assertEquals(Status.Loading, step.state.status)
+        assertTrue(step.state.showingResults)
+        assertEquals(GeoPoint(41.64, 41.6301), assertNotNull(step.query).from)
         assertNull(step.state.pin)
         assertEquals(GeoPoint(41.640049, 41.630051), step.state.render.origin, "Markers keep the exact chosen point")
     }
@@ -104,7 +126,7 @@ class JourneyPlannerReducerTest {
     }
 
     @Test
-    fun confirmingTheCentredMarkerSetsThatSideWithoutPlanning() {
+    fun confirmingTheCentredMarkerAsTheSecondPointOpensResults() {
         val open = JourneyPlannerUi(isOpen = true, pin = A, destination = JourneyEndpoint.MapPoint(B),
             status = Status.PickingPoint(JourneyPlanSide.Origin))
 
@@ -117,8 +139,9 @@ class JourneyPlannerReducerTest {
         assertEquals(picking.state, ignored.state, "A long press must not compete with the centred marker")
         assertNull(step.state.mapPick)
         assertEquals(JourneyEndpoint.MapPoint(A), step.state.origin)
-        assertEquals(Status.Idle, step.state.status)
-        assertNull(step.query)
+        assertEquals(Status.Loading, step.state.status)
+        assertTrue(step.state.showingResults)
+        assertEquals(A, assertNotNull(step.query).from)
     }
 
     @Test
@@ -169,8 +192,7 @@ class JourneyPlannerReducerTest {
         val planner = JourneyPlannerUi(pin = GeoPoint(A.latitude + 0.0005, A.longitude),
             origin = JourneyEndpoint.MapPoint(A), isOpen = true, status = Status.PickingPoint(JourneyPlanSide.Destination))
 
-        val edited = JourneyPlannerReducer.action(planner, JourneyPlannerAction.RouteHere, context(location = denied()))
-        val step = JourneyPlannerReducer.action(edited.state, JourneyPlannerAction.FindRoute, context(location = denied()))
+        val step = JourneyPlannerReducer.action(planner, JourneyPlannerAction.RouteHere, context(location = denied()))
 
         assertIs<Status.AlreadyThere>(step.state.status)
         assertNull(step.query)

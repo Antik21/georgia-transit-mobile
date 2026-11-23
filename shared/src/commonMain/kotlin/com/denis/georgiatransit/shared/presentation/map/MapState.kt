@@ -6,6 +6,7 @@ import com.denis.georgiatransit.shared.domain.model.RouteId
 import com.denis.georgiatransit.shared.domain.model.TransitAttribution
 import com.denis.georgiatransit.shared.domain.model.StopId
 import com.denis.georgiatransit.shared.domain.model.TransitLocale
+import com.denis.georgiatransit.shared.domain.model.TransitMode
 import com.denis.georgiatransit.shared.presentation.location.LocationPlatformCommand
 import com.denis.georgiatransit.shared.presentation.location.LocationPlatformEvent
 import com.denis.georgiatransit.shared.presentation.location.LocationState
@@ -41,6 +42,7 @@ data class ViewState(
     val cityName: String = "",
     /** Routes are a capability-gated catalogue, not an implicit property of every map city. */
     val routesAvailable: Boolean = false,
+    val schedulesAvailable: Boolean = false,
     val renderState: MapRenderState? = null,
     val contentState: MapContentState = MapContentState.Unavailable,
     val baseLayerState: MapBaseLayerState = MapBaseLayerState.LocalPreview,
@@ -58,6 +60,7 @@ data class ViewState(
     val vehicleRoutes: List<VehicleRouteAccessibilityUi> = emptyList(),
     val canChangeCity: Boolean = true,
     val journeyPlanner: JourneyPlannerUi = JourneyPlannerUi(),
+    val journeyPlanningAvailable: Boolean = false,
 )
 
 /** Product-level realtime availability. No transport or provider details reach the UI. */
@@ -101,6 +104,7 @@ data class NearbyStopUi(
     val sourceRevision: Long = 0L,
     val routeHighlight: StopRouteHighlightUi = StopRouteHighlightUi(),
     val position: GeoPoint? = null,
+    val catalogName: String? = null,
 )
 
 /** Common marker metadata; adapters receive values only and never infer route membership. */
@@ -146,6 +150,7 @@ data class StopRouteBadgeUi(
     val colorAvailability: RouteColorAvailability,
     /** Only committed Map selection gets this marker; draft changes stay in Routes. */
     val isSelected: Boolean,
+    val mode: TransitMode,
 )
 
 /** A selected-stop snapshot that is safe to render without exposing opaque provider identifiers. */
@@ -214,6 +219,7 @@ sealed interface StopArrivalsSheetState {
 
 sealed interface Action {
     data object RoutesClicked : Action
+    data object SchedulesClicked : Action
     data object ChangeCityClicked : Action
     data object MyLocationClicked : Action
     data class ZoomClicked(val direction: MapZoomDirection) : Action
@@ -230,7 +236,10 @@ sealed interface Action {
     data class RetryRouteGeometry(val routeId: RouteId) : Action
     data class RemoveRouteGeometry(val routeId: RouteId) : Action
     /** Emitted by the common composed Map entry and its host lifecycle; it never reflects panning. */
-    data class RealtimeVisibilityChanged(val isVisibleAndStarted: Boolean) : Action
+    data class RealtimeVisibilityChanged(
+        val isVisibleAndStarted: Boolean,
+        val routeBoundsSupported: Boolean = false,
+    ) : Action
 }
 
 enum class MapZoomDirection(val delta: Double) { In(1.0), Out(-1.0) }
@@ -238,9 +247,11 @@ enum class MapZoomDirection(val delta: Double) { In(1.0), Out(-1.0) }
 sealed interface SideEffect {
     data class HandleLocation(val command: LocationPlatformCommand) : SideEffect
     data object ShowConnectionError : SideEffect
+    data object ShowLocationError : SideEffect
 }
 
 sealed interface NavigationEffect : SideEffect {
     data object OpenRoutes : NavigationEffect
+    data object OpenSchedules : NavigationEffect
     data object OpenCitySelection : NavigationEffect
 }

@@ -5,17 +5,20 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.InputChipDefaults
 import androidx.compose.material3.MaterialTheme
@@ -30,13 +33,18 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionOnScreen
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.denis.georgiatransit.shared.presentation.map.ArrivalSourceUi
 import com.denis.georgiatransit.shared.presentation.map.StopArrivalRowUi
@@ -45,20 +53,23 @@ import com.denis.georgiatransit.shared.presentation.map.StopArrivalsSheetState
 import com.denis.georgiatransit.shared.presentation.map.StopArrivalsSheetUi
 import com.denis.georgiatransit.shared.presentation.ui.automation.AutomationId
 import com.denis.georgiatransit.shared.presentation.ui.automation.enableAutomationResourceIds
+import com.denis.georgiatransit.shared.presentation.ui.component.EmptyState
+import com.denis.georgiatransit.shared.presentation.ui.component.ErrorState
+import com.denis.georgiatransit.shared.presentation.ui.component.LoadingState
+import com.denis.georgiatransit.shared.presentation.ui.component.TransitCloseButton
+import com.denis.georgiatransit.shared.presentation.ui.component.routeTitle
 import com.denis.georgiatransit.shared.presentation.ui.theme.TransitShapes
 import com.denis.georgiatransit.shared.presentation.ui.theme.TransitSpacing
 import georgiatransit.shared.generated.resources.Res
 import georgiatransit.shared.generated.resources.map_stop_arrivals_arriving
+import georgiatransit.shared.generated.resources.map_stop_arrivals_collapse_accessibility
 import georgiatransit.shared.generated.resources.map_stop_arrivals_empty
 import georgiatransit.shared.generated.resources.map_stop_arrivals_error
 import georgiatransit.shared.generated.resources.map_stop_arrivals_expand_accessibility
 import georgiatransit.shared.generated.resources.map_stop_arrivals_handle_accessibility
-import georgiatransit.shared.generated.resources.map_stop_arrivals_headsign_unavailable
-import georgiatransit.shared.generated.resources.map_stop_arrivals_hide_accessibility
 import georgiatransit.shared.generated.resources.map_stop_arrivals_loading
 import georgiatransit.shared.generated.resources.map_stop_arrivals_minutes
 import georgiatransit.shared.generated.resources.map_stop_arrivals_offline
-import georgiatransit.shared.generated.resources.map_stop_arrivals_page_source
 import georgiatransit.shared.generated.resources.map_stop_arrivals_partial
 import georgiatransit.shared.generated.resources.map_stop_arrivals_refreshing
 import georgiatransit.shared.generated.resources.map_stop_arrivals_retry
@@ -71,6 +82,7 @@ import georgiatransit.shared.generated.resources.map_stop_arrivals_source_approx
 import georgiatransit.shared.generated.resources.map_stop_arrivals_source_official
 import georgiatransit.shared.generated.resources.map_stop_arrivals_source_schedule
 import georgiatransit.shared.generated.resources.map_stop_arrivals_stale
+import georgiatransit.shared.generated.resources.map_stop_arrivals_stale_forecast
 import georgiatransit.shared.generated.resources.map_stop_arrivals_stop_details_unavailable
 import georgiatransit.shared.generated.resources.map_stop_arrivals_time_unavailable
 import georgiatransit.shared.generated.resources.map_stop_arrivals_title
@@ -84,148 +96,213 @@ internal fun StopArrivalsSheet(
     sheet: StopArrivalsSheetUi,
     onDismiss: () -> Unit,
     onRetry: () -> Unit,
+    onTopPositioned: (Double) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val sheetState = rememberModalBottomSheetState()
     val scope = rememberCoroutineScope()
-    val handleInteractionSource = remember { MutableInteractionSource() }
-    val handleDescription = stringResource(Res.string.map_stop_arrivals_handle_accessibility)
-    val handleActionLabel = stringResource(
-        when (sheetState.currentValue) {
-            SheetValue.Expanded -> Res.string.map_stop_arrivals_hide_accessibility
-            SheetValue.PartiallyExpanded,
-            SheetValue.Hidden,
-            -> Res.string.map_stop_arrivals_expand_accessibility
-        },
-    )
+    val hasPartialAnchor = sheetState.hasPartiallyExpandedState
+    val isExpanded = sheetState.currentValue == SheetValue.Expanded
+    val commonSource = if (sheet.rows.isEmpty()) {
+        sheet.pageSource
+    } else {
+        sheet.rows.first().source.takeIf { source -> sheet.rows.all { it.source == source } }
+    }
+    val showScheduleInHeader = commonSource == ArrivalSourceUi.Schedule && sheet.rows.isNotEmpty()
+    val showStaleForecast = sheet.isStale && sheet.rows.any { it.source != ArrivalSourceUi.Schedule }
+    val detailsSource = commonSource.takeUnless { source ->
+        showScheduleInHeader || showStaleForecast &&
+            (source == ArrivalSourceUi.OfficialRealtime || source == ArrivalSourceUi.AggregatorRealtime)
+    }
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         modifier = modifier,
         sheetState = sheetState,
-        // The Material handle hard-wires a rectangular ripple. Keep its tap behavior, but render
-        // the affordance ourselves with no visual press indication.
         dragHandle = null,
     ) {
         Column(
-            // ModalBottomSheet owns a separate Android semantics tree. Re-enable the bridge on
-            // this in-sheet root so descendants retain their stable resource IDs on Android.
+            // The Android modal uses a separate semantics tree.
             modifier = Modifier.fillMaxWidth()
+                .onGloballyPositioned { onTopPositioned(it.positionOnScreen().y.toDouble()) }
                 .enableAutomationResourceIds()
                 .testTag(AutomationId.MapStopArrivalsSheet)
                 .padding(horizontal = TransitSpacing.Medium),
-            verticalArrangement = Arrangement.spacedBy(TransitSpacing.Small),
         ) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = StopArrivalsHandleVerticalPadding)
-                    .testTag(AutomationId.MapStopArrivalsHandle)
-                    .semantics {
-                        contentDescription = handleDescription
-                    }
-                    .clickable(
-                        interactionSource = handleInteractionSource,
-                        indication = null,
-                        onClickLabel = handleActionLabel,
-                    ) {
-                        when (sheetState.currentValue) {
-                            SheetValue.Expanded -> scope.launch {
-                                sheetState.hide()
-                                if (!sheetState.isVisible) onDismiss()
-                            }
-                            SheetValue.PartiallyExpanded -> scope.launch { sheetState.expand() }
-                            SheetValue.Hidden -> scope.launch { sheetState.show() }
-                        }
-                    },
-                contentAlignment = Alignment.Center,
-            ) {
-                Surface(
-                    modifier = Modifier.size(StopArrivalsHandleWidth, StopArrivalsHandleHeight),
-                    shape = RoundedCornerShape(StopArrivalsHandleHeight / 2),
-                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = StopArrivalsHandleAlpha),
-                ) {}
-            }
-            Text(
-                stringResource(Res.string.map_stop_arrivals_title),
-                style = MaterialTheme.typography.labelLarge,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            Text(
-                sheet.stopName.ifBlank { stringResource(Res.string.map_stop_arrivals_stop_details_unavailable) },
-                style = MaterialTheme.typography.titleLarge,
-            )
-            if (sheet.passingRoutes.isNotEmpty() || sheet.passingRouteShortNames.isNotEmpty()) {
-                Text(
-                    stringResource(Res.string.map_stop_arrivals_routes),
-                    style = MaterialTheme.typography.labelLarge,
-                )
-                if (sheet.passingRoutes.isNotEmpty()) {
-                    LazyRow(horizontalArrangement = Arrangement.spacedBy(TransitSpacing.ExtraSmall)) {
-                        items(sheet.passingRoutes, key = { it.routeId.value }) { route ->
-                            StopRouteChip(
-                                label = route.routeLabel,
-                                background = Color(route.backgroundArgb),
-                                foreground = Color(route.textArgb),
-                                isSelected = route.isSelected,
-                            )
+            StopArrivalsHandle(
+                isExpanded = isExpanded,
+                onToggle = if (hasPartialAnchor) {
+                    {
+                        scope.launch {
+                            if (isExpanded) sheetState.partialExpand() else sheetState.expand()
                         }
                     }
                 } else {
-                    LazyRow(horizontalArrangement = Arrangement.spacedBy(TransitSpacing.ExtraSmall)) {
-                        items(sheet.passingRouteShortNames, key = { it }) { shortName ->
-                            StopRouteChip(
-                                label = shortName,
-                                background = MaterialTheme.colorScheme.secondaryContainer,
-                                foreground = MaterialTheme.colorScheme.onSecondaryContainer,
-                                isSelected = false,
-                            )
+                    null
+                },
+            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(TransitSpacing.Small),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        stringResource(Res.string.map_stop_arrivals_title),
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    if (sheet.isStale) {
+                        Text(
+                            stringResource(
+                                if (showStaleForecast) Res.string.map_stop_arrivals_stale_forecast
+                                else Res.string.map_stop_arrivals_stale,
+                            ),
+                            modifier = Modifier.testTag(AutomationId.MapStopArrivalsStale)
+                                .semantics { liveRegion = LiveRegionMode.Polite },
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.error,
+                        )
+                    }
+                    if (showScheduleInHeader) {
+                        Text(
+                            stringResource(Res.string.map_stop_arrivals_source_schedule),
+                            modifier = Modifier.testTag(AutomationId.MapStopArrivalsSource),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
+                TransitCloseButton(
+                    onClick = {
+                        scope.launch {
+                            sheetState.hide()
+                            if (!sheetState.isVisible) onDismiss()
                         }
+                    },
+                    modifier = Modifier.testTag(AutomationId.MapStopArrivalsClose),
+                    tonal = true,
+                )
+            }
+            LazyColumn(
+                modifier = Modifier.fillMaxWidth().weight(1f, fill = false)
+                    .then(if (sheet.rows.isNotEmpty()) Modifier.testTag(AutomationId.MapStopArrivalsRows) else Modifier),
+                contentPadding = PaddingValues(bottom = TransitSpacing.Medium),
+            ) {
+                item(key = "stop-details") {
+                    StopArrivalsDetails(sheet, detailsSource, onRetry)
+                }
+                itemsIndexed(sheet.rows) { index, row ->
+                    StopArrivalRow(row, showSource = commonSource == null, isStale = sheet.isStale)
+                    if (index < sheet.rows.lastIndex) {
+                        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                     }
                 }
             }
-            if (sheet.hasUnavailableRouteDetails) {
-                Text(
-                    stringResource(Res.string.map_stop_arrivals_route_details_unavailable),
-                    modifier = Modifier.testTag(AutomationId.MapStopArrivalsRouteDetailsUnavailable),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-            if (sheet.isRefreshing) {
-                Text(
-                    stringResource(Res.string.map_stop_arrivals_refreshing),
-                    modifier = Modifier.testTag(AutomationId.MapStopArrivalsRefreshing),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-            if (sheet.isStale) {
-                Text(
-                    stringResource(Res.string.map_stop_arrivals_stale),
-                    modifier = Modifier.testTag(AutomationId.MapStopArrivalsStale),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.error,
-                )
-            }
-            sheet.pageSource?.let { source ->
-                Text(
-                    stringResource(Res.string.map_stop_arrivals_page_source, arrivalSourceLabel(source)),
-                    modifier = Modifier.testTag(AutomationId.MapStopArrivalsSource),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-            StopArrivalsStatus(sheet = sheet, onRetry = onRetry)
-            if (sheet.rows.isNotEmpty()) {
-                LazyColumn(
-                    modifier = Modifier.fillMaxWidth().weight(1f, fill = false)
-                        .testTag(AutomationId.MapStopArrivalsRows),
-                    verticalArrangement = Arrangement.spacedBy(TransitSpacing.Small),
-                ) {
-                    items(sheet.rows) { row -> StopArrivalRow(row) }
+        }
+    }
+}
+
+@Composable
+private fun StopArrivalsHandle(isExpanded: Boolean, onToggle: (() -> Unit)?) {
+    val handleModifier = if (onToggle != null) {
+        val description = stringResource(Res.string.map_stop_arrivals_handle_accessibility)
+        val actionLabel = stringResource(
+            if (isExpanded) Res.string.map_stop_arrivals_collapse_accessibility
+            else Res.string.map_stop_arrivals_expand_accessibility,
+        )
+        Modifier
+            .testTag(AutomationId.MapStopArrivalsHandle)
+            .semantics { contentDescription = description }
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                onClickLabel = actionLabel,
+                onClick = onToggle,
+            )
+    } else {
+        Modifier
+    }
+    Box(
+        modifier = Modifier.fillMaxWidth()
+            .then(handleModifier)
+            .padding(vertical = StopArrivalsHandleVerticalPadding),
+        contentAlignment = Alignment.Center,
+    ) {
+        Surface(
+            modifier = Modifier.size(StopArrivalsHandleWidth, StopArrivalsHandleHeight),
+            shape = RoundedCornerShape(StopArrivalsHandleHeight / 2),
+            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = StopArrivalsHandleAlpha),
+        ) {}
+    }
+}
+
+@Composable
+private fun StopArrivalsDetails(
+    sheet: StopArrivalsSheetUi,
+    commonSource: ArrivalSourceUi?,
+    onRetry: () -> Unit,
+) {
+    Column(
+        modifier = Modifier.fillMaxWidth().padding(bottom = TransitSpacing.Small),
+        verticalArrangement = Arrangement.spacedBy(TransitSpacing.Small),
+    ) {
+        Text(
+            sheet.stopName.ifBlank { stringResource(Res.string.map_stop_arrivals_stop_details_unavailable) },
+            modifier = Modifier.semantics { heading() },
+            style = MaterialTheme.typography.titleLarge,
+        )
+        if (sheet.passingRoutes.isNotEmpty() || sheet.passingRouteShortNames.isNotEmpty()) {
+            Text(
+                stringResource(Res.string.map_stop_arrivals_routes),
+                style = MaterialTheme.typography.labelLarge,
+            )
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(TransitSpacing.ExtraSmall)) {
+                if (sheet.passingRoutes.isNotEmpty()) {
+                    items(sheet.passingRoutes, key = { it.routeId.value }) { route ->
+                        StopRouteChip(
+                            label = route.routeLabel,
+                            background = Color(route.backgroundArgb),
+                            foreground = Color(route.textArgb),
+                            isSelected = route.isSelected,
+                        )
+                    }
+                } else {
+                    items(sheet.passingRouteShortNames, key = { it }) { shortName ->
+                        StopRouteChip(
+                            label = shortName,
+                            background = MaterialTheme.colorScheme.secondaryContainer,
+                            foreground = MaterialTheme.colorScheme.onSecondaryContainer,
+                            isSelected = false,
+                        )
+                    }
                 }
             }
         }
+        if (sheet.hasUnavailableRouteDetails) {
+            Text(
+                stringResource(Res.string.map_stop_arrivals_route_details_unavailable),
+                modifier = Modifier.testTag(AutomationId.MapStopArrivalsRouteDetailsUnavailable),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        if (sheet.isRefreshing) {
+            Text(
+                stringResource(Res.string.map_stop_arrivals_refreshing),
+                modifier = Modifier.testTag(AutomationId.MapStopArrivalsRefreshing),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        commonSource?.let {
+            Text(
+                arrivalSourceLabel(it),
+                modifier = Modifier.testTag(AutomationId.MapStopArrivalsSource),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        StopArrivalsStatus(sheet = sheet, onRetry = onRetry)
     }
 }
 
@@ -250,8 +327,8 @@ private fun StopRouteChip(
     ) {
         Row(
             modifier = Modifier
-                .height(InputChipDefaults.Height)
-                .padding(horizontal = TransitSpacing.Small)
+                .heightIn(min = InputChipDefaults.Height)
+                .padding(horizontal = TransitSpacing.Small, vertical = TransitSpacing.ExtraSmall)
                 .semantics {
                     contentDescription = if (isSelected) "$label. $selectedLabel" else label
                     selected = isSelected
@@ -287,35 +364,46 @@ private fun StopArrivalsStatus(sheet: StopArrivalsSheetUi, onRetry: () -> Unit) 
         StopArrivalsSheetState.Unavailable -> stringResource(Res.string.map_stop_arrivals_unavailable) to AutomationId.MapStopArrivalsUnavailable
         StopArrivalsSheetState.Ready -> null
     } ?: return
-    Surface(
-        modifier = Modifier.fillMaxWidth().testTag(status.second)
-            .semantics { liveRegion = LiveRegionMode.Polite },
-        shape = TransitShapes.Small,
-        color = MaterialTheme.colorScheme.surfaceVariant,
-    ) {
-        Column(
-            modifier = Modifier.padding(TransitSpacing.Small),
-            verticalArrangement = Arrangement.spacedBy(TransitSpacing.ExtraSmall),
-        ) {
-            Text(status.first, style = MaterialTheme.typography.bodyMedium)
-            if (sheet.state is StopArrivalsSheetState.Offline || sheet.state is StopArrivalsSheetState.UpstreamError) {
-                Button(
-                    onClick = onRetry,
-                    modifier = Modifier.testTag(AutomationId.MapStopArrivalsRetry),
-                ) { Text(stringResource(Res.string.map_stop_arrivals_retry)) }
-            }
-        }
+    val modifier = Modifier.testTag(status.second)
+    when (sheet.state) {
+        StopArrivalsSheetState.Loading -> LoadingState(message = status.first, modifier = modifier, compact = true)
+        StopArrivalsSheetState.Offline,
+        StopArrivalsSheetState.UpstreamError,
+        -> ErrorState(
+            title = status.first,
+            modifier = modifier,
+            retryLabel = stringResource(Res.string.map_stop_arrivals_retry),
+            onRetry = onRetry,
+            retryModifier = Modifier.testTag(AutomationId.MapStopArrivalsRetry),
+            compact = true,
+        )
+        StopArrivalsSheetState.PartialData -> Text(
+            status.first,
+            modifier = modifier.semantics { liveRegion = LiveRegionMode.Polite },
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        else -> EmptyState(title = status.first, modifier = modifier, compact = true)
     }
 }
 
 @Composable
-private fun StopArrivalRow(row: StopArrivalRowUi) {
+private fun StopArrivalRow(row: StopArrivalRowUi, showSource: Boolean, isStale: Boolean) {
+    val routeLabel = row.routeBadge?.routeLabel ?: row.routeShortName
+    val routeTitle = row.routeBadge?.let { it.mode.routeTitle(it.routeLabel) }
+        ?: routeLabel ?: stringResource(Res.string.map_stop_arrivals_route_unavailable)
+    val direction = row.headsign.takeIf { it.isNotBlank() && !it.equals(routeLabel, ignoreCase = true) }
     Row(
-        modifier = Modifier.fillMaxWidth().testTag(AutomationId.MapStopArrivalsRow),
+        modifier = Modifier.fillMaxWidth().heightIn(min = 46.dp)
+            .testTag(AutomationId.MapStopArrivalsRow)
+            .padding(vertical = TransitSpacing.Small),
         horizontalArrangement = Arrangement.spacedBy(TransitSpacing.Small),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Column(modifier = Modifier.weight(1f)) {
+        Box(
+            modifier = Modifier.widthIn(min = 40.dp).clearAndSetSemantics {},
+            contentAlignment = Alignment.CenterStart,
+        ) {
             row.routeBadge?.let { badge ->
                 Surface(shape = TransitShapes.Small, color = Color(badge.backgroundArgb)) {
                     Text(
@@ -325,28 +413,45 @@ private fun StopArrivalRow(row: StopArrivalRowUi) {
                         style = MaterialTheme.typography.titleMedium,
                     )
                 }
-            } ?: Text(
-                row.routeShortName ?: stringResource(Res.string.map_stop_arrivals_route_unavailable),
-                style = MaterialTheme.typography.titleMedium,
-            )
-            Text(
-                row.headsign.ifBlank { stringResource(Res.string.map_stop_arrivals_headsign_unavailable) },
-                style = MaterialTheme.typography.bodyMedium,
-            )
-            Text(
-                arrivalSourceLabel(row.source),
-                modifier = Modifier.testTag(AutomationId.MapStopArrivalsSource),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+            }
         }
-        Text(arrivalTimeLabel(row.time), style = MaterialTheme.typography.titleMedium)
+        Column(
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.spacedBy(TransitSpacing.ExtraSmall),
+        ) {
+            Text(
+                text = routeTitle,
+                style = MaterialTheme.typography.bodyLarge,
+                fontWeight = FontWeight.Medium,
+            )
+            direction?.let {
+                Text(it, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            if (showSource) {
+                Text(
+                    arrivalSourceLabel(row.source),
+                    modifier = Modifier.testTag(AutomationId.MapStopArrivalsSource),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+        Text(
+            arrivalTimeLabel(row.time, isStale),
+            modifier = Modifier.fillMaxWidth(0.33f),
+            style = MaterialTheme.typography.titleMedium,
+            textAlign = TextAlign.End,
+        )
     }
 }
 
 @Composable
-private fun arrivalTimeLabel(time: StopArrivalTimeUi): String = when (time) {
-    StopArrivalTimeUi.Arriving -> stringResource(Res.string.map_stop_arrivals_arriving)
+private fun arrivalTimeLabel(time: StopArrivalTimeUi, isStale: Boolean): String = when (time) {
+    StopArrivalTimeUi.Arriving -> if (isStale) {
+        stringResource(Res.string.map_stop_arrivals_minutes, 0)
+    } else {
+        stringResource(Res.string.map_stop_arrivals_arriving)
+    }
     is StopArrivalTimeUi.Minutes -> stringResource(Res.string.map_stop_arrivals_minutes, time.value)
     StopArrivalTimeUi.Unavailable -> stringResource(Res.string.map_stop_arrivals_time_unavailable)
 }

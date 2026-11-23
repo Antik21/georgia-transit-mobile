@@ -1,4 +1,4 @@
-appId: com.denis.georgiatransit
+appId: com.anti.georgiatransit.sandbox
 ---
 # Preconditions come only from run-route-geometry-smoke.sh and its owned loopback fixture. This
 # flow proves common UI interaction states; native source population is covered by common and

@@ -34,6 +34,31 @@ class BatumiThetaTransitProviderAdapterTest {
     }
 
     @Test
+    fun `reviewed stop name is shared by nearby and route stops and guarded by code and position`() {
+        val providerId = "615181c3384bd31f651a6811"
+        val stopId = "batumi:theta:stop:NjE1MTgxYzMzODRiZDMxZjY1MWE2ODEx"
+        val observed = fixture(wrapped = true).replace(
+            """"BusStopIdGeoGps":"s1","BusStopNumber":"A","BusStopNameGeoGps":"One","Lat":"41.64","Lon":41.65""",
+            """"BusStopIdGeoGps":"$providerId","BusStopNumber":"1047","BusStopNameGeoGps":"1047 ცირკი","Lat":"41.649527","Lon":41.636728""",
+        )
+        val catalog = BatumiThetaCatalogParser.parse(observed, Instant.EPOCH)
+        val stop = catalog.stops.single { it.id == stopId }
+        assertEquals(stop, catalog.stopsFor(catalog.routes.single().id).first())
+        assertEquals("Цирк", stop.name.ru)
+        assertEquals("ცირკი", stop.name.ka)
+        assertEquals("السيرك", stop.name.ar)
+
+        for (variant in listOf(
+            observed.replace(""""BusStopNumber":"1047"""", """"BusStopNumber":"5000""""),
+            observed.replace("41.649527", "41.651527"),
+        )) {
+            val renamed = BatumiThetaCatalogParser.parse(variant, Instant.EPOCH).stops.single { it.id == stopId }
+            assertEquals("1047 ცირკი", renamed.name.ru)
+            assertEquals(null, renamed.name.ar)
+        }
+    }
+
+    @Test
     fun `parser accepts root legacy aliases and rejects broken cross references`() {
         assertEquals(1, BatumiThetaCatalogParser.parse(fixture(wrapped = false), Instant.EPOCH).routes.size)
         assertFailsWith<ProviderNormalizedSchemaFailure> {
@@ -386,14 +411,16 @@ class BatumiThetaTransitProviderAdapterTest {
     }
 
     @Test
-    fun `global feed reports malformed generations for both dependent capabilities and stops when disabled`() = runBlocking {
+    fun `invalid primary cannot latch the city but malformed fallback is reported for both capabilities`() = runBlocking {
         val enabled = AtomicBoolean(true)
         val vehicleSchemaFailures = AtomicInteger()
         val arrivalSchemaFailures = AtomicInteger()
+        val clock = MutableClock(Instant.parse("2026-09-10T00:00:00Z"))
         val globalClient = FakeAllBusesClient { "{not-json" }
         BatumiThetaTransitProviderAdapter(
             activation = activation(),
-            client = FakeCatalogClient(fixture(true)),
+            client = FakeCatalogClient(fixture(true)).also { it.livePayload = "{not-json" },
+            clock = clock,
             allBusesClient = globalClient,
             cityFeedPollInterval = java.time.Duration.ofMillis(10),
         ).use { adapter ->
@@ -409,16 +436,18 @@ class BatumiThetaTransitProviderAdapterTest {
                         }
                         else -> error("Unexpected global-feed capability $capability")
                     }
-                    if (vehicleSchemaFailures.get() >= 3 && arrivalSchemaFailures.get() >= 3) enabled.set(false)
+                    if (vehicleSchemaFailures.get() == 1 && arrivalSchemaFailures.get() == 1) enabled.set(false)
                     false
                 },
             )
-            while (globalClient.calls < 3) delay(2)
-            delay(35)
+            kotlinx.coroutines.withTimeout(2_000) { while (globalClient.calls < 3) delay(2) }
+            assertEquals(0, vehicleSchemaFailures.get())
+            assertEquals(0, arrivalSchemaFailures.get())
+            clock.advanceSeconds(180)
+            kotlinx.coroutines.withTimeout(2_000) { while (enabled.get()) delay(2) }
 
-            assertEquals(3, vehicleSchemaFailures.get())
-            assertEquals(3, arrivalSchemaFailures.get())
-            assertEquals(3, globalClient.calls, "polling must stop after both dependent capabilities are disabled")
+            assertEquals(1, vehicleSchemaFailures.get())
+            assertEquals(1, arrivalSchemaFailures.get())
         }
     }
 

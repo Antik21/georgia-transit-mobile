@@ -3,7 +3,7 @@ package com.denis.georgiatransit.bff.api
 import io.ktor.server.application.ApplicationCall
 import java.time.Instant
 
-private val locales = setOf("ka", "en", "ru")
+private val supportedLocales = setOf("ka", "en", "ru", "uk", "de", "fr", "ar", "hi", "zh")
 
 fun ApplicationCall.pathCityId(): String =
     parameters["cityId"]?.takeIf(::isValidCityId)
@@ -23,15 +23,11 @@ internal fun validatePublicId(value: String, cityId: String, entityType: PublicE
     }
 }
 
-fun ApplicationCall.locale(): String {
-    val locale = request.queryParameters["locale"] ?: return "en"
-    return locale.takeIf(locales::contains)
-        ?: throw InvalidArgument("locale must be one of ka, en, ru")
-}
+fun ApplicationCall.locale(): String = validateLocale(request.queryParameters["locale"] ?: "en")
 
 /** Validates a POST-body locale without reflecting request values into errors or telemetry. */
-fun validateLocale(value: String): String = value.takeIf(locales::contains)
-    ?: throw InvalidArgument("locale must be one of ka, en, ru")
+fun validateLocale(value: String): String = value.takeIf(supportedLocales::contains)
+    ?: throw InvalidArgument("locale must be one of ${supportedLocales.joinToString()}")
 
 /** Coordinates are accepted only at the request boundary and are not retained after the call. */
 fun validateGeoPoint(point: GeoPoint): GeoPoint {

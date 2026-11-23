@@ -31,4 +31,4 @@ Building the client needs a JDK, the Android SDK for Gradle configuration, Yarn 
 
 ## Verification
 
-After applying the Blueprint and the first publish, open the static site's URL and check in the network panel that `/v1/cities`, `/v1/cities/batumi/stops/nearby?...`, `/v1/map/style.json`, `/v1/map/tiles/...` and `/v1/cities/batumi/vehicles?routeId=...` return the BFF's responses on the static site's origin. Then run the manual Telegram check from [the Mini App plan](../development/telegram-mini-app.md).
+After applying the Blueprint and the first publish, open the static site's URL and check in the network panel that `/v1/cities`, `/v1/cities/batumi/stops/nearby?...`, `/v1/map/style.json`, `/v1/map/vector/...` and `/v1/cities/batumi/vehicles?routeId=...` return the BFF's responses on the static site's origin. Then run the manual Telegram check from [the Mini App plan](../development/telegram-mini-app.md).

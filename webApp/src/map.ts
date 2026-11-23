@@ -3,11 +3,12 @@ import {
 } from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import mapWorkerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?url&no-inline";
-import type { MapState, MapStopLayer, MapStopPin, PlannerState, VehicleLayer } from "./contracts";
+import type { MapState, MapStopLayer, MapStopPin, PlannerPoint, PlannerState, VehicleLayer } from "./contracts";
+import type { getCopy } from "./copy";
 import {
-  createPlannerMap, plannerLineLayerIds, plannerPointLayerId, type PlannerMapActions, type PlannerMapLabels,
+  createPlannerMap, plannerLineLayerIds, plannerPointLayerId, type PlannerMapActions,
 } from "./planner-map";
-import { drawStopCluster, drawStopPin } from "./stop-pin";
+import { drawStopPin } from "./stop-pin";
 import { drawVehicleBadge, systemTextScale, vehicleBadgeStyle, type VehicleBadgeStyle } from "./vehicle-badge";
 import { maxPulseMarkers, pulseFrame, pulsePaint, pulseTickMillis } from "./vehicle-pulse";
 
@@ -29,7 +30,6 @@ const selectedStopSourceId = "transit-selected-stop";
 const stopLayerId = "transit-stop-pins";
 const clusterLayerId = "transit-stop-clusters";
 const selectedStopLayerId = "transit-selected-stop-pin";
-const clusterImagePrefix = "transit-stop-cluster-";
 const maxStopMarkers = 1_000;
 const maxVehicleMarkers = 2_000;
 const maxBadgeImages = 256;
@@ -50,32 +50,41 @@ const localStyle: StyleSpecification = {
 const layerOrder = [
   "transit-route-lines-base", "transit-route-lines-emphasized", ...plannerLineLayerIds,
   "transit-user-accuracy-fill", "transit-user-accuracy-line",
-  stopLayerId, clusterLayerId, plannerPointLayerId, attentionLayerId, vehicleLayerId, selectedStopLayerId,
-  "transit-user-location",
+  clusterLayerId, stopLayerId, attentionLayerId, vehicleLayerId, selectedStopLayerId,
+  "transit-user-location", plannerPointLayerId,
 ];
 
 interface MapActions extends PlannerMapActions {
+  zoomGesture(pinch: boolean): void;
   tapStop(stopId: string, revision: string): void;
   updateViewport(latitude: number, longitude: number, radiusMeters: number, zoom: number): void;
   selectVehicle(vehicleId: string, revision: string): void;
   setUnavailable(unavailable: boolean): void;
+  setMapPointReady(ready: boolean): void;
 }
 
 export interface TransitMap {
   update(state: MapState): void;
   updateVehicles(layer: VehicleLayer): void;
   updatePlanner(state: PlannerState): void;
+  pointAt(position: { x: number; y: number }): PlannerPoint | undefined;
   retry(): void;
   resize(): void;
   setVisible(visible: boolean): void;
   dispose(): void;
 }
 
+const mapStylePath = "/v1/map/style.json";
+
 function mapAssetRequest(rawUrl: string) {
   const url = new URL(rawUrl, window.location.origin);
-  if (url.pathname === "/v1/map/style.json" || /^\/v1\/map\/tiles\/\d+\/\d+\/\d+\.png$/.test(url.pathname)) {
-    // The BFF style uses its public hostname. Keep style and tiles on the app's same-origin proxy.
-    return { url: new URL(url.pathname, window.location.origin).href };
+  const isStyle = url.pathname === mapStylePath && /^(|\?lang=(ka|ru|en))$/.test(url.search);
+  const isAsset = !url.search && (
+    /^\/v1\/map\/vector\/\d+\/\d+\/\d+\.pbf$/.test(url.pathname) ||
+    /^\/v1\/map\/fonts\/Noto%20Sans%20Regular\/\d+-\d+\.pbf$/.test(url.pathname)
+  );
+  if (isStyle || isAsset) {
+    return { url: new URL(url.pathname + url.search, window.location.origin).href };
   }
   throw new Error("Unsupported map asset");
 }
@@ -184,7 +193,7 @@ function stopData(layer: MapStopLayer | null | undefined) {
     .filter((cluster) => cluster.id && cluster.count > 1 && isMapCoordinate(cluster.latitude, cluster.longitude))
     .sort((a, b) => (a.id < b.id ? -1 : 1)).slice(0, maxStopMarkers)
     .map((cluster) => stopFeature(cluster.id, layer!.revision, cluster.longitude, cluster.latitude,
-      { kind: "cluster", image: clusterImagePrefix + cluster.count, label: cluster.label }));
+      { kind: "cluster", label: cluster.label }));
   const selected = order.selected.map(pin);
   return {
     ordinary: { type: "FeatureCollection" as const, features: [...ordinary, ...clusters] },
@@ -207,13 +216,13 @@ function routeLineData(lines: MapState["routePolylines"]) {
 }
 
 export function createTransitMap(
-  container: HTMLElement, initial: MapState, actions: MapActions, plannerLabels: PlannerMapLabels,
+  container: HTMLElement, initial: MapState, actions: MapActions, copy: ReturnType<typeof getCopy>,
 ): TransitMap {
   const { camera, styleUrl } = initial;
   if (!camera) throw new Error("Map camera is missing");
   const map = new MapLibreMap({
     container,
-    style: styleUrl ? "/v1/map/style.json" : localStyle,
+    style: styleUrl ? mapAssetRequest(styleUrl).url : localStyle,
     center: [camera.longitude, camera.latitude],
     zoom: camera.zoom,
     maxZoom: 20,
@@ -231,6 +240,7 @@ export function createTransitMap(
   let zoomTotal = initial.zoomStep?.totalDelta ?? 0;
   // Taps during our own ease build on its target; interrupting it reports an interim zoom.
   let pendingZoom: { zoom: number; at: number } | undefined;
+  let activeStyleUrl = styleUrl ?? null;
   let remoteStyleLoading = Boolean(styleUrl);
   let usingFallbackStyle = false;
   let styleReady = false;
@@ -257,8 +267,9 @@ export function createTransitMap(
   }
 
   function renderRouteLines() {
-    if (!styleReady || renderedRouteRevision === latestState.routePolylineRevision) return;
-    const data = routeLineData(latestState.routePolylines);
+    const revision = plannerOpen ? "hidden" : latestState.routePolylineRevision;
+    if (!styleReady || renderedRouteRevision === revision) return;
+    const data = routeLineData(plannerOpen ? [] : latestState.routePolylines);
     const source = map.getSource<GeoJSONSource>(routeSourceId);
     if (source) {
       source.setData(data);
@@ -279,7 +290,7 @@ export function createTransitMap(
         });
       }
     }
-    renderedRouteRevision = latestState.routePolylineRevision;
+    renderedRouteRevision = revision;
   }
 
   function renderUserLocation() {
@@ -311,10 +322,6 @@ export function createTransitMap(
     for (const stop of layer?.stops ?? []) {
       if (!wanted.has(stop.pin.imageId)) wanted.set(stop.pin.imageId, () => drawStopPin(stop.pin, pixelRatio));
     }
-    for (const cluster of layer?.clusters ?? []) {
-      const id = clusterImagePrefix + cluster.count;
-      if (cluster.count > 1 && !wanted.has(id)) wanted.set(id, () => drawStopCluster(cluster.count, pixelRatio));
-    }
     for (const id of stopImageIds) {
       if (wanted.has(id)) continue;
       if (map.hasImage(id)) map.removeImage(id);
@@ -327,16 +334,16 @@ export function createTransitMap(
     }
   }
 
-  function pinLayer(id: string, source: string, kind: string): AddLayerObject {
+  function pinLayer(id: string, source: string): AddLayerObject {
     return {
       id,
       type: "symbol",
       source,
-      filter: ["==", ["get", "kind"], kind],
+      filter: ["==", ["get", "kind"], "stop"],
       layout: {
         "icon-image": ["get", "image"],
-        "icon-size": kind === "stop" ? ["number", ["get", "scale"]] : 1,
-        "icon-anchor": kind === "stop" ? "bottom" : "center",
+        "icon-size": ["number", ["get", "scale"]],
+        "icon-anchor": "bottom",
         "icon-padding": 0,
         "icon-allow-overlap": true,
         "icon-ignore-placement": true,
@@ -359,9 +366,12 @@ export function createTransitMap(
     } else {
       map.addSource(stopSourceId, { type: "geojson", data: ordinary });
       map.addSource(selectedStopSourceId, { type: "geojson", data: selected });
-      addLayerInOrder(pinLayer(stopLayerId, stopSourceId, "stop"));
-      addLayerInOrder(pinLayer(clusterLayerId, stopSourceId, "cluster"));
-      addLayerInOrder(pinLayer(selectedStopLayerId, selectedStopSourceId, "stop"));
+      addLayerInOrder({
+        id: clusterLayerId, type: "circle", source: stopSourceId, filter: ["==", ["get", "kind"], "cluster"],
+        paint: { "circle-color": "#264653", "circle-radius": 12, "circle-stroke-color": "#ffffff", "circle-stroke-width": 2 },
+      });
+      addLayerInOrder(pinLayer(stopLayerId, stopSourceId));
+      addLayerInOrder(pinLayer(selectedStopLayerId, selectedStopSourceId));
     }
     renderedStops = layer;
   }
@@ -474,7 +484,7 @@ export function createTransitMap(
     attentionTimer ??= setTimeout(attentionTick, pulseTickMillis);
   }
   reducedMotion.addEventListener("change", refreshAttention);
-  const planner = createPlannerMap(map, addLayerInOrder, actions, plannerLabels, reducedMotion);
+  const planner = createPlannerMap(map, addLayerInOrder, actions, copy, reducedMotion);
 
   map.on("style.load", () => {
     remoteStyleLoading = false;
@@ -494,6 +504,7 @@ export function createTransitMap(
     renderStops();
     attentionCount = 0;
     renderVehicles();
+    actions.setMapPointReady(!map.isMoving());
   });
 
   // Like the native adapters only the drawn pin is a target and the selected one wins; clusters are not tappable.
@@ -543,37 +554,57 @@ export function createTransitMap(
     map.getCanvas().style.cursor = stopAt(event) || vehicleAt(event) ? "pointer" : "";
   });
   map.on("error", (event) => {
-    // Any error listener replaces MapLibre's default logging, so tile failures must be logged here.
-    if (!remoteStyleLoading) {
+    const sourceId = "sourceId" in event ? event.sourceId : undefined;
+    const vectorAsset = (typeof sourceId === "string" && sourceId.startsWith("gt-vector-")) ||
+      (event.error instanceof Error && event.error.message.includes("/v1/map/fonts/"));
+    if (activeStyleUrl && (remoteStyleLoading || vectorAsset)) {
+      usingFallbackStyle = true;
+      loadStyle(null);
+    } else {
       console.error(event.error);
-      return;
     }
-    remoteStyleLoading = false;
-    usingFallbackStyle = true;
-    styleReady = false;
-    planner.styleLost();
-    map.setStyle(localStyle, { diff: false });
   });
 
-  function retry() {
-    if (!usingFallbackStyle || !styleUrl) return;
-    usingFallbackStyle = false;
-    remoteStyleLoading = true;
+  function loadStyle(url: string | null) {
+    activeStyleUrl = url;
+    remoteStyleLoading = Boolean(url);
     styleReady = false;
+    actions.setMapPointReady(false);
     planner.styleLost();
-    map.setStyle("/v1/map/style.json", { diff: false });
+    map.setStyle(url ? mapAssetRequest(url).url : localStyle, { diff: false });
+  }
+
+  function retry() {
+    if (!usingFallbackStyle || !latestState.styleUrl) return;
+    usingFallbackStyle = false;
+    loadStyle(latestState.styleUrl);
   }
   map.on("webglcontextlost", () => {
     styleReady = false;
+    actions.setMapPointReady(false);
     planner.styleLost();
     actions.setUnavailable(true);
   });
   map.on("webglcontextrestored", () => actions.setUnavailable(false));
   // Programmatic moves are reported too, as on mobile: a group tap zooms in and the ViewModel must see the new zoom.
+  let singleFingerTap = false;
+  map.on("touchstart", ({ originalEvent }) => {
+    singleFingerTap = originalEvent.touches.length === 1;
+  });
+  map.on("zoomstart", ({ originalEvent }) => {
+    if (typeof TouchEvent === "undefined" || !(originalEvent instanceof TouchEvent)) return;
+    if (originalEvent.type === "touchmove" && originalEvent.touches.length >= 2) {
+      actions.zoomGesture(true);
+    } else if (originalEvent.type === "touchend" && singleFingerTap) {
+      actions.zoomGesture(false);
+    }
+  });
   map.on("movestart", (event) => {
+    actions.setMapPointReady(false);
     if (event.originalEvent) pendingZoom = undefined;
   });
   map.on("moveend", () => {
+    actions.setMapPointReady(styleReady && !map.isMoving());
     const center = map.getCenter();
     const bounds = map.getBounds();
     const radius = Math.ceil(Math.max(
@@ -584,7 +615,12 @@ export function createTransitMap(
   });
 
   function update(state: MapState) {
+    const styleChanged = state.styleUrl !== latestState.styleUrl;
     latestState = state;
+    if (styleChanged) {
+      usingFallbackStyle = false;
+      loadStyle(state.styleUrl ?? null);
+    }
     renderRouteLines();
     renderUserLocation();
     if (state.camera && state.camera.revision !== cameraRevision) {
@@ -660,6 +696,16 @@ export function createTransitMap(
     onTextScaleCheck();
   }
 
+  function pointAt(position: { x: number; y: number }): PlannerPoint | undefined {
+    if (!styleReady || map.isMoving()) return;
+    const bounds = map.getCanvas().getBoundingClientRect();
+    const x = position.x - bounds.left;
+    const y = position.y - bounds.top;
+    if (x <= 0 || x >= bounds.width || y <= 0 || y >= bounds.height) return;
+    const point = map.unproject([x, y]).wrap();
+    return { latitude: point.lat, longitude: point.lng };
+  }
+
   function dispose() {
     pixelRatioQuery?.removeEventListener("change", onPixelRatioChange);
     reducedMotion.removeEventListener("change", refreshAttention);
@@ -673,9 +719,10 @@ export function createTransitMap(
     planner.update(state);
     if (plannerOpen === state.open) return;
     plannerOpen = state.open;
+    renderRouteLines();
     renderedVehicleRevision = undefined;
     renderVehicles();
   }
 
-  return { update, updateVehicles, updatePlanner, retry, resize, setVisible, dispose };
+  return { update, updateVehicles, updatePlanner, pointAt, retry, resize, setVisible, dispose };
 }

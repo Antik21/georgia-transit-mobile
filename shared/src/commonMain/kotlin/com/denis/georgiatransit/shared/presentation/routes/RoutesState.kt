@@ -62,6 +62,7 @@ data class RouteItemUiModel(
 
 sealed interface Action {
     data class RouteToggled(val routeId: RouteId) : Action
+    data class RecentRouteToggled(val routeId: RouteId) : Action
     data class SearchChanged(val query: String) : Action
     data class LocaleChanged(val languageTag: String) : Action
     data object RetryClicked : Action

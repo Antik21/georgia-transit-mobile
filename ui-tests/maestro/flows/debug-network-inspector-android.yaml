@@ -1,4 +1,4 @@
-appId: com.denis.georgiatransit
+appId: com.anti.georgiatransit.sandbox
 ---
 # Precondition: launch the Debug app once, then open the Android app drawer with KEYCODE_ALL_APPS.
 # The inspector is intentionally non-exported; reach it only through this app-owned dynamic shortcut.

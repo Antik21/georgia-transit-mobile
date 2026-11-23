@@ -9,7 +9,7 @@ fi
 platform=$1
 target=$2
 artifact=$3
-app_id=com.denis.georgiatransit
+app_id=com.anti.georgiatransit.sandbox
 script_dir=$(cd "$(dirname "$0")" && pwd)
 fixture_path="$script_dir/fixtures/route-geometry-fixture-server.mjs"
 flow_path="$script_dir/flows/route-geometry-smoke.yaml"
