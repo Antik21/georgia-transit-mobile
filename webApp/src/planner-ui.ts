@@ -32,10 +32,10 @@ export function renderPlannerPanel(
   if (state.showingResults) {
     const edit = button("back-button", "", actions.editPlannerPoints, "planner-edit");
     edit.dataset.focusKey = "planner-close";
-    edit.append(icon("arrow-left"), element("span", "", copy.plannerClose));
+    edit.append(icon("arrow-left"), element("span", "", copy.plannerEdit));
     const header = element("div", "planner-results-header");
-    header.append(edit, element("span", "planner-endpoint-chip", endpointLabel(state.origin, copy)),
-      element("span", "planner-header-arrow", "→"), element("span", "planner-endpoint-chip", endpointLabel(state.destination, copy)));
+    header.append(edit, endpointChip(state.origin.kind, copy),
+      element("span", "planner-header-arrow", "→"), endpointChip(state.destination.kind, copy));
     panel.append(header);
   } else {
     body.append(endpoints(state, copy, actions, expandedSide, toggleSide));
@@ -69,6 +69,12 @@ export function renderPlannerPanel(
     panel.append(disclaimer);
   }
   return panel;
+}
+
+function endpointChip(kind: PlannerEndpoint["kind"], copy: Copy) {
+  const label = kind === "myLocation" ? copy.plannerLocationChip
+    : kind === "point" ? copy.plannerPointChip : copy.plannerNotSet;
+  return element("span", "planner-endpoint-chip", label);
 }
 
 function formHeader(state: PlannerState, copy: Copy, actions: PlannerActions) {

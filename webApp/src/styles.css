@@ -585,7 +585,8 @@ body { background: var(--background); color: var(--ink); }
 
 /* Journey planner (A→B). */
 .map-region > .map-canvas { -webkit-touch-callout: none; user-select: none; }
-.planner-panel { justify-items: stretch; gap: 12px; }
+.planner-panel { --planner-panel-gap: 12px; justify-items: stretch; gap: var(--planner-panel-gap); }
+.panel-content.planner-panel { padding-block-start: clamp(8px, 1.5vw, 14px); }
 .planner-panel > .back-button, .planner-panel > .secondary-button { justify-self: start; }
 .has-planner-form .map-panel { overflow: hidden; background: var(--map-control-surface); }
 .planner-form {
@@ -699,7 +700,13 @@ body { background: var(--background); color: var(--ink); }
 }
 .transit-app .planner-option[aria-pressed="true"] { border: 2px solid var(--primary); background: var(--tint); }
 .planner-option-summary { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; }
-.planner-results-header { display: flex; align-items: center; gap: 6px; min-inline-size: 0; }
+.planner-results-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-inline-size: 0;
+  margin-block-end: calc(var(--planner-panel-gap) / -2);
+}
 .planner-endpoint-chip { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 8px; border-radius: 20px; background: var(--tint); font-size: 0.78rem; }
 .planner-header-arrow { flex: none; }
 .planner-option-total { font-size: 1.05rem; font-variant-numeric: tabular-nums; }

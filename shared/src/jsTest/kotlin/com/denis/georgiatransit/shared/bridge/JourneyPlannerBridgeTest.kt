@@ -87,9 +87,7 @@ class JourneyPlannerBridgeTest {
 
                 entry.planner.longPressMap(B.latitude, B.longitude)
                 settle()
-                assertTrue(queries.isEmpty(), "Choosing points must not start planning")
-                entry.planner.findRoute()
-                settle()
+                assertEquals(B, queries.firstOrNull()?.to, "Choosing the second point starts planning")
                 val results = assertNotNull(state)
                 assertEquals("results", results.status)
                 val option = results.options.single()
@@ -226,8 +224,6 @@ class JourneyPlannerBridgeTest {
                 settle()
                 entry.planner.longPressMap(B.latitude, B.longitude)
                 settle()
-                entry.planner.findRoute()
-                settle()
                 val before = revisions.maxOf(String::toLong)
                 // A renderer keeps its "already framed" revision across a re-subscribe; a restarted counter would reuse it.
                 var resubscribed: String? = null
@@ -262,8 +258,6 @@ class JourneyPlannerBridgeTest {
                 entry.planner.routeFromHere()
                 settle()
                 entry.planner.longPressMap(B.latitude, B.longitude)
-                settle()
-                entry.planner.findRoute()
                 settle()
 
                 val ride = assertNotNull(state).options.first()
