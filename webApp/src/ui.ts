@@ -36,6 +36,7 @@ export interface ViewActions extends PlannerActions {
 
 type Copy = ReturnType<typeof getCopy>;
 type Screen = "startup" | "city" | "map" | "routes";
+const plannerButtonUsedKey = "transit:planner-button-used";
 
 export function createTransitView(root: HTMLElement, actions: ViewActions, languageTag = navigator.language) {
   const language = getLanguage(languageTag);
@@ -43,18 +44,6 @@ export function createTransitView(root: HTMLElement, actions: ViewActions, langu
   document.documentElement.lang = language;
 
   const app = element("div", "transit-app");
-  const header = element("header", "transit-header");
-  const brand = element("div", "transit-brand");
-  const brandLogo = element("img", "brand-logo");
-  brandLogo.src = appLogoUrl;
-  brandLogo.alt = "";
-  brandLogo.dataset.testid = "brand-logo";
-  brand.append(brandLogo, element("span", "brand-name", copy.appName));
-  const cityName = element("span", "header-city-name");
-  const changeCity = button("city-switch", "", actions.changeCity, "change-city");
-  const changeCityName = element("span", "city-switch-name");
-  changeCity.append(changeCityName, icon("chevron-down"));
-  header.append(brand, cityName, changeCity);
 
   const startup = element("main", "startup-screen");
   const city = element("main", "city-screen");
@@ -78,6 +67,11 @@ export function createTransitView(root: HTMLElement, actions: ViewActions, langu
   mapRegion.tabIndex = -1;
   const mapElement = element("div", "map-canvas");
   const mapOverlay = element("div", "map-overlay");
+  const mapTopControls = element("div", "map-top-controls");
+  const cityName = element("span", "map-city-name");
+  const changeCity = button("city-switch", "", actions.changeCity, "change-city");
+  const changeCityName = element("span", "city-switch-name");
+  changeCity.append(changeCityName, icon("chevron-down"));
   const mapControls = element("div", "map-controls");
   const openRoutes = button("primary-button map-routes-button", copy.openRoutes, actions.openRoutes, "open-routes");
   const routeSelection = element("section", "map-route-selection");
@@ -103,6 +97,14 @@ export function createTransitView(root: HTMLElement, actions: ViewActions, langu
   plannerNotice.hidden = true;
   let plannerNoticeTimer: number | undefined;
   const openPlanner = button("map-planner-button", "", () => {
+    if (!openPlanner.classList.contains("is-compact")) {
+      openPlanner.classList.add("is-compact");
+      try {
+        window.localStorage.setItem(plannerButtonUsedKey, "1");
+      } catch {
+        // The button stays compact for this page when browser storage is unavailable.
+      }
+    }
     if (mapState?.journeyPlanningAvailable) {
       actions.openPlanner();
     } else {
@@ -111,7 +113,13 @@ export function createTransitView(root: HTMLElement, actions: ViewActions, langu
       plannerNoticeTimer = window.setTimeout(hidePlannerNotice, 3_000);
     }
   }, "open-planner");
-  openPlanner.append(mapIcon("journey"), element("span", "", copy.planTrip));
+  openPlanner.setAttribute("aria-label", copy.planTrip);
+  openPlanner.append(mapIcon("journey"), element("span", "map-planner-label", copy.planTrip));
+  try {
+    openPlanner.classList.toggle("is-compact", window.localStorage.getItem(plannerButtonUsedKey) === "1");
+  } catch {
+    // Start with the label when browser storage is unavailable.
+  }
   plannerControls.append(plannerNotice, openPlanner);
   mapLeftControls.append(plannerControls, mapCredits);
   const locationControls = element("div", "map-location");
@@ -136,8 +144,9 @@ export function createTransitView(root: HTMLElement, actions: ViewActions, langu
   // Mirrors the mobile map overlay: nearby-stop loading and errors show on the map, never as a list.
   const contentStatus = element("div", "map-content-status");
   contentStatus.dataset.testid = "map-content-status";
+  mapTopControls.append(cityName, changeCity, contentStatus);
   const mapPointPicker = createMapPointPicker(copy, actions.cancelMapPick, actions.confirmMapPick);
-  mapRegion.append(mapElement, mapOverlay, contentStatus, mapLeftControls, locationControls, mapPointPicker.header, mapPointPicker.target);
+  mapRegion.append(mapElement, mapOverlay, mapTopControls, mapLeftControls, locationControls, mapPointPicker.header, mapPointPicker.target);
   const mapPanel = element("section", "map-panel");
   mapPanel.dataset.testid = "map-panel";
   mapPanel.setAttribute("aria-labelledby", "map-panel-heading");
@@ -146,7 +155,7 @@ export function createTransitView(root: HTMLElement, actions: ViewActions, langu
   map.append(mapColumn, mapPanel);
 
   const routePicker = createRoutePicker(copy, actions);
-  app.append(header, startup, city, map, routePicker.element);
+  app.append(startup, city, map, routePicker.element);
   root.replaceChildren(app);
 
   let screen: Screen = "startup";
@@ -203,11 +212,7 @@ export function createTransitView(root: HTMLElement, actions: ViewActions, langu
     city.hidden = next !== "city";
     map.hidden = next !== "map";
     routePicker.element.hidden = next !== "routes";
-    if (next !== "map") {
-      cityName.hidden = true;
-      changeCity.hidden = true;
-      hidePlannerNotice();
-    }
+    if (next !== "map") hidePlannerNotice();
     if (changed) focusTarget?.focus({ preventScroll: true });
   }
 
@@ -297,8 +302,8 @@ export function createTransitView(root: HTMLElement, actions: ViewActions, langu
     const summaryText = vehicleSummaryText(copy, state?.vehicleStatus, state?.vehicleRoutes ?? []);
     if (vehicleSummary.textContent !== summaryText) vehicleSummary.textContent = summaryText;
 
-    if (pickSide) contentStatus.hidden = true;
-    else renderContentStatus(state);
+    mapTopControls.hidden = Boolean(pickSide);
+    if (!pickSide) renderContentStatus(state);
 
     const nextPanelKey = pickSide ? null : planner?.open ? "planner" : state?.arrivals?.stopId ?? null;
     const content = pickSide ? null : planner?.open

@@ -73,7 +73,7 @@ body { background: var(--background); color: var(--ink); }
 .transit-app {
   block-size: var(--tg-viewport-stable-height, var(--browser-height));
   display: grid;
-  grid-template-rows: auto minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
   overflow: hidden;
   padding:
     max(var(--tg-safe-area-inset-top, 0px), var(--tg-content-safe-area-inset-top, 0px), env(safe-area-inset-top, 0px))
@@ -94,23 +94,7 @@ body { background: var(--background); color: var(--ink); }
 .transit-app button:disabled { cursor: default; }
 .transit-app :is(button, a):focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
 
-.transit-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  min-block-size: 64px;
-  padding: 8px clamp(14px, 3vw, 32px);
-  background: var(--surface);
-  border-block-end: 1px solid var(--edge);
-}
-
-.transit-brand { display: flex; align-items: center; gap: 10px; flex: none; }
-.brand-name { font-size: 1.08rem; font-weight: 730; letter-spacing: -0.035em; }
-
-.brand-logo { display: block; inline-size: 36px; block-size: 36px; border-radius: 50%; }
-
-.header-city-name, .city-switch-name {
+.map-city-name, .city-switch-name {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -118,18 +102,19 @@ body { background: var(--background); color: var(--ink); }
   font-weight: 650;
 }
 
-.city-switch {
-  display: inline-flex;
-  align-items: center;
+.map-city-name, .city-switch {
+  justify-self: end;
   min-inline-size: 0;
-  min-block-size: 44px;
-  gap: 10px;
   padding: 0 12px;
   border: 1px solid var(--edge);
   border-radius: 10px;
   background: var(--raised);
+  box-shadow: 0 2px 8px #18191b28;
 }
 
+.map-city-name { padding-block: 8px; }
+.city-switch { display: inline-flex; align-items: center; min-block-size: 44px; gap: 10px; pointer-events: auto; }
+.city-switch .icon { flex: none; }
 .city-switch:hover, .secondary-button:hover { background: var(--tint); }
 
 .startup-screen, .city-screen { display: flex; flex-direction: column; overflow: auto; }
@@ -284,11 +269,17 @@ body { background: var(--background); color: var(--ink); }
 .map-route-selection { min-inline-size: 0; }
 .map-route-heading { margin: 0 0 6px; font-size: 0.875rem; font-weight: 650; }
 
-.map-content-status {
+.map-top-controls {
   position: absolute;
-  inset-block-start: 16px;
-  inset-inline: 12px;
+  inset: 12px 12px auto;
   z-index: 2;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 8px;
+  pointer-events: none;
+}
+
+.map-content-status {
   display: grid;
   justify-items: center;
   gap: 8px;
@@ -301,6 +292,7 @@ body { background: var(--background); color: var(--ink); }
   background: var(--surface);
   box-shadow: var(--shadow);
   text-align: center;
+  pointer-events: auto;
 }
 .map-vehicle-status {
   max-inline-size: 100%;
@@ -464,6 +456,14 @@ body { background: var(--background); color: var(--ink); }
   text-align: start;
   pointer-events: auto;
 }
+.transit-app .map-planner-button.is-compact {
+  justify-content: center;
+  inline-size: 48px;
+  block-size: 48px;
+  padding: 0;
+  border-radius: 50%;
+}
+.map-planner-button.is-compact .map-planner-label { display: none; }
 .map-planner-button .map-icon { color: var(--map-action-color); }
 .transit-app .map-planner-button[data-available="false"], .map-planner-button[data-available="false"] .map-icon { color: var(--muted); }
 .map-planner-notice {
@@ -821,10 +821,9 @@ body { background: var(--background); color: var(--ink); }
 .map-point-confirm .map-icon { inline-size: 20px; block-size: 20px; }
 
 @media (max-width: 680px) {
-  .transit-header { min-block-size: 57px; padding-block: 6px; }
   .map-screen.has-panel { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1.16fr) minmax(0, 1fr); }
   .map-screen.has-planner-form { grid-template-rows: minmax(0, 1fr) auto; }
-  .has-planner-form .map-panel { max-block-size: calc((var(--browser-height) - 57px) * 0.55); }
+  .has-planner-form .map-panel { max-block-size: calc(var(--tg-viewport-stable-height, var(--browser-height)) * 0.55); }
   .has-planner-form .planner-form { max-block-size: inherit; }
   .map-column { grid-column: 1; }
   .map-screen.has-panel .map-controls { display: none; }

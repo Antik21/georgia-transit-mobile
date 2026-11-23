@@ -1,5 +1,4 @@
 const english = {
-  appName: "Geo Transit",
   startup: "Loading Geo Transit…",
   startupError: "Geo Transit couldn't start.",
   selectCity: "Choose a city",
@@ -161,7 +160,6 @@ type Language = "en" | "ru" | "ka";
 const translations: Record<Language, Copy> = {
   en: english,
   ru: {
-    appName: "Geo Transit",
     startup: "Загружаем Geo Transit…",
     startupError: "Не удалось запустить Geo Transit.",
     selectCity: "Выберите город",
@@ -317,7 +315,6 @@ const translations: Record<Language, Copy> = {
     plannerSummaryFerry: "паром %1$s",
   },
   ka: {
-    appName: "Geo Transit",
     startup: "Geo Transit იტვირთება…",
     startupError: "Geo Transit ვერ გაიხსნა.",
     selectCity: "აირჩიეთ ქალაქი",
