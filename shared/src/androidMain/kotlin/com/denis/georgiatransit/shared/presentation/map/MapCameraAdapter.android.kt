@@ -59,8 +59,7 @@ internal class MapCameraAdapter(
         map?.let { coverage.update(it, bounds) }
     }
 
-    /** A new style must re-apply the current command even when its revision is unchanged. */
-    fun reset() {
+    private fun reset() {
         lastAppliedCameraRevision = null
         lastAppliedCameraCommand = null
         lastBottomPadding = null

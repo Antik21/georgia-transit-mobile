@@ -263,7 +263,7 @@ try {
   await waitFor('A city without trip planning explains why the planner stays closed',
     `${visible(testId('planner-unavailable-notice'))} && !${visible(testId('planner-panel'))}`);
   await waitFor('MapLibre worker loads from the production build', () => workerResponses.includes(200));
-  await waitFor('MapLibre renders pixels from the fixture raster tiles', () => mapContainsColor(fixtureTileColor, 2_000));
+  await waitFor('MapLibre renders pixels from the fixture vector tiles', () => mapContainsColor(fixtureTileColor, 2_000));
   await waitFor('Tile source attribution is visible', tileAttribution);
   await waitFor('The map displays the credit for a city with public attribution', visible(`.map-credits ${cityCredit}`));
   await waitFor('Nearby stops load as map pins only', async () => Boolean(await stopPinPoint()) && await evaluate(`${panelCollapsed} && !${visible(testId('map-content-status'))}`));
@@ -476,6 +476,18 @@ try {
     await waitFor('City selection reopens', visible(cityOption(otherCityId)));
   }
 
+  const requestsBeforeVectorFailure = bffRequests.length;
+  fixtureControl.failVectorTile = true;
+  await tap(cityOption(otherCityId));
+  await waitFor('Second city enables confirmation for the vector map', canConfirmCity);
+  await tap(confirmCity);
+  await waitFor('The localized map requests a vector tile from the same origin',
+    () => bffRequests.slice(requestsBeforeVectorFailure).some((path) => path.startsWith('/v1/map/vector/')));
+  await waitFor('A failed vector tile falls back to the local style', () => mapContainsColor(fallbackMapColor, 2_000));
+  fixtureControl.failVectorTile = false;
+  await tap(testId('change-city'));
+  await waitFor('City selection reopens after the vector fallback', visible(cityOption(otherCityId)));
+
   fixtureControl.failStyle = true;
   await tap(cityOption(otherCityId));
   await waitFor('Second city enables confirmation', canConfirmCity);
@@ -538,7 +550,7 @@ try {
       && Math.abs(location.right - plus.right) < 1 && Math.abs(plus.right - minus.right) < 1);
   })()`);
   const tileZoomsSince = (start) => bffRequests.slice(start)
-    .filter((path) => path.startsWith('/v1/map/tiles/')).map((path) => Number(path.split('/')[4]));
+    .filter((path) => path.startsWith('/v1/map/vector/')).map((path) => Number(path.split('/')[4]));
   const settledTileZoom = tileZoomsSince(0).at(-1);
   const beforeZoomIn = bffRequests.length;
   try {
@@ -622,7 +634,7 @@ try {
     assert.ok(bffRequests.includes(path), `Expected a BFF request for ${path}`);
   }
   assert.ok(workerResponses.every((status) => status === 200), 'MapLibre worker requests must serve the built asset');
-  assert.ok(bffRequests.some((path) => path.startsWith('/v1/map/tiles/')), 'Expected a BFF request for a raster tile');
+  assert.ok(bffRequests.some((path) => path.startsWith('/v1/map/vector/')), 'Expected a BFF request for a vector tile');
   assert.ok(!bffRequests.includes(otherShapePath), 'Cancel must not request geometry for an uncommitted route');
   assert.ok(bffRequests.includes(fixtureVehiclesPath), 'Expected a BFF request for live vehicles');
   assert.deepEqual(errors, [], 'Browser reported uncaught errors');

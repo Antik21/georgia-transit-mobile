@@ -110,7 +110,7 @@ private class LocalMapController(
     init {
         mapView.getMapAsync { mapLibreMap ->
             if (destroyed) return@getMapAsync
-            // ADR 0015 forbids speculative requests while the BFF fronts public OSM tiles.
+            // The public vector source is requested only for an interactive viewport (ADR 0032).
             mapLibreMap.setPrefetchZoomDelta(0)
             map = mapLibreMap
             mapView.zoomEnabled = { mapLibreMap.uiSettings.isDoubleTapGesturesEnabled }
@@ -206,7 +206,6 @@ private class LocalMapController(
     /** Every base-style load drops all sources, layers and images, so renderer caches must restart too. */
     private fun clearRenderedLayerState() {
         layersInstalled = false
-        camera.reset()
         overlaySources.clear()
         vehicleBadges.clear()
         attentionPulse.clear()

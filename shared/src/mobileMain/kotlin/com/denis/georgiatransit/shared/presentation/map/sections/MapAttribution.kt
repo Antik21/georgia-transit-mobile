@@ -28,7 +28,7 @@ internal fun OpenStreetMapAttribution(modifier: Modifier = Modifier) {
             }
         },
         modifier = modifier.testTag(AutomationId.MapOpenStreetMapAttribution),
-        // The raster basemap stays light in both app themes. A text halo retains contrast
+        // The vector basemap stays light in both app themes. A text halo retains contrast
         // over map details without introducing a filled attribution container.
         style = MaterialTheme.typography.labelSmall.copy(
             shadow = Shadow(color = TransitColors.Background, blurRadius = 3f),

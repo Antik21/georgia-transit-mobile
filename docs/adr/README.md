@@ -60,3 +60,5 @@ Selected-city analytics and handled failure diagnostics are recorded in
 [ADR 0030](0030-selected-city-and-handled-failure-telemetry.md).
 Product analytics, the session rules, and Amplitude delivery are recorded in
 [ADR 0031](0031-product-analytics-via-bff.md).
+The localized Natural-inspired vector basemap are recorded in
+[ADR 0032](0032-localized-vector-basemap.md).

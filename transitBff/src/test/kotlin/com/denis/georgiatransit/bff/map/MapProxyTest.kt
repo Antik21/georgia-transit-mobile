@@ -29,11 +29,11 @@ class MapProxyTest {
     fun `style uses configured absolute BFF origin never upstream template`() {
         MapProxy(config()).use { proxy ->
             val style = proxy.styleJson()
-            assertTrue(style.contains("https://bff.example/v1/map/tiles/{z}/{x}/{y}.png"))
-            assertTrue(style.contains("\"maxzoom\":19"))
+            assertTrue(style.contains("https://bff.example/v1/map/vector/{z}/{x}/{y}.pbf"))
+            assertTrue(style.contains("\"maxzoom\":14"))
             assertTrue(style.contains("\"minzoom\":8"))
             assertTrue(style.contains("\"bounds\":[41.35,41.3,42.2,41.95]"))
-            assertFalse(style.contains("tiles.example"))
+            assertFalse(style.contains("tiles.openfreemap.org"))
         }
     }
 
@@ -45,14 +45,14 @@ class MapProxyTest {
             assertTrue(style.contains("\"bounds\":[41.35,41.3,42.2,41.95]"))
             assertTrue(style.contains("\"bounds\":[41.48,42.32,42.07,42.68]"))
             assertContentEquals(byteArrayOf(1, 2), proxy.tile(8, 157, 95))
-            assertContentEquals(byteArrayOf(1, 2), proxy.tile(15, 20_194, 12_101))
-            assertFailsWith<IllegalArgumentException> { proxy.tile(15, 0, 0) }
+            assertContentEquals(byteArrayOf(1, 2), proxy.tile(14, 10_097, 6_050))
+            assertFailsWith<IllegalArgumentException> { proxy.tile(14, 0, 0) }
             assertEquals(2, fake.calls)
         }
     }
 
     @Test
-    fun `city coverage matches the public raster bounds and leaves Batumi unchanged`() {
+    fun `city coverage matches the public vector bounds and leaves Batumi unchanged`() {
         val city = City(
             id = "kutaisi",
             name = LocalizedText("Кутаиси", "Kutaisi", "ქუთაისი"),
@@ -66,8 +66,8 @@ class MapProxyTest {
             val (bounded, originalBatumi) = proxy.withCityCoverage(listOf(city, batumi))
             val coverage = assertNotNull(bounded.mapBounds)
             val sources = Json.parseToJsonElement(proxy.styleJson(kutaisiEnabled = true)).jsonObject.getValue("sources")
-            assertEquals(setOf("bff-raster", "zugdidi-raster", "kutaisi-raster"), sources.jsonObject.keys)
-            val styleBounds = sources.jsonObject.getValue("kutaisi-raster").jsonObject.getValue("bounds")
+            assertEquals(setOf("gt-vector-batumi", "gt-vector-zugdidi", "gt-vector-kutaisi"), sources.jsonObject.keys)
+            val styleBounds = sources.jsonObject.getValue("gt-vector-kutaisi").jsonObject.getValue("bounds")
                 .jsonArray.map { it.jsonPrimitive.double }
             assertEquals(styleBounds, listOf(coverage.west, coverage.south, coverage.east, coverage.north))
             assertEquals(batumi, originalBatumi)
@@ -92,7 +92,7 @@ class MapProxyTest {
         val clock = MutableClock(Instant.parse("2026-09-15T00:00:00Z"))
         MapProxy(config(), fake, clock).use { proxy ->
             assertContentEquals(byteArrayOf(1, 2), proxy.tile(8, 157, 95))
-            clock.advance(Duration.ofSeconds(MapTileCacheSeconds.toLong() + 1))
+            clock.advance(Duration.ofSeconds(VectorTileCacheSeconds.toLong() + 1))
             assertContentEquals(byteArrayOf(1, 2), proxy.tile(8, 157, 95))
             assertEquals(2, fake.calls)
             assertEquals(MapTileValidators("tile-etag", "Mon, 15 Sep 2026 00:00:00 GMT"), fake.lastValidators)
@@ -105,6 +105,7 @@ class MapProxyTest {
     fun `tile requests are limited to the Batumi area and supported zooms`() {
         assertFailsWith<IllegalArgumentException> { MapProxy.validate(7, 78, 47) }
         assertFailsWith<IllegalArgumentException> { MapProxy.validate(8, 0, 0) }
+        assertFailsWith<IllegalArgumentException> { MapProxy.validate(15, 20_172, 12_206) }
         MapProxy.validate(8, 157, 95)
     }
 
@@ -112,10 +113,10 @@ class MapProxyTest {
     fun `Kutaisi tiles are served only while enabled and keep the original Batumi coverage`() = runBlocking {
         val fake = FakeDownloader()
         MapProxy(config(), fake).use { proxy ->
-            assertFailsWith<IllegalArgumentException> { proxy.tile(15, 20_271, 12_130) }
-            assertContentEquals(byteArrayOf(1, 2), proxy.tile(15, 20_271, 12_130, kutaisiEnabled = true))
-            assertFailsWith<IllegalArgumentException> { proxy.tile(15, 20_271, 12_130) }
-            assertFailsWith<IllegalArgumentException> { proxy.tile(15, 0, 0, kutaisiEnabled = true) }
+            assertFailsWith<IllegalArgumentException> { proxy.tile(14, 10_135, 6_065) }
+            assertContentEquals(byteArrayOf(1, 2), proxy.tile(14, 10_135, 6_065, kutaisiEnabled = true))
+            assertFailsWith<IllegalArgumentException> { proxy.tile(14, 10_135, 6_065) }
+            assertFailsWith<IllegalArgumentException> { proxy.tile(14, 0, 0, kutaisiEnabled = true) }
             assertContentEquals(byteArrayOf(1, 2), proxy.tile(8, 157, 95, kutaisiEnabled = true))
             assertContentEquals(byteArrayOf(1, 2), proxy.tile(8, 157, 95))
             assertEquals(2, fake.calls)
@@ -126,20 +127,20 @@ class MapProxyTest {
     fun `upstream cache misses are globally rate limited`() = runBlocking {
         val fake = FakeDownloader()
         val clock = MutableClock(Instant.parse("2026-09-15T00:00:00Z"))
-        MapProxy(config(), fake, clock).use { proxy ->
-            repeat(120) { offset ->
-                assertContentEquals(byteArrayOf(1, 2), proxy.tile(19, 322_364 + offset, 195_000))
-            }
-            assertFailsWith<MapProxyFailure> { proxy.tile(19, 322_484, 195_000) }
-            assertEquals(120, fake.calls)
+        val cache = MapAssetCache(fake, clock)
+        repeat(120) { offset ->
+            val bytes = cache.get("https://tiles.example/$offset.pbf", MapAssetFormat.Vector, Duration.ofHours(1))
+            assertContentEquals(byteArrayOf(1, 2), bytes)
         }
+        assertFailsWith<MapProxyFailure> {
+            cache.get("https://tiles.example/120.pbf", MapAssetFormat.Vector, Duration.ofHours(1))
+        }
+        assertEquals(120, fake.calls)
     }
 
     private fun config() = BffConfig.fromEnvironment(
         mapOf(
             "BFF_MAP_ENABLED" to "true",
-            "BFF_MAP_TILE_TEMPLATE" to "https://tiles.example/{z}/{x}/{y}.png",
-            "BFF_MAP_ATTRIBUTION" to "© Example",
             "BFF_MAP_PUBLIC_BASE_URL" to "https://bff.example",
         ),
     ).map
@@ -149,7 +150,11 @@ class MapProxyTest {
     ) : MapTileDownloader {
         var calls = 0
         var lastValidators: MapTileValidators? = null
-        override suspend fun download(address: String, validators: MapTileValidators?): MapTileDownload {
+        override suspend fun download(address: String, format: MapAssetFormat, validators: MapTileValidators?): MapTileDownload {
+            if (format == MapAssetFormat.TileJson) {
+                val metadata = """{"tiles":["https://tiles.openfreemap.org/planet/20261115_080022_pt/{z}/{x}/{y}.pbf"]}"""
+                return MapTileDownload(metadata.encodeToByteArray(), null, null)
+            }
             calls += 1
             lastValidators = validators
             if (revalidateAsNotModified && validators != null) {

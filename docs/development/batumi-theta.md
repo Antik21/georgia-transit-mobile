@@ -126,11 +126,9 @@ persistent mount with the exact POSIX modes required by the capability-control r
 environment secret or secret file alone does not replace the writable state directory. Keep the
 service at one instance and verify the mount initialization before enabling automatic deploys.
 
-To run the basemap in the same development process, additionally set `BFF_MAP_ENABLED=true`, an
-explicit HTTPS raster template, and required attribution. `BFF_MAP_PUBLIC_BASE_URL` is target-specific and is never inferred from a request Host
-header: for Android emulator use `http://10.0.2.2:8080`; for an Android physical device first run
-`adb reverse tcp:8080 tcp:8080` and use `http://127.0.0.1:8080`; for iOS Simulator use
-`http://127.0.0.1:8080`. Run a BFF instance with the matching value for the target under test.
-The BFF style emits that absolute same-BFF tile URL, while host-side `curl` can still call the
-listener at `127.0.0.1`. Production uses public OSM raster tiles under the best-effort conditions in
-[ADR 0015](../adr/0015-public-osm-raster-basemap.md).
+To enable the OpenFreeMap basemap in the same development process, set `BFF_MAP_ENABLED=true`
+and `BFF_MAP_PUBLIC_BASE_URL` to the origin the client can reach. For an Android emulator use
+`http://10.0.2.2:8080`. A physical Android device can use `http://127.0.0.1:8080` after
+`adb reverse tcp:8080 tcp:8080`. The iOS Simulator uses `http://127.0.0.1:8080`.
+The BFF puts this origin in the tile and glyph URLs, independent of the request's Host header.
+See [ADR 0032](../adr/0032-localized-vector-basemap.md).

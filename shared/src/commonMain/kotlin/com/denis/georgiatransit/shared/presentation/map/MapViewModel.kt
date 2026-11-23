@@ -65,7 +65,7 @@ class MapViewModel(
     private var routeGeometrySnapshot = RouteGeometrySnapshot()
     private val vehicleFeature = MapVehicleFeature(repository, realtimeClock, realtimeTickerPolicy, analytics)
     private val vehiclePresentation get() = vehicleFeature.presentation
-    private val renderProjector by lazy { MapRenderProjector(cameraController, stopSelection, vehiclePresentation, bffStyleUrl) }
+    private val renderProjector by lazy { MapRenderProjector(cameraController, stopSelection, vehiclePresentation) }
     private val journeyPlanner = JourneyPlannerWorkflow(
         journeyPlanRepository, repository, journeyPlanClock, realtimeTickerPolicy.pollIntervalMillis, analytics = analytics)
 
@@ -162,7 +162,6 @@ class MapViewModel(
         if (available()) postSideEffect(effect)
     }
 
-    /** Cancels non-cooperative polling/animation work before generation advances and markers clear. */
     private fun syncVehiclePresentationInputs() {
         vehicleFeature.updateInputs(currentCity, selectedVehicleRoutes, selectedRouteProjection,
             realtimeVisibleAndStarted, routeGeometrySnapshot)
@@ -173,10 +172,11 @@ class MapViewModel(
 
     private fun renderStateFor(city: TransitCity, fix: UserLocationFix?, viewportZoom: Double?): MapRenderState {
         syncVehiclePresentationInputs()
-        return renderProjector.project(city, fix, viewportZoom, stopProjector(), routeGeometrySnapshot, MapRouteFrameData(
-            city, session.selectedRouteIds.value, selectedVehicleRoutes, routeGeometrySnapshot.polylines,
-            supplementalStops.selectedStops, realtimeVisibleAndStarted && session.selectedCity.value?.id == city.id,
-        ))
+        val styleUrl = localizedMapStyleUrl(bffStyleUrl, currentLocale)
+        val routeFrame = MapRouteFrameData(city, session.selectedRouteIds.value, selectedVehicleRoutes,
+            routeGeometrySnapshot.polylines, supplementalStops.selectedStops,
+            realtimeVisibleAndStarted && session.selectedCity.value?.id == city.id)
+        return renderProjector.project(city, fix, viewportZoom, styleUrl, stopProjector(), routeGeometrySnapshot, routeFrame)
     }
 
     private fun onRealtimeVisibilityChanged(action: Action.RealtimeVisibilityChanged) {

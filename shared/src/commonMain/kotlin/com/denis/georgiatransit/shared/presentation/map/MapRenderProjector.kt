@@ -9,10 +9,9 @@ internal class MapRenderProjector(
     private val camera: MapCameraController,
     private val selection: MapStopSelection,
     private val vehicles: MapVehiclePresentation,
-    private val bffStyleUrl: String?,
 ) {
     fun project(
-        city: TransitCity, fix: UserLocationFix?, viewportZoom: Double?,
+        city: TransitCity, fix: UserLocationFix?, viewportZoom: Double?, styleUrl: String?,
         stops: MapStopsProjector, geometry: RouteGeometrySnapshot, routeFrame: MapRouteFrameData,
     ): MapRenderState {
         camera.forCity(city, fix)
@@ -20,7 +19,7 @@ internal class MapRenderProjector(
         val command = checkNotNull(camera.command)
         return MapRenderState(
             camera = command,
-            bffStyleUrl = bffStyleUrl,
+            bffStyleUrl = styleUrl,
             stops = stops.visibleMarkers(fix?.point, viewportZoom ?: command.zoom),
             stopClusters = persistentListOf(),
             vehicles = vehicles.vehicleMarkers,

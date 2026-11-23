@@ -1,0 +1,479 @@
+[
+  {
+    "id": "map-background",
+    "type": "background",
+    "paint": {
+      "background-color": "#F2EDDE"
+    }
+  },
+  {
+    "id": "land-use",
+    "type": "fill",
+    "source-layer": "landuse",
+    "paint": {
+      "fill-color": [
+        "match",
+        ["get", "class"],
+        "residential",
+        "#EEE8E3",
+        ["commercial", "retail"],
+        "#F2E4E6",
+        ["industrial", "railway", "quarry"],
+        "#F5ECD2",
+        ["cemetery", "grave_yard"],
+        "#D3D8CF",
+        ["allotments", "garden", "recreation_ground"],
+        "#CDDBA8",
+        ["pitch", "playground", "golf_course"],
+        "#DBE4CF",
+        "rgba(0,0,0,0)"
+      ]
+    }
+  },
+  {
+    "id": "land-cover",
+    "type": "fill",
+    "source-layer": "landcover",
+    "paint": {
+      "fill-color": [
+        "match",
+        ["get", "subclass"],
+        ["forest", "wood"],
+        "#B6DA9B",
+        ["grass", "grassland", "meadow"],
+        "#BFDAAB",
+        ["sand", "beach"],
+        "#EAEAB7",
+        "wetland",
+        "#C1DBCC",
+        [
+          "match",
+          ["get", "class"],
+          ["wood", "forest"],
+          "#B6DA9B",
+          "grass",
+          "#BFDAAB",
+          "sand",
+          "#EAEAB7",
+          "wetland",
+          "#C1DBCC",
+          "#DAE5AF"
+        ]
+      ],
+      "fill-opacity": 0.84
+    }
+  },
+  {
+    "id": "park",
+    "type": "fill",
+    "source-layer": "park",
+    "paint": {
+      "fill-color": "#C5D49A",
+      "fill-opacity": 0.74
+    }
+  },
+  {
+    "id": "waterway",
+    "type": "line",
+    "source-layer": "waterway",
+    "paint": {
+      "line-color": "#8ABDED",
+      "line-width": [
+        "interpolate",
+        ["linear"],
+        ["zoom"],
+        11,
+        0.6,
+        14,
+        1.1,
+        19,
+        4
+      ]
+    }
+  },
+  {
+    "id": "water",
+    "type": "fill",
+    "source-layer": "water",
+    "paint": {
+      "fill-color": "#A6CBED"
+    }
+  },
+  {
+    "id": "building",
+    "type": "fill",
+    "source-layer": "building",
+    "minzoom": 14,
+    "paint": {
+      "fill-color": "#EBE0D4",
+      "fill-outline-color": "#D2CDC7",
+      "fill-opacity": [
+        "interpolate",
+        ["linear"],
+        ["zoom"],
+        14,
+        0,
+        15,
+        1
+      ]
+    }
+  },
+  {
+    "id": "roads-casing",
+    "type": "line",
+    "source-layer": "transportation",
+    "filter": [
+      "!=",
+      ["get", "class"],
+      "rail"
+    ],
+    "layout": {
+      "line-cap": "round",
+      "line-join": "round",
+      "line-sort-key": [
+        "match",
+        ["get", "class"],
+        ["path", "track"],
+        0,
+        "service",
+        1,
+        "secondary",
+        3,
+        ["trunk", "primary"],
+        4,
+        "motorway",
+        5,
+        2
+      ]
+    },
+    "paint": {
+      "line-color": [
+        "match",
+        ["get", "class"],
+        ["motorway", "trunk", "primary", "secondary"],
+        "#DFA476",
+        "#C9C6C2"
+      ],
+      "line-width": [
+        "interpolate",
+        ["linear"],
+        ["zoom"],
+        9,
+        [
+          "match",
+          ["get", "class"],
+          "motorway",
+          3.5,
+          ["trunk", "primary"],
+          2.7,
+          "secondary",
+          2,
+          ["path", "track"],
+          0.75,
+          1.25
+        ],
+        14,
+        [
+          "match",
+          ["get", "class"],
+          "motorway",
+          6,
+          ["trunk", "primary"],
+          6.3,
+          "secondary",
+          4.9,
+          ["path", "track"],
+          1.5,
+          3
+        ],
+        16,
+        [
+          "match",
+          ["get", "class"],
+          "motorway",
+          12.8,
+          ["trunk", "primary"],
+          10.6,
+          "secondary",
+          7.3,
+          ["path", "track"],
+          2.45,
+          5.7
+        ],
+        18,
+        [
+          "match",
+          ["get", "class"],
+          "motorway",
+          30.8,
+          ["trunk", "primary"],
+          27.6,
+          "secondary",
+          20.3,
+          ["path", "track"],
+          4.15,
+          13
+        ],
+        19,
+        [
+          "match",
+          ["get", "class"],
+          "motorway",
+          57.8,
+          ["trunk", "primary"],
+          47.6,
+          "secondary",
+          34.3,
+          ["path", "track"],
+          5.65,
+          23
+        ]
+      ],
+      "line-opacity": [
+        "case",
+        [
+          "==",
+          ["get", "brunnel"],
+          "tunnel"
+        ],
+        0.55,
+        1
+      ]
+    }
+  },
+  {
+    "id": "roads",
+    "type": "line",
+    "source-layer": "transportation",
+    "filter": [
+      "!=",
+      ["get", "class"],
+      "rail"
+    ],
+    "layout": {
+      "line-cap": "round",
+      "line-join": "round",
+      "line-sort-key": [
+        "match",
+        ["get", "class"],
+        ["path", "track"],
+        0,
+        "service",
+        1,
+        "secondary",
+        3,
+        ["trunk", "primary"],
+        4,
+        "motorway",
+        5,
+        2
+      ]
+    },
+    "paint": {
+      "line-color": [
+        "match",
+        ["get", "class"],
+        "motorway",
+        "#F6C285",
+        ["trunk", "primary", "secondary"],
+        "#F8E7A3",
+        "path",
+        "#F2E4EE",
+        "service",
+        "#F0F0EF",
+        "#F7F7F6"
+      ],
+      "line-width": [
+        "interpolate",
+        ["linear"],
+        ["zoom"],
+        9,
+        [
+          "match",
+          ["get", "class"],
+          "motorway",
+          1.7,
+          ["trunk", "primary"],
+          1.1,
+          "secondary",
+          0.7,
+          ["path", "track"],
+          0.1,
+          0.25
+        ],
+        14,
+        [
+          "match",
+          ["get", "class"],
+          "motorway",
+          4.2,
+          ["trunk", "primary"],
+          4.7,
+          "secondary",
+          3.6,
+          ["path", "track"],
+          0.85,
+          2
+        ],
+        16,
+        [
+          "match",
+          ["get", "class"],
+          "motorway",
+          11,
+          ["trunk", "primary"],
+          9,
+          "secondary",
+          6,
+          ["path", "track"],
+          1.8,
+          4.7
+        ],
+        18,
+        [
+          "match",
+          ["get", "class"],
+          "motorway",
+          29,
+          ["trunk", "primary"],
+          26,
+          "secondary",
+          19,
+          ["path", "track"],
+          3.5,
+          12
+        ],
+        19,
+        [
+          "match",
+          ["get", "class"],
+          "motorway",
+          56,
+          ["trunk", "primary"],
+          46,
+          "secondary",
+          33,
+          ["path", "track"],
+          5,
+          22
+        ]
+      ],
+      "line-opacity": [
+        "case",
+        [
+          "==",
+          ["get", "brunnel"],
+          "tunnel"
+        ],
+        0.55,
+        1
+      ]
+    }
+  },
+  {
+    "id": "rail",
+    "type": "line",
+    "source-layer": "transportation",
+    "minzoom": 11,
+    "filter": [
+      "==",
+      ["get", "class"],
+      "rail"
+    ],
+    "paint": {
+      "line-color": "#777C81",
+      "line-width": 1.2,
+      "line-dasharray": [3, 2],
+      "line-opacity": 0.71
+    }
+  },
+  {
+    "id": "major-street",
+    "type": "symbol",
+    "source-layer": "transportation_name",
+    "minzoom": 11,
+    "filter": [
+      "in",
+      ["get", "class"],
+      [
+        "literal",
+        ["motorway", "trunk", "primary", "secondary", "tertiary"]
+      ]
+    ],
+    "layout": {
+      "symbol-placement": "line",
+      "text-size": [
+        "interpolate",
+        ["linear"],
+        ["zoom"],
+        12,
+        10,
+        15,
+        12.5,
+        18,
+        14
+      ]
+    },
+    "paint": {
+      "text-color": "#2E2E3F",
+      "text-halo-color": "rgba(255,255,255,0.9)",
+      "text-halo-width": 1.15
+    }
+  },
+  {
+    "id": "minor-street",
+    "type": "symbol",
+    "source-layer": "transportation_name",
+    "minzoom": 13.5,
+    "filter": [
+      "!",
+      [
+        "in",
+        ["get", "class"],
+        [
+          "literal",
+          ["motorway", "trunk", "primary", "secondary", "tertiary", "rail"]
+        ]
+      ]
+    ],
+    "layout": {
+      "symbol-placement": "line",
+      "text-size": [
+        "interpolate",
+        ["linear"],
+        ["zoom"],
+        12,
+        10,
+        15,
+        12.5,
+        18,
+        14
+      ]
+    },
+    "paint": {
+      "text-color": "#2E2E3F",
+      "text-halo-color": "rgba(255,255,255,0.9)",
+      "text-halo-width": 1.15
+    }
+  },
+  {
+    "id": "place",
+    "type": "symbol",
+    "source-layer": "place",
+    "layout": {
+      "text-size": [
+        "match",
+        ["get", "class"],
+        ["city", "town"],
+        17,
+        12
+      ],
+      "text-max-width": 10
+    },
+    "paint": {
+      "text-color": "#2E2E3F",
+      "text-halo-color": "rgba(255,255,255,0.9)",
+      "text-halo-width": 1.15
+    }
+  }
+]

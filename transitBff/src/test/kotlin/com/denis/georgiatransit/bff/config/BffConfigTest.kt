@@ -114,16 +114,13 @@ class BffConfigTest {
     }
 
     @Test
-    fun `map proxy needs an explicit template attribution and supports production`() {
+    fun `map proxy needs an explicit BFF origin and supports production`() {
         val active = mapOf(
             "BFF_MAP_ENABLED" to "true",
-            "BFF_MAP_TILE_TEMPLATE" to "https://tiles.example/{z}/{x}/{y}.png",
-            "BFF_MAP_ATTRIBUTION" to "© Example",
             "BFF_MAP_PUBLIC_BASE_URL" to "https://bff.example",
         )
         assertTrue(BffConfig.fromEnvironment(active).map.isActivated)
-        assertFailsWith<BffConfigurationException> { BffConfig.fromEnvironment(active - "BFF_MAP_ATTRIBUTION") }
-        assertFailsWith<BffConfigurationException> { BffConfig.fromEnvironment(active + ("BFF_MAP_TILE_TEMPLATE" to "http://tiles.example/{z}/{x}/{y}.png")) }
+        assertFailsWith<BffConfigurationException> { BffConfig.fromEnvironment(active - "BFF_MAP_PUBLIC_BASE_URL") }
         assertTrue(BffConfig.fromEnvironment(active + ("BFF_MODE" to "production")).map.isActivated)
         assertFailsWith<BffConfigurationException> { BffConfig.fromEnvironment(active + ("BFF_MAP_PUBLIC_BASE_URL" to "http://tiles.example")) }
     }

@@ -53,7 +53,8 @@ class OpenApiContractTest {
                 "/v1/cities/{cityId}/walking-estimate",
                 "/v1/cities/{cityId}/journeys/plan",
                 "/v1/map/style.json",
-                "/v1/map/tiles/{z}/{x}/{y}.png",
+                "/v1/map/vector/{z}/{x}/{y}.pbf",
+                "/v1/map/fonts/{font}/{range}.pbf",
             ),
             paths.keys,
         )

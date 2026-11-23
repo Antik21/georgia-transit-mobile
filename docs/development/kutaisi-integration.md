@@ -62,8 +62,6 @@ BFF_MODE=development BFF_HOST=127.0.0.1 BFF_PORT=8080 \
   BFF_CAPABILITY_CONTROL_PATH="$kutaisi_local/cities.json" \
   BFF_CAPABILITY_CONTROL_STATE_DIR="$kutaisi_local/state" \
   BFF_MAP_ENABLED=true \
-  BFF_MAP_TILE_TEMPLATE='https://tile.openstreetmap.org/{z}/{x}/{y}.png' \
-  BFF_MAP_ATTRIBUTION='<a href="https://www.openstreetmap.org/copyright">© OpenStreetMap contributors</a>' \
   BFF_MAP_PUBLIC_BASE_URL=http://10.0.2.2:8080 ./gradlew :transitBff:run
 ```
 
