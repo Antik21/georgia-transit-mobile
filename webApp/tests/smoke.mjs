@@ -242,13 +242,24 @@ try {
   await waitFor('City selection enables confirmation', canConfirmCity);
   await tap(confirmCity);
   await waitFor('Selected city opens a full-width map without a nearby-stops list', `${mapScreen} && ${panelCollapsed}`);
-  await waitFor('The header shows the app logo', `(() => {
-    const logo = document.querySelector('${testId('brand-logo')}');
-    return logo?.complete && logo.naturalWidth >= 96 && logo.getBoundingClientRect().width >= 30
-      && getComputedStyle(logo).borderRadius === '50%' && document.querySelector('.brand-name')?.textContent === 'Geo Transit';
+  await waitFor('The map starts at the top of the viewport with the city switch over it', `(() => {
+    const canvas = document.querySelector('.map-canvas').getBoundingClientRect();
+    const citySwitch = document.querySelector('${testId('change-city')}');
+    const city = citySwitch.getBoundingClientRect();
+    return canvas.top === 0 && citySwitch.textContent.trim() === 'Demo City' && city.width > 0
+      && city.top > canvas.top && city.bottom < canvas.bottom && city.right < canvas.right
+      && city.left >= canvas.left + canvas.width / 2;
   })()`);
   const openPlanner = testId('open-planner');
   const openRoutes = testId('open-routes');
+  const plannerLabel = `${openPlanner} .map-planner-label`;
+  const compactPlanner = `(() => {
+    const button = document.querySelector('${openPlanner}');
+    const { width, height } = button.getBoundingClientRect();
+    return width === 48 && height === 48 && getComputedStyle(button).borderRadius === '50%'
+      && ${visible(`${openPlanner} .map-icon-journey`)} && !${visible(plannerLabel)}
+      && button.getAttribute('aria-label') === button.querySelector('.map-planner-label').textContent;
+  })()`;
   await waitFor('Map actions match the mobile layout', `(() => {
     const routes = document.querySelector('${openRoutes}').getBoundingClientRect();
     const map = document.querySelector('.map-region').getBoundingClientRect();
@@ -256,12 +267,13 @@ try {
     const zoomOut = document.querySelector('${testId('zoom-out')}').getBoundingClientRect();
     return routes.width > map.width * 0.8 && routes.top >= map.bottom
       && planner.width > 0 && planner.bottom <= zoomOut.bottom + 1 && planner.bottom >= zoomOut.top - 4
-      && planner.right < zoomOut.left
-      && ${visible(testId('change-city'))};
+      && planner.right < zoomOut.left;
   })()`);
+  await waitFor('The planner button shows its label before the first tap', visible(plannerLabel));
   await tap(openPlanner);
   await waitFor('A city without trip planning explains why the planner stays closed',
     `${visible(testId('planner-unavailable-notice'))} && !${visible(testId('planner-panel'))}`);
+  await waitFor('The first tap makes the planner button a labelled icon-only circle', compactPlanner);
   await waitFor('MapLibre worker loads from the production build', () => workerResponses.includes(200));
   await waitFor('MapLibre renders pixels from the fixture vector tiles', () => mapContainsColor(fixtureTileColor, 2_000));
   await waitFor('Tile source attribution is visible', tileAttribution);
@@ -436,6 +448,7 @@ try {
   const timeOrigin = await evaluate('performance.timeOrigin');
   await send('Page.reload');
   await waitFor('Reload restores the selected city', `performance.timeOrigin !== ${timeOrigin} && ${mapScreen} && ${panelCollapsed}`);
+  await waitFor('Reload preserves the compact planner button', compactPlanner);
   await waitFor('Reload restores the selected route geometry', () => mapContainsColor(fixtureRouteColor, 75));
   await tap(testId('open-routes'));
   await waitFor('Only the confirmed route persists after reload', `${routePressed(fixtureRouteId, true)} && ${routePressed(otherRouteId, false)}`);
@@ -463,7 +476,7 @@ try {
   }
   await waitFor('Removing the route clears its chip', `!${visible(testId('route-legend'))}`);
   await tap(testId('change-city'));
-  await waitFor('Change-city action reopens city choices', `${visible(testId('city-screen'))} && ${visible(cityOption(otherCityId))}`);
+  await waitFor('Change-city action reopens city choices', `${cityScreen} && ${visible(cityOption(otherCityId))} && !${visible(testId('change-city'))}`);
 
   for (const id of hiddenCreditCityIds) {
     await tap(cityOption(id));
@@ -493,6 +506,7 @@ try {
   await waitFor('Second city enables confirmation', canConfirmCity);
   await tap(confirmCity);
   await waitFor('Second city opens a fresh map', `${mapScreen} && ${visible('.maplibregl-canvas')} && ${panelCollapsed}`);
+  await waitFor('The city switch shows the newly selected city', `document.querySelector('${testId('change-city')}')?.textContent.trim() === 'Batumi'`);
   await waitFor('An unavailable BFF style falls back to the local map style', () => mapContainsColor(fallbackMapColor, 2_000));
   fixtureControl.failStyle = false;
   await evaluate(`window.dispatchEvent(new Event('online')); true`);
@@ -509,7 +523,7 @@ try {
   await waitFor('Opening the planner from the launcher records one start', () => plannerStarts().length === 1);
   assert.equal(plannerStarts()[0].journeyPlanning.source, 'map_button');
   await tap(testId('planner-close'));
-  await waitFor('Closing the planner restores the map launcher and routes', `${visible(openPlanner)} && ${visible(openRoutes)}`);
+  await waitFor('Closing the planner restores the compact launcher and routes', `${compactPlanner} && ${visible(openRoutes)}`);
 
   const planner = plannerSmoke({ send, evaluate, waitFor, tap, visible, testId, mapContainsColor, analyzeMap, bffRequests });
   await planner.pointToPoint(() => evaluate('window.__telegramSmoke.backHandler(); true'));

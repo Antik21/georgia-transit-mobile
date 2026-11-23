@@ -27,17 +27,14 @@ internal class MapCameraController(private val onZoomButton: () -> Unit = {}) {
     }
 
     fun forCity(city: TransitCity, fix: UserLocationFix?): MapCameraCommand {
-        val isCityChange = lastCityId != null && lastCityId != city.id
         if (lastCityId != city.id || command == null) {
             lastCityId = city.id
-            next(city.center, city.defaultZoom)
-            lastAcceptedFix = if (isCityChange) fix else null
-        }
-        if (fix == null) {
-            lastAcceptedFix = null
-        } else if (fix != lastAcceptedFix) {
             lastAcceptedFix = fix
-            if (fix.recenterMap) next(fix.point, 15.0)
+            return next(city.center, city.defaultZoom)
+        }
+        if (fix != lastAcceptedFix) {
+            lastAcceptedFix = fix
+            if (fix?.recenterMap == true) return next(fix.point, 15.0)
         }
         return checkNotNull(command)
     }

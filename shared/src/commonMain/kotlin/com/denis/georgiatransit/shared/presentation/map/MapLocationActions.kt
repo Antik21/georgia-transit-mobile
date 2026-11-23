@@ -14,7 +14,7 @@ internal class MapLocationActions(private val session: LocationSession) {
     fun forAction(action: Action, visible: Boolean): MapLocationUpdate = when (action) {
         Action.MyLocationClicked -> {
             val command = onClick(session.state.value.permission)
-            cameraAwaitingPermission = command is LocationPlatformCommand.RequestPermission
+            cameraAwaitingPermission = command != null && command !is LocationPlatformCommand.RequestLocation
             // A tap can adopt a silent foreground refresh already in flight.
             val location = session.state.value
             cameraRequestId = location.activeRequestId.takeIf { location.isLocating }
@@ -66,7 +66,7 @@ internal class MapLocationActions(private val session: LocationSession) {
         if (cameraRequestId != location.activeRequestId) cameraRequestId = null
         val command = if (permission is LocationPermissionState.Granted && location.failure == null &&
             location.fix == null && location.activeRequestId == null) {
-            beginLocationRequest()
+            beginLocationRequest(isRefresh = !cameraAwaitingPermission)
         } else null
         if (cameraAwaitingPermission && permission != LocationPermissionState.NotDetermined) {
             cameraAwaitingPermission = false
