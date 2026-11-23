@@ -20,7 +20,7 @@ export const stopPinGlyphColor = [52, 65, 85];
 export const fixtureVehiclesPath = `/v1/cities/${fixtureCityId}/vehicles`;
 export const fixtureAttribution = 'Fixture tiles';
 // Toggled by the smoke to exercise the local-style fallback and its recovery.
-export const fixtureControl = { failStyle: false, failVectorTile: false, staleVehicles: false, telegram: true, vehicleAdvanced: false, planStatus: 200, styleHold: null, runtimeHold: null, vehicleHold: null, lastPlan: null };
+export const fixtureControl = { failStyle: false, failVectorTile: false, staleVehicles: false, telegram: true, vehicleAdvanced: false, planStatus: 200, styleHold: null, runtimeHold: null, nearbyStopsHold: null, vehicleHold: null, lastPlan: null };
 export const plannerRouteColors = { orange: [228, 87, 46], yellow: [242, 193, 78] };
 // The buses the planner should highlight: the two soonest of a route at the first boarding stop.
 export const plannerArrivalMinutes = { orange: [3, 11], yellow: [5] };
@@ -118,6 +118,8 @@ const plannerRoute = (name, color) => ({
   directions: [{ id: `batumi:fixture:direction:${name}`, name: localized(name), headsign: localized(name) }],
 });
 const plannerRoutes = [plannerRoute('orange', '#E4572E'), plannerRoute('yellow', '#F2C14E')];
+const selectedPlannerRoute = plannerRoutes[0];
+export const selectedPlannerRouteId = selectedPlannerRoute.id;
 
 const route = {
   id: fixtureRouteId,
@@ -170,9 +172,9 @@ function mapStyle() {
   };
 }
 
-function routeShape(offset) {
+function routeShape(offset, center = position) {
   const points = [[0.0012, -0.0027], [0.0010, 0], [0.0018, 0.0029]]
-    .map(([latitude, longitude]) => [position.latitude + latitude + offset, position.longitude + longitude]);
+    .map(([latitude, longitude]) => [center.latitude + latitude + offset, center.longitude + longitude]);
   return { format: 'encoded_polyline', precision: 5, value: encodePolyline(points), updatedAt: '2030-01-01T00:00:00Z' };
 }
 
@@ -395,12 +397,17 @@ export function browserFixture(dist, bffRequests, origin) {
       case `/v1/cities/${fixtureCityId}/routes/${otherRouteId}`: return json(otherRoute);
       case fixtureShapePath: return json(routeShape(0));
       case otherShapePath: return json(routeShape(-0.003));
-      case `/v1/cities/${fixtureCityId}/stops/nearby`: return json([stop]);
+      case `/v1/cities/${fixtureCityId}/stops/nearby`:
+        await fixtureControl.nearbyStopsHold;
+        return json([stop]);
       case fixtureVehiclesPath:
         await fixtureControl.vehicleHold;
         return json(vehicles(target.searchParams.get('routeId')));
       case `/v1/cities/${fixtureCityId}/stops/${fixtureStopId}/arrivals`: return json(arrivals());
       case `/v1/cities/${otherCityId}/routes`: return json(plannerRoutes);
+      case `/v1/cities/${otherCityId}/routes/${selectedPlannerRouteId}`: return json(selectedPlannerRoute);
+      case `/v1/cities/${otherCityId}/routes/${selectedPlannerRouteId}/directions/${selectedPlannerRoute.directions[0].id}/shape`:
+        return json(routeShape(0, batumiCity.center));
       case `/v1/cities/${otherCityId}/stops/batumi:fixture:stop:s1/arrivals`: return json(plannerArrivals());
       case `/v1/cities/${otherCityId}/vehicles`: return json(plannerVehicles(target.searchParams.get('routeId') ?? ''));
       case `/v1/cities/${otherCityId}/stops/nearby`: return json([]);

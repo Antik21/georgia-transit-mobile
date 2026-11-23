@@ -267,8 +267,9 @@ export function createTransitMap(
   }
 
   function renderRouteLines() {
-    if (!styleReady || renderedRouteRevision === latestState.routePolylineRevision) return;
-    const data = routeLineData(latestState.routePolylines);
+    const revision = plannerOpen ? "hidden" : latestState.routePolylineRevision;
+    if (!styleReady || renderedRouteRevision === revision) return;
+    const data = routeLineData(plannerOpen ? [] : latestState.routePolylines);
     const source = map.getSource<GeoJSONSource>(routeSourceId);
     if (source) {
       source.setData(data);
@@ -289,7 +290,7 @@ export function createTransitMap(
         });
       }
     }
-    renderedRouteRevision = latestState.routePolylineRevision;
+    renderedRouteRevision = revision;
   }
 
   function renderUserLocation() {
@@ -718,6 +719,7 @@ export function createTransitMap(
     planner.update(state);
     if (plannerOpen === state.open) return;
     plannerOpen = state.open;
+    renderRouteLines();
     renderedVehicleRevision = undefined;
     renderVehicles();
   }

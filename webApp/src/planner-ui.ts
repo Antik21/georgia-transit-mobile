@@ -28,15 +28,15 @@ export function renderPlannerPanel(
 ) {
   const panel = element("div", state.showingResults ? "panel-content planner-panel" : "planner-panel planner-form");
   panel.dataset.testid = "planner-panel";
-  const body = state.showingResults ? panel : element("div", "planner-form-body");
+  const body = element("div", state.showingResults ? "planner-results-body" : "planner-form-body");
   if (state.showingResults) {
     const edit = button("back-button", "", actions.editPlannerPoints, "planner-edit");
     edit.dataset.focusKey = "planner-close";
     edit.append(icon("arrow-left"), element("span", "", copy.plannerEdit));
     const header = element("div", "planner-results-header");
-    header.append(edit, endpointChip(state.origin.kind, copy),
-      element("span", "planner-header-arrow", "→"), endpointChip(state.destination.kind, copy));
-    panel.append(header);
+    header.append(edit, endpointChip("origin", state.origin.kind, copy),
+      element("span", "planner-header-arrow", "→"), endpointChip("destination", state.destination.kind, copy));
+    panel.append(header, body);
   } else {
     body.append(endpoints(state, copy, actions, expandedSide, toggleSide));
     const find = button("primary-button planner-find", copy.plannerFind, actions.findPlannerRoute, "planner-find");
@@ -66,15 +66,25 @@ export function renderPlannerPanel(
   if (state.showingResults) {
     const disclaimer = element("p", "planner-disclaimer", copy.plannerDisclaimer);
     disclaimer.dataset.testid = "planner-disclaimer";
-    panel.append(disclaimer);
+    body.append(disclaimer);
   }
   return panel;
 }
 
-function endpointChip(kind: PlannerEndpoint["kind"], copy: Copy) {
+function endpointChip(side: PlannerSide, kind: PlannerEndpoint["kind"], copy: Copy) {
   const label = kind === "myLocation" ? copy.plannerLocationChip
     : kind === "point" ? copy.plannerPointChip : copy.plannerNotSet;
-  return element("span", "planner-endpoint-chip", label);
+  const direction = side === "origin" ? copy.plannerOrigin : copy.plannerDestination;
+  const chip = element("span", "planner-endpoint-chip");
+  chip.append(endpointBadge(side), element("span", "visually-hidden", `${direction} `),
+    element("span", "planner-endpoint-chip-label", label));
+  return chip;
+}
+
+function endpointBadge(side: PlannerSide) {
+  const badge = element("span", `planner-endpoint-badge planner-endpoint-${side}`, side === "origin" ? "A" : "B");
+  badge.setAttribute("aria-hidden", "true");
+  return badge;
 }
 
 function formHeader(state: PlannerState, copy: Copy, actions: PlannerActions) {
@@ -102,9 +112,9 @@ function endpoints(
   expandedSide: PlannerSide | undefined, toggleSide: (side: PlannerSide) => void,
 ) {
   const section = element("div", "planner-endpoints");
-  for (const [side, endpoint, letter, label] of [
-    ["origin", state.origin, "A", copy.plannerOrigin],
-    ["destination", state.destination, "B", copy.plannerDestination],
+  for (const [side, endpoint, label] of [
+    ["origin", state.origin, copy.plannerOrigin],
+    ["destination", state.destination, copy.plannerDestination],
   ] as const) {
     const row = element("div", "planner-endpoint");
     row.dataset.side = side;
@@ -114,13 +124,11 @@ function endpoints(
     toggle.dataset.focusKey = `planner-${side}-toggle`;
     toggle.setAttribute("aria-expanded", String(expanded));
     toggle.setAttribute("aria-controls", `planner-${side}-actions`);
-    const badge = element("span", `planner-endpoint-badge planner-endpoint-${side}`, letter);
-    badge.setAttribute("aria-hidden", "true");
     const text = element("span", "planner-endpoint-text");
     const value = element("span", "planner-endpoint-value", endpointLabel(endpoint, copy));
     value.dataset.testid = `planner-${side}-value`;
     text.append(element("span", "planner-endpoint-label", label), value);
-    toggle.append(badge, text, mapIcon("chevron"));
+    toggle.append(endpointBadge(side), text, mapIcon("chevron"));
     const buttons = element("div", "planner-endpoint-actions");
     buttons.id = `planner-${side}-actions`;
     buttons.hidden = !expanded;

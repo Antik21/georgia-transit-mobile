@@ -586,8 +586,13 @@ body { background: var(--background); color: var(--ink); }
 /* Journey planner (A→B). */
 .map-region > .map-canvas { -webkit-touch-callout: none; user-select: none; }
 .planner-panel { --planner-panel-gap: 12px; justify-items: stretch; gap: var(--planner-panel-gap); }
-.panel-content.planner-panel { padding-block-start: clamp(8px, 1.5vw, 14px); }
-.planner-panel > .back-button, .planner-panel > .secondary-button { justify-self: start; }
+.panel-content.planner-panel {
+  --planner-results-padding: clamp(16px, 3vw, 28px);
+  grid-template-rows: auto minmax(0, 1fr);
+  max-block-size: 100%;
+  gap: calc(var(--planner-panel-gap) / 2);
+  padding: clamp(8px, 1.5vw, 14px) 0 0;
+}
 .has-planner-form .map-panel { overflow: hidden; background: var(--map-control-surface); }
 .planner-form {
   display: grid;
@@ -620,7 +625,7 @@ body { background: var(--background); color: var(--ink); }
   background: color-mix(in srgb, currentColor 6%, transparent);
 }
 .planner-form-body { display: grid; align-content: start; gap: 8px; overflow: auto; overscroll-behavior: contain; }
-.planner-form-body > .secondary-button { justify-self: start; }
+.planner-form-body > .secondary-button, .planner-results-body > .secondary-button { justify-self: start; }
 .planner-endpoints { display: grid; gap: 8px; }
 .planner-endpoint {
   border-radius: 16px;
@@ -705,9 +710,29 @@ body { background: var(--background); color: var(--ink); }
   align-items: center;
   gap: 6px;
   min-inline-size: 0;
-  margin-block-end: calc(var(--planner-panel-gap) / -2);
+  padding-inline: var(--planner-results-padding);
 }
-.planner-endpoint-chip { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 8px; border-radius: 20px; background: var(--tint); font-size: 0.78rem; }
+.planner-results-header > .back-button { margin-inline-end: 4px; }
+.planner-results-body {
+  display: grid;
+  align-content: start;
+  gap: var(--planner-panel-gap);
+  padding: 0 var(--planner-results-padding) var(--planner-results-padding);
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+.planner-endpoint-chip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-inline-size: 0;
+  padding: 4px 8px;
+  border-radius: 20px;
+  background: var(--tint);
+  font-size: 0.78rem;
+}
+.planner-endpoint-chip .planner-endpoint-badge { flex: none; inline-size: 24px; block-size: 24px; }
+.planner-endpoint-chip-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .planner-header-arrow { flex: none; }
 .planner-option-total { font-size: 1.05rem; font-variant-numeric: tabular-nums; }
 .planner-option-arrival { color: var(--muted); font-size: 0.8rem; }

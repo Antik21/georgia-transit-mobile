@@ -35,6 +35,7 @@ class JourneyMapProjectionTest {
         assertEquals(origin, overlay.origin)
         assertEquals(destination, overlay.destination)
         assertEquals(7L, overlay.fitRevision)
+        assertTrue(projected.polylines.isEmpty())
         assertTrue(projected.vehicles.isEmpty())
         assertNotEquals(base.vehicleSourceRevision, projected.vehicleSourceRevision)
     }
@@ -46,6 +47,7 @@ class JourneyMapProjectionTest {
         val overlay = checkNotNull(projected.journey)
         assertTrue(overlay.fitSuspended)
         assertEquals(render.lines, overlay.lines)
+        assertTrue(projected.polylines.isEmpty())
     }
 
     @Test
@@ -78,6 +80,25 @@ class JourneyMapProjectionTest {
     @Test
     fun openPlannerWithoutEndpointsStillHidesSessionVehicles() {
         assertTrue(base.withJourneyPlanner(JourneyPlannerUi(isOpen = true)).vehicles.isEmpty())
+    }
+
+    @Test
+    fun leavingPlannerRestoresSelectedRoutesAfterGeometryUpdates() {
+        val planner = JourneyPlannerUi(isOpen = true)
+        val hidden = base.withJourneyPlanner(planner)
+        val updated = base.copy(
+            polylines = persistentListOf(base.polylines.single().copy(isEmphasized = true)),
+            polylineSourceRevision = base.polylineSourceRevision + 1,
+        )
+        val stillHidden = updated.withJourneyPlanner(planner)
+        val restored = updated.withJourneyPlanner(JourneyPlannerUi())
+
+        assertTrue(hidden.polylines.isEmpty())
+        assertTrue(stillHidden.polylines.isEmpty())
+        assertEquals(hidden.polylineSourceRevision, stillHidden.polylineSourceRevision)
+        assertNotEquals(stillHidden.polylineSourceRevision, restored.polylineSourceRevision)
+        assertEquals(updated.polylines, restored.polylines)
+        assertEquals(updated.polylineSourceRevision, restored.polylineSourceRevision)
     }
 
     @Test
@@ -128,6 +149,10 @@ class JourneyMapProjectionTest {
         )
         val base = MapRenderState(
             camera = MapCameraCommand(center = origin, zoom = 13.0, revision = 1),
+            polylines = persistentListOf(
+                MapPolyline(RouteId("7"), null, listOf(origin, destination), 0xFF2E7D32L, TransitFreshness.Network),
+            ),
+            polylineSourceRevision = 3,
             vehicles = persistentListOf(
                 MapVehicleMarker(
                     id = VehicleId("session-bus"),
