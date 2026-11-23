@@ -130,7 +130,7 @@ class JourneyPlannerViewModelTest {
     }
 
     @Test
-    fun editingNeverPlansAndReturningToPointsCancelsPendingResults() = runTest {
+    fun theFirstPairPlansAndReturningToPointsCancelsPendingResults() = runTest {
         val pending = CompletableDeferred<Unit>()
         val planner = FakePlanRepository { withContext(NonCancellable) { pending.await() }; page("late") }
         val viewModel = viewModel(planner)
@@ -140,10 +140,8 @@ class JourneyPlannerViewModelTest {
             longPress(viewModel, A)
             viewModel.dispatchAction(JourneyPlannerAction.RouteFromHere)
             this@runTest.runCurrent()
-            longPress(viewModel, B)
             assertTrue(planner.queries.isEmpty())
-            viewModel.dispatchAction(JourneyPlannerAction.FindRoute)
-            this@runTest.runCurrent()
+            longPress(viewModel, B)
             assertEquals(1, planner.queries.size)
             viewModel.dispatchAction(JourneyPlannerAction.EditPoints)
             this@runTest.runCurrent()
@@ -209,6 +207,7 @@ class JourneyPlannerViewModelTest {
             viewModel.dispatchAction(JourneyPlannerAction.ConfirmMapPick(C))
             this@runTest.runCurrent()
             assertEquals(Status.Idle, plannerState(viewModel).status)
+            assertEquals(1, planner.queries.size, "After Back the new point waits for manual submission")
             viewModel.dispatchAction(JourneyPlannerAction.FindRoute)
             this@runTest.runCurrent()
             assertEquals(Status.Loading, plannerState(viewModel).status)
@@ -318,6 +317,8 @@ class JourneyPlannerViewModelTest {
             this@runTest.runCurrent()
             assertEquals(3, planner.queries.size)
             assertEquals(JourneyPlannerUi(cameraFitRevision = plannerState(viewModel).cameraFitRevision), plannerState(viewModel))
+            planBetween(viewModel, A, B)
+            assertEquals(4, planner.queries.size, "Reopening the planner restores automatic submission")
             cancelAndIgnoreRemainingItems()
         }
     }
@@ -404,9 +405,7 @@ class JourneyPlannerViewModelTest {
         runCurrent()
         assertEquals(Status.PickingPoint(JourneyPlanSide.Destination), plannerState(viewModel).status)
         longPress(viewModel, to)
-        assertEquals(Status.Idle, plannerState(viewModel).status)
-        viewModel.dispatchAction(JourneyPlannerAction.FindRoute)
-        runCurrent()
+        assertTrue(plannerState(viewModel).showingResults)
     }
 
     private fun TestScope.longPress(viewModel: MapViewModel, point: GeoPoint) {

@@ -33,8 +33,10 @@ data class JourneyPlannerUi(
     val pin: GeoPoint? = null,
     val origin: JourneyEndpoint? = null,
     val destination: JourneyEndpoint? = null,
-    /** True after the user requests a plan, including loading and error states. */
+    /** True while the results panel is open, including loading and error states. */
     val showingResults: Boolean = false,
+    /** Once results have opened in this planner session, editing requires manual submission. */
+    internal val hasOpenedResults: Boolean = false,
     val status: JourneyPlannerStatus = JourneyPlannerStatus.Idle,
     val render: JourneyPlanRenderUi = JourneyPlanRenderUi(),
     /** The soonest buses for the selected option's first boarding; kept apart from [render] so they never re-frame the map. */
