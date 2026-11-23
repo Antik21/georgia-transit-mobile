@@ -141,7 +141,7 @@ export function createTransitView(root: HTMLElement, actions: ViewActions, langu
     control.append(mapIcon(glyph));
   }
   locationControls.append(locationStatus, locationButton, zoomIn, zoomOut);
-  // Mirrors the mobile map overlay: nearby-stop loading and errors show on the map, never as a list.
+  // Nearby stops load silently. Show only outcomes that need feedback on the map.
   const contentStatus = element("div", "map-content-status");
   contentStatus.dataset.testid = "map-content-status";
   mapTopControls.append(cityName, changeCity, contentStatus);
@@ -329,7 +329,10 @@ export function createTransitView(root: HTMLElement, actions: ViewActions, langu
       panelHeading?.focus({ preventScroll: true });
     } else if (!planner?.open || !content.isEqualNode(mapPanel.firstChild)) {
       const focusedSide = mapPanel.querySelector(":focus")?.closest<HTMLElement>("[data-side]")?.dataset.side;
+      const resultsBody = content.querySelector<HTMLElement>(".planner-results-body");
+      const resultsScrollTop = resultsBody && mapPanel.querySelector<HTMLElement>(".planner-results-body")?.scrollTop;
       replacePreservingFocus(mapPanel, [content]);
+      if (resultsBody && resultsScrollTop) resultsBody.scrollTop = resultsScrollTop;
       if (plannerForm && panelHadFocus && !mapPanel.contains(document.activeElement)) {
         const side = expandedPlannerSide ?? focusedSide;
         const summary = side ? mapPanel.querySelector<HTMLElement>(`[data-testid="planner-${side}-toggle"]`) : panelHeading;
@@ -354,7 +357,7 @@ export function createTransitView(root: HTMLElement, actions: ViewActions, langu
       contentStatus.replaceChildren();
       return;
     }
-    const children: HTMLElement[] = [status(message, !state || state.content === "loading")];
+    const children: HTMLElement[] = [status(message)];
     if (state?.content === "retryableError" || state?.content === "offline" || state?.content === "offlineStale") {
       const retry = button("secondary-button", copy.retry, actions.retryNearby, "retry-nearby");
       retry.dataset.focusKey = "retry-nearby";
@@ -764,13 +767,12 @@ function cityStatus(copy: Copy, state?: string) {
 
 function stopStatus(copy: Copy, state?: string) {
   switch (state) {
-    case "ready": return null;
     case "empty": return copy.stopsEmpty;
     case "retryableError": return copy.stopsError;
     case "offline": return copy.stopsOffline;
     case "offlineStale": return copy.stopsStale;
     case "unavailable": return copy.stopsUnavailable;
-    default: return copy.stopsLoading;
+    default: return null;
   }
 }
 

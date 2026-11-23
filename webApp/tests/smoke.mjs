@@ -10,7 +10,7 @@ import {
   analyticsRequests, browserFixture, fallbackMapColor, fixtureAttribution, fixtureCityId, fixtureControl, fixtureHeadsign,
   fixtureRouteColor, fixtureRouteId, fixtureShapePath, fixtureStopId, fixtureTileColor, otherCityId,
   otherRouteId, otherShapePath, fixtureVehiclesPath, vehicleHeadlightColor, userLocationDotColor, stopPinGlyphColor,
-  fixtureCityCreditUrl, hiddenCreditCityIds,
+  fixtureCityCreditUrl, hiddenCreditCityIds, plannerRouteColors, selectedPlannerRouteId,
 } from './browser-fixtures.mjs';
 import { plannerSmoke } from './planner-smoke.mjs';
 
@@ -240,7 +240,17 @@ try {
   }
   await tap(cityOption(fixtureCityId));
   await waitFor('City selection enables confirmation', canConfirmCity);
-  await tap(confirmCity);
+  const incomingStops = Promise.withResolvers();
+  fixtureControl.nearbyStopsHold = incomingStops.promise;
+  try {
+    await tap(confirmCity);
+    await waitFor('Nearby stops load in the background without a map notification', async () =>
+      bffRequests.includes(`/v1/cities/${fixtureCityId}/stops/nearby`)
+      && await evaluate(`${mapScreen} && !${visible(testId('map-content-status'))}`));
+  } finally {
+    fixtureControl.nearbyStopsHold = null;
+    incomingStops.resolve();
+  }
   await waitFor('Selected city opens a full-width map without a nearby-stops list', `${mapScreen} && ${panelCollapsed}`);
   await waitFor('The map starts at the top of the viewport with the city switch over it', `(() => {
     const canvas = document.querySelector('.map-canvas').getBoundingClientRect();
@@ -514,6 +524,13 @@ try {
   await waitFor('Second city requests its own nearby stops', () => bffRequests.includes(`/v1/cities/${otherCityId}/stops/nearby`));
   await waitFor('An empty area is reported on the map, not in a list', `${visible(testId('map-content-status'))} && ${panelCollapsed}`);
 
+  await tap(openRoutes);
+  await waitFor('Batumi has a route to select before planning', routePressed(selectedPlannerRouteId, false));
+  await tap(routeOption(selectedPlannerRouteId));
+  await waitFor('The route is selected in the draft', routePressed(selectedPlannerRouteId, true));
+  await tap(testId('confirm-routes'));
+  await waitFor('The selected route line is visible before planning', () => mapContainsColor(plannerRouteColors.orange, 75));
+
   const plannerStarts = () => analyticsRequests.filter((event) => event.journeyPlanning);
   await tap(openPlanner);
   await waitFor('The map launcher opens an empty planner and gives it the map controls',
@@ -522,8 +539,17 @@ try {
     && document.querySelector('${testId('planner-find')}')?.disabled === true`);
   await waitFor('Opening the planner from the launcher records one start', () => plannerStarts().length === 1);
   assert.equal(plannerStarts()[0].journeyPlanning.source, 'map_button');
+  await waitFor('Planning hides the selected route line', async () => !(await mapContainsColor(plannerRouteColors.orange, 1)));
+  await tap(testId('planner-pick-origin'));
+  await waitFor('Point picking keeps the selected route line hidden', async () =>
+    await evaluate(visible(testId('map-point-target'))) && !(await mapContainsColor(plannerRouteColors.orange, 1)));
+  await evaluate('window.__telegramSmoke.backHandler(); true');
+  await waitFor('Back returns to the planner form', visible(testId('planner-panel')));
   await tap(testId('planner-close'));
   await waitFor('Closing the planner restores the compact launcher and routes', `${compactPlanner} && ${visible(openRoutes)}`);
+  await waitFor('The selected route line returns after planning', () => mapContainsColor(plannerRouteColors.orange, 75));
+  await tap(`${testId('route-legend')}[data-route-id="${selectedPlannerRouteId}"] ${testId('remove-route')}`);
+  await waitFor('The route can still be removed after planning', `!${visible(testId('route-legend'))}`);
 
   const planner = plannerSmoke({ send, evaluate, waitFor, tap, visible, testId, mapContainsColor, analyzeMap, bffRequests });
   await planner.pointToPoint(() => evaluate('window.__telegramSmoke.backHandler(); true'));

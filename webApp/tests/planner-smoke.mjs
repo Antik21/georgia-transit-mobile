@@ -213,6 +213,24 @@ export function plannerSmoke({ send, evaluate, waitFor, tap, visible, testId, ma
           && ${optionText(0)}.includes('Walk to the destination: 300 m · 4 min')
           && ${optionText(0)}.includes('6 stops · 11 min')
           && ${visible(testId('planner-disclaimer'))}`);
+      const resultsLayout = await evaluate(`(() => {
+        const header = document.querySelector('.planner-results-header');
+        const edit = header.querySelector('${testId('planner-edit')}');
+        const chip = header.querySelector('.planner-endpoint-chip');
+        const body = document.querySelector('.planner-results-body');
+        const firstCard = ${options}[0];
+        const headerTop = header.getBoundingClientRect().top;
+        const cardTop = firstCard.getBoundingClientRect().top;
+        body.scrollTop = body.scrollHeight;
+        const layout = {
+          editGap: chip.getBoundingClientRect().left - edit.getBoundingClientRect().right,
+          headerStayedVisible: header.getBoundingClientRect().top === headerTop,
+          optionsScrolled: body.scrollTop > 0 && firstCard.getBoundingClientRect().top < cardTop,
+        };
+        body.scrollTop = 0;
+        return layout;
+      })()`);
+      assert.deepEqual(resultsLayout, { editGap: 10, headerStayedVisible: true, optionsScrolled: true });
       assert.equal(await evaluate(`document.querySelectorAll('${testId('planner-mode')}').length`), 0, 'Mode chips are gone');
       const cards = await labelsAndItineraries();
       assert.deepEqual(cards.map((option) => option.labels), [
@@ -325,8 +343,11 @@ export function plannerSmoke({ send, evaluate, waitFor, tap, visible, testId, ma
         `${panel} && document.querySelector('${testId('planner-origin-value')}')?.textContent === 'My location'`);
       await findRoute();
       await waitFor('The requested plan is shown', `${options}.length === ${optionCount}`);
-      assert.deepEqual(await evaluate(`[...document.querySelectorAll('.planner-results-header > *')]
-        .map(item => item.textContent.trim())`), ['Edit', 'Geolocation', '→', 'Point']);
+      assert.deepEqual(await evaluate(`[...document.querySelectorAll('.planner-results-header > *')].map(item => {
+        const badge = item.querySelector('.planner-endpoint-badge');
+        return badge ? [badge.textContent, getComputedStyle(badge).backgroundColor,
+          item.querySelector('.planner-endpoint-chip-label').textContent] : item.textContent.trim();
+      })`), ['Edit', ['A', 'rgb(46, 125, 50)', 'Geolocation'], '→', ['B', 'rgb(142, 27, 45)', 'Point']]);
       const request = planRequests.at(-1);
       assert.equal(planRequests.length, before + 1);
       assertPrivateRequest(request);
