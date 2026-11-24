@@ -40,6 +40,11 @@ internal class MapVehicleFeature(
         presentation.reset()
     }
 
+    fun pause() {
+        poller.reset()
+        presentation.pause()
+    }
+
     fun isCurrent(generation: Long, cityId: CityId): Boolean =
         generation == poller.generation && visible && city?.id == cityId &&
             city?.capabilities?.vehiclePositions == true && routes.isNotEmpty()
