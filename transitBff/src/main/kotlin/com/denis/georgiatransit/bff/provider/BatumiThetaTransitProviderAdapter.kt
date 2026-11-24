@@ -78,7 +78,7 @@ private const val BatumiCatalogLkgDays = 7L
 private val BatumiCatalogRefreshTtl = Duration.ofMinutes(10)
 private val BatumiFailedRefreshCooldown = Duration.ofSeconds(20)
 private val BatumiLiveCacheTtl = Duration.ofSeconds(4)
-private val BatumiLiveMaximumAge = Duration.ofSeconds(60)
+internal val BatumiLiveMaximumAge = Duration.ofSeconds(60)
 private val BatumiGlobalFeedFreshAge = Duration.ofSeconds(15)
 private val BatumiJson = Json { ignoreUnknownKeys = true; explicitNulls = false }
 private val BatumiFeedLog = LoggerFactory.getLogger("TransitBff.BatumiFeed")

@@ -54,6 +54,17 @@ class MapVehiclePresentationTest {
         map.assertBearing(270.0)
     }
 
+    @Test
+    fun firstPositionUsesFeedBearingEvenAgainstPolylineOrder() {
+        val map = VehicleMap()
+        map.acceptPosition(longitude = 0.0012, bearing = 85.0)
+        map.assertBearing(85.0)
+        map.acceptPosition(longitude = 0.0012, bearing = 85.0)
+        map.assertBearing(85.0)
+        map.acceptPosition(longitude = 0.00119, bearing = 85.0)
+        map.assertBearing(85.0)
+    }
+
     private class VehicleMap : VehicleRealtimeClock {
         private val city = TransitCity(
             id = CityId("city"), name = "City", center = GeoPoint(0.0, 0.0),
@@ -84,12 +95,12 @@ class MapVehiclePresentationTest {
             assertBearing(90.0)
         }
 
-        fun acceptPosition(longitude: Double, elapsedMillis: Long = 8_000L) {
+        fun acceptPosition(longitude: Double, elapsedMillis: Long = 8_000L, bearing: Double? = null) {
             nowMillis += elapsedMillis
             val observedAt = wallNow()
             val bus = TransitVehicle(
                 VehicleId("bus"), route.id, directionId, GeoPoint(0.0, longitude),
-                bearing = null, nextStopId = null, observedAt = observedAt, ageSeconds = 0,
+                bearing = bearing, nextStopId = null, observedAt = observedAt, ageSeconds = 0,
                 positionKind = VehiclePositionKind.Gps,
             )
             val page = VehiclePage(listOf(bus), observedAt, maxAgeSeconds = 30, stale = false)

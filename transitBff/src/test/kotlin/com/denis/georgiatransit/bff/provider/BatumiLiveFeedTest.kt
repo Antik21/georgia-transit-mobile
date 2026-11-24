@@ -15,12 +15,32 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
+import kotlin.test.assertNotNull
+import kotlin.test.assertNull
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 
 class BatumiLiveFeedTest {
+    @Test
+    fun `background observations orient slow buses and hold the bearing through a stop`() = runBlocking {
+        val fixture = LiveSources()
+        suspend fun sample(longitude: Double, seconds: Long = 5): Double? {
+            fixture.clock.advance(seconds)
+            fixture.longitude = longitude
+            return fixture.feed.load(fixture.catalog).vehiclesByRoute.values.flatten().single().vehicle.bearing
+        }
+        assertNull(sample(41.60000))
+        assertNull(sample(41.60005))
+        val east = assertNotNull(sample(41.60012))
+        assertEquals(90.0, east, 0.01)
+        repeat(15) { assertEquals(east, sample(41.60010)) }
+        assertEquals(270.0, assertNotNull(sample(41.59990)), 0.01)
+        assertNull(sample(41.60900)) // GPS jump
+        assertNull(sample(41.60880, seconds = 61)) // expired track
+    }
+
     @Test
     fun `three minutes of consecutive failures switch every route and healthy primary returns immediately`() = runBlocking {
         val fixture = LiveSources()
@@ -103,19 +123,32 @@ class BatumiLiveFeedTest {
     }
 
     @Test
+    fun `first client reads a bearing acquired by the city worker before any request`() = runBlocking {
+        val fixture = LiveSources()
+        val publishedMotion = CompletableDeferred<Unit>()
+        val primary = object : BatumiAllBusesClient by fixture.primary {
+            var polls = 0
+            override suspend fun getAllBuses(): String {
+                polls++
+                fixture.clock.advance(5)
+                if (polls >= 2) fixture.longitude = 41.6002
+                if (polls == 3) publishedMotion.complete(Unit)
+                return fixture.primary.getAllBuses()
+            }
+        }
+        fixture.adapter(primary).use { adapter ->
+            adapter.startGlobalFeed { true }
+            withTimeout(2_000) { publishedMotion.await() }
+            val route = fixture.catalog.routes.first { fixture.catalog.rawRouteId(it.id) == "r1" }
+            val vehicle = adapter.vehicles(route.id, null).items.single()
+            assertEquals(90.0, assertNotNull(vehicle.bearing), 0.01)
+        }
+    }
+
+    @Test
     fun `city snapshot serves fallback positions after primary expiry and publishes recovered BatBus positions`() = runBlocking {
         val fixture = LiveSources()
-        val activation = BffConfig.fromEnvironment(mapOf(
-            "BATUMI_THETA_ENABLED" to "true",
-            "BATUMI_THETA_OPERATOR_ACKNOWLEDGEMENT" to BatumiThetaActivationConfig.Acknowledgement,
-        )).batumiTheta
-        BatumiThetaTransitProviderAdapter(
-            activation = activation,
-            client = fixture.theta,
-            clock = fixture.clock,
-            allBusesClient = fixture.primary,
-            cityFeedPollInterval = Duration.ofMillis(25),
-        ).use { adapter ->
+        fixture.adapter().use { adapter ->
             adapter.startGlobalFeed { true }
             val routeId = fixture.catalog.routes.first { fixture.catalog.rawRouteId(it.id) == "r1" }.id
             suspend fun readAtLongitude(longitude: Double): RealtimeVehicles = withTimeout(20_000) {
@@ -165,7 +198,8 @@ private class LiveSources {
     var thetaRateLimited = false
     val thetaCalls = ConcurrentLinkedQueue<String>()
     val primaryFailure = CompletableDeferred<Unit>()
-    private val firstRouteBuses = """[{"Name":"example","Lat":41.64,"Lon":41.60,"Status":1}]"""
+    @Volatile var longitude = 41.60
+    private fun firstRouteBuses(longitude: Double) = """[{"Name":"example","Lat":41.64,"Lon":$longitude,"Status":1}]"""
     var secondRouteResponse = """{"data":[]}"""
 
     val primary = object : BatumiAllBusesClient {
@@ -175,7 +209,7 @@ private class LiveSources {
                 primaryFailure.complete(Unit)
                 throw ProviderUnavailable("Simulated outage")
             }
-            return """{"data":{"r1":$firstRouteBuses,"r2":[]}}"""
+            return """{"data":{"r1":${firstRouteBuses(longitude)},"r2":[]}}"""
         }
         override fun close() = Unit
     }
@@ -184,11 +218,25 @@ private class LiveSources {
         override suspend fun getBusLocsOnRoute(rawRouteId: String): String {
             thetaCalls += rawRouteId
             if (thetaRateLimited) throw ProviderRateLimited("Simulated rate limit", 30)
-            val buses = firstRouteBuses.replace("41.60", "41.601")
+            val buses = firstRouteBuses(41.601)
             return if (rawRouteId == "r1") """{"data":$buses}""" else secondRouteResponse
         }
         override fun close() = Unit
     }
+    fun adapter(bulkClient: BatumiAllBusesClient = primary): BatumiThetaTransitProviderAdapter {
+        val activation = BffConfig.fromEnvironment(mapOf(
+            "BATUMI_THETA_ENABLED" to "true",
+            "BATUMI_THETA_OPERATOR_ACKNOWLEDGEMENT" to BatumiThetaActivationConfig.Acknowledgement,
+        )).batumiTheta
+        return BatumiThetaTransitProviderAdapter(
+            activation = activation,
+            client = theta,
+            clock = clock,
+            allBusesClient = bulkClient,
+            cityFeedPollInterval = Duration.ofMillis(25),
+        )
+    }
+
     val feed = BatumiLiveFeed(primary, theta, clock, isEnabled = { true })
 }
 
