@@ -6,7 +6,36 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import com.denis.georgiatransit.shared.domain.model.GeoPoint
 
-/** Resolves the marker on demand instead of retaining a possibly stale camera center. */
+internal data class MapPickTarget(
+    val mapWidthPx: Int,
+    val mapHeightPx: Int,
+    val yFraction: Double,
+    val markerScale: Float,
+) {
+    val xFraction: Double get() = 0.5
+}
+
+internal fun mapPickTarget(
+    mapWidthPx: Int,
+    mapHeightPx: Int,
+    topOverlayHeightPx: Int,
+    bottomOverlayHeightPx: Int,
+    markerAboveTipPx: Float,
+    markerBelowTipPx: Float,
+): MapPickTarget? {
+    if (mapWidthPx <= 0 || topOverlayHeightPx <= 0 || bottomOverlayHeightPx <= 0) return null
+    val visibleBottom = (mapHeightPx - bottomOverlayHeightPx).toDouble()
+    val availableHeight = visibleBottom - topOverlayHeightPx
+    if (availableHeight <= 0) return null
+
+    val scale = minOf(1.0, availableHeight / (markerAboveTipPx + markerBelowTipPx))
+    val earliestTip = topOverlayHeightPx + markerAboveTipPx * scale
+    val latestTip = visibleBottom - markerBelowTipPx * scale
+    val tipY = (visibleBottom / 2).coerceAtLeast(earliestTip).coerceAtMost(latestTip)
+    return MapPickTarget(mapWidthPx, mapHeightPx, tipY / mapHeightPx, scale.toFloat())
+}
+
+/** Projects the same anchor the picker draws, against the live map instead of a saved camera centre. */
 @Stable
 internal class MapPointPicker {
     var request by mutableStateOf<MapPointRequest?>(null)
@@ -15,25 +44,21 @@ internal class MapPointPicker {
         private set
 
     private var sequence = 0L
-    private var pendingSide: JourneyPlanSide? = null
-    private var pendingMapHeight = 0
-    private var pendingPanelHeight = 0
+    private var pending: PendingPick? = null
 
-    fun canConfirm(mapHeight: Int, panelHeight: Int): Boolean =
-        mapHeight > 0 && panelHeight in 1 until mapHeight && !cameraMoving && request == null
+    fun canConfirm(target: MapPickTarget?): Boolean = target != null && !cameraMoving && request == null
 
-    fun start(side: JourneyPlanSide, mapHeight: Int, panelHeight: Int) {
-        if (!canConfirm(mapHeight, panelHeight)) return
-        pendingSide = side
-        pendingMapHeight = mapHeight
-        pendingPanelHeight = panelHeight
-        request = MapPointRequest(++sequence, xFraction = 0.5, yFraction = (mapHeight - panelHeight) / (2.0 * mapHeight))
+    fun start(side: JourneyPlanSide, target: MapPickTarget?) {
+        if (target == null || !canConfirm(target)) return
+        pending = PendingPick(side, target)
+        request = MapPointRequest(++sequence, xFraction = target.xFraction, yFraction = target.yFraction)
     }
 
-    fun resolve(event: MapPlatformEvent.MapPointResolved, side: JourneyPlanSide?, mapHeight: Int, panelHeight: Int): GeoPoint? {
+    fun resolve(event: MapPlatformEvent.MapPointResolved, side: JourneyPlanSide?, target: MapPickTarget?): GeoPoint? {
         if (event.requestId != request?.id) return null
         val point = event.point?.takeIf {
-            side != null && side == pendingSide && mapHeight == pendingMapHeight && panelHeight == pendingPanelHeight &&
+            val expected = pending
+            expected != null && side == expected.side && target == expected.target &&
                 !cameraMoving && it.isMapCoordinate()
         }
         cancel()
@@ -49,6 +74,8 @@ internal class MapPointPicker {
 
     fun cancel() {
         request = null
-        pendingSide = null
+        pending = null
     }
+
+    private data class PendingPick(val side: JourneyPlanSide, val target: MapPickTarget)
 }

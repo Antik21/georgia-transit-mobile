@@ -21,14 +21,22 @@ import androidx.savedstate.serialization.SavedStateConfiguration
 import com.denis.georgiatransit.shared.domain.repository.TransitSession
 import com.denis.georgiatransit.shared.presentation.cityselection.CitySelectionScreen
 import com.denis.georgiatransit.shared.presentation.cityselection.CitySelectionViewModel
+import com.denis.georgiatransit.shared.presentation.languageselection.AppLanguageSettings
+import com.denis.georgiatransit.shared.presentation.languageselection.LanguageSelectionScreen
+import com.denis.georgiatransit.shared.presentation.languageselection.LanguageSelectionViewModel
+import com.denis.georgiatransit.shared.presentation.languageselection.NavigationEffect as LanguageNavigationEffect
 import com.denis.georgiatransit.shared.presentation.map.MapScreen
 import com.denis.georgiatransit.shared.presentation.map.MapViewModel
 import com.denis.georgiatransit.shared.presentation.routes.RoutesScreen
 import com.denis.georgiatransit.shared.presentation.routes.RoutesViewModel
+import com.denis.georgiatransit.shared.presentation.schedule.ScheduleScreen
+import com.denis.georgiatransit.shared.presentation.schedule.ScheduleViewModel
 import kotlinx.serialization.modules.SerializersModule
 import kotlinx.serialization.modules.polymorphic
 import kotlinx.serialization.modules.subclass
 import org.koin.compose.koinInject
+import org.koin.compose.viewmodel.koinViewModel
+import org.koin.core.parameter.parametersOf
 
 @Composable
 internal fun Navigation3AppHost(initialDestination: Destination) {
@@ -37,6 +45,9 @@ internal fun Navigation3AppHost(initialDestination: Destination) {
     val navigationEventApplier = remember(session) { SessionNavigationEventApplier(session) }
     val selectedCity by session.selectedCity.collectAsState()
     val selectedCityId = selectedCity?.id
+    val schedulesAvailable = selectedCity?.capabilities?.schedules == true
+    val languageSettings = rememberAppLanguageSettings()
+    val languagePicker = languageSettings as? AppLanguageSettings.Picker
     val validatedInitialStack = NavigationTransitionPolicy.restore(
         restoredStack = listOf(initialDestination),
         selectedCityId = selectedCityId,
@@ -47,7 +58,12 @@ internal fun Navigation3AppHost(initialDestination: Destination) {
     )
     val rawStack = backStack.toList()
     val currentStack = rawStack.filterIsInstance<Destination>()
-    val restoredStack = NavigationTransitionPolicy.restore(currentStack, selectedCityId)
+    val restoredStack = NavigationTransitionPolicy.restore(
+        restoredStack = currentStack,
+        selectedCityId = selectedCityId,
+        schedulesAvailable = schedulesAvailable,
+        languagePickerAvailable = languagePicker != null,
+    )
 
     // Navigation 3 can restore a saved stack before the runtime session is available. Do not
     // render that stack until it has been reconciled with the session prerequisite.
@@ -62,6 +78,7 @@ internal fun Navigation3AppHost(initialDestination: Destination) {
         val nextStack = navigationEventApplier.apply(
             currentStack = backStack.toList().filterIsInstance<Destination>(),
             event = event,
+            languagePickerAvailable = languagePicker != null,
         )
         if (backStack.toList() != nextStack) {
             backStack.clear()
@@ -70,9 +87,17 @@ internal fun Navigation3AppHost(initialDestination: Destination) {
     }
 
     val entries = entryProvider<NavKey> {
-        entry<Destination.CitySelection> {
+        entry<Destination.CitySelection>(metadata = slideFromBottomMetadata) {
             val viewModel: CitySelectionViewModel = navigationEntryViewModel("city-selection")
-            CitySelectionScreen(viewModel) { effect ->
+            val openedFromMap = remember { restoredStack.firstOrNull() == Destination.Map }
+            CitySelectionScreen(
+                viewModel = viewModel,
+                onBack = if (openedFromMap) {
+                    { applyNavigation(NavigationEvent.Back) }
+                } else {
+                    null
+                },
+            ) { effect ->
                 when (effect) {
                     com.denis.georgiatransit.shared.presentation.cityselection.NavigationEffect.OpenMap -> {
                         applyNavigation(NavigationEvent.CityConfirmed)
@@ -82,28 +107,41 @@ internal fun Navigation3AppHost(initialDestination: Destination) {
         }
         entry<Destination.Map> {
             val viewModel: MapViewModel = navigationEntryViewModel("map")
-            MapScreen(viewModel) { effect ->
+            val onChangeLanguage = when (languageSettings) {
+                is AppLanguageSettings.Picker -> { { applyNavigation(NavigationEvent.OpenLanguageSelection) } }
+                is AppLanguageSettings.SystemSettings -> languageSettings.open
+                null -> null
+            }
+            MapScreen(viewModel, onChangeLanguage) { effect ->
                 when (effect) {
                     com.denis.georgiatransit.shared.presentation.map.NavigationEffect.OpenRoutes ->
                         applyNavigation(NavigationEvent.OpenRoutes)
+                    com.denis.georgiatransit.shared.presentation.map.NavigationEffect.OpenSchedules ->
+                        applyNavigation(NavigationEvent.OpenSchedules)
                     com.denis.georgiatransit.shared.presentation.map.NavigationEffect.OpenCitySelection ->
                         applyNavigation(NavigationEvent.ChangeCity)
                 }
             }
         }
-        entry<Destination.Routes>(
-            metadata = metadata {
-                put(NavDisplay.TransitionKey) {
-                    slideInVertically(initialOffsetY = { it }) togetherWith ExitTransition.KeepUntilTransitionsFinished
+        entry<Destination.LanguageSelection>(metadata = slideFromBottomMetadata) {
+            if (languagePicker != null) {
+                val viewModel: LanguageSelectionViewModel = koinViewModel(
+                    key = "language-selection",
+                    parameters = { parametersOf(languagePicker) },
+                )
+                LanguageSelectionScreen(viewModel) { effect ->
+                    when (effect) {
+                        is LanguageNavigationEffect.Applied -> {
+                            // Applying the locale can recreate the Android activity.
+                            applyNavigation(NavigationEvent.Back)
+                            languagePicker.applyLanguage(effect.languageTag)
+                        }
+                        LanguageNavigationEffect.Closed -> applyNavigation(NavigationEvent.Back)
+                    }
                 }
-                put(NavDisplay.PopTransitionKey) {
-                    EnterTransition.None togetherWith slideOutVertically(targetOffsetY = { it })
-                }
-                put(NavDisplay.PredictivePopTransitionKey) {
-                    EnterTransition.None togetherWith slideOutVertically(targetOffsetY = { it })
-                }
-            },
-        ) {
+            }
+        }
+        entry<Destination.Routes>(metadata = slideFromBottomMetadata) {
             val viewModel: RoutesViewModel = navigationEntryViewModel("routes")
             RoutesScreen(viewModel) { effect ->
                 when (effect) {
@@ -113,6 +151,13 @@ internal fun Navigation3AppHost(initialDestination: Destination) {
                         applyNavigation(NavigationEvent.RoutesDismissed)
                 }
             }
+        }
+        entry<Destination.Schedules>(metadata = slideFromBottomMetadata) { destination ->
+            val viewModel: ScheduleViewModel = koinViewModel(
+                key = "schedules",
+                parameters = { parametersOf(destination.cityId) },
+            )
+            ScheduleScreen(viewModel) { applyNavigation(NavigationEvent.Back) }
         }
     }
 
@@ -137,12 +182,26 @@ internal fun Navigation3AppHost(initialDestination: Destination) {
     }
 }
 
+private val slideFromBottomMetadata = metadata {
+    put(NavDisplay.TransitionKey) {
+        slideInVertically(initialOffsetY = { it }) togetherWith ExitTransition.KeepUntilTransitionsFinished
+    }
+    put(NavDisplay.PopTransitionKey) {
+        EnterTransition.None togetherWith slideOutVertically(targetOffsetY = { it })
+    }
+    put(NavDisplay.PredictivePopTransitionKey) {
+        EnterTransition.None togetherWith slideOutVertically(targetOffsetY = { it })
+    }
+}
+
 private val navigationSavedStateConfiguration = SavedStateConfiguration {
     serializersModule = SerializersModule {
         polymorphic(NavKey::class) {
             subclass(Destination.CitySelection::class, Destination.CitySelection.serializer())
             subclass(Destination.Map::class, Destination.Map.serializer())
             subclass(Destination.Routes::class, Destination.Routes.serializer())
+            subclass(Destination.LanguageSelection::class, Destination.LanguageSelection.serializer())
+            subclass(Destination.Schedules::class, Destination.Schedules.serializer())
         }
     }
 }

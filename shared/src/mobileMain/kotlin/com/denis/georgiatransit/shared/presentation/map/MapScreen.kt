@@ -1,22 +1,19 @@
 package com.denis.georgiatransit.shared.presentation.map
 
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.windowInsetsPadding
-import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -26,10 +23,13 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionOnScreen
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.intl.Locale
@@ -42,48 +42,46 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.navigationevent.NavigationEventInfo
 import androidx.navigationevent.compose.NavigationBackHandler
 import androidx.navigationevent.compose.rememberNavigationEventState
-import com.denis.georgiatransit.shared.domain.model.GeoPoint
 import com.denis.georgiatransit.shared.domain.model.JourneyEndpoint
-import com.denis.georgiatransit.shared.domain.model.RouteId
-import com.denis.georgiatransit.shared.domain.model.TransitAttribution
 import com.denis.georgiatransit.shared.domain.model.TransitLocale
-import com.denis.georgiatransit.shared.presentation.location.LocationFailure
 import com.denis.georgiatransit.shared.presentation.location.LocationPermissionState
 import com.denis.georgiatransit.shared.presentation.location.LocationPlatformCommand
-import com.denis.georgiatransit.shared.presentation.location.LocationState
 import com.denis.georgiatransit.shared.presentation.location.PlatformLocationEffect
-import com.denis.georgiatransit.shared.presentation.map.sections.CityAttribution
+import com.denis.georgiatransit.shared.presentation.map.sections.JourneyMapPickMarkerAboveTip
+import com.denis.georgiatransit.shared.presentation.map.sections.JourneyMapPickMarkerBelowTip
 import com.denis.georgiatransit.shared.presentation.map.sections.JourneyMapPickPanel
 import com.denis.georgiatransit.shared.presentation.map.sections.JourneyPlannerPanel
 import com.denis.georgiatransit.shared.presentation.map.sections.JourneyPlannerSheet
-import com.denis.georgiatransit.shared.presentation.map.sections.MapConnectionToast
-import com.denis.georgiatransit.shared.presentation.map.sections.RouteGeometryLegend
+import com.denis.georgiatransit.shared.presentation.map.sections.MapCameraControlsHeight
+import com.denis.georgiatransit.shared.presentation.map.sections.MapControls
+import com.denis.georgiatransit.shared.presentation.map.sections.MapSettingsSheet
+import com.denis.georgiatransit.shared.presentation.map.sections.MapLocationPermissionSheet
+import com.denis.georgiatransit.shared.presentation.map.sections.MapToast
+import com.denis.georgiatransit.shared.presentation.map.sections.MapToastKind
+import com.denis.georgiatransit.shared.presentation.map.sections.MapToastNotice
 import com.denis.georgiatransit.shared.presentation.map.sections.StopArrivalsSheet
-import com.denis.georgiatransit.shared.presentation.map.sections.VehicleAccessibility
+import com.denis.georgiatransit.shared.presentation.map.sections.rememberJourneyStopNames
+import com.denis.georgiatransit.shared.presentation.map.sections.usesCompactPanel
 import com.denis.georgiatransit.shared.presentation.ui.automation.AutomationId
 import com.denis.georgiatransit.shared.presentation.ui.theme.GeorgiaTransitTheme
 import com.denis.georgiatransit.shared.presentation.ui.theme.TransitSpacing
 import georgiatransit.shared.generated.resources.Res
-import georgiatransit.shared.generated.resources.location_action_enable
 import georgiatransit.shared.generated.resources.location_action_location_settings
-import georgiatransit.shared.generated.resources.location_action_retry
-import georgiatransit.shared.generated.resources.location_action_settings
-import georgiatransit.shared.generated.resources.location_failure_invalid
-import georgiatransit.shared.generated.resources.location_failure_timed_out
-import georgiatransit.shared.generated.resources.location_failure_unavailable
-import georgiatransit.shared.generated.resources.map_change_city_action
 import georgiatransit.shared.generated.resources.map_my_location_action
-import georgiatransit.shared.generated.resources.map_routes_action
 import org.jetbrains.compose.resources.stringResource
 import org.orbitmvi.orbit.compose.collectAsState
 import org.orbitmvi.orbit.compose.collectSideEffect
 
 @Composable
-fun MapScreen(viewModel: MapViewModel, handleNavigation: suspend (NavigationEffect) -> Unit) {
+fun MapScreen(
+    viewModel: MapViewModel,
+    onChangeLanguage: (() -> Unit)?,
+    handleNavigation: suspend (NavigationEffect) -> Unit,
+) {
     val state by viewModel.collectAsState()
     val language = Locale.current.language
     LaunchedEffect(language) {
-        viewModel.dispatchAction(Action.LocaleChanged(language.toTransitLocale()))
+        viewModel.dispatchAction(Action.LocaleChanged(TransitLocale.fromLanguageTag(language)))
     }
     val mapViewportInsets = if (state.stopArrivalsSheet == null) {
         MapViewportInsets.None
@@ -94,18 +92,19 @@ fun MapScreen(viewModel: MapViewModel, handleNavigation: suspend (NavigationEffe
         viewModel.dispatchAction(Action.MapViewportInsetsChanged(mapViewportInsets))
     }
     MapRealtimeVisibilityEffect { visibleAndStarted ->
-        viewModel.dispatchAction(Action.RealtimeVisibilityChanged(visibleAndStarted))
+        viewModel.dispatchAction(Action.RealtimeVisibilityChanged(visibleAndStarted, routeBoundsSupported = true))
     }
     MapLocationRefreshEffect(state.location.permission is LocationPermissionState.Granted) {
         viewModel.dispatchAction(Action.RefreshLocation)
     }
     var platformCommand by remember { mutableStateOf<LocationPlatformCommand?>(null) }
-    var connectionNoticeId by remember { mutableStateOf(0) }
+    var toastNotice by remember { mutableStateOf<MapToastNotice?>(null) }
     viewModel.collectSideEffect { effect ->
         when (effect) {
             is NavigationEffect -> handleNavigation(effect)
             is SideEffect.HandleLocation -> platformCommand = effect.command
-            SideEffect.ShowConnectionError -> connectionNoticeId++
+            SideEffect.ShowConnectionError -> toastNotice = MapToastNotice((toastNotice?.id ?: 0) + 1, MapToastKind.ConnectionError)
+            SideEffect.ShowLocationError -> toastNotice = MapToastNotice((toastNotice?.id ?: 0) + 1, MapToastKind.LocationError)
         }
     }
     PlatformLocationEffect(
@@ -113,13 +112,33 @@ fun MapScreen(viewModel: MapViewModel, handleNavigation: suspend (NavigationEffe
         onCommandConsumed = { platformCommand = null },
         onEvent = { viewModel.dispatchAction(Action.LocationEventReceived(it)) },
     )
-    Content(state = state, connectionNoticeId = connectionNoticeId, onAction = viewModel::dispatchAction)
+    Content(
+        state = state,
+        toastNotice = toastNotice,
+        onPlannerUnavailable = {
+            toastNotice = MapToastNotice((toastNotice?.id ?: 0) + 1, MapToastKind.PlannerUnavailable)
+        },
+        onAction = viewModel::dispatchAction,
+        onChangeLanguage = onChangeLanguage,
+    )
 }
 
 @Composable
-private fun Content(state: ViewState, connectionNoticeId: Int, onAction: (Action) -> Unit) {
+private fun Content(
+    state: ViewState,
+    toastNotice: MapToastNotice?,
+    onPlannerUnavailable: () -> Unit,
+    onAction: (Action) -> Unit,
+    onChangeLanguage: (() -> Unit)?,
+) {
     val planner = state.journeyPlanner
+    val knownStopNames = rememberJourneyStopNames(planner, state.nearbyStops)
     val mapPick = planner.mapPick
+    val showPlannerLauncher = !planner.isOpen && mapPick == null
+    val settingsAvailable = state.canChangeCity || onChangeLanguage != null
+    var settingsOpen by rememberSaveable(settingsAvailable) { mutableStateOf(false) }
+    val permission = state.location.permission
+    var permissionSheetOpen by remember(permission) { mutableStateOf(false) }
     NavigationBackHandler(
         state = rememberNavigationEventState(NavigationEventInfo.None),
         isBackEnabled = planner.isOpen || planner.pin != null,
@@ -137,59 +156,112 @@ private fun Content(state: ViewState, connectionNoticeId: Int, onAction: (Action
     val pointPicker = remember { MapPointPicker() }
     LaunchedEffect(mapPick) { pointPicker.cancel() }
     // Re-keyed on endpoint changes so a choice collapses its block and opens the missing one; taps toggle in between.
-    var expandedSide by remember(planner.origin, planner.destination) {
-        mutableStateOf(journeyExpandedSideFor(planner.origin, planner.destination))
+    var expandedSide by remember(planner.isOpen, planner.origin, planner.destination) {
+        mutableStateOf(journeyDefaultExpandedSideFor(planner.origin, planner.destination))
     }
     val density = LocalDensity.current
     var sheetHeight by remember { mutableStateOf(0.dp) }
+    var mapWidthPx by remember { mutableIntStateOf(0) }
     var mapHeightPx by remember { mutableIntStateOf(0) }
+    var mapTopPx by remember { mutableStateOf(0.0) }
+    var stopSheetTopPx by remember(state.stopArrivalsSheet?.stopId) { mutableStateOf<Double?>(null) }
+    var pickHeaderHeightPx by remember(mapPick) { mutableIntStateOf(0) }
     var pickPanelHeightPx by remember(mapPick) { mutableIntStateOf(0) }
+    val pickTarget = mapPick?.let {
+        with(density) {
+            mapPickTarget(
+                mapWidthPx = mapWidthPx,
+                mapHeightPx = mapHeightPx,
+                topOverlayHeightPx = pickHeaderHeightPx,
+                bottomOverlayHeightPx = pickPanelHeightPx,
+                markerAboveTipPx = JourneyMapPickMarkerAboveTip.toPx(),
+                markerBelowTipPx = JourneyMapPickMarkerBelowTip.toPx(),
+            )
+        }
+    }
     val mapOverlayHeight = when {
         mapPick != null -> with(density) { pickPanelHeightPx.toDp() }
         planner.isOpen -> sheetHeight
         else -> 0.dp
     }
+    val cameraInsets = MapViewportPolicy.insetsForLayout(
+        mapHeightPx = mapHeightPx,
+        bottomOverlayHeightPx = with(density) { mapOverlayHeight.toPx().toDouble() },
+        mapTopPx = mapTopPx,
+        modalTopPx = stopSheetTopPx,
+        fallback = state.renderState?.camera?.viewportInsets ?: MapViewportInsets.None,
+    )
     BoxWithConstraints(modifier = Modifier.fillMaxSize().testTag(AutomationId.MapScreen)) {
         val panelMaxHeight = maxHeight * PLANNER_PANEL_HEIGHT_FRACTION
+        val resultsMaxHeight = if (planner.showingResults && density.fontScale >= 1.5f) {
+            maxHeight * LARGE_TEXT_RESULTS_PANEL_HEIGHT_FRACTION
+        } else {
+            panelMaxHeight
+        }
         val bottomModifier = Modifier
             .fillMaxWidth()
             .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal + WindowInsetsSides.Bottom))
         Column(modifier = Modifier.fillMaxSize()) {
-            val renderState = remember(state.renderState, planner) { state.renderState?.withJourneyPlanner(planner) }
+            val renderState = remember(state.renderState, planner, cameraInsets) {
+                state.renderState?.withJourneyPlanner(planner)?.let { render ->
+                    render.copy(camera = render.camera.copy(viewportInsets = cameraInsets))
+                }
+            }
             Box(modifier = Modifier.fillMaxWidth().weight(1f)) {
                 MapArea(
                     renderState = renderState,
                     baseLayerState = state.baseLayerState,
                     location = state.location,
-                    isMapPicking = mapPick != null,
+                    mapPickSide = mapPick,
+                    pickTarget = pickTarget,
                     pickRequest = pointPicker.request.takeIf { mapPick != null },
+                    onPickHeaderHeightChanged = { pickHeaderHeightPx = it },
                     bottomOverlayHeight = mapOverlayHeight,
                     hasPin = planner.pin != null,
                     pinOnlySide = planner.missingSide(),
                     onMapEvent = { onAction(Action.MapEventReceived(it)) },
-                    onMyLocationClick = { onAction(Action.MyLocationClicked) },
+                    onMyLocationClick = {
+                        when (permission) {
+                            LocationPermissionState.Denied, LocationPermissionState.SettingsRequired ->
+                                permissionSheetOpen = true
+                            else -> onAction(Action.MyLocationClicked)
+                        }
+                    },
                     onZoomClick = { onAction(Action.ZoomClicked(it)) },
+                    journeyPlanningAvailable = state.journeyPlanningAvailable,
+                    plannerNotice = toastNotice?.takeIf { it.kind == MapToastKind.PlannerUnavailable && !state.journeyPlanningAvailable },
+                    onOpenPlanner = when {
+                        !showPlannerLauncher -> null
+                        !state.journeyPlanningAvailable -> onPlannerUnavailable
+                        else -> ({ onAction(JourneyPlannerAction.OpenPlanner) })
+                    },
                     onCameraMovingChanged = { moving ->
                         if (moving) pointPicker.motionStarted() else pointPicker.motionSettled()
                     },
                     onPointResolved = { result ->
-                        pointPicker.resolve(result, mapPick, mapHeightPx, pickPanelHeightPx)?.let {
+                        pointPicker.resolve(result, mapPick, pickTarget)?.let {
                             onAction(JourneyPlannerAction.ConfirmMapPick(it))
                         }
                     },
-                    onTapMap = { point -> onAction(JourneyPlannerAction.TapMap(point)) },
                     onDismissPin = { onAction(JourneyPlannerAction.DismissPin) },
                     onRouteFromHere = { onAction(JourneyPlannerAction.RouteFromHere) },
                     onRouteHere = { onAction(JourneyPlannerAction.RouteHere) },
                     onCancelMapPick = { onAction(JourneyPlannerAction.CancelMapPick) },
-                    modifier = Modifier.fillMaxSize().onSizeChanged { mapHeightPx = it.height },
+                    modifier = Modifier.fillMaxSize().onGloballyPositioned {
+                        mapWidthPx = it.size.width
+                        mapHeightPx = it.size.height
+                        mapTopPx = it.positionOnScreen().y.toDouble()
+                    },
                 )
-                MapConnectionToast(
-                    noticeId = connectionNoticeId,
-                    // Clears the MapLibre logo and OSM attribution along the bottom edge.
+                MapToast(
+                    notice = toastNotice?.takeUnless { it.kind == MapToastKind.PlannerUnavailable },
                     modifier = Modifier
                         .align(Alignment.BottomCenter)
-                        .padding(bottom = mapOverlayHeight + TransitSpacing.ExtraLarge + TransitSpacing.Medium),
+                        .padding(
+                            start = TransitSpacing.Medium,
+                            end = TransitSpacing.Medium,
+                            bottom = mapOverlayHeight + MapCameraControlsHeight + TransitSpacing.Large + TransitSpacing.Small,
+                        ),
                 )
             }
             if (mapPick == null && !planner.isOpen) {
@@ -197,14 +269,15 @@ private fun Content(state: ViewState, connectionNoticeId: Int, onAction: (Action
                     vehicleLayerState = state.vehicleLayerState,
                     vehicleRoutes = state.vehicleRoutes,
                     routeGeometryLegends = state.routeGeometryLegends,
-                    canChangeCity = state.canChangeCity,
+                    settingsAvailable = settingsAvailable,
                     routesAvailable = state.routesAvailable,
-                    attribution = state.attribution,
+                    schedulesAvailable = state.schedulesAvailable,
                     onFocusRoute = { routeId -> onAction(Action.RouteGeometryFocused(routeId)) },
                     onRetryRoute = { routeId -> onAction(Action.RetryRouteGeometry(routeId)) },
                     onRemoveRoute = { routeId -> onAction(Action.RemoveRouteGeometry(routeId)) },
-                    onChangeCity = { onAction(Action.ChangeCityClicked) },
+                    onSettings = { settingsOpen = true },
                     onRoutes = { onAction(Action.RoutesClicked) },
+                    onSchedules = { onAction(Action.SchedulesClicked) },
                     modifier = bottomModifier.padding(TransitSpacing.Medium),
                 )
             }
@@ -212,11 +285,12 @@ private fun Content(state: ViewState, connectionNoticeId: Int, onAction: (Action
         if (mapPick != null) {
             JourneyMapPickPanel(
                 side = mapPick,
-                canConfirm = state.renderState != null && pointPicker.canConfirm(mapHeightPx, pickPanelHeightPx),
-                onConfirm = { pointPicker.start(mapPick, mapHeightPx, pickPanelHeightPx) },
+                canConfirm = state.renderState != null && pointPicker.canConfirm(pickTarget),
+                onConfirm = { pointPicker.start(mapPick, pickTarget) },
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
                     .onSizeChanged { pickPanelHeightPx = it.height }
+                    .heightIn(max = panelMaxHeight)
                     .background(MaterialTheme.colorScheme.surface)
                     .then(bottomModifier)
                     .padding(TransitSpacing.Medium),
@@ -227,16 +301,20 @@ private fun Content(state: ViewState, connectionNoticeId: Int, onAction: (Action
                 sheetHeight = with(density) { it.height.toDp() }
             }) {
                 JourneyPlannerSheet(
-                    maxHeight = panelMaxHeight,
+                    maxHeight = resultsMaxHeight,
                     floating = planner.showingResults,
+                    compact = planner.status.usesCompactPanel,
                     onClose = { onAction(JourneyPlannerAction.ClosePlanner) },
                 ) { sheetModifier, headerModifier ->
                     JourneyPlannerPanel(
-                        planner = planner,
+                        planner = planner.withoutBoardingFrames(),
                         expandedSide = expandedSide,
                         onToggleSide = { side -> expandedSide = side.takeIf { it != expandedSide } },
                         onClose = { onAction(JourneyPlannerAction.ClosePlanner) },
-                        onEdit = { onAction(JourneyPlannerAction.EditPoints) },
+                        onEdit = {
+                            if (planner.status == JourneyPlannerStatus.Empty) expandedSide = JourneyPlanSide.Origin
+                            onAction(JourneyPlannerAction.EditPoints)
+                        },
                         onFind = { onAction(JourneyPlannerAction.FindRoute) },
                         onPickPoint = { side -> onAction(JourneyPlannerAction.StartMapPick(side)) },
                         onUseMyLocation = { side ->
@@ -252,6 +330,7 @@ private fun Content(state: ViewState, connectionNoticeId: Int, onAction: (Action
                             .then(bottomModifier)
                             .padding(horizontal = TransitSpacing.Medium, vertical = TransitSpacing.Small),
                         headerModifier = headerModifier,
+                        stopNames = knownStopNames,
                     )
                 }
             }
@@ -261,45 +340,37 @@ private fun Content(state: ViewState, connectionNoticeId: Int, onAction: (Action
                 sheet = sheet,
                 onDismiss = { onAction(Action.StopArrivalsDismissed) },
                 onRetry = { onAction(Action.RetryStopArrivals) },
+                onTopPositioned = { stopSheetTopPx = it },
             )
         }
-    }
-}
-
-@Composable
-private fun MapControls(
-    vehicleLayerState: VehicleLayerState,
-    vehicleRoutes: List<VehicleRouteAccessibilityUi>,
-    routeGeometryLegends: List<RouteGeometryLegendUi>,
-    canChangeCity: Boolean,
-    routesAvailable: Boolean,
-    attribution: List<TransitAttribution>,
-    onFocusRoute: (RouteId) -> Unit,
-    onRetryRoute: (RouteId) -> Unit,
-    onRemoveRoute: (RouteId) -> Unit,
-    onChangeCity: () -> Unit,
-    onRoutes: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    Box(modifier = modifier) {
-        VehicleAccessibility(layerState = vehicleLayerState, routes = vehicleRoutes)
-        Column(verticalArrangement = Arrangement.spacedBy(TransitSpacing.Small)) {
-            RouteGeometryLegend(routes = routeGeometryLegends, onFocus = onFocusRoute, onRetry = onRetryRoute, onRemove = onRemoveRoute)
-            Row(horizontalArrangement = Arrangement.spacedBy(TransitSpacing.Small)) {
-                if (canChangeCity) {
-                    OutlinedButton(
-                        onClick = onChangeCity,
-                        modifier = Modifier.weight(1f).testTag(AutomationId.MapChangeCity),
-                    ) { Text(stringResource(Res.string.map_change_city_action)) }
-                }
-                if (routesAvailable) {
-                    Button(
-                        onClick = onRoutes,
-                        modifier = Modifier.weight(1f).testTag(AutomationId.MapRoutes),
-                    ) { Text(stringResource(Res.string.map_routes_action)) }
-                }
-            }
-            CityAttribution(attribution)
+        if (settingsOpen && settingsAvailable) {
+            MapSettingsSheet(
+                onDismiss = { settingsOpen = false },
+                onChangeCity = if (state.canChangeCity) {
+                    {
+                        settingsOpen = false
+                        onAction(Action.ChangeCityClicked)
+                    }
+                } else null,
+                onChangeLanguage = onChangeLanguage?.let { open ->
+                    {
+                        settingsOpen = false
+                        open()
+                    }
+                },
+            )
+        }
+        if (permissionSheetOpen) {
+            MapLocationPermissionSheet(
+                openSettings = permission == LocationPermissionState.SettingsRequired,
+                onDismiss = { permissionSheetOpen = false },
+                onConfirm = {
+                    if (permissionSheetOpen) {
+                        permissionSheetOpen = false
+                        onAction(Action.MyLocationClicked)
+                    }
+                },
+            )
         }
     }
 }
@@ -343,29 +414,13 @@ private fun JourneyPlanSide.myLocationAction(): JourneyPlannerAction = when (thi
 }
 
 private const val PLANNER_PANEL_HEIGHT_FRACTION = 0.55f
-
-private fun String.toTransitLocale(): TransitLocale = when (this) {
-    "ka" -> TransitLocale.Georgian
-    "ru" -> TransitLocale.Russian
-    else -> TransitLocale.English
-}
+private const val LARGE_TEXT_RESULTS_PANEL_HEIGHT_FRACTION = 0.68f
 
 @Composable
-internal fun locationActionLabel(location: LocationState): String = stringResource(
-    when (location.failure) {
-        LocationFailure.TimedOut -> Res.string.location_failure_timed_out
-        LocationFailure.InvalidFix -> Res.string.location_failure_invalid
-        LocationFailure.Unavailable -> Res.string.location_failure_unavailable
-        null -> when (val permission = location.permission) {
-            LocationPermissionState.NotDetermined -> Res.string.location_action_enable
-            is LocationPermissionState.Granted -> Res.string.map_my_location_action
-            LocationPermissionState.Denied -> Res.string.location_action_retry
-            LocationPermissionState.SettingsRequired -> Res.string.location_action_settings
-            LocationPermissionState.ServicesDisabled -> Res.string.location_action_location_settings
-            LocationPermissionState.Restricted -> Res.string.map_my_location_action
-            is LocationPermissionState.Unavailable -> Res.string.location_action_retry
-            is LocationPermissionState.Error -> Res.string.location_action_retry
-        }
+internal fun locationActionLabel(permission: LocationPermissionState): String = stringResource(
+    when (permission) {
+        LocationPermissionState.ServicesDisabled -> Res.string.location_action_location_settings
+        else -> Res.string.map_my_location_action
     },
 )
 
@@ -382,8 +437,10 @@ private fun Preview() {
     GeorgiaTransitTheme {
         Content(
             state = ViewState(cityName = "Tbilisi", routesAvailable = true),
-            connectionNoticeId = 0,
+            toastNotice = null,
+            onPlannerUnavailable = {},
             onAction = {},
+            onChangeLanguage = {},
         )
     }
 }

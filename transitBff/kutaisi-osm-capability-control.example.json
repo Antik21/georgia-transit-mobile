@@ -1,0 +1,19 @@
+{
+  "revision": "kutaisi-osm-stops-20261117-1",
+  "cities": [
+    {
+      "id": "kutaisi",
+      "enabled": true,
+      "availability": {"readiness": "PRODUCTION_READY", "source": "REVIEWED_ADAPTER"},
+      "capabilities": {
+        "routes": false,
+        "stops": true,
+        "routeGeometry": false,
+        "vehiclePositions": false,
+        "officialArrivals": false,
+        "tripPlanning": false,
+        "arrivals": false
+      }
+    }
+  ]
+}

@@ -39,6 +39,7 @@ class OpenApiContractTest {
             "/v1/cities/{cityId}/routes/{routeId}/arrivals" to "ArrivalPage",
             "/v1/cities/{cityId}/routes/{routeId}/directions/{directionId}/stops" to "Stops",
             "/v1/cities/{cityId}/routes/{routeId}/directions/{directionId}/shape" to "Shape",
+            "/v1/cities/{cityId}/routes/{routeId}/directions/{directionId}/schedule" to "RouteSchedule",
             "/v1/cities/{cityId}/vehicles" to "VehiclePage",
             "/v1/cities/{cityId}/stops/nearby" to "Stops",
             "/v1/cities/{cityId}/stops/{stopId}/arrivals" to "ArrivalPage",
@@ -48,10 +49,12 @@ class OpenApiContractTest {
         assertEquals(
             expectedSchemas.keys + setOf(
                 "/metrics",
+                "/v1/analytics",
                 "/v1/cities/{cityId}/walking-estimate",
                 "/v1/cities/{cityId}/journeys/plan",
                 "/v1/map/style.json",
-                "/v1/map/tiles/{z}/{x}/{y}.png",
+                "/v1/map/vector/{z}/{x}/{y}.pbf",
+                "/v1/map/fonts/{font}/{range}.pbf",
             ),
             paths.keys,
         )
@@ -96,7 +99,7 @@ class OpenApiContractTest {
         )
         val planSuccess = plan.map("responses").map("200")
         assertEquals(
-            "#/components/schemas/JourneyPage",
+            "#/components/schemas/JourneyPlanPage",
             planSuccess.map("content").map("application/json").map("schema")["\$ref"],
         )
         assertEquals("#/components/headers/RequestId", planSuccess.map("headers").map("X-Request-ID")["\$ref"])
@@ -155,7 +158,7 @@ class OpenApiContractTest {
     }
 
     @Test
-    fun `OpenAPI city metadata carries seven capabilities and additive attribution`() {
+    fun `OpenAPI city metadata retains required capabilities with additive schedules and attribution`() {
         val schemas = loadOpenApi().map("components").map("schemas")
         val capabilities = schemas.map("CityCapabilities")
         assertEquals(
@@ -163,7 +166,7 @@ class OpenApiContractTest {
             capabilities["required"],
         )
         assertEquals(
-            setOf("routes", "stops", "routeGeometry", "vehiclePositions", "officialArrivals", "tripPlanning", "arrivals"),
+            setOf("routes", "stops", "routeGeometry", "vehiclePositions", "officialArrivals", "tripPlanning", "arrivals", "schedules"),
             capabilities.map("properties").keys,
         )
         assertEquals(
@@ -183,12 +186,17 @@ class OpenApiContractTest {
         val journey = schemas.map("Journey")
         val page = schemas.map("JourneyPage")
 
-        assertEquals(listOf("id", "departureAt", "arrivalAt", "transfers", "legs"), journey["required"])
+        assertEquals(listOf("id", "transfers", "legs"), journey["required"])
         assertTrue(journey.map("properties").containsKey("segments"))
         assertEquals(
-            listOf("departureAt", "arrivalAt", "mode"),
+            listOf("routeId", "directionId", "fromStopId", "toStopId", "departureAt", "arrivalAt"),
+            schemas.map("JourneyLeg")["required"],
+        )
+        assertEquals(
+            listOf("mode"),
             schemas.map("JourneySegment")["required"],
         )
+        assertEquals("#/components/schemas/TimedJourney", page.map("properties").map("items").map("items")["\$ref"])
         assertEquals(
             listOf("TRANSIT", "WALK", "BICYCLE", "CAR", "OTHER"),
             schemas.map("JourneySegmentMode")["enum"],
@@ -244,6 +252,8 @@ class OpenApiContractTest {
             waitSeconds = 60,
             waitBasis = JourneyWaitBasis.LIVE_VEHICLE,
             vehicleId = "demo:fixture:vehicle:blue-01",
+            fromStopName = text,
+            toStopName = text,
         )
         val journey = Journey(
             id = "demo:fixture:journey:j1",

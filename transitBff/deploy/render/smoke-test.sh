@@ -39,8 +39,6 @@ start_container() {
             --env BFF_HOST=0.0.0.0 \
             --env BFF_FIXTURES_ENABLED=false \
             --env BFF_MAP_ENABLED=true \
-            --env 'BFF_MAP_TILE_TEMPLATE=https://tile.openstreetmap.org/{z}/{x}/{y}.png' \
-            --env 'BFF_MAP_ATTRIBUTION=<a href="https://www.openstreetmap.org/copyright">© OpenStreetMap contributors</a>' \
             --env BFF_MAP_PUBLIC_BASE_URL=https://smoke.invalid \
             --env BFF_METRICS_ENABLED=false \
             --env BFF_PROBES_ENABLED=false \
@@ -66,8 +64,10 @@ wait_until_ready() {
             printf '%s' "$response" | grep --quiet '"source":"REVIEWED_ADAPTER"'
             [ "$(printf '%s' "$response" | grep -o '"id":' | wc -l | tr -d ' ')" -eq 1 ]
             style="$(curl --fail --silent --show-error "http://${address}/v1/map/style.json")"
-            printf '%s' "$style" | grep --quiet 'https://smoke.invalid/v1/map/tiles/{z}/{x}/{y}.png'
+            printf '%s' "$style" | grep --quiet 'https://smoke.invalid/v1/map/vector/{z}/{x}/{y}.pbf'
             printf '%s' "$style" | grep --quiet 'OpenStreetMap contributors'
+            # The vector source is registered only after the bundled catalog loads.
+            printf '%s' "$style" | grep --quiet '"gt-vector-zugdidi"'
             return
         fi
         attempt=$((attempt + 1))
@@ -113,6 +113,11 @@ docker exec --user root "$container" sh -eu -c '
     chmod 02755 /app/storage
     chmod 06755 /app/storage/control
     chmod 07770 /app/storage/state
+    # An obsolete disk catalog must not shadow the image catalog during an upgrade.
+    install -d -o transit -g transit -m 0700 /app/storage/zugdidi
+    printf "obsolete catalog\n" > /app/storage/zugdidi/stops.csv
+    chown transit:transit /app/storage/zugdidi/stops.csv
+    chmod 0600 /app/storage/zugdidi/stops.csv
 '
 docker rm --force "$container" >/dev/null
 container=""

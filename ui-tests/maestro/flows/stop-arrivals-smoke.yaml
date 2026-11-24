@@ -1,4 +1,4 @@
-appId: com.denis.georgiatransit
+appId: com.anti.georgiatransit.sandbox
 ---
 # Precondition: run-stop-arrivals-smoke.sh started the explicit loopback-only test fixture.
 # Every assertion targets a locale-independent automation ID; no text or screen coordinates are
@@ -27,8 +27,6 @@ appId: com.denis.georgiatransit
 - assertVisible:
     id: map.stop-arrivals.source
 - tapOn:
-    id: map.stop-arrivals.handle
-- tapOn:
-    id: map.stop-arrivals.handle
+    id: map.stop-arrivals.close
 - assertNotVisible:
     id: map.stop-arrivals.sheet

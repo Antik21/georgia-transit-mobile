@@ -72,6 +72,7 @@ class MapBridgeStopsTest {
                     val single = assertNotNull(pins[singleStop.id.value])
                     assertTrue(single.highlighted)
                     assertEquals("#0057b8", single.pin.color)
+                    assertEquals("#ffffff", single.pin.outlineColor)
                     assertEquals(0, single.pin.badges.size)
                     assertEquals(StopPinScale.toDouble(), single.scale)
                     assertEquals("Single", single.label)
@@ -99,6 +100,7 @@ class MapBridgeStopsTest {
                     assertEquals(single.id, assertNotNull(latest?.arrivals, "A current tap must open arrivals").stopId)
                     val selected = assertNotNull(latest?.stopLayer).stops.single { it.id == single.id }
                     assertTrue(selected.selected)
+                    assertEquals("#27ae7a", selected.pin.outlineColor)
                     assertEquals(StopPinScale.toDouble(), selected.scale, 1e-6)
                     assertTrue(latest?.stopLayer?.revision != layer.revision)
                 } finally {

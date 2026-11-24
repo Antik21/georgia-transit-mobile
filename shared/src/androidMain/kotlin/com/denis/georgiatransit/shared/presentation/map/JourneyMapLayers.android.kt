@@ -44,12 +44,15 @@ internal class JourneyMapLayers(private val metrics: DisplayMetrics) {
     private var fittedRevision: Long? = null
     private var pendingRevision: Long? = null
     private var fitGeneration = 0L
+    private var viewportInsets = MapViewportInsets.None
 
     fun install(style: Style, belowLayerId: String) {
         style.addSource(GeoJsonSource(LINES_SOURCE_ID, FeatureCollection.fromFeatures(emptyList())))
         style.addSource(GeoJsonSource(POINTS_SOURCE_ID, FeatureCollection.fromFeatures(emptyList())))
-        style.addImage(ORIGIN_IMAGE_ID, endpointBitmap("A", ORIGIN_COLOR))
-        style.addImage(DESTINATION_IMAGE_ID, endpointBitmap("B", DESTINATION_COLOR))
+        val origin = JourneyPlanSide.Origin
+        val destination = JourneyPlanSide.Destination
+        style.addImage(ORIGIN_IMAGE_ID, endpointBitmap(origin.markerLabel, origin.markerArgb.toInt()))
+        style.addImage(DESTINATION_IMAGE_ID, endpointBitmap(destination.markerLabel, destination.markerArgb.toInt()))
         val kind = Expression.get(KIND_PROPERTY)
         style.addLayerBelow(
             LineLayer(WALK_LAYER_ID, LINES_SOURCE_ID)
@@ -93,7 +96,7 @@ internal class JourneyMapLayers(private val metrics: DisplayMetrics) {
 
     fun render(style: Style, overlay: MapJourneyOverlay?) {
         if (overlay?.lines.isNullOrEmpty()) cancelPendingFit()
-        val content = overlay?.copy(fitRevision = 0L, fitSuspended = false)
+        val content = overlay?.copy(fitRevision = 0L, fitSuspended = false, boardingFitPosition = null)
         if (hasRendered && content == renderedOverlay) return
         style.getSourceAs<GeoJsonSource>(LINES_SOURCE_ID)?.setGeoJson(lineFeatures(content))
         style.getSourceAs<GeoJsonSource>(POINTS_SOURCE_ID)?.setGeoJson(pointFeatures(content))
@@ -101,8 +104,9 @@ internal class JourneyMapLayers(private val metrics: DisplayMetrics) {
         hasRendered = true
     }
 
-    /** Frames the plan once per user intent; a re-created view frames the visible plan again. */
-    fun fitIfNeeded(map: MapLibreMap, overlay: MapJourneyOverlay?, view: View) {
+    /** Includes the boarding bus on its first update; subsequent positions leave the camera alone. */
+    fun fitIfNeeded(map: MapLibreMap, overlay: MapJourneyOverlay?, view: View, insets: MapViewportInsets) {
+        viewportInsets = insets
         if (overlay?.fitSuspended == true) return cancelPendingFit()
         val revision = overlay?.fitRevision?.takeIf { overlay.lines.isNotEmpty() } ?: return
         if (revision == fittedRevision || revision == pendingRevision) return
@@ -126,7 +130,8 @@ internal class JourneyMapLayers(private val metrics: DisplayMetrics) {
     }
 
     private fun fit(map: MapLibreMap, overlay: MapJourneyOverlay, mapHeight: Int) {
-        val points = (overlay.lines.flatMap { it.points } + listOfNotNull(overlay.origin, overlay.destination))
+        val endpoints = listOfNotNull(overlay.origin, overlay.destination, overlay.boardingFitPosition)
+        val points = (overlay.lines.flatMap { it.points } + endpoints)
             .filter(GeoPoint::isMapCoordinate)
             .map { LatLng(it.latitude, it.longitude) }
             .distinct()
@@ -134,7 +139,7 @@ internal class JourneyMapLayers(private val metrics: DisplayMetrics) {
         val padding = (FIT_PADDING_DP * metrics.density).toInt()
         val camera = map.getCameraForLatLngBounds(
             LatLngBounds.Builder().includes(points).build(),
-            intArrayOf(padding, padding, padding, padding + (mapHeight * PLANNER_OCCLUSION_FRACTION).toInt()),
+            intArrayOf(padding, padding, padding, padding + (mapHeight * viewportInsets.bottomOcclusionFraction).toInt()),
         ) ?: return
         if (camera.target == null) return
         // The fitted camera carries the asymmetric padding; discarding it centers the route under the sheet.
@@ -219,12 +224,8 @@ private const val WALK_COLOR = "#6B7280"
 private const val CASING_COLOR = "#FFFFFF"
 private const val CASING_COLOR_INT = 0xFFFFFFFF.toInt()
 private const val PIN_COLOR = "#263238"
-private const val ORIGIN_COLOR = 0xFF2E7D32.toInt()
-private const val DESTINATION_COLOR = 0xFF8E1B2D.toInt()
 private const val ENDPOINT_DIAMETER_DP = 28f
 private const val ENDPOINT_STROKE_DP = 3f
-// Matches the expanded planner height in MapScreen.
-private const val PLANNER_OCCLUSION_FRACTION = 0.55f
 private const val FIT_PADDING_DP = 64f
 private const val FIT_DELAY_MILLIS = 250L
 private const val MAX_FIT_ZOOM = 17.0

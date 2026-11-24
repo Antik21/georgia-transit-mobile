@@ -15,8 +15,16 @@ final class MapLibreJourneyLayers {
         let pointsSource = MLNShapeSource(identifier: Self.pointsSourceID, shape: nil, options: nil)
         style.addSource(linesSource)
         style.addSource(pointsSource)
-        style.setImage(Self.endpointImage(letter: "A", color: Self.originColor), forName: Self.originImageName)
-        style.setImage(Self.endpointImage(letter: "B", color: Self.destinationColor), forName: Self.destinationImageName)
+        let origin = JourneyPlanSide.origin
+        let destination = JourneyPlanSide.destination
+        style.setImage(
+            Self.endpointImage(letter: origin.markerLabel, color: UIColor(argb: origin.markerArgb)),
+            forName: Self.originImageName
+        )
+        style.setImage(
+            Self.endpointImage(letter: destination.markerLabel, color: UIColor(argb: destination.markerArgb)),
+            forName: Self.destinationImageName
+        )
 
         let walk = MLNLineStyleLayer(identifier: Self.walkLayerID, source: linesSource)
         walk.predicate = NSPredicate(format: "%K == %@", Self.kindProperty, Self.kindWalk)
@@ -66,7 +74,7 @@ final class MapLibreJourneyLayers {
         hasRendered = true
     }
 
-    /** Frames the plan once per user intent; a re-created view frames the visible plan again. */
+    /** Includes the boarding bus on its first update; subsequent positions leave the camera alone. */
     func fitIfNeeded(mapView: MLNMapView, overlay: MapJourneyOverlay?) {
         if overlay?.fitSuspended == true { return cancelPendingFit() }
         guard let overlay, !overlay.lines.isEmpty else { return }
@@ -92,7 +100,8 @@ final class MapLibreJourneyLayers {
     }
 
     private func fit(mapView: MLNMapView, overlay: MapJourneyOverlay) {
-        let points = (overlay.lines.flatMap { $0.points } + [overlay.origin, overlay.destination].compactMap { $0 })
+        let endpoints = [overlay.origin, overlay.destination, overlay.boardingFitPosition].compactMap { $0 }
+        let points = (overlay.lines.flatMap { $0.points } + endpoints)
             .filter(Self.isCoordinateValid)
         guard let first = points.first, points.contains(where: { $0 != first }) else { return }
         var bounds = MLNCoordinateBounds(
@@ -105,8 +114,8 @@ final class MapLibreJourneyLayers {
             bounds.ne.latitude = max(bounds.ne.latitude, point.latitude)
             bounds.ne.longitude = max(bounds.ne.longitude, point.longitude)
         }
-        // The planner overlays 55% of the map in its expanded position.
-        let padding = UIEdgeInsets(top: 64, left: 64, bottom: 64 + mapView.bounds.height * 0.55, right: 64)
+        // MapLibre adds the live contentInset; adding the panel again would count it twice.
+        let padding = UIEdgeInsets(top: 64, left: 64, bottom: 64, right: 64)
         let animated = !UIAccessibility.isReduceMotionEnabled
         mapView.setVisibleCoordinateBounds(bounds, edgePadding: padding, animated: animated) { [weak mapView] in
             guard let mapView, mapView.zoomLevel > Self.maximumFitZoom else { return }
@@ -214,8 +223,6 @@ final class MapLibreJourneyLayers {
     private static let kindTransit = "transit"
     private static let kindPin = "pin"
     private static let kindEndpoint = "endpoint"
-    private static let originColor = UIColor(red: 0x2E / 255, green: 0x7D / 255, blue: 0x32 / 255, alpha: 1)
-    private static let destinationColor = UIColor(red: 0x8E / 255, green: 0x1B / 255, blue: 0x2D / 255, alpha: 1)
     private static let endpointDiameter: CGFloat = 28
     private static let maximumFitZoom = 17.0
 }

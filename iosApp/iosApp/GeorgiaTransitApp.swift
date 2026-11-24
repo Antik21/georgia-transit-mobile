@@ -1,5 +1,24 @@
+import FirebaseAnalytics
+import FirebaseCore
+import FirebaseCrashlytics
 import SwiftUI
 import Shared
+import UIKit
+
+private final class FirebaseAppTelemetry: NSObject, AppTelemetry {
+    func setSelectedCity(cityId: String?) {
+        Analytics.setUserProperty(cityId, forName: "selected_city")
+    }
+
+    func recordNonFatal(issue: NonFatalIssue) {
+        let error = NSError(
+            domain: "com.anti.georgiatransit.handled",
+            code: Int(issue.code),
+            userInfo: [NSLocalizedDescriptionKey: issue.summary]
+        )
+        Crashlytics.crashlytics().record(error: error)
+    }
+}
 
 private enum AppEnvironment {
     static func bffEndpointConfiguration() -> BffEndpointConfiguration {
@@ -20,9 +39,12 @@ private enum AppEnvironment {
     }
 }
 
-@main
-struct GeorgiaTransitApp: App {
-    init() {
+private final class GeorgiaTransitAppDelegate: NSObject, UIApplicationDelegate {
+    func application(
+        _ application: UIApplication,
+        didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil
+    ) -> Bool {
+        FirebaseApp.configure()
 #if SANDBOX
         DebugNetworkInspector.install()
 #endif
@@ -30,9 +52,18 @@ struct GeorgiaTransitApp: App {
             selectedCityStore: IosSelectedCityStore(),
             runtimeConfigurationSource: IosRuntimeBootstrapConfigurationSource(),
             transitCacheStore: IosTransitCacheStore(),
-            bffEndpointConfiguration: AppEnvironment.bffEndpointConfiguration()
+            bffEndpointConfiguration: AppEnvironment.bffEndpointConfiguration(),
+            appTelemetry: FirebaseAppTelemetry(),
+            analyticsClient: AnalyticsClient.ios,
+            analyticsDeviceId: IosAnalyticsIdentityKt.iosAnalyticsDeviceId()
         )
+        return true
     }
+}
+
+@main
+struct GeorgiaTransitApp: App {
+    @UIApplicationDelegateAdaptor(GeorgiaTransitAppDelegate.self) private var appDelegate
 
     var body: some Scene {
         WindowGroup { ContentView() }

@@ -1,0 +1,255 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="color-scheme" content="light dark">
+  <meta name="theme-color" content="#8E1B2D">
+  <title>Bus à Batoumi, Koutaïssi et Zougdidi | Geo Transit</title>
+  <meta name="description" data-i18n-content="description" content="Retrouvez les lignes et arrêts de bus à Batoumi, Koutaïssi et Zougdidi. Consultez les prochains passages et les horaires à Koutaïssi.">
+  <meta property="og:title" data-i18n-content="pageTitle" content="Bus à Batoumi, Koutaïssi et Zougdidi | Geo Transit">
+  <meta property="og:description" data-i18n-content="description" content="Retrouvez les lignes et arrêts de bus à Batoumi, Koutaïssi et Zougdidi. Consultez les prochains passages et les horaires à Koutaïssi.">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Geo Transit">
+  <meta property="og:image" content="https://www.geotransit.com.ge/assets/brand/icon-512.webp">
+  <!-- seo -->
+  <link rel="canonical" href="https://www.geotransit.com.ge/fr.html">
+  <meta property="og:url" content="https://www.geotransit.com.ge/fr.html">
+  <link rel="alternate" hreflang="en" href="https://www.geotransit.com.ge/">
+  <link rel="alternate" hreflang="ka" href="https://www.geotransit.com.ge/ka.html">
+  <link rel="alternate" hreflang="ru" href="https://www.geotransit.com.ge/ru.html">
+  <link rel="alternate" hreflang="zh-Hans" href="https://www.geotransit.com.ge/zh-hans.html">
+  <link rel="alternate" hreflang="fr" href="https://www.geotransit.com.ge/fr.html">
+  <link rel="alternate" hreflang="de" href="https://www.geotransit.com.ge/de.html">
+  <link rel="alternate" hreflang="x-default" href="https://www.geotransit.com.ge/">
+  <!-- /seo -->
+  <link rel="icon" type="image/png" sizes="32x32" href="assets/brand/favicon-32.png">
+  <link rel="icon" type="image/png" sizes="192x192" href="assets/brand/icon-192.png">
+  <link rel="apple-touch-icon" href="assets/brand/apple-touch-icon.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Noto+Sans+Georgian:wght@400;600;700;800&display=swap">
+  <link rel="stylesheet" href="styles.css">
+  <script>
+    try {
+      const theme = localStorage.getItem("gt-landing-theme");
+      if (theme === "light" || theme === "dark") document.documentElement.dataset.theme = theme;
+    } catch {}
+  </script>
+</head>
+<body data-analytics-page="home">
+  <a class="skip" href="#main" data-i18n="skip">Aller au contenu</a>
+
+  <header class="topbar">
+    <div class="wrap topbar__row">
+      <a class="brand" href="#top" aria-label="Geo Transit">
+        <img src="assets/brand/icon-192.png" width="40" height="40" alt="">
+        <span>Geo Transit</span>
+      </a>
+      <nav class="topbar__nav" aria-label="Navigation" data-i18n-aria="navLabel">
+        <a href="#cities" data-i18n="navCities">Villes</a>
+        <a href="#features" data-i18n="navFeatures">Fonctionnalités</a>
+        <a href="#planner" data-i18n="navPlanner">Trajets</a>
+        <a href="#platforms" data-i18n="navPlatforms">Plateformes</a>
+      </nav>
+      <div class="topbar__tools">
+        <div class="lang">
+          <select id="language" aria-label="Langue" data-i18n-aria="langLabel">
+            <option value="en" lang="en">English</option>
+            <option value="ka" lang="ka">ქართული</option>
+            <option value="ru" lang="ru">Русский</option>
+            <option value="zh-Hans" lang="zh-Hans">简体中文</option>
+            <option value="fr" lang="fr" selected>Français</option>
+            <option value="de" lang="de">Deutsch</option>
+          </select>
+        </div>
+        <button type="button" class="theme-toggle" aria-label="Changer de thème" data-i18n-aria="themeLabel">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a9 9 0 1 0 9 9 7 7 0 0 1-9-9Z"/></svg>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <main id="main">
+    <section class="hero" id="top" aria-labelledby="hero-title">
+      <svg class="hero__route" viewBox="0 0 1440 640" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+        <path class="hero__line" pathLength="1" d="M-60 610 C 260 640 560 600 760 520 S 980 300 1160 250 S 1380 110 1520 70"/>
+        <circle class="hero__stop hero__stop--a" data-at="0.3" r="15"/>
+        <circle class="hero__stop hero__stop--b" data-at="0.95" r="15"/>
+      </svg>
+      <div class="wrap hero__grid">
+        <div class="hero__copy">
+          <p class="hero__city" data-i18n="heroCity">Transports publics en Géorgie</p>
+          <h1 id="hero-title" data-i18n="heroTitle">Les bus de Batoumi, Koutaïssi et Zougdidi</h1>
+          <p class="hero__lead" data-i18n="heroLead">Retrouvez votre bus, votre arrêt ou votre ligne sur la carte. Consultez les prochains passages et préparez votre trajet dans les villes où cette fonction est disponible.</p>
+          <div class="hero__actions">
+            <a class="button button--light" href="https://app.geotransit.com.ge/" data-analytics-platform="web" data-i18n="ctaWeb">Ouvrir la version web</a>
+            <a class="button button--ghost" href="#platforms" data-i18n="ctaPlatforms">Android, iOS et Telegram</a>
+          </div>
+          <ul class="hero__facts">
+            <li data-i18n="factFree">Sans inscription</li>
+            <li data-i18n="factTheme">Thèmes clair et sombre</li>
+          </ul>
+        </div>
+        <div class="hero__phones">
+          <figure class="phone phone--back phone--android">
+            <div class="phone__screen">
+              <img class="only-light" src="assets/screens/mobile-live-map.webp" width="900" height="2000" alt="Bus et arrêts sur la carte de Batoumi dans l’application Android" data-i18n-alt="altLiveMap">
+              <img class="only-dark" src="assets/screens/mobile-live-map-dark.webp" width="900" height="2000" alt="Bus et arrêts sur la carte de Batoumi en thème sombre dans l’application Android" data-i18n-alt="altLiveMapDark" loading="lazy">
+            </div>
+          </figure>
+          <figure class="phone phone--front phone--ios">
+            <div class="phone__screen">
+              <img src="assets/screens/mobile-planner.webp" width="900" height="1957" alt="Itinéraires proposés par le calculateur de trajets sur iPhone" data-i18n-alt="altPlanner" fetchpriority="high">
+            </div>
+          </figure>
+        </div>
+      </div>
+    </section>
+
+    <section class="cities" id="cities" aria-labelledby="cities-title">
+      <div class="wrap">
+        <h2 id="cities-title" class="section-title" data-i18n="citiesTitle">Lignes et arrêts de bus par ville</h2>
+        <ul class="city-list">
+          <li>
+            <h3><a href="/batumi-fr.html" data-city-link="batumi" data-i18n="batumi">Les bus de Batoumi</a></h3>
+            <p data-i18n="batumiBody">Carte des bus en temps réel, lignes, arrêts, prochains passages estimés et calcul d’itinéraires.</p>
+          </li>
+          <li>
+            <h3><a href="/kutaisi-fr.html" data-city-link="kutaisi" data-i18n="kutaisi">Les bus de Koutaïssi</a></h3>
+            <p data-i18n="kutaisiBody">Horaires de bus par ligne, direction et date, arrêts, prochains passages et bus en temps réel.</p>
+          </li>
+          <li>
+            <h3><a href="/zugdidi-fr.html" data-city-link="zugdidi" data-i18n="zugdidi">Les bus de Zougdidi</a></h3>
+            <p data-i18n="zugdidiBody">Trouvez les lignes par numéro et repérez l’emplacement approximatif des arrêts de bus sur la carte.</p>
+          </li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="features" id="features" aria-labelledby="features-title">
+      <div class="wrap">
+        <h2 id="features-title" class="section-title" data-i18n="featuresTitle">Avant de partir et en chemin</h2>
+
+        <ol class="line">
+          <li class="stop">
+            <div class="stop__text">
+              <h3 data-i18n="f1Title">Les bus sur la carte</h3>
+              <p data-i18n="f1Body">Suivez les bus en circulation à Batoumi et à Koutaïssi. Utilisez le bouton de localisation pour vous situer sur la carte et repérer les arrêts à proximité.</p>
+            </div>
+            <figure class="phone phone--small phone--android">
+              <div class="phone__screen">
+                <img src="assets/screens/mobile-live-map.webp" width="900" height="2000" loading="lazy" alt="Bus et arrêts sur la carte de Batoumi dans l’application Android" data-i18n-alt="altLiveMap">
+              </div>
+            </figure>
+          </li>
+          <li class="stop">
+            <div class="stop__text">
+              <h3 data-i18n="f2Title">Horaires et prochains passages des bus</h3>
+              <p data-i18n="f2Body">Touchez un arrêt pour voir les lignes qui le desservent. À Batoumi et à Koutaïssi, vous pouvez aussi consulter les prochains passages. À Koutaïssi, les horaires sont consultables par ligne, direction et date.</p>
+              <p class="note" data-i18n="f2Note">À Batoumi, l’heure de passage est estimée à partir de la position des bus.</p>
+            </div>
+            <figure class="phone phone--small phone--android">
+              <div class="phone__screen">
+                <img src="assets/screens/mobile-arrivals.webp" width="900" height="2000" loading="lazy" alt="Prochains passages des bus à un arrêt" data-i18n-alt="altArrivals">
+              </div>
+            </figure>
+          </li>
+          <li class="stop">
+            <div class="stop__text">
+              <h3 data-i18n="f3Title">Retrouvez vos lignes</h3>
+              <p data-i18n="f3Body">Recherchez par numéro ou par direction et sélectionnez plusieurs lignes à la fois. Leurs tracés et leurs bus apparaissent en couleur sur la carte. Vous pouvez retrouver rapidement les lignes récemment sélectionnées.</p>
+            </div>
+            <div class="phone-pair">
+              <figure class="phone phone--small phone--android">
+                <div class="phone__screen">
+                  <img src="assets/screens/mobile-routes-list.webp" width="900" height="2000" loading="lazy" alt="Liste des lignes avec recherche et lignes sélectionnées sur Android" data-i18n-alt="altRoutesList">
+                </div>
+              </figure>
+              <figure class="phone phone--small phone--ios">
+                <div class="phone__screen">
+                  <img src="assets/screens/mobile-routes-map.webp" width="900" height="1957" loading="lazy" alt="Lignes sélectionnées affichées en couleurs sur la carte de l’iPhone" data-i18n-alt="altRoutesMap">
+                </div>
+              </figure>
+            </div>
+          </li>
+        </ol>
+      </div>
+    </section>
+
+    <section class="planner" id="planner" aria-labelledby="planner-title">
+      <div class="wrap planner__grid">
+        <div class="planner__copy">
+          <h2 id="planner-title" class="section-title" data-i18n="plannerTitle">D’un point A à un point B</h2>
+          <p class="section-lead" data-i18n="plannerLead">Ouvrez le calculateur d’itinéraires, choisissez votre départ et votre destination sur la carte, puis lancez la recherche. Comparez la durée du trajet, la distance à pied et les correspondances.</p>
+          <ul class="chips" aria-label="Critères des itinéraires" data-i18n-aria="chipsLabel">
+            <li class="chip chip--optimal" data-i18n="labelOptimal">Meilleur choix</li>
+            <li class="chip chip--fastest" data-i18n="labelFastest">Le plus rapide</li>
+            <li class="chip chip--walk" data-i18n="labelLeastWalking">Moins de marche</li>
+            <li class="chip chip--direct" data-i18n="labelNoTransfers">Sans correspondance</li>
+          </ul>
+          <dl class="legs">
+            <div><dt data-i18n="legWalkTitle">Étapes à pied</dt><dd data-i18n="legWalkBody">Consultez la distance et le temps estimé jusqu’à l’arrêt, entre les arrêts et jusqu’à votre destination.</dd></div>
+            <div><dt data-i18n="legBusTitle">Attente et trajet en bus</dt><dd data-i18n="legBusBody">Voyez quels bus prendre, où monter et descendre, ainsi que les temps d’attente et de trajet estimés.</dd></div>
+          </dl>
+          <p class="note" data-i18n="plannerNote">Le calcul d’itinéraires est actuellement disponible à Batoumi. Les temps de trajet sont indicatifs.</p>
+        </div>
+        <figure class="phone phone--planner phone--ios">
+          <div class="phone__screen">
+            <img src="assets/screens/mobile-planner.webp" width="900" height="1957" loading="lazy" alt="Itinéraires proposés par le calculateur de trajets sur iPhone" data-i18n-alt="altPlanner">
+          </div>
+        </figure>
+      </div>
+    </section>
+
+    <section class="platforms" id="platforms" aria-labelledby="platforms-title">
+      <div class="wrap">
+        <h2 id="platforms-title" class="section-title" data-i18n="platformsTitle">Site et applications Geo Transit</h2>
+        <p class="section-lead" data-i18n="platformsLead">Ouvrez Geo Transit dans votre navigateur ou dans Telegram. Les liens vers les boutiques seront ajoutés après la sortie des applications.</p>
+        <ul class="platform-list">
+          <li class="platform">
+            <svg class="platform__icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 9.5h10v7a1 1 0 0 1-1 1h-1v2.5a1 1 0 0 1-2 0V17.5h-2v2.5a1 1 0 0 1-2 0V17.5H8a1 1 0 0 1-1-1v-7Zm-2.5 0a1 1 0 0 1 1 1v4.5a1 1 0 0 1-2 0v-4.5a1 1 0 0 1 1-1Zm15 0a1 1 0 0 1 1 1v4.5a1 1 0 0 1-2 0v-4.5a1 1 0 0 1 1-1ZM7.1 8.5a5 5 0 0 1 2.6-3.9l-.9-1.4a.4.4 0 0 1 .7-.4l.9 1.5a5 5 0 0 1 3.2 0l.9-1.5a.4.4 0 0 1 .7.4l-.9 1.4a5 5 0 0 1 2.6 3.9H7.1ZM10 6.4a.6.6 0 1 0 0 1.2.6.6 0 0 0 0-1.2Zm4 0a.6.6 0 1 0 0 1.2.6.6 0 0 0 0-1.2Z"/></svg>
+            <h3>Android</h3>
+            <p data-i18n="pAndroid">L’application pour les téléphones Android.</p>
+            <span class="platform__link is-pending" data-link="android" data-i18n="linkSoon">Lien bientôt disponible</span>
+          </li>
+          <li class="platform">
+            <svg class="platform__icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M16.4 12.6c0-2.3 1.9-3.4 2-3.5a4.3 4.3 0 0 0-3.4-1.8c-1.4-.2-2.8.8-3.5.8-.7 0-1.8-.8-3-.8a4.5 4.5 0 0 0-3.8 2.3c-1.6 2.8-.4 7 1.2 9.3.8 1.1 1.7 2.4 2.9 2.3 1.2 0 1.6-.7 3-.7s1.8.7 3 .7c1.3 0 2.1-1.1 2.8-2.3.9-1.3 1.3-2.6 1.3-2.6s-2.5-1-2.5-3.7ZM14.2 5.8a4 4 0 0 0 .9-3c-.9 0-2 .6-2.6 1.4a3.8 3.8 0 0 0-1 2.9c1 0 2-.5 2.7-1.3Z"/></svg>
+            <h3>iOS</h3>
+            <p data-i18n="pIos">L’application pour iPhone.</p>
+            <span class="platform__link is-pending" data-link="ios" data-i18n="linkSoon">Lien bientôt disponible</span>
+          </li>
+          <li class="platform">
+            <svg class="platform__icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.5a9.5 9.5 0 1 0 0 19 9.5 9.5 0 0 0 0-19Zm6.9 8.5h-3a15 15 0 0 0-1.3-5.9 7.5 7.5 0 0 1 4.3 5.9ZM12 4.6c.8 1 1.8 3.2 2 6.4h-4c.2-3.2 1.2-5.4 2-6.4ZM9.4 5.1A15 15 0 0 0 8.1 11h-3a7.5 7.5 0 0 1 4.3-5.9ZM5.1 13h3a15 15 0 0 0 1.3 5.9A7.5 7.5 0 0 1 5.1 13Zm6.9 6.4c-.8-1-1.8-3.2-2-6.4h4c-.2 3.2-1.2 5.4-2 6.4Zm2.6-.5a15 15 0 0 0 1.3-5.9h3a7.5 7.5 0 0 1-4.3 5.9Z"/></svg>
+            <h3 data-i18n="webTitle">Web</h3>
+            <p data-i18n="pWeb">Dans le navigateur de votre téléphone ou de votre ordinateur.</p>
+            <a class="platform__link" href="https://app.geotransit.com.ge/" data-analytics-platform="web" data-i18n="linkWeb">Ouvrir la version web</a>
+          </li>
+          <li class="platform">
+            <svg class="platform__icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20.7 4.3 2.9 11.2c-1.2.5-1.2 1.2-.2 1.5l4.6 1.4 1.7 5.4c.2.6.4.8.9.8.4 0 .6-.2.9-.5l2.2-2.1 4.6 3.4c.8.5 1.4.2 1.6-.8l3-14.2c.3-1.2-.5-1.8-1.5-1.3ZM9.4 14.2l8.4-7.6c.4-.3-.1-.5-.6-.2L6.8 13l-.1-.1 2.7.8Z"/></svg>
+            <h3>Telegram</h3>
+            <p data-i18n="pTelegram">Une mini-application dans Telegram.</p>
+            <a class="platform__link" href="https://t.me/geo_transit_bot?startapp" data-analytics-platform="telegram_mini_app" data-i18n="linkTelegram">Ouvrir dans Telegram</a>
+          </li>
+        </ul>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <div class="wrap footer__row">
+      <div class="footer__brand">
+        <img src="assets/brand/icon-192.png" width="32" height="32" alt="">
+        <span>Geo Transit</span>
+      </div>
+      <div class="footer__actions">
+        <button type="button" class="analytics-settings" id="analytics-settings" aria-controls="analytics-choice" aria-expanded="false" data-i18n="analyticsSettings" hidden>Réglages de la mesure d’audience</button>
+        <a class="button footer__privacy" id="privacy-link" href="privacy.html?lang=fr" data-i18n="privacy">Politique de confidentialité</a>
+      </div>
+      <p class="footer__small" data-i18n="footerNote">Données cartographiques des captures d’écran © les contributeurs d’OpenStreetMap.</p>
+    </div>
+  </footer>
+
+  <script src="main.js" type="module"></script>
+</body>
+</html>

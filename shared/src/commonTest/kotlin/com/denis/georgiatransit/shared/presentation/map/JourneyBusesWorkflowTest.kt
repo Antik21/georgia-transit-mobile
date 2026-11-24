@@ -40,17 +40,17 @@ import kotlin.time.Instant
 class JourneyBusesWorkflowTest {
     @Test
     fun selectedVehicleAndTheNextBusAreShownUntilTheSelectionChanges() = runTest {
-        val repository = BusRepository()
-        val workflow = JourneyBusesWorkflow(repository, vehicleIntervalMillis = 8_000)
+        val repository = BusRepository(clock = testClock())
+        val workflow = JourneyBusesWorkflow(repository, vehicleIntervalMillis = 8_000, clock = testClock())
         val updates = mutableListOf<JourneyBusesUpdate>()
 
         workflow.sync(backgroundScope, key(OPTION_A)) { updates += it }
         runCurrent()
         val first = updates.last()
         assertEquals(listOf(V1 to 3, V2 to 11), first.soonest)
-        assertEquals(setOf(V1, V2, V3), first.positions.keys)
+        assertEquals(setOf(V1), first.positions.keys)
         val projected = JourneyBusesProjector.project(option(OPTION_A), first)
-        assertEquals(listOf(V1, V2), projected.vehicles.map { it.id })
+        assertEquals(listOf(V1), projected.vehicles.map { it.id })
         assertEquals(listOf(3, 11), projected.etaMinutes)
 
         advanceTimeBy(8_001)
@@ -104,8 +104,8 @@ class JourneyBusesWorkflowTest {
 
     @Test
     fun staleArrivalsClearTheCountdown() = runTest {
-        val repository = BusRepository()
-        val workflow = JourneyBusesWorkflow(repository, vehicleIntervalMillis = 8_000)
+        val repository = BusRepository(clock = testClock())
+        val workflow = JourneyBusesWorkflow(repository, vehicleIntervalMillis = 8_000, clock = testClock())
         val updates = mutableListOf<JourneyBusesUpdate>()
         workflow.sync(backgroundScope, key(OPTION_A, positions = false)) { updates += it }
         runCurrent()
@@ -117,29 +117,68 @@ class JourneyBusesWorkflowTest {
     }
 
     @Test
+    fun theFirstBusPositionFramesThePlanAndLaterUpdatesKeepTheCameraInPlace() = runTest {
+        val repository = BusRepository(clock = testClock())
+        val workflow = JourneyBusesWorkflow(repository, vehicleIntervalMillis = 8_000, clock = testClock())
+        val options = listOf(option(OPTION_A), option(OPTION_B))
+        var state = JourneyPlannerUi(isOpen = true, showingResults = true, status = JourneyPlannerStatus.Results(options, OPTION_A))
+        fun apply(update: JourneyBusesUpdate) {
+            state = assertNotNull(JourneyPlannerReducer.buses(state, update, context())).state
+        }
+        workflow.sync(backgroundScope, key(OPTION_A), ::apply)
+        runCurrent()
+        assertEquals(A, state.boardingFitPosition)
+        assertEquals(1L, state.cameraFitRevision)
+
+        repository.position = GeoPoint(41.641, 41.63)
+        advanceTimeBy(10_001)
+        val midway = assertNotNull(state.boardingBus()).position
+        assertTrue(midway.latitude > A.latitude && midway.latitude < repository.position.latitude)
+        assertEquals(1L, state.cameraFitRevision)
+        advanceTimeBy(5_500)
+        assertEquals(repository.position, state.boardingBus()?.position)
+        assertEquals(1L, state.cameraFitRevision)
+
+        repository.stalePositions = true
+        advanceTimeBy(500)
+        assertEquals(null, state.boardingBus())
+        assertEquals(listOf(3, 11), state.buses?.etaMinutes)
+        assertEquals(1L, state.cameraFitRevision)
+
+        state = JourneyPlannerReducer.action(state, JourneyPlannerAction.SelectOption(OPTION_B), context()).state
+        repository.stalePositions = false
+        workflow.sync(backgroundScope, key(OPTION_B), ::apply)
+        runCurrent()
+        assertEquals(repository.position, state.boardingFitPosition)
+        assertEquals(3L, state.cameraFitRevision)
+    }
+
+    @Test
     fun theArrivalsCapabilityAHiddenMapAndAClosedPlannerStopEveryPoll() = runTest {
         val repository = BusRepository()
-        val workflow = JourneyPlannerWorkflow({ _, _ -> error("No plan expected") }, repository, { 0L }, 8_000)
-        val results = JourneyPlannerUi(isOpen = true, origin = JourneyEndpoint.MapPoint(A), destination = JourneyEndpoint.MapPoint(A),
+        val workflow = JourneyPlannerWorkflow({ _, _ -> error("No plan expected") }, repository, { 0L })
+        val results = JourneyPlannerUi(isOpen = true, showingResults = true,
+            origin = JourneyEndpoint.MapPoint(A), destination = JourneyEndpoint.MapPoint(A),
             status = JourneyPlannerStatus.Results(listOf(option(OPTION_A)), OPTION_A))
 
         execute(workflow, results, context(arrivals = false))
         assertEquals(0, repository.arrivalCalls, "Without the arrivals capability nothing is polled")
         execute(workflow, results, context())
         assertEquals(1, repository.arrivalCalls)
-        assertEquals(0, repository.vehicleCalls, "The planner needs arrivals, not vehicle positions")
+        assertEquals(1, repository.vehicleCalls)
         execute(workflow, results, context(visible = false))
         execute(workflow, results, context())
         assertEquals(2, repository.arrivalCalls, "A hidden map stops polling and a visible one starts afresh")
         execute(workflow, JourneyPlannerUi(), context())
         advanceTimeBy(10 * JOURNEY_ARRIVALS_INTERVAL_MILLIS)
         assertEquals(2, repository.arrivalCalls, "Closing the planner stops polling")
+        assertEquals(2, repository.vehicleCalls)
     }
 
     @Test
     fun aFeedWithoutBearingStillFacesTheBusAlongItsRouteAndTheShapeIsLoadedOnce() = runTest {
-        val repository = BusRepository()
-        val workflow = JourneyBusesWorkflow(repository, vehicleIntervalMillis = 8_000)
+        val repository = BusRepository(clock = testClock())
+        val workflow = JourneyBusesWorkflow(repository, vehicleIntervalMillis = 8_000, clock = testClock())
         val updates = mutableListOf<JourneyBusesUpdate>()
         val boarding = BOARDING.copy(directionId = DIRECTION, stopPosition = GeoPoint(41.645, 41.63), departureBearing = 0.0)
 
@@ -156,6 +195,11 @@ class JourneyBusesWorkflowTest {
     private fun TestScope.execute(workflow: JourneyPlannerWorkflow, state: JourneyPlannerUi, context: JourneyPlannerContext) {
         workflow.execute(backgroundScope, JourneyPlannerStep(state), context) {}
         runCurrent()
+    }
+
+    private fun TestScope.testClock() = object : VehicleRealtimeClock {
+        override fun wallNow() = Instant.fromEpochMilliseconds(1_900_000_000_000L + testScheduler.currentTime)
+        override fun monotonicNowMillis() = testScheduler.currentTime
     }
 
     private fun context(arrivals: Boolean = true, visible: Boolean = true) = JourneyPlannerContext(
@@ -177,9 +221,12 @@ class JourneyBusesWorkflowTest {
             arrival(V3, 15), arrival(null, 1), arrival(VehicleId("demo:fixture:vehicle:other"), 1, RouteId("demo:fixture:route:other")),
             arrival(V2, 11), arrival(V1, 3),
         ),
+        private val clock: VehicleRealtimeClock = SystemVehicleRealtimeClock(),
     ) : TransitRepository {
         var arrivalCalls = 0
         var stale = false
+        var stalePositions = false
+        var position = A
         var vehicleCalls = 0
         var shapeCalls = 0
         override fun cities() = listOf(CITY)
@@ -198,8 +245,8 @@ class JourneyBusesWorkflowTest {
 
         override suspend fun vehicles(cityId: CityId, routeId: RouteId, directionId: DirectionId?): TransitLoadResult<VehiclePage> {
             vehicleCalls++
-            val items = listOf(V1, V2, V3).map { TransitVehicle(it, routeId, null, A, null, null, null, 0, VehiclePositionKind.Gps) }
-            return TransitLoadResult.Data(VehiclePage(items, Instant.fromEpochMilliseconds(0), 30, false), TransitFreshness.Network)
+            val items = listOf(V1, V2, V3).map { TransitVehicle(it, routeId, null, position, null, null, null, 0, VehiclePositionKind.Gps) }
+            return TransitLoadResult.Data(VehiclePage(items, clock.wallNow(), 30, stalePositions), TransitFreshness.Network)
         }
     }
 

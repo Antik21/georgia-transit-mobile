@@ -21,6 +21,10 @@ export function plannerSmoke({ send, evaluate, waitFor, tap, visible, testId, ma
   const card = (id) => `${testId('planner-option')}[data-option-id="batumi:fixture:journey:${id}"]`;
   const nearestText = `(document.querySelector('${testId('planner-nearest')}')?.textContent ?? '')`;
   const pressed = (selector) => `document.querySelector(${JSON.stringify(selector)})?.getAttribute('aria-pressed') === 'true'`;
+  const endpoint = (side) => `document.querySelector('${testId(`planner-${side}-value`)}')?.textContent`;
+  const expanded = (side) => `document.querySelector('${testId(`planner-${side}-toggle`)}')?.getAttribute('aria-expanded') === 'true'`;
+  const picker = visible(testId('map-point-picker'));
+  const confirmPoint = `document.querySelector('${testId('map-point-confirm')}')`;
   async function findRoute() {
     await waitFor('Both points are ready to plan', `document.querySelector('${testId('planner-find')}')?.disabled === false`);
     await tap(testId('planner-find'));
@@ -47,6 +51,11 @@ export function plannerSmoke({ send, evaluate, waitFor, tap, visible, testId, ma
     await tap(testId(choice));
   }
 
+  async function chooseMapPoint() {
+    await waitFor('The map point can be confirmed', `${picker} && ${confirmPoint}?.disabled === false`);
+    await tap(testId('map-point-confirm'));
+  }
+
   function holdStyle() {
     let release;
     fixtureControl.styleHold = new Promise((resolve) => { release = resolve; });
@@ -59,9 +68,8 @@ export function plannerSmoke({ send, evaluate, waitFor, tap, visible, testId, ma
   // Without a camera fitted to the answer its line spans about half the map; fitted, about three quarters.
   async function planCloseTogether() {
     await longPressAndChoose(0.35, 0.5, 'planner-route-here');
-    await waitFor('The planner waits for the start point', pressed(testId('planner-pick-origin')));
+    await waitFor('The planner waits for the start point', `${endpoint('origin')} === 'Not chosen'`);
     await longPress(0.65, 0.5);
-    await findRoute();
     await waitFor('The plan answers', `${options}.length === ${optionCount}`);
   }
 
@@ -164,18 +172,66 @@ export function plannerSmoke({ send, evaluate, waitFor, tap, visible, testId, ma
   return {
     /** Point-to-point planning without any location permission, on a city with tripPlanning. */
     async pointToPoint(telegramBack) {
-      await longPressAndChoose(0.3, 0.65, 'planner-route-here');
+      fixtureControl.boardingBusOutsidePlan = true;
+      await longPress(0.3, 0.65);
+      await waitFor('A dropped pin opens the trip actions', `${visible(testId('planner-pin-card'))}
+        && Boolean(document.querySelector('${testId('planner-dropped-pin')} svg path'))`);
+      assert.deepEqual(await evaluate(`[...document.querySelectorAll('${testId('planner-pin-card')} button')]
+        .map(button => [button.querySelector('.planner-endpoint-badge')?.textContent, button.lastElementChild?.textContent])`),
+      [['A', 'From here'], ['B', 'To here']]);
+      await tap(testId('planner-route-here'));
       await waitFor('Route here opens the planner and asks for the start point',
-        `${panel} && ${visible(testId('planner-pick-origin'))} && ${pressed(testId('planner-pick-origin'))}`);
+        `${panel} && ${endpoint('origin')} === 'Not chosen' && ${endpoint('destination')} === 'Point on map'
+        && ${expanded('origin')} && !(${expanded('destination')}) && !${visible(testId('planner-pick-destination'))}`);
       assert.equal(planRequests.length, 0, 'Without a granted location the planner waits for a start point');
-      await longPress(0.7, 0.35);
-      assert.equal(planRequests.length, 0, 'Selecting both points does not start a request');
-      await findRoute();
-      await waitFor('Choosing A by long press plans and shows the options',
-        `${options}.length === ${optionCount} && ${optionText(0)}.includes('≈ 21 min') && ${optionText(0)}.includes('Walk to the stop: 300 m · 4 min')
+      await tap(testId('planner-destination-toggle'));
+      await waitFor('Expanding B closes A and highlights the selected map option',
+        `${expanded('destination')} && !(${expanded('origin')}) && !${visible(testId('planner-pick-origin'))}
+        && ${pressed(testId('planner-pick-destination'))} && !(${pressed(testId('planner-my-location-destination'))})`);
+      await tap(testId('planner-destination-toggle'));
+      await waitFor('Pressing the expanded summary collapses it', `!(${expanded('destination')}) && !(${expanded('origin')})`);
+      await tap(testId('planner-destination-toggle'));
+      await tap(testId('planner-pick-destination'));
+      await waitFor('The B picker replaces the form', `${picker} && !${panel} && ${confirmPoint}?.textContent.endsWith('B')`);
+      await telegramBack();
+      await waitFor('Back leaves both endpoints as they were', `${panel} && !${picker}
+        && ${endpoint('origin')} === 'Not chosen' && ${endpoint('destination')} === 'Point on map' && ${expanded('destination')}`);
+      await tap(testId('planner-origin-toggle'));
+      await tap(testId('planner-pick-origin'));
+      await waitFor('The A picker replaces the form', `${picker} && !${panel} && ${confirmPoint}?.textContent.endsWith('A')`);
+      const target = `document.querySelector('${testId('map-point-target')}').getBoundingClientRect().toJSON()`;
+      const beforeDrag = await evaluate(target);
+      const start = await mapPoint(0.4, 0.6);
+      await send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [start] });
+      await send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: start.x - 115, y: start.y + 85 }] });
+      await waitFor('Confirmation pauses while the camera moves', `${confirmPoint}?.disabled === true`);
+      await send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+      assert.deepEqual(await evaluate(target), beforeDrag, 'Dragging the map leaves the marker fixed');
+      await chooseMapPoint();
+      await waitFor('Confirming the second endpoint opens route options automatically',
+        `${panel} && !${picker} && ${options}.length === ${optionCount} && ${optionText(0)}.includes('≈ 21 min')
+          && ${optionText(0)}.includes('Walk to the stop: 300 m · 4 min')
           && ${optionText(0)}.includes('Walk to the destination: 300 m · 4 min')
           && ${optionText(0)}.includes('6 stops · 11 min')
           && ${visible(testId('planner-disclaimer'))}`);
+      const resultsLayout = await evaluate(`(() => {
+        const header = document.querySelector('.planner-results-header');
+        const edit = header.querySelector('${testId('planner-edit')}');
+        const chip = header.querySelector('.planner-endpoint-chip');
+        const body = document.querySelector('.planner-results-body');
+        const firstCard = ${options}[0];
+        const headerTop = header.getBoundingClientRect().top;
+        const cardTop = firstCard.getBoundingClientRect().top;
+        body.scrollTop = body.scrollHeight;
+        const layout = {
+          editGap: chip.getBoundingClientRect().left - edit.getBoundingClientRect().right,
+          headerStayedVisible: header.getBoundingClientRect().top === headerTop,
+          optionsScrolled: body.scrollTop > 0 && firstCard.getBoundingClientRect().top < cardTop,
+        };
+        body.scrollTop = 0;
+        return layout;
+      })()`);
+      assert.deepEqual(resultsLayout, { editGap: 10, headerStayedVisible: true, optionsScrolled: true });
       assert.equal(await evaluate(`document.querySelectorAll('${testId('planner-mode')}').length`), 0, 'Mode chips are gone');
       const cards = await labelsAndItineraries();
       assert.deepEqual(cards.map((option) => option.labels), [
@@ -198,12 +254,12 @@ export function plannerSmoke({ send, evaluate, waitFor, tap, visible, testId, ma
       'The card summary does not repeat live bus status');
       assert.ok(!(await evaluate(`${optionText(0)}.includes('live bus')`)), 'The journey does not show technical live status');
       assert.equal(cards[2].spoken, 'Walk, then bus B12, then walk, then bus B7, then walk.');
-      await waitFor('The planned and following bus arrivals are shown within the first ride',
+      await waitFor('The first ride lists both arrivals and the camera includes only its planned bus',
         async () => await evaluate(`${nearestText} === 'In: 3, 11 min'
           && document.querySelector('${testId('planner-nearest')}')?.closest('.planner-leg-ride') !== null
           && document.querySelector('${testId('planner-nearest')}')?.parentElement?.firstElementChild?.dataset.testid === 'planner-nearest'
           && getComputedStyle(document.querySelector('${testId('planner-nearest')}')).fontWeight === '500'
-          && !${optionText(0)}.includes('wait ≈ 2 min')`) && await highlightedBuses() === 0);
+          && !${optionText(0)}.includes('wait ≈ 2 min')`) && await highlightedBuses() === 1);
       assert.equal(planRequests.length, 1);
       assertPrivateRequest(planRequests[0]);
       assert.equal(bffRequests.filter((path) => path === planPath).length, 1);
@@ -220,7 +276,9 @@ export function plannerSmoke({ send, evaluate, waitFor, tap, visible, testId, ma
         async () => await evaluate(`${pressed(card('walk'))} && !document.querySelector('${testId('planner-nearest')}')`)
           && await highlightedBuses() === 0);
 
-      await tap(testId('planner-edit'));
+      await telegramBack();
+      await waitFor('Telegram Back returns to both endpoints without starting another plan',
+        `${endpoint('origin')} === 'Point on map' && ${endpoint('destination')} === 'Point on map' && ${options}.length === 0`);
       await tap(testId('planner-swap'));
       assert.equal(planRequests.length, 1, 'Swapping points does not request a plan');
       await findRoute();
@@ -231,12 +289,14 @@ export function plannerSmoke({ send, evaluate, waitFor, tap, visible, testId, ma
       await tap(testId('planner-edit'));
       await tap(testId('planner-clear'));
       await waitFor('Clear drops the options and the planned lines',
-        async () => await evaluate(`${options}.length === 0 && ${statusText}.includes('Press and hold the map')`)
+        async () => await evaluate(`${options}.length === 0 && ${endpoint('origin')} === 'Not chosen' && ${endpoint('destination')} === 'Not chosen'
+          && ${expanded('origin')} && !${visible(testId('planner-clear'))} && !${visible(testId('planner-swap'))}`)
           && !(await mapContainsColor(plannerRouteColors.orange, 75)) && !(await mapContainsColor(plannerRouteColors.yellow, 75)));
 
       await waitFor('Telegram BackButton handles the planner', `window.__telegramSmoke?.backVisible === true`);
       await telegramBack();
       await waitFor('Telegram back closes the planner', `!${panel} && window.__telegramSmoke?.backVisible === false`);
+      fixtureControl.boardingBusOutsidePlan = false;
     },
 
     /** A plan that lands before the map style has loaded is drawn and framed once the style arrives. */
@@ -270,9 +330,8 @@ export function plannerSmoke({ send, evaluate, waitFor, tap, visible, testId, ma
     async unavailable() {
       fixtureControl.planStatus = 501;
       await longPressAndChoose(0.3, 0.65, 'planner-route-from-here');
-      await waitFor('Route from here asks for the destination', pressed(testId('planner-pick-destination')));
+      await waitFor('Route from here asks for the destination', `${endpoint('destination')} === 'Not chosen'`);
       await longPress(0.7, 0.35);
-      await findRoute();
       await waitFor('A 501 answer shows the unavailable state', `${statusText}.includes("isn't available in this city")`);
       fixtureControl.planStatus = 200;
       await closePlanner();
@@ -286,6 +345,11 @@ export function plannerSmoke({ send, evaluate, waitFor, tap, visible, testId, ma
         `${panel} && document.querySelector('${testId('planner-origin-value')}')?.textContent === 'My location'`);
       await findRoute();
       await waitFor('The requested plan is shown', `${options}.length === ${optionCount}`);
+      assert.deepEqual(await evaluate(`[...document.querySelectorAll('.planner-results-header > *')].map(item => {
+        const badge = item.querySelector('.planner-endpoint-badge');
+        return badge ? [badge.textContent, getComputedStyle(badge).backgroundColor,
+          item.querySelector('.planner-endpoint-chip-label').textContent] : item.textContent.trim();
+      })`), ['Edit', ['A', 'rgb(46, 125, 50)', 'Geolocation'], '→', ['B', 'rgb(142, 27, 45)', 'Point']]);
       const request = planRequests.at(-1);
       assert.equal(planRequests.length, before + 1);
       assertPrivateRequest(request);
@@ -296,14 +360,24 @@ export function plannerSmoke({ send, evaluate, waitFor, tap, visible, testId, ma
     /** A denied location still leaves point-to-point planning fully usable. */
     async deniedLocation() {
       const before = planRequests.length;
-      await longPressAndChoose(0.3, 0.65, 'planner-route-here');
-      await waitFor('Without access the start stays empty', `${panel} && ${pressed(testId('planner-pick-origin'))}`);
+      await longPressAndChoose(0.15, 0.80, 'planner-route-here');
+      await waitFor('Without access the start stays empty', `${panel} && ${endpoint('origin')} === 'Not chosen'`);
       await tap(testId('planner-my-location-origin'));
+      await waitFor('Completing the route with current location opens the permission notice automatically',
+        `${statusText}.includes('Allow location access') && ${visible(testId('planner-pick-instead'))}`);
+      await tap(testId('planner-edit'));
+      await waitFor('Choosing current location collapses the endpoint', `${endpoint('origin')} === 'My location'
+        && !(${expanded('origin')}) && !(${expanded('destination')})`);
+      await tap(testId('planner-origin-toggle'));
+      await waitFor('Current location is the only selected method', `${pressed(testId('planner-my-location-origin'))}
+        && !(${pressed(testId('planner-pick-origin'))}) && ${visible(testId('planner-my-location-origin'))}`);
+      await tap(testId('planner-my-location-origin'));
+      await waitFor('Choosing current location again collapses its summary', `!(${expanded('origin')}) && ${endpoint('origin')} === 'My location'`);
       await findRoute();
       await waitFor('A denied My location explains itself and offers a map point',
         `${statusText}.includes('Allow location access') && ${visible(testId('planner-pick-instead'))}`);
       await tap(testId('planner-pick-instead'));
-      await longPress(0.7, 0.35);
+      await chooseMapPoint();
       await findRoute();
       await waitFor('A map point plans despite the denied location', `${options}.length === ${optionCount}`);
       assert.equal(planRequests.length, before + 1);

@@ -8,6 +8,7 @@ import com.denis.georgiatransit.shared.data.network.BffResponse
 import com.denis.georgiatransit.shared.data.network.TransitBffClient
 import com.denis.georgiatransit.shared.domain.model.ArrivalPage
 import com.denis.georgiatransit.shared.domain.model.CityId
+import com.denis.georgiatransit.shared.domain.model.DirectionSchedule
 import com.denis.georgiatransit.shared.domain.model.DirectionId
 import com.denis.georgiatransit.shared.domain.model.GeoPoint
 import com.denis.georgiatransit.shared.domain.model.JourneyPage
@@ -35,6 +36,7 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
+import kotlinx.datetime.LocalDate
 import kotlin.time.Clock
 import kotlin.time.Instant
 
@@ -133,6 +135,14 @@ class BffTransitRepository(
 
     override suspend fun directionStops(cityId: CityId, routeId: RouteId, directionId: DirectionId, locale: TransitLocale): TransitLoadResult<List<TransitStop>> =
         invalidateRouteVariantsForCityScopedFailure(cityId, client.directionStops(cityId, routeId, directionId, locale))
+
+    override suspend fun directionSchedule(
+        cityId: CityId,
+        routeId: RouteId,
+        directionId: DirectionId,
+        date: LocalDate,
+        locale: TransitLocale,
+    ): TransitLoadResult<DirectionSchedule> = client.directionSchedule(cityId, routeId, directionId, date, locale)
 
     override suspend fun directionShape(cityId: CityId, routeId: RouteId, directionId: DirectionId): TransitLoadResult<TransitShape> =
         invalidateRouteVariantsForCityScopedFailure(cityId, client.directionShape(cityId, routeId, directionId))

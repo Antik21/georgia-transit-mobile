@@ -19,17 +19,51 @@ import kotlin.time.Instant
 data class GeoPoint(val latitude: Double, val longitude: Double)
 
 @Serializable
-data class LocalizedText(val ru: String, val en: String, val ka: String) {
+data class LocalizedText(
+    val ru: String,
+    val en: String,
+    val ka: String,
+    val uk: String? = null,
+    val de: String? = null,
+    val fr: String? = null,
+    val ar: String? = null,
+    val hi: String? = null,
+    val zh: String? = null,
+) {
     fun forLocale(locale: TransitLocale): String = when (locale) {
         TransitLocale.Russian -> ru
         TransitLocale.English -> en
         TransitLocale.Georgian -> ka
+        TransitLocale.Ukrainian -> uk?.takeIf { it.isNotBlank() } ?: en
+        TransitLocale.German -> de?.takeIf { it.isNotBlank() } ?: en
+        TransitLocale.French -> fr?.takeIf { it.isNotBlank() } ?: en
+        TransitLocale.Arabic -> ar?.takeIf { it.isNotBlank() } ?: en
+        TransitLocale.Hindi -> hi?.takeIf { it.isNotBlank() } ?: en
+        TransitLocale.Chinese -> zh?.takeIf { it.isNotBlank() } ?: en
     }
 
     companion object { fun fromLegacy(value: String) = LocalizedText(value, value, value) }
 }
 
-@Serializable enum class TransitLocale { Russian, English, Georgian }
+@Serializable
+enum class TransitLocale(val languageTag: String) {
+    Russian("ru"),
+    English("en"),
+    Georgian("ka"),
+    Ukrainian("uk"),
+    German("de"),
+    French("fr"),
+    Arabic("ar"),
+    Hindi("hi"),
+    Chinese("zh");
+
+    companion object {
+        fun fromLanguageTag(value: String): TransitLocale {
+            val language = value.substringBefore('-').substringBefore('_')
+            return entries.firstOrNull { it.languageTag.equals(language, ignoreCase = true) } ?: English
+        }
+    }
+}
 @Serializable enum class TransitMode { Bus, Metro, Tram, Ferry }
 @Serializable enum class CityReadiness { DevelopmentFixture, ProductionReady, Unreviewed }
 @Serializable enum class CitySource { Fixture, ReviewedAdapter, UnreviewedAdapter }
@@ -52,6 +86,7 @@ data class CityCapabilities(
     val routes: Boolean = true,
     /** True only when arrivals come from a city's official provider. */
     val officialArrivals: Boolean = arrivals,
+    val schedules: Boolean = false,
 ) {
     val routeGeometry: Boolean get() = routeShapes
     val vehiclePositions: Boolean get() = vehicles
@@ -78,7 +113,17 @@ data class TransitCity(
     val defaultZoom: Double = 13.0,
     val availability: CityAvailability = CityAvailability(CityReadiness.Unreviewed, CitySource.UnreviewedAdapter),
     val attribution: List<TransitAttribution> = emptyList(),
+    val mapBounds: MapBounds? = null,
 )
+
+/** Service-area rectangle for maps with limited geographic coverage. */
+@Serializable
+data class MapBounds(val west: Double, val south: Double, val east: Double, val north: Double) {
+    init {
+        require(west in -180.0..180.0 && east in -180.0..180.0 && west < east)
+        require(south in -90.0..90.0 && north in -90.0..90.0 && south < north)
+    }
+}
 
 @Serializable
 data class TransitDirection(val id: DirectionId, val name: LocalizedText, val headsign: LocalizedText)
@@ -165,8 +210,8 @@ enum class JourneySegmentMode {
 /** Full ordered itinerary; route/direction are absent when the segment is non-transit. */
 @Serializable
 data class TransitJourneySegment(
-    val departureAt: Instant,
-    val arrivalAt: Instant,
+    val departureAt: Instant?,
+    val arrivalAt: Instant?,
     val mode: JourneySegmentMode,
     val routeId: RouteId? = null,
     val directionId: DirectionId? = null,
@@ -183,13 +228,15 @@ data class TransitJourneySegment(
     /** Null when absent or unknown to this client; it must never be presented as live. */
     val waitBasis: JourneyWaitBasis? = null,
     val vehicleId: VehicleId? = null,
+    val fromStopName: LocalizedText? = null,
+    val toStopName: LocalizedText? = null,
 )
 
 @Serializable
 data class TransitJourney(
     val id: JourneyId,
-    val departureAt: Instant,
-    val arrivalAt: Instant,
+    val departureAt: Instant?,
+    val arrivalAt: Instant?,
     val transfers: Int,
     val legs: List<TransitJourneyLeg>,
     val segments: List<TransitJourneySegment> = emptyList(),

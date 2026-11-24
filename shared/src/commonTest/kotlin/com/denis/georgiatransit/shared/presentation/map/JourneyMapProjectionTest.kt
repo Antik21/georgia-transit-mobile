@@ -27,7 +27,7 @@ class JourneyMapProjectionTest {
     }
 
     @Test
-    fun drawnPlanHidesAllBusesOnTheVehicleLayer() {
+    fun drawnPlanShowsOnlyTheBusFromTheSelectedBoarding() {
         val projected = base.withJourneyPlanner(planned(buses(bus("bus-1", 41.64), bus("bus-2", 41.65))))
 
         val overlay = checkNotNull(projected.journey)
@@ -35,31 +35,37 @@ class JourneyMapProjectionTest {
         assertEquals(origin, overlay.origin)
         assertEquals(destination, overlay.destination)
         assertEquals(7L, overlay.fitRevision)
-        assertTrue(projected.vehicles.isEmpty())
+        assertTrue(projected.polylines.isEmpty())
+        assertEquals(VehicleId("bus-1"), projected.vehicles.single().id)
+        assertEquals(GeoPoint(41.64, 41.63), overlay.boardingFitPosition)
         assertNotEquals(base.vehicleSourceRevision, projected.vehicleSourceRevision)
     }
 
     @Test
     fun mapPickingSuspendsCameraFitsWithoutHidingThePlan() {
-        val projected = base.withJourneyPlanner(planned(buses = null).copy(mapPick = JourneyPlanSide.Destination))
+        val planner = planned(buses(bus("bus-1", 41.64)))
+        val projected = base.withJourneyPlanner(planner.copy(mapPick = JourneyPlanSide.Destination))
 
         val overlay = checkNotNull(projected.journey)
         assertTrue(overlay.fitSuspended)
         assertEquals(render.lines, overlay.lines)
+        assertTrue(projected.polylines.isEmpty())
+        assertTrue(projected.vehicles.isEmpty())
     }
 
     @Test
-    fun movedBusDoesNotChangeTheHiddenVehicleLayer() {
+    fun movedBusUpdatesTheVehicleSourceButKeepsItsBadgeAndCameraRevision() {
         val before = base.withJourneyPlanner(planned(buses(bus("bus-1", 41.64))))
         val after = base.withJourneyPlanner(planned(buses(bus("bus-1", 41.641))))
 
-        assertEquals(before.vehicleSourceRevision, after.vehicleSourceRevision)
+        assertNotEquals(before.vehicleSourceRevision, after.vehicleSourceRevision)
         assertEquals(before.vehicleBadgeRevision, after.vehicleBadgeRevision)
+        assertEquals(before.journey?.fitRevision, after.journey?.fitRevision)
     }
 
     @Test
-    fun planWithoutBusesClearsTheVehicleLayer() {
-        val projected = base.withJourneyPlanner(planned(buses = null))
+    fun aPositionForTheFollowingBusNeverSubstitutesForThePlannedBus() {
+        val projected = base.withJourneyPlanner(planned(buses(bus("bus-2", 41.65))))
 
         assertTrue(projected.vehicles.isEmpty())
         assertNotEquals(base.vehicleSourceRevision, projected.vehicleSourceRevision)
@@ -81,6 +87,25 @@ class JourneyMapProjectionTest {
     }
 
     @Test
+    fun leavingPlannerRestoresSelectedRoutesAfterGeometryUpdates() {
+        val planner = JourneyPlannerUi(isOpen = true)
+        val hidden = base.withJourneyPlanner(planner)
+        val updated = base.copy(
+            polylines = persistentListOf(base.polylines.single().copy(isEmphasized = true)),
+            polylineSourceRevision = base.polylineSourceRevision + 1,
+        )
+        val stillHidden = updated.withJourneyPlanner(planner)
+        val restored = updated.withJourneyPlanner(JourneyPlannerUi())
+
+        assertTrue(hidden.polylines.isEmpty())
+        assertTrue(stillHidden.polylines.isEmpty())
+        assertEquals(hidden.polylineSourceRevision, stillHidden.polylineSourceRevision)
+        assertNotEquals(stillHidden.polylineSourceRevision, restored.polylineSourceRevision)
+        assertEquals(updated.polylines, restored.polylines)
+        assertEquals(updated.polylineSourceRevision, restored.polylineSourceRevision)
+    }
+
+    @Test
     fun closingPlannerAfterMapRecreationRestoresVehicleBadgeRevision() {
         val hidden = base.withJourneyPlanner(JourneyPlannerUi(isOpen = true))
         val restored = base.withJourneyPlanner(JourneyPlannerUi())
@@ -94,14 +119,16 @@ class JourneyMapProjectionTest {
 
     private fun planned(buses: JourneyBusesUi?) = JourneyPlannerUi(
         isOpen = true,
+        showingResults = true,
         render = render,
         buses = buses,
         cameraFitRevision = 7,
+        boardingFitPosition = GeoPoint(41.64, 41.63),
     )
 
     private fun buses(vararg vehicles: JourneyBusUi) = JourneyBusesUi(
         optionId = JourneyId("option"),
-        boarding = JourneyBoarding(StopId("stop"), RouteId("10a"), DirectionId("0")),
+        boarding = JourneyBoarding(StopId("stop"), RouteId("10a"), DirectionId("0"), plannedVehicleId = VehicleId("bus-1")),
         etaMinutes = vehicles.mapIndexed { index, _ -> 3 + index * 8 },
         vehicles = vehicles.toList(),
     )
@@ -128,6 +155,10 @@ class JourneyMapProjectionTest {
         )
         val base = MapRenderState(
             camera = MapCameraCommand(center = origin, zoom = 13.0, revision = 1),
+            polylines = persistentListOf(
+                MapPolyline(RouteId("7"), null, listOf(origin, destination), 0xFF2E7D32L, TransitFreshness.Network),
+            ),
+            polylineSourceRevision = 3,
             vehicles = persistentListOf(
                 MapVehicleMarker(
                     id = VehicleId("session-bus"),

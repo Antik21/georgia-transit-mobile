@@ -9,6 +9,12 @@ data class LocalizedText(
     val ru: String,
     val en: String,
     val ka: String,
+    val uk: String? = null,
+    val de: String? = null,
+    val fr: String? = null,
+    val ar: String? = null,
+    val hi: String? = null,
+    val zh: String? = null,
 )
 
 @Serializable
@@ -24,6 +30,9 @@ data class CityCapabilities(
      * separate from [officialArrivals] so a client never labels aggregated data as official.
      */
     val arrivals: Boolean = officialArrivals,
+    @OptIn(ExperimentalSerializationApi::class)
+    @EncodeDefault(EncodeDefault.Mode.NEVER)
+    val schedules: Boolean = false,
 )
 
 /**
@@ -75,7 +84,11 @@ data class City(
         source = CitySource.UNREVIEWED_ADAPTER,
     ),
     val attribution: List<AttributionLink> = emptyList(),
+    val mapBounds: MapBounds? = null,
 )
+
+@Serializable
+data class MapBounds(val west: Double, val south: Double, val east: Double, val north: Double)
 
 @Serializable
 data class GeoPoint(
@@ -218,8 +231,8 @@ enum class JourneySegmentMode {
 /** Additive complete itinerary representation; non-transit segments have no route/direction. */
 @Serializable
 data class JourneySegment(
-    val departureAt: String,
-    val arrivalAt: String,
+    val departureAt: String? = null,
+    val arrivalAt: String? = null,
     val mode: JourneySegmentMode,
     val routeId: String? = null,
     val directionId: String? = null,
@@ -235,6 +248,8 @@ data class JourneySegment(
     val waitSeconds: Long? = null,
     val waitBasis: JourneyWaitBasis? = null,
     val vehicleId: String? = null,
+    val fromStopName: LocalizedText? = null,
+    val toStopName: LocalizedText? = null,
 )
 
 @Serializable
@@ -262,8 +277,8 @@ enum class JourneyTimingQuality {
 @Serializable
 data class Journey(
     val id: String,
-    val departureAt: String,
-    val arrivalAt: String,
+    val departureAt: String? = null,
+    val arrivalAt: String? = null,
     val transfers: Int,
     /** Legacy transit-only legs. New clients should use [segments] for full order. */
     val legs: List<JourneyLeg>,

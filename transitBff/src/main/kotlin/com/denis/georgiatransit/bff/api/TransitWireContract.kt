@@ -7,6 +7,8 @@ internal object KnownCityIds {
     const val Demo = "demo"
     const val Tbilisi = "tbilisi"
     const val Batumi = "batumi"
+    const val Zugdidi = "zugdidi"
+    const val Kutaisi = "kutaisi"
 }
 
 internal object TransitModeValues {

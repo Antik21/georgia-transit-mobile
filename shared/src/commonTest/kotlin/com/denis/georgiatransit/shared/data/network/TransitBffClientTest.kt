@@ -1,13 +1,17 @@
 package com.denis.georgiatransit.shared.data.network
 
+import com.denis.georgiatransit.shared.core.telemetry.NonFatalIssue
+import com.denis.georgiatransit.shared.core.telemetry.RecordingAppTelemetry
 import com.denis.georgiatransit.shared.data.config.BffEndpointConfiguration
 import com.denis.georgiatransit.shared.domain.model.CityId
 import com.denis.georgiatransit.shared.domain.model.DirectionId
+import com.denis.georgiatransit.shared.domain.model.DirectionSchedule
 import com.denis.georgiatransit.shared.domain.model.GeoPoint
 import com.denis.georgiatransit.shared.domain.model.RouteId
 import com.denis.georgiatransit.shared.domain.model.StopId
 import com.denis.georgiatransit.shared.domain.model.TransitLocale
 import com.denis.georgiatransit.shared.domain.model.TransitMode
+import com.denis.georgiatransit.shared.domain.model.TransitStop
 import com.denis.georgiatransit.shared.domain.repository.TransitFailure
 import com.denis.georgiatransit.shared.domain.repository.TransitLoadResult
 import io.ktor.client.HttpClient
@@ -26,6 +30,9 @@ import io.ktor.serialization.kotlinx.json.json
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.runTest
+import kotlinx.datetime.LocalDate
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.toLocalDateTime
 import kotlinx.serialization.json.Json
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -36,6 +43,22 @@ import kotlin.test.assertTrue
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class TransitBffClientTest {
+    @Test
+    fun nearbyStopsUseTheAppLanguageAndReadReviewedNamesWithLegacyFallback() = runTest {
+        val client = TransitBffClient(mockHttpClient { request ->
+            assertEquals("ar", request.url.parameters["locale"])
+            jsonResponse(
+                """[{"id":"batumi:theta:stop:one","providerId":"one","code":"1047","name":{"ru":"Цирк","en":"Circus","ka":"ცირკი","ar":"السيرك"},"position":{"latitude":41.65,"longitude":41.64},"routeIds":[],"mode":"bus"}]""",
+            )
+        }, endpoint())
+        val locale = TransitLocale.fromLanguageTag("ar-EG")
+        val result = client.nearbyStops(CityId("batumi"), GeoPoint(41.65, 41.64), 100, 2, locale)
+        val name = assertIs<TransitLoadResult.Data<List<TransitStop>>>(result).value.single().name
+        assertEquals("السيرك", name.forLocale(locale))
+        assertEquals("Circus", name.forLocale(TransitLocale.fromLanguageTag("zh-Hans")))
+        assertEquals("ცირკი", name.forLocale(TransitLocale.fromLanguageTag("ka-GE")))
+    }
+
     @Test
     fun everyPublishedEndpointUsesOneSafePathSegmentEncodedQueriesAndEndpointTimeouts() = runTest {
         val requests = mutableListOf<HttpRequestData>()
@@ -84,6 +107,47 @@ class TransitBffClientTest {
         assertTimeouts(requests[5], 8_000L)
         assertTimeouts(requests[7], 8_000L)
         assertTimeouts(requests[8], 20_000L)
+    }
+
+    @Test
+    fun scheduleUsesServiceDateAndChecksThatTheResponseMatchesTheSelection() = runTest {
+        val date = LocalDate(2026, 11, 19)
+        val city = CityId("kutaisi")
+        val route = RouteId("kutaisi:provider:route:3")
+        val direction = DirectionId("kutaisi:provider:direction:outbound")
+        var responseDate = date
+        val client = TransitBffClient(mockHttpClient { request ->
+            assertTrue(request.url.encodedPath.endsWith("/schedule"))
+            assertEquals(date.toString(), request.url.parameters["date"])
+            assertEquals("ka", request.url.parameters["locale"])
+            jsonResponse(
+                """
+                {
+                  "routeId": "${route.value}", "directionId": "${direction.value}",
+                  "serviceDate": "$responseDate", "timeZone": "Asia/Tbilisi",
+                  "stops": [{
+                    "stopId": "kutaisi:provider:stop:1",
+                    "name": {"en": "Station", "ru": "Станция", "ka": "სადგური"},
+                    "arrivalTimes": ["2026-11-19T04:00:00Z", "2026-11-19T20:15:00Z"]
+                  }]
+                }
+                """.trimIndent(),
+            )
+        }, endpoint())
+
+        val schedule = assertIs<TransitLoadResult.Data<DirectionSchedule>>(
+            client.directionSchedule(city, route, direction, date, TransitLocale.Georgian),
+        ).value
+        assertEquals(date, schedule.serviceDate)
+        assertEquals(TimeZone.of("Asia/Tbilisi"), schedule.timeZone)
+        val times = schedule.stops.single().arrivalTimes.map { it.toLocalDateTime(schedule.timeZone).toString() }
+        assertEquals(listOf("2026-11-19T08:00", "2026-11-20T00:15"), times)
+
+        responseDate = LocalDate(2026, 11, 20)
+        val result = assertIs<TransitLoadResult.Failure>(
+            client.directionSchedule(city, route, direction, date, TransitLocale.Georgian),
+        )
+        assertIs<TransitFailure.Serialization>(result.error)
     }
 
     @Test
@@ -146,10 +210,23 @@ class TransitBffClientTest {
             assertEquals("req-123", result.error.requestId)
         }
 
-        val malformedSuccess = TransitBffClient(mockHttpClient { jsonResponse("{") }, endpoint()).cities()
+        val telemetry = RecordingAppTelemetry()
+        val malformedSuccess = TransitBffClient(
+            mockHttpClient { jsonResponse("{") },
+            endpoint(),
+            telemetry = telemetry,
+        ).cities()
         assertIs<TransitFailure.Serialization>(assertIs<TransitLoadResult.Failure>(malformedSuccess).error)
-        val undocumented = TransitBffClient(mockHttpClient { jsonResponse("not-json", HttpStatusCode(418, "Unknown")) }, endpoint()).cities()
+        val undocumented = TransitBffClient(
+            mockHttpClient { jsonResponse("not-json", HttpStatusCode(418, "Unknown")) },
+            endpoint(),
+            telemetry = telemetry,
+        ).cities()
         assertIs<TransitFailure.InvalidResponse>(assertIs<TransitLoadResult.Failure>(undocumented).error)
+        assertEquals(
+            listOf(NonFatalIssue.BffResponseDecode, NonFatalIssue.BffUnexpectedResponse),
+            telemetry.nonFatals,
+        )
         val invalidRetryAfter = TransitBffClient(mockHttpClient {
             jsonResponse(
                 """{"error":{"code":"RATE_LIMITED","message":"contract message","retryAfterSeconds":0,"requestId":"req-123"}}""",

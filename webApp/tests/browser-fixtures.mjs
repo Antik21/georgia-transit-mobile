@@ -3,6 +3,8 @@ import { resolve, sep } from 'node:path';
 
 export const fixtureCityId = 'demo';
 export const otherCityId = 'batumi';
+export const hiddenCreditCityIds = ['kutaisi', 'zugdidi'];
+export const fixtureCityCreditUrl = 'https://example.com/transit/demo';
 export const fixtureStopId = 'demo:fixture:stop:center';
 export const fixtureHeadsign = 'Demo Park';
 export const fixtureRouteId = 'demo:fixture:route:blue';
@@ -18,9 +20,9 @@ export const stopPinGlyphColor = [52, 65, 85];
 export const fixtureVehiclesPath = `/v1/cities/${fixtureCityId}/vehicles`;
 export const fixtureAttribution = 'Fixture tiles';
 // Toggled by the smoke to exercise the local-style fallback and its recovery.
-export const fixtureControl = { failStyle: false, staleVehicles: false, telegram: true, vehicleAdvanced: false, planStatus: 200, styleHold: null, lastPlan: null };
+export const fixtureControl = { failStyle: false, failVectorTile: false, staleVehicles: false, telegram: true, vehicleAdvanced: false, planStatus: 200, styleHold: null, runtimeHold: null, nearbyStopsHold: null, routeShapeHold: null, vehicleHold: null, lastPlan: null, boardingBusOutsidePlan: false };
 export const plannerRouteColors = { orange: [228, 87, 46], yellow: [242, 193, 78] };
-// The buses the planner should highlight: the two soonest of a route at the first boarding stop.
+// The planned bus and one following arrival at the first boarding stop.
 export const plannerArrivalMinutes = { orange: [3, 11], yellow: [5] };
 
 function plannerArrivals() {
@@ -47,8 +49,11 @@ function plannerVehicles(routeId) {
   const vehicle = (id, position) => ({
     id: `batumi:fixture:vehicle:${id}`, routeId, position, bearing: 90, observedAt, ageSeconds: 0, positionKind: 'GPS',
   });
+  const boardingBus = plan && (fixtureControl.boardingBusOutsidePlan
+    ? { ...plan.boarding, latitude: plan.boarding.latitude - 0.013 }
+    : at(plan.boarding, plan.mid, 0.4));
   const items = !plan ? [] : routeId.endsWith(':orange')
-    ? [vehicle('v1', at(plan.boarding, plan.mid, 0.4)), vehicle('v2', at(plan.mid, plan.alighting, 0.7)),
+    ? [vehicle('v1', boardingBus), vehicle('v2', at(plan.mid, plan.alighting, 0.7)),
       vehicle('v3', at(plan.mid, plan.alighting, 0.9))]
     : [vehicle('y1', at(plan.boarding, plan.mid, 0.4))];
   return { items, observedAt, maxAgeSeconds: 30, stale: false };
@@ -56,6 +61,7 @@ function plannerVehicles(routeId) {
 
 // Every plan request body, so the smoke can assert rounding and the absence of an origin-kind field.
 export const planRequests = [];
+export const analyticsRequests = [];
 
 const position = { latitude: 41.715137, longitude: 44.827096 };
 const localized = (en) => ({ en, ru: en, ka: en });
@@ -84,7 +90,7 @@ const demoCity = {
     arrivals: true,
   },
   availability: { readiness: 'DEVELOPMENT_FIXTURE', source: 'FIXTURE' },
-  attribution: [],
+  attribution: [{ id: 'demo-source', label: localized('Demo transit source'), url: fixtureCityCreditUrl }],
 };
 
 const batumiCity = {
@@ -93,7 +99,16 @@ const batumiCity = {
   name: localized('Batumi'),
   center: { latitude: 41.6500, longitude: 41.6390 },
   capabilities: { ...demoCity.capabilities, tripPlanning: true },
+  attribution: [],
 };
+
+const hiddenCreditCities = hiddenCreditCityIds.map((id) => ({
+  ...demoCity,
+  id,
+  name: localized(id),
+  capabilities: { ...demoCity.capabilities, vehiclePositions: false, officialArrivals: false, arrivals: false },
+  attribution: [{ id: `${id}-source`, label: localized(`${id} transit source`), url: `https://example.com/transit/${id}` }],
+}));
 
 const plannerRoute = (name, color) => ({
   id: `batumi:fixture:route:${name}`,
@@ -106,6 +121,8 @@ const plannerRoute = (name, color) => ({
   directions: [{ id: `batumi:fixture:direction:${name}`, name: localized(name), headsign: localized(name) }],
 });
 const plannerRoutes = [plannerRoute('orange', '#E4572E'), plannerRoute('yellow', '#F2C14E')];
+const selectedPlannerRoute = plannerRoutes[0];
+export const selectedPlannerRouteId = selectedPlannerRoute.id;
 
 const route = {
   id: fixtureRouteId,
@@ -137,28 +154,30 @@ const stop = {
   mode: 'bus',
 };
 
-// A 32 × 32 solid green PNG. Its color lets the smoke assert raster pixels reached the canvas.
-const tile = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAAL0lEQVR4nO3OIQEAAAgDMILQlkr0gxg3E/Or3rmkEhAQEBAQEBAQEBAQEBAQSAceAoxIiGVzOuYAAAAASUVORK5CYII=', 'base64');
+// A single tile-sized polygon in an MVT layer named preview. Its fill proves the tile reached the canvas.
+const tile = Buffer.from('GiJ4AgoHcHJldmlldxISGAMiDgkAABqAQAAAgED/PwAPKIAg', 'base64');
 
-// The production BFF advertises tiles on its public hostname; the client must rebase them to its own origin.
 function mapStyle() {
   return {
     version: 8,
     sources: {
-      fixture: {
-        type: 'raster',
-        tiles: ['https://bff.example.invalid/v1/map/tiles/{z}/{x}/{y}.png'],
-        tileSize: 256,
+      'gt-vector-fixture': {
+        type: 'vector',
+        tiles: ['https://bff.example.invalid/v1/map/vector/{z}/{x}/{y}.pbf'],
+        maxzoom: 19,
         attribution: fixtureAttribution,
       },
     },
-    layers: [{ id: 'fixture-raster', type: 'raster', source: 'fixture', paint: { 'raster-fade-duration': 0 } }],
+    layers: [{
+      id: 'fixture-fill', type: 'fill', source: 'gt-vector-fixture', 'source-layer': 'preview',
+      paint: { 'fill-color': 'rgb(' + fixtureTileColor.join(',') + ')', 'fill-antialias': false },
+    }],
   };
 }
 
-function routeShape(offset) {
+function routeShape(offset, center = position) {
   const points = [[0.0012, -0.0027], [0.0010, 0], [0.0018, 0.0029]]
-    .map(([latitude, longitude]) => [position.latitude + latitude + offset, position.longitude + longitude]);
+    .map(([latitude, longitude]) => [center.latitude + latitude + offset, center.longitude + longitude]);
   return { format: 'encoded_polyline', precision: 5, value: encodePolyline(points), updatedAt: '2030-01-01T00:00:00Z' };
 }
 
@@ -285,17 +304,29 @@ const telegramFixture = `
     const state = { ready: 0, expand: 0, backVisible: false, backHandler: null, settingsOpened: 0 };
     window.__telegramSmoke = state;
     // Mirrors Bot API 8.0: the first getLocation prompts, and the answer sticks until settings change it.
-    const location = { inited: false, requested: false, granted: false, allow: false, fix: null };
+    const location = { available: true, requested: false, granted: false, allow: false, fix: null, dropResponse: false };
+    let locationStatus;
+    const handlers = new Map();
+    state.emit = (event) => handlers.get(event)?.forEach((handler) => handler());
     state.location = location;
+    function checkLocation(callback) {
+      setTimeout(() => {
+        locationStatus = { available: location.available, requested: location.requested, granted: location.granted };
+        callback?.();
+        state.emit('locationManagerUpdated');
+      }, 30);
+    }
     const locationManager = {
-      get isInited() { return location.inited; },
-      get isLocationAvailable() { return true; },
-      get isAccessRequested() { return location.requested; },
-      get isAccessGranted() { return location.granted; },
-      init(callback) { location.inited = true; callback?.(); return this; },
+      get isInited() { return Boolean(locationStatus); },
+      get isLocationAvailable() { return locationStatus?.available === true; },
+      get isAccessRequested() { return locationStatus?.available && locationStatus.requested; },
+      get isAccessGranted() { return locationStatus?.available && locationStatus.granted; },
+      init(callback) { if (!locationStatus) checkLocation(callback); return this; },
       getLocation(callback) {
+        if (!locationStatus?.available) throw new Error('Location is not available');
+        if (location.dropResponse) return this;
         if (!location.requested) { location.requested = true; location.granted = location.allow; }
-        setTimeout(() => callback(location.granted ? location.fix : null), 50);
+        checkLocation(() => callback(location.available && location.granted ? location.fix : null));
         return this;
       },
       openSettings() { state.settingsOpened += 1; return this; },
@@ -308,9 +339,9 @@ const telegramFixture = `
       offClick(handler) { if (state.backHandler === handler) state.backHandler = null; return this; },
     };
     window.Telegram = { WebApp: {
-      platform: 'android',
       version: '9.0',
       colorScheme: 'light',
+      platform: 'ios',
       themeParams: { bg_color: '#ffffff', text_color: '#18201b' },
       viewportHeight: 844,
       viewportStableHeight: 844,
@@ -319,13 +350,16 @@ const telegramFixture = `
       isVersionAtLeast: () => true,
       ready() { state.ready += 1; },
       expand() { state.expand += 1; },
-      onEvent() {},
-      offEvent() {},
+      onEvent(event, handler) {
+        if (!handlers.has(event)) handlers.set(event, new Set());
+        handlers.get(event).add(handler);
+      },
+      offEvent(event, handler) { handlers.get(event)?.delete(handler); },
       setBackgroundColor() {},
       setHeaderColor() {},
       BackButton: backButton,
       LocationManager: locationManager,
-    } };
+    }, WebView: { postEvent(event) { if (event === 'web_app_check_location') checkLocation(); } } };
   })();
 `;
 
@@ -352,6 +386,10 @@ export function browserFixture(dist, bffRequests, origin) {
     }
     if (target.origin !== origin) return respond(404, 'Fixture has no external network access');
     const path = decodeURIComponent(target.pathname);
+    if (method === 'POST' && path === '/v1/analytics') {
+      analyticsRequests.push(JSON.parse(body));
+      return respond(204);
+    }
     if (method === 'POST' && path === `/v1/cities/${otherCityId}/journeys/plan`) {
       bffRequests.push(path);
       const request = JSON.parse(body);
@@ -366,29 +404,45 @@ export function browserFixture(dist, bffRequests, origin) {
 
     if (path.startsWith('/v1/')) bffRequests.push(path);
     switch (path) {
-      case '/v1/cities': return json([demoCity, batumiCity]);
+      case '/v1/cities': return json([demoCity, batumiCity, ...hiddenCreditCities]);
       case '/v1/map/style.json':
         await fixtureControl.styleHold;
-        return fixtureControl.failStyle ? json({ error: 'Style unavailable' }, 503) : json(mapStyle());
+        if (fixtureControl.failStyle) return json({ error: 'Style unavailable' }, 503);
+        return json(mapStyle());
       case `/v1/cities/${fixtureCityId}/routes`: return json([route, otherRoute]);
       case `/v1/cities/${fixtureCityId}/routes/${fixtureRouteId}`: return json(route);
       case `/v1/cities/${fixtureCityId}/routes/${otherRouteId}`: return json(otherRoute);
-      case fixtureShapePath: return json(routeShape(0));
+      case fixtureShapePath:
+        await fixtureControl.routeShapeHold;
+        return json(routeShape(0));
       case otherShapePath: return json(routeShape(-0.003));
-      case `/v1/cities/${fixtureCityId}/stops/nearby`: return json([stop]);
-      case fixtureVehiclesPath: return json(vehicles(target.searchParams.get('routeId')));
+      case `/v1/cities/${fixtureCityId}/stops/nearby`:
+        await fixtureControl.nearbyStopsHold;
+        return json([stop]);
+      case fixtureVehiclesPath:
+        await fixtureControl.vehicleHold;
+        return json(vehicles(target.searchParams.get('routeId')));
       case `/v1/cities/${fixtureCityId}/stops/${fixtureStopId}/arrivals`: return json(arrivals());
       case `/v1/cities/${otherCityId}/routes`: return json(plannerRoutes);
+      case `/v1/cities/${otherCityId}/routes/${selectedPlannerRouteId}`: return json(selectedPlannerRoute);
+      case `/v1/cities/${otherCityId}/routes/${selectedPlannerRouteId}/directions/${selectedPlannerRoute.directions[0].id}/shape`:
+        return json(routeShape(0, batumiCity.center));
       case `/v1/cities/${otherCityId}/stops/batumi:fixture:stop:s1/arrivals`: return json(plannerArrivals());
       case `/v1/cities/${otherCityId}/vehicles`: return json(plannerVehicles(target.searchParams.get('routeId') ?? ''));
       case `/v1/cities/${otherCityId}/stops/nearby`: return json([]);
     }
-    if (/^\/v1\/map\/tiles\/\d+\/\d+\/\d+\.png$/.test(path)) return respond(200, tile, 'image/png');
+    if (hiddenCreditCityIds.some((id) => path === `/v1/cities/${id}/stops/nearby`)) return json([]);
+    if (/^\/v1\/map\/vector\/\d+\/\d+\/\d+\.pbf$/.test(path)) {
+      return fixtureControl.failVectorTile
+        ? json({ error: 'Vector tile unavailable' }, 502)
+        : respond(200, tile, 'application/vnd.mapbox-vector-tile');
+    }
     if (path.startsWith('/v1/')) return json({ error: 'Fixture path is not implemented' }, 404);
     if (path === '/favicon.ico') return respond(204);
 
     const asset = resolve(root, path === '/' ? './index.html' : `.${path}`);
     if (!asset.startsWith(`${root}${sep}`)) return respond(404);
+    if (/^\/assets\/runtime-[^/]+\.js$/.test(path)) await fixtureControl.runtimeHold;
     try {
       const body = await readFile(asset);
       return respond(200, body, contentTypes.get(asset.split('.').at(-1)) ?? 'application/octet-stream');

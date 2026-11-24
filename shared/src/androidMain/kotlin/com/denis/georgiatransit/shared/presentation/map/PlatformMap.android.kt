@@ -10,10 +10,11 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import com.denis.georgiatransit.shared.domain.analytics.ZoomType
 import com.denis.georgiatransit.shared.domain.model.GeoPoint
 import org.maplibre.android.MapLibre
 import org.maplibre.android.maps.MapLibreMap
-import org.maplibre.android.maps.MapView
+import org.maplibre.android.gestures.StandardScaleGestureDetector
 import org.maplibre.android.maps.Style
 
 /**
@@ -28,12 +29,14 @@ actual fun PlatformMap(
 ) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
+    val currentOnEvent = rememberUpdatedState(onEvent)
     val mapView = remember(context.applicationContext, lifecycleOwner) {
         MapLibre.getInstance(context.applicationContext)
         MapLibre.setConnected(false)
-        MapView(context).also { it.onCreate(null) }
+        DoubleTapMapView(context) {
+            currentOnEvent.value(MapPlatformEvent.ZoomGestureStarted(ZoomType.DoubleTap))
+        }.also { it.onCreate(null) }
     }
-    val currentOnEvent = rememberUpdatedState(onEvent)
     val controller = remember(mapView) { LocalMapController(mapView) { currentOnEvent.value(it) } }
     val lifecycle = remember(mapView, controller) { MapViewLifecycle(mapView, controller::setLifecycleResumed) }
 
@@ -61,7 +64,7 @@ actual fun PlatformMap(
 
 /** Wires MapLibre callbacks to the per-responsibility renderers and keeps them in step with style reloads. */
 private class LocalMapController(
-    private val mapView: MapView,
+    private val mapView: DoubleTapMapView,
     private val onEvent: (MapPlatformEvent) -> Unit,
 ) {
     private var map: MapLibreMap? = null
@@ -81,6 +84,16 @@ private class LocalMapController(
     private val cameraMoveListener = MapLibreMap.OnCameraMoveListener {
         vehicleBadges.updateLabelOrientation(styleLoader.style, map?.cameraPosition?.bearing)
     }
+    private val scaleListener = object : MapLibreMap.OnScaleListener {
+        override fun onScaleBegin(detector: StandardScaleGestureDetector) {
+            if (detector.currentEvent.pointerCount >= 2) {
+                onEvent(MapPlatformEvent.ZoomGestureStarted(ZoomType.Pinch))
+            }
+        }
+
+        override fun onScale(detector: StandardScaleGestureDetector) = Unit
+        override fun onScaleEnd(detector: StandardScaleGestureDetector) = Unit
+    }
     private val mapClickListener = MapLibreMap.OnMapClickListener { point ->
         val currentMap = map ?: return@OnMapClickListener false
         val density = mapView.resources.displayMetrics.density
@@ -97,11 +110,14 @@ private class LocalMapController(
     init {
         mapView.getMapAsync { mapLibreMap ->
             if (destroyed) return@getMapAsync
-            // ADR 0015 forbids speculative requests while the BFF fronts public OSM tiles.
+            // The public vector source is requested only for an interactive viewport (ADR 0032).
             mapLibreMap.setPrefetchZoomDelta(0)
             map = mapLibreMap
+            mapView.zoomEnabled = { mapLibreMap.uiSettings.isDoubleTapGesturesEnabled }
             camera.attach(mapLibreMap)
+            camera.applyBounds(latestState?.cameraBounds)
             mapLibreMap.addOnCameraMoveListener(cameraMoveListener)
+            mapLibreMap.addOnScaleListener(scaleListener)
             mapLibreMap.addOnMapClickListener(mapClickListener)
             mapLibreMap.addOnMapLongClickListener(mapLongClickListener)
             styleLoader.attach(mapLibreMap)
@@ -111,6 +127,7 @@ private class LocalMapController(
     fun update(renderState: MapRenderState) {
         if (destroyed) return
         latestState = renderState
+        camera.applyBounds(renderState.cameraBounds)
         styleLoader.request(renderState.bffStyleUrl)
         styleLoader.style?.let { installAndRender(it, renderState) } ?: camera.applyZoomStep(renderState.zoomStep)
         renderState.pointRequest?.let(::resolvePointRequest)
@@ -144,6 +161,8 @@ private class LocalMapController(
         if (destroyed) return
         destroyed = true
         map?.removeOnCameraMoveListener(cameraMoveListener)
+        mapView.zoomEnabled = { false }
+        map?.removeOnScaleListener(scaleListener)
         map?.removeOnMapClickListener(mapClickListener)
         map?.removeOnMapLongClickListener(mapLongClickListener)
         camera.destroy()
@@ -179,7 +198,7 @@ private class LocalMapController(
         attentionPulse.render(loadedStyle, renderState)
         journeyLayers.render(loadedStyle, renderState.journey)
         camera.applyIfNeeded(renderState.camera)
-        map?.let { journeyLayers.fitIfNeeded(it, renderState.journey, mapView) }
+        map?.let { journeyLayers.fitIfNeeded(it, renderState.journey, mapView, renderState.camera.viewportInsets) }
         camera.applyZoomStep(renderState.zoomStep)
         attentionPulse.refresh()
     }
@@ -187,7 +206,6 @@ private class LocalMapController(
     /** Every base-style load drops all sources, layers and images, so renderer caches must restart too. */
     private fun clearRenderedLayerState() {
         layersInstalled = false
-        camera.reset()
         overlaySources.clear()
         vehicleBadges.clear()
         attentionPulse.clear()

@@ -8,7 +8,7 @@ fi
 
 android_serial=$1
 apk_path=$2
-app_id=com.denis.georgiatransit
+app_id=com.anti.georgiatransit.sandbox
 script_dir=$(cd "$(dirname "$0")" && pwd)
 flow_path="$script_dir/flows/tbilisi-attribution-disabled-smoke.yaml"
 

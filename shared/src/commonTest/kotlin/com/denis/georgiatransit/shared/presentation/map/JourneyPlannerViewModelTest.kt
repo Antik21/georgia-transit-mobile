@@ -1,6 +1,11 @@
 package com.denis.georgiatransit.shared.presentation.map
 
 import com.denis.georgiatransit.shared.data.repository.RuntimeTransitSession
+import com.denis.georgiatransit.shared.domain.analytics.AnalyticsClient
+import com.denis.georgiatransit.shared.domain.analytics.AnalyticsEvent
+import com.denis.georgiatransit.shared.domain.analytics.AnalyticsRecord
+import com.denis.georgiatransit.shared.domain.analytics.JourneyPlanningSource
+import com.denis.georgiatransit.shared.domain.analytics.ProductAnalytics
 import com.denis.georgiatransit.shared.domain.model.ArrivalSource
 import com.denis.georgiatransit.shared.domain.model.CityCapabilities
 import com.denis.georgiatransit.shared.domain.model.CityId
@@ -63,6 +68,50 @@ class JourneyPlannerViewModelTest {
     }
 
     @Test
+    fun tracksEveryPlannerOpeningWithItsSourceButNotPinPlacementOrPlanningRequests() = runTest {
+        val records = mutableListOf<AnalyticsRecord>()
+        val analytics = ProductAnalytics(
+            AnalyticsClient.Android, "device", backgroundScope, { NOW_MILLIS }, { records.add(it) },
+        )
+        fun starts() = records.mapNotNull { it.event as? AnalyticsEvent.JourneyPlanningStarted }
+        val viewModel = viewModel(FakePlanRepository(), analytics = analytics)
+
+        viewModel.test(this) {
+            runOnCreate()
+            start(viewModel)
+            longPress(viewModel, A)
+            assertTrue(starts().isEmpty())
+            repeat(2) { viewModel.dispatchAction(JourneyPlannerAction.OpenPlanner) }
+            this@runTest.runCurrent()
+            assertEquals(listOf(JourneyPlanningSource.MapButton), starts().map { it.source })
+
+            viewModel.dispatchAction(JourneyPlannerAction.ClosePlanner)
+            this@runTest.runCurrent()
+            viewModel.dispatchAction(JourneyPlannerAction.RouteHere)
+            this@runTest.runCurrent()
+            assertEquals(1, starts().size)
+
+            longPress(viewModel, B)
+            viewModel.dispatchAction(JourneyPlannerAction.RouteHere)
+            this@runTest.runCurrent()
+            longPress(viewModel, A)
+            viewModel.dispatchAction(JourneyPlannerAction.FindRoute)
+            this@runTest.runCurrent()
+            assertEquals(listOf(JourneyPlanningSource.MapButton, JourneyPlanningSource.LongPress), starts().map { it.source })
+
+            viewModel.dispatchAction(JourneyPlannerAction.ClosePlanner)
+            this@runTest.runCurrent()
+            longPress(viewModel, A)
+            viewModel.dispatchAction(JourneyPlannerAction.RouteFromHere)
+            this@runTest.runCurrent()
+            assertEquals(3, starts().size)
+            assertEquals(JourneyPlanningSource.LongPress, starts().last().source)
+            assertEquals(3, starts().map { it.eventId }.toSet().size)
+            cancelAndIgnoreRemainingItems()
+        }
+    }
+
+    @Test
     fun pointToPointPlanningWorksWithoutLocationAndSendsRoundedPoints() = runTest {
         val planner = FakePlanRepository()
         val viewModel = viewModel(planner)
@@ -81,7 +130,7 @@ class JourneyPlannerViewModelTest {
     }
 
     @Test
-    fun editingNeverPlansAndReturningToPointsCancelsPendingResults() = runTest {
+    fun theFirstPairPlansAndReturningToPointsCancelsPendingResults() = runTest {
         val pending = CompletableDeferred<Unit>()
         val planner = FakePlanRepository { withContext(NonCancellable) { pending.await() }; page("late") }
         val viewModel = viewModel(planner)
@@ -91,10 +140,8 @@ class JourneyPlannerViewModelTest {
             longPress(viewModel, A)
             viewModel.dispatchAction(JourneyPlannerAction.RouteFromHere)
             this@runTest.runCurrent()
-            longPress(viewModel, B)
             assertTrue(planner.queries.isEmpty())
-            viewModel.dispatchAction(JourneyPlannerAction.FindRoute)
-            this@runTest.runCurrent()
+            longPress(viewModel, B)
             assertEquals(1, planner.queries.size)
             viewModel.dispatchAction(JourneyPlannerAction.EditPoints)
             this@runTest.runCurrent()
@@ -160,6 +207,7 @@ class JourneyPlannerViewModelTest {
             viewModel.dispatchAction(JourneyPlannerAction.ConfirmMapPick(C))
             this@runTest.runCurrent()
             assertEquals(Status.Idle, plannerState(viewModel).status)
+            assertEquals(1, planner.queries.size, "After Back the new point waits for manual submission")
             viewModel.dispatchAction(JourneyPlannerAction.FindRoute)
             this@runTest.runCurrent()
             assertEquals(Status.Loading, plannerState(viewModel).status)
@@ -269,6 +317,8 @@ class JourneyPlannerViewModelTest {
             this@runTest.runCurrent()
             assertEquals(3, planner.queries.size)
             assertEquals(JourneyPlannerUi(cameraFitRevision = plannerState(viewModel).cameraFitRevision), plannerState(viewModel))
+            planBetween(viewModel, A, B)
+            assertEquals(4, planner.queries.size, "Reopening the planner restores automatic submission")
             cancelAndIgnoreRemainingItems()
         }
     }
@@ -355,9 +405,7 @@ class JourneyPlannerViewModelTest {
         runCurrent()
         assertEquals(Status.PickingPoint(JourneyPlanSide.Destination), plannerState(viewModel).status)
         longPress(viewModel, to)
-        assertEquals(Status.Idle, plannerState(viewModel).status)
-        viewModel.dispatchAction(JourneyPlannerAction.FindRoute)
-        runCurrent()
+        assertTrue(plannerState(viewModel).showingResults)
     }
 
     private fun TestScope.longPress(viewModel: MapViewModel, point: GeoPoint) {
@@ -372,11 +420,13 @@ class JourneyPlannerViewModelTest {
         session: RuntimeTransitSession = RuntimeTransitSession().also { it.selectCity(CITY) },
         locationSession: LocationSession = RuntimeLocationSession(scope = this, nowMillis = { NOW_MILLIS + testScheduler.currentTime }),
         repository: TransitRepository = PlannerTransitRepository(),
+        analytics: ProductAnalytics? = null,
     ) = MapViewModel(
         repository = repository,
         session = session,
         locationSession = locationSession,
         journeyPlanRepository = planner,
+        analytics = analytics,
         journeyPlanClock = { NOW_MILLIS + testScheduler.currentTime },
     )
 

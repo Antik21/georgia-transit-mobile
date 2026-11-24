@@ -15,7 +15,7 @@ const city = {
   id: "demo",
   name: { ru: "Демо-город", en: "Demo City", ka: "დემო ქალაქი" },
   center: { latitude: 41.715137, longitude: 44.827096 },
-  defaultZoom: 13,
+  defaultZoom: 15.5,
   capabilities: {
     routes: true,
     stops: true,
@@ -45,7 +45,8 @@ const stop = {
   providerId: "handwritten-test-center",
   code: "D001",
   name: { ru: "Демо-центр", en: "Demo Center", ka: "დემო ცენტრი" },
-  position: { latitude: 41.715137, longitude: 44.827096 },
+  // Native maps anchor the stop icon at its tip. Keep the icon itself over the viewport center.
+  position: { latitude: 41.71494, longitude: 44.827096 },
   routeIds: [route.id],
   mode: "bus",
 };
@@ -84,6 +85,12 @@ const server = http.createServer((request, response) => {
       return send(response, { status: "ready", mode: "test-only-stop-arrivals-fixture", arrivalDelayMillis });
     case "/v1/cities":
       return send(response, [city]);
+    case "/v1/map/style.json":
+      return send(response, {
+        version: 8,
+        sources: {},
+        layers: [{ id: "background", type: "background", paint: { "background-color": "#E5EFE7" } }],
+      });
     case "/v1/cities/demo/routes":
       return send(response, [route]);
     case "/v1/cities/demo/stops/nearby":

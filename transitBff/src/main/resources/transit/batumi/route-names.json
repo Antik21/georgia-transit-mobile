@@ -1,0 +1,394 @@
+{
+  "batumi:theta:route:NjBhY2RlOWZmY2M3YTIyNDE2MGM1ODdj": {
+    "shortName": "1",
+    "name": {
+      "ru": "Кольцо от ул. Давида Строителя (через ул. Руставели)",
+      "en": "Davit Aghmashenebeli Street loop (via Rustaveli Street)",
+      "ka": "წრიული მარშრუტი აღმაშენებლის ქუჩიდან (რუსთაველის ქუჩის გავლით)",
+      "uk": "Кільце від вул. Давида Будівничого (через вул. Руставелі)",
+      "de": "Rundlinie ab Dawit-der-Erbauer-Straße (über die Rustaweli-Straße)",
+      "fr": "Boucle depuis la rue David le Bâtisseur (via la rue Roustavéli)",
+      "ar": "خط دائري من شارع داويت البنّاء (عبر شارع روستافيلي)",
+      "hi": "दावित अघमाशेनेबेली मार्ग से परिक्रमा (रुस्तावेली मार्ग से होकर)",
+      "zh": "大卫建造者街环线（经鲁斯塔韦利街）"
+    }
+  },
+  "batumi:theta:route:NjQ4OTk0ODc5MzI3YzcyODIwMGIzZjUy": {
+    "shortName": "1A",
+    "name": {
+      "ru": "Кольцо от ул. Давида Строителя (через ул. Лермонтова)",
+      "en": "Davit Aghmashenebeli Street loop (via Lermontov Street)",
+      "ka": "წრიული მარშრუტი აღმაშენებლის ქუჩიდან (ლერმონტოვის ქუჩის გავლით)",
+      "uk": "Кільце від вул. Давида Будівничого (через вул. Лермонтова)",
+      "de": "Rundlinie ab Dawit-der-Erbauer-Straße (über die Lermontow-Straße)",
+      "fr": "Boucle depuis la rue David le Bâtisseur (via la rue Lermontov)",
+      "ar": "خط دائري من شارع داويت البنّاء (عبر شارع ليرمونتوف)",
+      "hi": "दावित अघमाशेनेबेली मार्ग से परिक्रमा (लेर्मोंतोव मार्ग से होकर)",
+      "zh": "大卫建造者街环线（经莱蒙托夫街）"
+    }
+  },
+  "batumi:theta:route:NWVkMmJkNGY2NTc3ODRiNWE5OGE4Yzdl": {
+    "shortName": "2",
+    "name": {
+      "ru": "ул. Адлия — Ахалшени",
+      "en": "Adlia Street — Akhalsheni",
+      "ka": "ადლიის ქუჩა — ახალშენი",
+      "uk": "вул. Адлія — Ахалшені",
+      "de": "Adlia-Straße — Achalscheni",
+      "fr": "Rue Adlia — Akhalchéni",
+      "ar": "شارع أدليا — أخالشيني",
+      "hi": "अदलिया मार्ग — अखालशेनी",
+      "zh": "阿德利亚街 — 阿哈尔舍尼"
+    }
+  },
+  "batumi:theta:route:NWVkNjA3N2MzNDBmNjA4NzNmZjllMWJl": {
+    "shortName": "2A",
+    "name": {
+      "ru": "ул. Адлия — Ахалшени (через Новый бульвар)",
+      "en": "Adlia Street — Akhalsheni (via New Boulevard)",
+      "ka": "ადლიის ქუჩა — ახალშენი (ახალი ბულვარის გავლით)",
+      "uk": "вул. Адлія — Ахалшені (через Новий бульвар)",
+      "de": "Adlia-Straße — Achalscheni (über den Neuen Boulevard)",
+      "fr": "Rue Adlia — Akhalchéni (via le Nouveau boulevard)",
+      "ar": "شارع أدليا — أخالشيني (عبر الجادة الجديدة)",
+      "hi": "अदलिया मार्ग — अखालशेनी (नए बुलेवार्ड से होकर)",
+      "zh": "阿德利亚街 — 阿哈尔舍尼（经新大道）"
+    }
+  },
+  "batumi:theta:route:NWVkNjA4NjUzNDBmNjA4NzNmZjllMWJm": {
+    "shortName": "3",
+    "name": {
+      "ru": "ул. Абхазская — Новый бульвар",
+      "en": "Abkhazeti Street — New Boulevard",
+      "ka": "აფხაზეთის ქუჩა — ახალი ბულვარი",
+      "uk": "вул. Абхазька — Новий бульвар",
+      "de": "Abchasien-Straße — Neuer Boulevard",
+      "fr": "Rue d’Abkhazie — Nouveau boulevard",
+      "ar": "شارع أبخازيا — الجادة الجديدة",
+      "hi": "अब्खाज़ेती मार्ग — नया बुलेवार्ड",
+      "zh": "阿布哈兹街 — 新大道"
+    }
+  },
+  "batumi:theta:route:NjdhZTM2MDdlMzdmMGVjZjgwMzIwNjhm": {
+    "shortName": "4",
+    "name": {
+      "ru": "ул. Давида Строителя — ул. Свишевского",
+      "en": "Davit Aghmashenebeli Street — Svishevsky Street",
+      "ka": "დავით აღმაშენებლის ქუჩა — სვიშევსკის ქუჩა",
+      "uk": "вул. Давида Будівничого — вул. Свишевського",
+      "de": "Dawit-der-Erbauer-Straße — Swischewski-Straße",
+      "fr": "Rue David le Bâtisseur — Rue Svichevski",
+      "ar": "شارع داويت البنّاء — شارع سفيشيفسكي",
+      "hi": "दावित अघमाशेनेबेली मार्ग — स्विशेव्स्की मार्ग",
+      "zh": "大卫建造者街 — 斯维舍夫斯基街"
+    }
+  },
+  "batumi:theta:route:NWY5ZjA3MDRlYjcxNDMwM2VmY2U1NjMx": {
+    "shortName": "6",
+    "name": {
+      "ru": "ул. Ладо Асатиани — Букнари",
+      "en": "Lado Asatiani Street — Buknari",
+      "ka": "ლადო ასათიანის ქუჩა — ბუკნარი",
+      "uk": "вул. Ладо Асатіані — Букнарі",
+      "de": "Lado-Asatiani-Straße — Buknari",
+      "fr": "Rue Lado Assatiani — Bouknari",
+      "ar": "شارع لادو أساتياني — بوكناري",
+      "hi": "लादो असातियानी मार्ग — बुकनारी",
+      "zh": "拉多·阿萨蒂阿尼街 — 布克纳里"
+    }
+  },
+  "batumi:theta:route:Njc0MDM0N2RkMDRkM2EwNGMzNWQ4NGU0": {
+    "shortName": "7",
+    "name": {
+      "ru": "Кольцо от ул. Давида Строителя (через стадион «Динамо»)",
+      "en": "Davit Aghmashenebeli Street loop (via Dinamo Stadium)",
+      "ka": "წრიული მარშრუტი აღმაშენებლის ქუჩიდან (დინამოს სტადიონის გავლით)",
+      "uk": "Кільце від вул. Давида Будівничого (через стадіон «Динамо»)",
+      "de": "Rundlinie ab Dawit-der-Erbauer-Straße (über das Dinamo-Stadion)",
+      "fr": "Boucle depuis la rue David le Bâtisseur (via le stade du Dinamo)",
+      "ar": "خط دائري من شارع داويت البنّاء (عبر ملعب دينامو)",
+      "hi": "दावित अघमाशेनेबेली मार्ग से परिक्रमा (दिनामो स्टेडियम से होकर)",
+      "zh": "大卫建造者街环线（经迪纳摩体育场）"
+    }
+  },
+  "batumi:theta:route:Njc0MDJlMDFkMDRkM2EwNGMzNWQ4NGMy": {
+    "shortName": "7A",
+    "name": {
+      "ru": "Кольцо от ул. Давида Строителя (через ул. Хахули)",
+      "en": "Davit Aghmashenebeli Street loop (via Khakhuli Street)",
+      "ka": "წრიული მარშრუტი აღმაშენებლის ქუჩიდან (ხახულის ქუჩის გავლით)",
+      "uk": "Кільце від вул. Давида Будівничого (через вул. Хахулі)",
+      "de": "Rundlinie ab Dawit-der-Erbauer-Straße (über die Chachuli-Straße)",
+      "fr": "Boucle depuis la rue David le Bâtisseur (via la rue Khakhouli)",
+      "ar": "خط دائري من شارع داويت البنّاء (عبر شارع خاخولي)",
+      "hi": "दावित अघमाशेनेबेली मार्ग से परिक्रमा (खाखुली मार्ग से होकर)",
+      "zh": "大卫建造者街环线（经哈胡利街）"
+    }
+  },
+  "batumi:theta:route:NWVkNjBhYTUzNDBmNjA4NzNmZjllMWM0": {
+    "shortName": "8",
+    "name": {
+      "ru": "ул. Давида Строителя — Махинджаури",
+      "en": "Davit Aghmashenebeli Street — Makhinjauri",
+      "ka": "დავით აღმაშენებლის ქუჩა — მახინჯაური",
+      "uk": "вул. Давида Будівничого — Махінджаурі",
+      "de": "Dawit-der-Erbauer-Straße — Machindschauri",
+      "fr": "Rue David le Bâtisseur — Makhindjaouri",
+      "ar": "شارع داويت البنّاء — ماخينجاوري",
+      "hi": "दावित अघमाशेनेबेली मार्ग — माखिनजाउरी",
+      "zh": "大卫建造者街 — 马欣贾乌里"
+    }
+  },
+  "batumi:theta:route:NmFjNjk4NDJhMzFmNTk2MGI5OWIyYmZl": {
+    "shortName": "9",
+    "name": {
+      "ru": "ул. Джемала Катамадзе — ул. Иване Месхи",
+      "en": "Jemal Katamadze Street — Ivane Meskhi Street",
+      "ka": "ჯემალ ქათამაძის ქუჩა — ივანე მესხის ქუჩა",
+      "uk": "вул. Джемала Катамадзе — вул. Іване Месхі",
+      "de": "Dschemal-Katamadse-Straße — Iwane-Meschi-Straße",
+      "fr": "Rue Djémal Katamadzé — Rue Ivané Meskhi",
+      "ar": "شارع جمال كاتامادزه — شارع إيفاني ميسخي",
+      "hi": "जेमाल कातामाद्ज़े मार्ग — इवाने मेस्खी मार्ग",
+      "zh": "杰马尔·卡塔马泽街 — 伊瓦内·梅斯希街"
+    }
+  },
+  "batumi:theta:route:NjQ5MDFjOTZlMjViNDBjNmUyMTUwYjM0": {
+    "shortName": "10",
+    "name": {
+      "ru": "Аэропорт — Ботанический сад",
+      "en": "Airport — Botanical Garden",
+      "ka": "აეროპორტი — ბოტანიკური ბაღი",
+      "uk": "Аеропорт — Ботанічний сад",
+      "de": "Flughafen — Botanischer Garten",
+      "fr": "Aéroport — Jardin botanique",
+      "ar": "المطار — الحديقة النباتية",
+      "hi": "हवाई अड्डा — बोटैनिकल गार्डन",
+      "zh": "机场 — 植物园"
+    }
+  },
+  "batumi:theta:route:NWVkNjBiZTMzNDBmNjA4NzNmZjllMWM2": {
+    "shortName": "10A",
+    "name": {
+      "ru": "Аэропорт — Сахалвашо",
+      "en": "Airport — Sakhalvasho",
+      "ka": "აეროპორტი — სახალვაშო",
+      "uk": "Аеропорт — Сахалвашо",
+      "de": "Flughafen — Sachalwascho",
+      "fr": "Aéroport — Sakhalvacho",
+      "ar": "المطار — ساخالفاشو",
+      "hi": "हवाई अड्डा — साखालवाशो",
+      "zh": "机场 — 萨哈尔瓦绍"
+    }
+  },
+  "batumi:theta:route:Njk0MWMxMDBmMTQxYjE4NjFjMzk1OGEw": {
+    "shortName": "11",
+    "name": {
+      "ru": "ул. Давида Строителя — Улица Перия",
+      "en": "Davit Aghmashenebeli Street — Peria Street",
+      "ka": "დავით აღმაშენებლის ქუჩა — ფერიის ქუჩა",
+      "uk": "вул. Давида Будівничого — Вулиця Перія",
+      "de": "Dawit-der-Erbauer-Straße — Peria-Straße",
+      "fr": "Rue David le Bâtisseur — Rue de Péria",
+      "ar": "شارع داويت البنّاء — شارع بيريا",
+      "hi": "दावित अघमाशेनेबेली मार्ग — पेरिया मार्ग",
+      "zh": "大卫建造者街 — 佩里亚街"
+    }
+  },
+  "batumi:theta:route:NWVkNjBkNzAzNDBmNjA4NzNmZjllMWM4": {
+    "shortName": "12",
+    "name": {
+      "ru": "Автовокзал Батуми — Мост Махо",
+      "en": "Batumi Bus Station — Makho Bridge",
+      "ka": "ბათუმის ავტოსადგური — მახოს ხიდი",
+      "uk": "Автовокзал Батумі — Міст Махо",
+      "de": "Busbahnhof Batumi — Macho-Brücke",
+      "fr": "Gare routière de Batoumi — Pont de Makho",
+      "ar": "محطة حافلات باتومي — جسر ماخو",
+      "hi": "बाटुमी बस अड्डा — माखो पुल",
+      "zh": "巴统汽车站 — 马霍桥"
+    }
+  },
+  "batumi:theta:route:NjQ4OTk2YzY5MzI3YzcyODIwMGIzZjYz": {
+    "shortName": "13",
+    "name": {
+      "ru": "ул. Михаила Лермонтова — Канатная дорога",
+      "en": "Mikhail Lermontov Street — Cable Car",
+      "ka": "მიხეილ ლერმონტოვის ქუჩა — საბაგირო",
+      "uk": "вул. Михайла Лермонтова — Канатна дорога",
+      "de": "Michail-Lermontow-Straße — Seilbahn",
+      "fr": "Rue Mikhaïl Lermontov — Téléphérique",
+      "ar": "شارع ميخائيل ليرمونتوف — التلفريك",
+      "hi": "मिखाइल लेर्मोंतोव मार्ग — केबल कार",
+      "zh": "米哈伊尔·莱蒙托夫街 — 缆车"
+    }
+  },
+  "batumi:theta:route:NjE1MTgyZTk1ZGMxODZjYWQ4NmUwZmQy": {
+    "shortName": "14",
+    "name": {
+      "ru": "Школа № 20 — Новый бульвар",
+      "en": "Public School No. 20 — New Boulevard",
+      "ka": "მე-20 საჯარო სკოლა — ახალი ბულვარი",
+      "uk": "Школа № 20 — Новий бульвар",
+      "de": "Öffentliche Schule Nr. 20 — Neuer Boulevard",
+      "fr": "École publique n° 20 — Nouveau boulevard",
+      "ar": "المدرسة الحكومية رقم 20 — الجادة الجديدة",
+      "hi": "सरकारी विद्यालय संख्या 20 — नया बुलेवार्ड",
+      "zh": "第二十公立学校 — 新大道"
+    }
+  },
+  "batumi:theta:route:NWVkNjBlOTczNDBmNjA4NzNmZjllMWNi": {
+    "shortName": "15",
+    "name": {
+      "ru": "Зедагели — Барцхана",
+      "en": "Zedagheli — Bartskhana",
+      "ka": "ზედაღელე — ბარცხანა",
+      "uk": "Зедаґелі — Барцхана",
+      "de": "Sedagheli — Barzchana",
+      "fr": "Zédaghéli — Bartskhana",
+      "ar": "زيداغيلي — بارتسخانا",
+      "hi": "ज़ेदाघेली — बार्त्सख़ाना",
+      "zh": "泽达盖利 — 巴尔茨哈纳"
+    }
+  },
+  "batumi:theta:route:NWVkNjBmMzIzNDBmNjA4NzNmZjllMWNj": {
+    "shortName": "16",
+    "name": {
+      "ru": "Автовокзал Батуми — Сарпи",
+      "en": "Batumi Bus Station — Sarpi",
+      "ka": "ბათუმის ავტოსადგური — სარფი",
+      "uk": "Автовокзал Батумі — Сарпі",
+      "de": "Busbahnhof Batumi — Sarpi",
+      "fr": "Gare routière de Batoumi — Sarpi",
+      "ar": "محطة حافلات باتومي — ساربي",
+      "hi": "बाटुमी बस अड्डा — सारपी",
+      "zh": "巴统汽车站 — 萨尔皮"
+    }
+  },
+  "batumi:theta:route:Njc1YmY1Yjk2MGIwMGY4ZGIxOTY1YTUy": {
+    "shortName": "19",
+    "name": {
+      "ru": "ул. Давида Строителя — Район Тамара",
+      "en": "Davit Aghmashenebeli Street — Tamar Settlement",
+      "ka": "დავით აღმაშენებლის ქუჩა — თამარის დასახლება",
+      "uk": "вул. Давида Будівничого — Селище Тамарі",
+      "de": "Dawit-der-Erbauer-Straße — Tamar-Siedlung",
+      "fr": "Rue David le Bâtisseur — Quartier Tamar",
+      "ar": "شارع داويت البنّاء — حي تمار",
+      "hi": "दावित अघमाशेनेबेली मार्ग — तामार बस्ती",
+      "zh": "大卫建造者街 — 塔玛尔居民区"
+    }
+  },
+  "batumi:theta:route:NjZkZTkxZDk4MGRmMTEzMjRmMTU1NzUx": {
+    "shortName": "20",
+    "name": {
+      "ru": "Тбилисская площадь — Квариати",
+      "en": "Tbilisi Square — Kvariati",
+      "ka": "თბილისის მოედანი — კვარიათი",
+      "uk": "Тбіліська площа — Кваріаті",
+      "de": "Tbilisi-Platz — Kwariati",
+      "fr": "Place de Tbilissi — Kvariati",
+      "ar": "ساحة تبليسي — كفارياتي",
+      "hi": "त्बिलिसी चौक — क्वारियाती",
+      "zh": "第比利斯广场 — 克瓦里亚蒂"
+    }
+  },
+  "batumi:theta:route:Njk0MjkzMDFmMTQxYjE4NjFjMzk1YmVj": {
+    "shortName": "21",
+    "name": {
+      "ru": "Инджало — Подъём Шервашидзе",
+      "en": "Injalo — Shervashidze Ascent",
+      "ka": "ინჯალო — შერვაშიძის აღმართი",
+      "uk": "Інджало — Підйом Шервашидзе",
+      "de": "Indschalo — Scherwaschidse-Anstieg",
+      "fr": "Indjalo — Montée Chervachidzé",
+      "ar": "إنجالو — طلعة شيرفاشيدزه",
+      "hi": "इंजालो — शेरवाशिद्ज़े चढ़ाई",
+      "zh": "因贾洛 — 舍尔瓦希泽坡道"
+    }
+  },
+  "batumi:theta:route:NjdkOTJhYzcxOWJhOTNiOTc3YjgzZGY0": {
+    "shortName": "22",
+    "name": {
+      "ru": "Автовокзал Батуми — Махвилаури",
+      "en": "Batumi Bus Station — Makhvilauri",
+      "ka": "ბათუმის ავტოსადგური — მახვილაური",
+      "uk": "Автовокзал Батумі — Махвілаурі",
+      "de": "Busbahnhof Batumi — Machwilauri",
+      "fr": "Gare routière de Batoumi — Makhvilaouri",
+      "ar": "محطة حافلات باتومي — ماخفيلاوري",
+      "hi": "बाटुमी बस अड्डा — माखविलाउरी",
+      "zh": "巴统汽车站 — 马赫维劳里"
+    }
+  },
+  "batumi:theta:route:NjdkOTUyMjExOWJhOTNiOTc3YjgzZTZm": {
+    "shortName": "26",
+    "name": {
+      "ru": "Автовокзал Батуми — Тодогаури",
+      "en": "Batumi Bus Station — Todogauri",
+      "ka": "ბათუმის ავტოსადგური — თოდოგაური",
+      "uk": "Автовокзал Батумі — Тодогаурі",
+      "de": "Busbahnhof Batumi — Todogauri",
+      "fr": "Gare routière de Batoumi — Todogaouri",
+      "ar": "محطة حافلات باتومي — تودوغاوري",
+      "hi": "बाटुमी बस अड्डा — तोदोगाउरी",
+      "zh": "巴统汽车站 — 托多高里"
+    }
+  },
+  "batumi:theta:route:NjcyNGFmMzVjYWJhYzU0ODZiYWViNjI1": {
+    "shortName": "27",
+    "name": {
+      "ru": "ул. Давида Строителя — Букнари",
+      "en": "Davit Aghmashenebeli Street — Buknari",
+      "ka": "დავით აღმაშენებლის ქუჩა — ბუკნარი",
+      "uk": "вул. Давида Будівничого — Букнарі",
+      "de": "Dawit-der-Erbauer-Straße — Buknari",
+      "fr": "Rue David le Bâtisseur — Bouknari",
+      "ar": "شارع داويت البنّاء — بوكناري",
+      "hi": "दावित अघमाशेनेबेली मार्ग — बुकनारी",
+      "zh": "大卫建造者街 — 布克纳里"
+    }
+  },
+  "batumi:theta:route:NjdkYTYxNzdmMGVjN2UxZjE4YjAwMjUy": {
+    "shortName": "33",
+    "name": {
+      "ru": "Автовокзал Батуми — Квариати (ул. Лазская)",
+      "en": "Batumi Bus Station — Kvariati (Lazi Street)",
+      "ka": "ბათუმის ავტოსადგური — კვარიათი (ლაზის ქუჩა)",
+      "uk": "Автовокзал Батумі — Кваріаті (вул. Лазька)",
+      "de": "Busbahnhof Batumi — Kwariati (Lasi-Straße)",
+      "fr": "Gare routière de Batoumi — Kvariati (Rue des Lazes)",
+      "ar": "محطة حافلات باتومي — كفارياتي (شارع لازي)",
+      "hi": "बाटुमी बस अड्डा — क्वारियाती (लाज़ी मार्ग)",
+      "zh": "巴统汽车站 — 克瓦里亚蒂（拉兹街）"
+    }
+  },
+  "batumi:theta:route:NjkzNjc5YzhmMTQxYjE4NjFjMzkzMTE1": {
+    "shortName": "35",
+    "name": {
+      "ru": "ул. Тевдоре-священника — Автовокзал Батуми",
+      "en": "Tevdore the Priest Street — Batumi Bus Station",
+      "ka": "თევდორე მღვდლის ქუჩა — ბათუმის ავტოსადგური",
+      "uk": "вул. Священника Тевдоре — Автовокзал Батумі",
+      "de": "Priester-Tewdore-Straße — Busbahnhof Batumi",
+      "fr": "Rue du Prêtre-Tevdoré — Gare routière de Batoumi",
+      "ar": "شارع الكاهن تيفدوري — محطة حافلات باتومي",
+      "hi": "पादरी तेवदोरे मार्ग — बाटुमी बस अड्डा",
+      "zh": "特夫多雷神父街 — 巴统汽车站"
+    }
+  },
+  "batumi:theta:route:NjllNzViMTA4NTc4OTU1NGNmYWIwN2Q0": {
+    "shortName": "37",
+    "name": {
+      "ru": "Тбилисская площадь — Серные бани",
+      "en": "Tbilisi Square — Sulfur Baths",
+      "ka": "თბილისის მოედანი — გოგირდის აბანოები",
+      "uk": "Тбіліська площа — Сірчані лазні",
+      "de": "Tbilisi-Platz — Schwefelbäder",
+      "fr": "Place de Tbilissi — Bains de soufre",
+      "ar": "ساحة تبليسي — الحمامات الكبريتية",
+      "hi": "त्बिलिसी चौक — गंधक के स्नानघर",
+      "zh": "第比利斯广场 — 硫磺浴场"
+    }
+  }
+}

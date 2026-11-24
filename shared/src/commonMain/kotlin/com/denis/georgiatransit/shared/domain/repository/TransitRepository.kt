@@ -2,6 +2,7 @@ package com.denis.georgiatransit.shared.domain.repository
 
 import com.denis.georgiatransit.shared.domain.model.ArrivalPage
 import com.denis.georgiatransit.shared.domain.model.CityId
+import com.denis.georgiatransit.shared.domain.model.DirectionSchedule
 import com.denis.georgiatransit.shared.domain.model.DirectionId
 import com.denis.georgiatransit.shared.domain.model.GeoPoint
 import com.denis.georgiatransit.shared.domain.model.JourneyPage
@@ -19,6 +20,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.serialization.Serializable
+import kotlinx.datetime.LocalDate
 import kotlin.time.Instant
 
 /** Consumers can distinguish network data, valid cache, and an offline last-known-good value. */
@@ -106,6 +108,15 @@ interface TransitRepository {
 
     suspend fun directionStops(cityId: CityId, routeId: RouteId, directionId: DirectionId, locale: TransitLocale = TransitLocale.English): TransitLoadResult<List<TransitStop>> =
         TransitLoadResult.Failure(TransitFailure.Configuration("Stops are not configured"))
+
+    suspend fun directionSchedule(
+        cityId: CityId,
+        routeId: RouteId,
+        directionId: DirectionId,
+        date: LocalDate,
+        locale: TransitLocale,
+    ): TransitLoadResult<DirectionSchedule> =
+        TransitLoadResult.Failure(TransitFailure.Configuration("Schedules are not configured"))
 
     suspend fun directionShape(cityId: CityId, routeId: RouteId, directionId: DirectionId): TransitLoadResult<TransitShape> =
         TransitLoadResult.Failure(TransitFailure.Configuration("Route geometry is not configured"))

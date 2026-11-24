@@ -1,4 +1,4 @@
-appId: com.denis.georgiatransit
+appId: com.anti.georgiatransit.sandbox
 ---
 - launchApp:
     clearState: true

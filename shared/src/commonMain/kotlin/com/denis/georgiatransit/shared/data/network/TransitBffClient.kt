@@ -1,8 +1,13 @@
 package com.denis.georgiatransit.shared.data.network
 
+import com.denis.georgiatransit.shared.core.telemetry.AppTelemetry
+import com.denis.georgiatransit.shared.core.telemetry.NoOpAppTelemetry
+import com.denis.georgiatransit.shared.core.telemetry.NonFatalIssue
 import com.denis.georgiatransit.shared.data.config.BffEndpointConfiguration
+import com.denis.georgiatransit.shared.domain.analytics.AnalyticsRecord
 import com.denis.georgiatransit.shared.domain.model.ArrivalPage
 import com.denis.georgiatransit.shared.domain.model.CityId
+import com.denis.georgiatransit.shared.domain.model.DirectionSchedule
 import com.denis.georgiatransit.shared.domain.model.DirectionId
 import com.denis.georgiatransit.shared.domain.model.GeoPoint
 import com.denis.georgiatransit.shared.domain.model.JourneyPage
@@ -43,6 +48,7 @@ import kotlinx.coroutines.delay
 import kotlinx.io.IOException
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.json.Json
+import kotlinx.datetime.LocalDate
 import kotlin.math.max
 import kotlin.random.Random
 import kotlin.time.Instant
@@ -85,6 +91,7 @@ class TransitBffClient(
     private val endpoint: BffEndpointConfiguration?,
     private val retryDelay: ExponentialRetryDelay = ExponentialRetryDelay(),
     private val connectionNotices: ConnectionErrorNotices? = null,
+    private val telemetry: AppTelemetry = NoOpAppTelemetry,
 ) {
     /** Checks configuration before cache use as well as before network I/O, so release fails closed. */
     fun configurationFailure(): TransitFailure.Configuration? = when {
@@ -94,7 +101,8 @@ class TransitBffClient(
     }
 
     suspend fun cities(): TransitLoadResult<List<TransitCity>> =
-        get<List<CityDto>>(path = listOf("v1", "cities")).map { it.map(CityDto::toDomain) }
+        get<List<CityDto>>(path = listOf("v1", "cities"), query = listOf("untimedJourneys" to "true"))
+            .map { it.map(CityDto::toDomain) }
 
     internal suspend fun routes(
         cityId: CityId,
@@ -104,7 +112,7 @@ class TransitBffClient(
     ): BffResponse<List<TransitRoute>> = get<List<RouteDto>>(
         path = listOf("v1", "cities", cityId.value, "routes"),
         query = listOfNotNull(
-            "locale" to locale.toWire(),
+            "locale" to locale.languageTag,
             mode?.let { "mode" to it.toWire() },
         ),
         ifNoneMatch = ifNoneMatch,
@@ -113,7 +121,7 @@ class TransitBffClient(
     suspend fun route(cityId: CityId, routeId: RouteId, locale: TransitLocale): TransitLoadResult<TransitRoute> =
         get<RouteDto>(
             path = listOf("v1", "cities", cityId.value, "routes", routeId.value),
-            query = listOf("locale" to locale.toWire()),
+            query = listOf("locale" to locale.languageTag),
         ).map { it.toDomain(cityId) }
 
     suspend fun directionStops(
@@ -123,8 +131,19 @@ class TransitBffClient(
         locale: TransitLocale,
     ): TransitLoadResult<List<TransitStop>> = get<List<StopDto>>(
         path = listOf("v1", "cities", cityId.value, "routes", routeId.value, "directions", directionId.value, "stops"),
-        query = listOf("locale" to locale.toWire()),
+        query = listOf("locale" to locale.languageTag),
     ).map { it.map(StopDto::toDomain) }
+
+    suspend fun directionSchedule(
+        cityId: CityId,
+        routeId: RouteId,
+        directionId: DirectionId,
+        date: LocalDate,
+        locale: TransitLocale,
+    ): TransitLoadResult<DirectionSchedule> = get<DirectionScheduleDto>(
+        path = listOf("v1", "cities", cityId.value, "routes", routeId.value, "directions", directionId.value, "schedule"),
+        query = listOf("date" to date.toString(), "locale" to locale.languageTag),
+    ).map { it.toDomain(routeId, directionId, date) }
 
     suspend fun directionShape(cityId: CityId, routeId: RouteId, directionId: DirectionId): TransitLoadResult<TransitShape> =
         get<ShapeDto>(
@@ -154,7 +173,7 @@ class TransitBffClient(
                 "lon" to center.longitude.toString(),
                 "radiusMeters" to radiusMeters.toString(),
                 "limit" to limit.toString(),
-                "locale" to locale.toWire(),
+                "locale" to locale.languageTag,
             ),
         ).map { it.map(StopDto::toDomain) }
     }
@@ -163,7 +182,7 @@ class TransitBffClient(
         if (limit !in 1..100) return TransitLoadResult.Failure(TransitFailure.InvalidArgument("limit is invalid", null))
         return get<ArrivalPageDto>(
             path = listOf("v1", "cities", cityId.value, "stops", stopId.value, "arrivals"),
-            query = listOf("limit" to limit.toString(), "locale" to locale.toWire()),
+            query = listOf("limit" to limit.toString(), "locale" to locale.languageTag),
             timeoutMillis = RealtimeTimeoutMillis,
         ).map(ArrivalPageDto::toDomain)
     }
@@ -186,7 +205,7 @@ class TransitBffClient(
                 "toLat" to to.latitude.toString(),
                 "toLon" to to.longitude.toString(),
                 "departureAt" to departureAt.toString(),
-                "locale" to locale.toWire(),
+                "locale" to locale.languageTag,
                 "maxTransfers" to maxTransfers.toString(),
             ),
         ).map(JourneyPageDto::toDomain)
@@ -200,7 +219,10 @@ class TransitBffClient(
         val response = try {
             httpClient.post {
                 url(configuredEndpoint.baseUrl)
-                url { appendPathSegments("v1", "cities", cityId.value, "journeys", "plan", encodeSlash = true) }
+                url {
+                    appendPathSegments("v1", "cities", cityId.value, "journeys", "plan", encodeSlash = true)
+                    parameters.append("untimedJourneys", "true")
+                }
                 contentType(ContentType.Application.Json)
                 setBody(query.toDto())
                 timeout {
@@ -212,10 +234,33 @@ class TransitBffClient(
         } catch (failure: CancellationException) {
             throw failure
         } catch (failure: Throwable) {
+            if (!failure.isRetryableTransport()) telemetry.recordNonFatal(NonFatalIssue.BffUnexpectedResponse)
             return TransitLoadResult.Failure(failure.toTransportFailure())
         }
         connectionNotices?.rearm()
         return decodeResponse<JourneyPageDto>(response).map(JourneyPageDto::toPlanDomain)
+    }
+
+    internal suspend fun sendAnalytics(record: AnalyticsRecord) {
+        if (configurationFailure() != null) return
+        val configuredEndpoint = requireNotNull(endpoint)
+        try {
+            httpClient.post {
+                url(configuredEndpoint.baseUrl)
+                url { appendPathSegments("v1", "analytics") }
+                contentType(ContentType.Application.Json)
+                setBody(record.toRequest())
+                timeout {
+                    connectTimeoutMillis = 2_000
+                    requestTimeoutMillis = 4_000
+                    socketTimeoutMillis = 4_000
+                }
+            }.bodyAsText()
+        } catch (failure: CancellationException) {
+            throw failure
+        } catch (_: Exception) {
+            // Telemetry delivery cannot change the transit connection state or interrupt the UI.
+        }
     }
 
     private suspend inline fun <reified T> get(
@@ -274,6 +319,7 @@ class TransitBffClient(
                     delay(retryDelay.delayMillis(retryNumber, null))
                     continue
                 }
+                if (!retryable) telemetry.recordNonFatal(NonFatalIssue.BffUnexpectedResponse)
                 return RequestOutcome.Failure(failure.toTransportFailure())
             }
         }
@@ -284,7 +330,8 @@ class TransitBffClient(
             BffResponse.Data(response.body<T>(), response.headers["ETag"])
         } catch (failure: CancellationException) {
             throw failure
-        } catch (_: Throwable) {
+        } catch (failure: Throwable) {
+            if (!failure.isRetryableTransport()) telemetry.recordNonFatal(NonFatalIssue.BffResponseDecode)
             BffResponse.Failure(TransitFailure.Serialization("BFF returned a malformed success body", response.headers["X-Request-ID"]))
         }
         HttpStatusCode.NotModified -> BffResponse.NotModified(response.headers["ETag"])
@@ -299,6 +346,7 @@ class TransitBffClient(
         } catch (failure: CancellationException) {
             throw failure
         } catch (_: Throwable) {
+            if (status.value !in RetryableStatusCodes) telemetry.recordNonFatal(NonFatalIssue.BffUnexpectedResponse)
             return TransitFailure.InvalidResponse("BFF returned an unreadable error body: ${status.value}", requestId)
         }
         val envelope = try {
@@ -307,8 +355,10 @@ class TransitBffClient(
             throw failure
         } catch (_: Throwable) {
             null
+        } ?: run {
+            if (status.value !in RetryableStatusCodes) telemetry.recordNonFatal(NonFatalIssue.BffUnexpectedResponse)
+            return TransitFailure.InvalidResponse("BFF returned an undocumented status/body: ${status.value}", requestId)
         }
-            ?: return TransitFailure.InvalidResponse("BFF returned an undocumented status/body: ${status.value}", requestId)
         return envelope.error.toFailure()
     }
 
@@ -345,12 +395,6 @@ class TransitBffClient(
             else -> null
         }
 
-    private fun TransitLocale.toWire(): String = when (this) {
-        TransitLocale.Georgian -> "ka"
-        TransitLocale.English -> "en"
-        TransitLocale.Russian -> "ru"
-    }
-
     private fun TransitMode.toWire(): String = when (this) {
         TransitMode.Bus -> BusModeWireValue
         TransitMode.Metro -> MetroModeWireValue
@@ -363,6 +407,29 @@ class TransitBffClient(
         data class Failure(val error: TransitFailure) : RequestOutcome
     }
 
+    private fun <T, R> BffResponse<T>.mapBff(transform: (T) -> R): BffResponse<R> = when (this) {
+        is BffResponse.Data -> try {
+            BffResponse.Data(transform(value), eTag)
+        } catch (failure: CancellationException) {
+            throw failure
+        } catch (_: Throwable) {
+            telemetry.recordNonFatal(NonFatalIssue.BffResponseMapping)
+            BffResponse.Failure(TransitFailure.Serialization("BFF returned invalid normalized data"))
+        }
+        is BffResponse.NotModified -> this
+        is BffResponse.Failure -> this
+    }
+
+    private fun <T, R> BffResponse<T>.map(transform: (T) -> R): TransitLoadResult<R> =
+        when (val result = mapBff(transform)) {
+            is BffResponse.Data -> TransitLoadResult.Data(result.value, TransitFreshness.Network)
+            is BffResponse.NotModified -> {
+                telemetry.recordNonFatal(NonFatalIssue.BffUnexpectedResponse)
+                TransitLoadResult.Failure(TransitFailure.InvalidResponse("Unexpected 304 response without cache"))
+            }
+            is BffResponse.Failure -> TransitLoadResult.Failure(result.error)
+        }
+
     private companion object {
         const val ConnectTimeoutMillis = 5_000L
         const val RealtimeTimeoutMillis = 8_000L
@@ -371,28 +438,4 @@ class TransitBffClient(
         val RetryableStatusCodes = setOf(408, 429, 502, 503, 504)
         val errorJson = Json { ignoreUnknownKeys = true; explicitNulls = false }
     }
-}
-
-private fun <T, R> BffResponse<T>.mapBff(transform: (T) -> R): BffResponse<R> = when (this) {
-    is BffResponse.Data -> try {
-        BffResponse.Data(transform(value), eTag)
-    } catch (failure: CancellationException) {
-        throw failure
-    } catch (_: Throwable) {
-        BffResponse.Failure(TransitFailure.Serialization("BFF returned invalid normalized data"))
-    }
-    is BffResponse.NotModified -> this
-    is BffResponse.Failure -> this
-}
-
-private fun <T, R> BffResponse<T>.map(transform: (T) -> R): TransitLoadResult<R> = when (this) {
-    is BffResponse.Data -> try {
-        TransitLoadResult.Data(transform(value), TransitFreshness.Network)
-    } catch (failure: CancellationException) {
-        throw failure
-    } catch (_: Throwable) {
-        TransitLoadResult.Failure(TransitFailure.Serialization("BFF returned invalid normalized data"))
-    }
-    is BffResponse.NotModified -> TransitLoadResult.Failure(TransitFailure.InvalidResponse("Unexpected 304 response without cache"))
-    is BffResponse.Failure -> TransitLoadResult.Failure(error)
 }

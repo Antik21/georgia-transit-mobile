@@ -1,0 +1,1 @@
+"NSLocationWhenInUseUsageDescription" = "Geo Transit utilise votre position pour centrer la carte et afficher les arrêts à proximité. Si vous choisissez « Ma position » pour un trajet, votre position approximative est envoyée au serveur Geo Transit pour calculer l’itinéraire.";

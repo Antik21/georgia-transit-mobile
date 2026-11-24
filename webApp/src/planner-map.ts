@@ -1,7 +1,9 @@
 import {
-  LngLatBounds, Popup, type AddLayerObject, type GeoJSONSource, type GeoJSONSourceSpecification, type Map as MapLibreMap,
+  LngLatBounds, type AddLayerObject, type GeoJSONSource, type GeoJSONSourceSpecification, type Map as MapLibreMap,
 } from "maplibre-gl";
-import type { PlannerRoute, PlannerState } from "./contracts";
+import type { PlannerPoint, PlannerRoute, PlannerState } from "./contracts";
+import type { getCopy } from "./copy";
+import { renderPlannerPin } from "./planner-map-ui";
 
 const lineSourceId = "transit-planner-lines";
 const pointSourceId = "transit-planner-points";
@@ -28,25 +30,42 @@ const lineLayers: AddLayerObject[] = [
   },
 ];
 const pointLayer: AddLayerObject = {
-  id: plannerPointLayerId, type: "circle", source: pointSourceId,
-  paint: {
-    "circle-color": ["match", ["get", "kind"], "origin", "#2e7d32", "destination", "#8e1b2d", "#263238"],
-    "circle-radius": ["match", ["get", "kind"], "pin", 6, 8],
-    "circle-stroke-color": "#ffffff",
-    "circle-stroke-width": 3,
-  },
+  id: plannerPointLayerId, type: "symbol", source: pointSourceId,
+  layout: { "icon-image": ["get", "image"], "icon-allow-overlap": true, "icon-ignore-placement": true },
 };
+
+const endpoints = {
+  origin: { image: "transit-planner-origin", label: "A", color: "#2e7d32" },
+  destination: { image: "transit-planner-destination", label: "B", color: "#8e1b2d" },
+};
+const pointImagePixelRatio = 2;
+
+function endpointImage(label: string, color: string) {
+  // Match the native 28 dp marker and 3 dp white outline.
+  const canvas = document.createElement("canvas");
+  canvas.width = canvas.height = 28 * pointImagePixelRatio;
+  const context = canvas.getContext("2d");
+  if (!context) throw new Error("Canvas 2D is unavailable");
+  context.scale(pointImagePixelRatio, pointImagePixelRatio);
+  for (const [radius, fill] of [[14, "#ffffff"], [11, color]] as const) {
+    context.beginPath();
+    context.arc(14, 14, radius, 0, Math.PI * 2);
+    context.fillStyle = fill;
+    context.fill();
+  }
+  context.font = "bold 14px system-ui, sans-serif";
+  context.textAlign = "center";
+  context.textBaseline = "middle";
+  context.fillStyle = "#ffffff";
+  context.fillText(label, 14, 14);
+  return context.getImageData(0, 0, canvas.width, canvas.height);
+}
 
 export interface PlannerMapActions {
   longPress(latitude: number, longitude: number): void;
   routeHere(): void;
   routeFromHere(): void;
   dismissPin(): void;
-}
-
-export interface PlannerMapLabels {
-  routeHere: string;
-  routeFromHere: string;
 }
 
 function lineData(route: PlannerRoute | undefined) {
@@ -64,13 +83,12 @@ function pointData(state: PlannerState | undefined) {
   const points = [
     ["origin", state?.route.origin],
     ["destination", state?.route.destination],
-    ["pin", state?.pin],
   ] as const;
   return {
     type: "FeatureCollection" as const,
     features: points.filter(([, point]) => point).map(([kind, point]) => ({
       type: "Feature" as const,
-      properties: { kind },
+      properties: { kind, image: endpoints[kind].image },
       geometry: { type: "Point" as const, coordinates: [point!.longitude, point!.latitude] },
     })),
   };
@@ -81,7 +99,7 @@ export function createPlannerMap(
   map: MapLibreMap,
   addLayerInOrder: (layer: AddLayerObject) => void,
   actions: PlannerMapActions,
-  labels: PlannerMapLabels,
+  copy: ReturnType<typeof getCopy>,
   reducedMotion: MediaQueryList,
 ) {
   let state: PlannerState | undefined;
@@ -90,7 +108,7 @@ export function createPlannerMap(
   let renderedPoints: string | undefined;
   let fittedRevision: string | undefined;
   let retryPending = false;
-  let popup: Popup | undefined;
+  let popup: HTMLElement | undefined;
   let popupKey: string | undefined;
   let lastLongPress = -Infinity;
   let swallowClick = false;
@@ -98,6 +116,7 @@ export function createPlannerMap(
   let pressStart: { x: number; y: number } | undefined;
 
   function fire(latitude: number, longitude: number) {
+    if (state?.mapPick || map.isMoving()) return;
     const now = performance.now();
     if (now - lastLongPress < duplicateGestureMillis) return;
     lastLongPress = now;
@@ -109,6 +128,13 @@ export function createPlannerMap(
     clearTimeout(pressTimer);
     pressTimer = undefined;
     pressStart = undefined;
+  }
+
+  function onMoveStart() {
+    if (!popup) return;
+    popup.remove();
+    popup = undefined;
+    actions.dismissPin();
   }
 
   const canvas = map.getCanvasContainer();
@@ -138,6 +164,7 @@ export function createPlannerMap(
   canvas.addEventListener("touchmove", onTouchMove, { passive: true });
   canvas.addEventListener("touchend", cancelPress);
   canvas.addEventListener("touchcancel", cancelPress);
+  map.on("movestart", onMoveStart);
   map.on("contextmenu", (event) => {
     event.preventDefault();
     fire(event.lngLat.lat, event.lngLat.wrap().lng);
@@ -166,13 +193,16 @@ export function createPlannerMap(
       const points = pointData(state);
       const pointsKey = JSON.stringify(points.features);
       if (renderedPoints !== pointsKey) {
+        for (const { image, label, color } of Object.values(endpoints)) {
+          if (!map.hasImage(image)) map.addImage(image, endpointImage(label, color), { pixelRatio: pointImagePixelRatio });
+        }
         syncSource(pointSourceId, points, [pointLayer]);
         renderedPoints = pointsKey;
       }
-      // Only a new plan or another chosen option re-frames; refreshes leave the user's camera alone.
-      if (route?.lines.length && state && fittedRevision !== state.cameraFitRevision) {
+      // Include the boarding bus on its first update without following its later positions.
+      if (route?.lines.length && state && !state.mapPick && fittedRevision !== state.cameraFitRevision) {
         fittedRevision = state.cameraFitRevision;
-        fitRoute(route);
+        fitRoute(route, state.boardingFitPosition);
       }
     } catch {
       // MapLibre throws while a style it is (re)loading is not done; draw again once the style settles.
@@ -193,43 +223,25 @@ export function createPlannerMap(
     map.on("idle", retry);
   }
 
-  function fitRoute(route: PlannerRoute) {
+  function fitRoute(route: PlannerRoute, boardingBus?: PlannerPoint | null) {
     const bounds = new LngLatBounds();
     for (const line of route.lines) for (const point of line.points) bounds.extend([point.longitude, point.latitude]);
+    if (boardingBus) bounds.extend([boardingBus.longitude, boardingBus.latitude]);
     map.fitBounds(bounds, { padding: 48, maxZoom: 17, duration: reducedMotion.matches ? 0 : 400 });
   }
 
   function renderPopup() {
     const pin = state?.pin;
-    const key = pin ? `${pin.latitude},${pin.longitude}` : undefined;
+    const onlySide = state?.open && state.origin.kind !== state.destination.kind
+      ? state.origin.kind === "none" ? "origin" : state.destination.kind === "none" ? "destination" : undefined
+      : undefined;
+    const key = pin ? `${pin.latitude},${pin.longitude},${onlySide}` : undefined;
     if (key === popupKey) return;
     popupKey = key;
-    const previous = popup;
+    popup?.remove();
     popup = undefined;
-    previous?.remove();
     if (!pin) return;
-    const content = document.createElement("div");
-    content.className = "planner-pin-actions";
-    for (const [label, action, testId] of [
-      [labels.routeHere, actions.routeHere, "planner-route-here"],
-      [labels.routeFromHere, actions.routeFromHere, "planner-route-from-here"],
-    ] as const) {
-      const choice = document.createElement("button");
-      choice.type = "button";
-      choice.className = "planner-pin-button";
-      choice.textContent = label;
-      choice.dataset.testid = testId;
-      choice.addEventListener("click", action);
-      content.append(choice);
-    }
-    const next = new Popup({ closeButton: true, closeOnClick: false, anchor: "bottom", offset: 12, maxWidth: "260px" })
-      .setLngLat([pin.longitude, pin.latitude])
-      .setDOMContent(content);
-    next.on("close", () => {
-      if (popup === next) actions.dismissPin();
-    });
-    popup = next;
-    next.addTo(map);
+    popup = renderPlannerPin(map.getContainer(), map.project([pin.longitude, pin.latitude]), onlySide, copy, actions);
   }
 
   return {
@@ -253,8 +265,11 @@ export function createPlannerMap(
         swallowClick = false;
         return true;
       }
-      if (state?.pin) actions.dismissPin();
-      return false;
+      if (state?.pin) {
+        actions.dismissPin();
+        return true;
+      }
+      return Boolean(state?.mapPick);
     },
     dispose() {
       cancelPress();
@@ -263,6 +278,7 @@ export function createPlannerMap(
       canvas.removeEventListener("touchmove", onTouchMove);
       canvas.removeEventListener("touchend", cancelPress);
       canvas.removeEventListener("touchcancel", cancelPress);
+      map.off("movestart", onMoveStart);
       popup?.remove();
       popup = undefined;
     },

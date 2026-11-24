@@ -13,20 +13,13 @@ Kotlin Multiplatform shell for a Georgia public-transit app. Shared Compose UI c
 
 ## Maps
 
-The screen uses a same-BFF MapLibre style by default. The BFF endpoints
-`/v1/map/style.json` and `/v1/map/tiles/{z}/{x}/{y}.png` proxy the public OpenStreetMap raster
-tiles configured by the operator; the generated style contains only BFF tile URLs and the required
-OpenStreetMap attribution, never the upstream URL. Both Sandbox and Prod therefore show a basemap
-without an API key. The bundled, source-free local style remains an emergency fallback when map
-assets are disabled or unavailable. Stops, vehicles, and route polylines continue to come only from
-the shared, SDK-free typed render state, and synthetic transit data is never presented as real data.
-
-Public OSM tiles are a best-effort dependency with no SLA. The proxy identifies Georgia Transit,
-serves a seven-day cache policy, does not prefetch or offer offline downloads, and retains visible
-OSM attribution. Operator-owned Georgia vector tiles remain the long-term escape hatch if public
-capacity or policy becomes a product problem. See [ADR 0002](docs/adr/0002-maplibre-native-and-map-assets.md)
-for the renderer and owned-asset direction and
-[ADR 0015](docs/adr/0015-public-osm-raster-basemap.md) for the accepted temporary production source.
+The map loads the Natural-inspired OpenFreeMap vector basemap through the Transit BFF.
+The style at `/v1/map/style.json` selects Georgian, Russian, or English labels. If the
+selected name is missing, MapLibre uses the Georgian name and then the local name.
+The BFF serves vector tiles and glyphs through its own origin with visible attribution.
+The bundled background can render stops, vehicles, and route polylines when map assets
+are disabled or unavailable. See [ADR 0032](docs/adr/0032-localized-vector-basemap.md)
+for the source, hosting terms, and cache policy.
 
 Android version declarations remain in `gradle/libs.versions.toml`. iOS uses a
 direct Xcode Swift Package Manager dependency instead of CocoaPods; its exact
@@ -132,6 +125,55 @@ without affecting another city. A route-list 200 with a city or mode mismatch
 fails closed without replacing LKG or its timestamps. Stops, shapes, realtime
 vehicles, arrivals, and journeys are never durably stored.
 
+## Zugdidi Android preview
+
+Run the Transit BFF with the local ordered-stop CSV used for the Zugdidi preview.
+
+```sh
+BFF_PORT=18776 \
+BFF_ZUGDIDI_PREVIEW_CSV=/absolute/path/zugdidi-yandex-stops.csv \
+BFF_MAP_ENABLED=true \
+BFF_MAP_PUBLIC_BASE_URL=http://10.0.2.2:18776 \
+./gradlew :transitBff:run
+```
+
+Build Android Sandbox with `-PSANDBOX_BFF_BASE_URL=http://10.0.2.2:18776`. The BFF derives
+route and direction labels from its [nine-language name directory](transitBff/src/main/resources/transit/zugdidi/names.json).
+The CSV supplies the ordered coordinates and the original lookup labels. The preview draws direct
+segments between stops and exposes static routes, stops, and route geometry. The input is local
+and accepted only by a loopback development BFF.
+
+## Product analytics
+
+The [Amplitude event catalog](docs/development/product-analytics.md) documents the triggers, properties,
+and frequency for Android, iOS, the web app, Telegram Mini App, and the landing site.
+
+## Firebase Crashlytics
+
+The [Geo Transit Firebase project](https://console.firebase.google.com/project/georgia-transit-mobile/overview)
+has an Android app and an iOS app for each environment. The repository includes their public
+Firebase client configuration:
+
+| Environment | Application and bundle ID | Android file | iOS file |
+| --- | --- | --- | --- |
+| Sandbox | `com.anti.georgiatransit.sandbox` | `androidApp/src/sandbox/google-services.json` | `iosApp/Configuration/Firebase/Sandbox/GoogleService-Info.plist` |
+| Prod | `com.anti.georgiatransit` | `androidApp/src/prod/google-services.json` | `iosApp/Configuration/Firebase/Prod/GoogleService-Info.plist` |
+
+Crash reporting starts automatically. Gradle uses the Crashlytics plugin for mapping files
+when minification is enabled. The last Xcode build phase packages the selected plist and
+runs Firebase's dSYM uploader. Firebase requires Xcode 26.2 or later.
+
+Analytics exposes the active app city as the user-scoped **Selected city** dimension
+(`selected_city`). Crashlytics records handled startup, storage, and BFF response
+failures as non-fatal issues. See [ADR 0030](docs/adr/0030-selected-city-and-handled-failure-telemetry.md)
+for the data and verification details.
+
+For end-to-end verification, use a temporary test crash in Sandbox, launch again to upload the
+report, and look for it under the Sandbox app in the Firebase Console. On iOS trigger the crash
+with the debugger detached.
+[Android verification](https://firebase.google.com/docs/crashlytics/android/test-implementation) ·
+[iOS verification](https://firebase.google.com/docs/crashlytics/ios/test-implementation)
+
 ## Transit BFF
 
 `:transitBff` is a standalone JVM server module; it does not enter `shared`,
@@ -145,8 +187,10 @@ The synthetic `demo` city is enabled only with both `BFF_MODE=development` and
 `BFF_FIXTURES_ENABLED=true`; it is useful for local contract development, but
 is not real provider readiness. `/v1/cities` labels it
 `DEVELOPMENT_FIXTURE`/`FIXTURE` and always returns all seven granular capability
-booleans. Kutaisi remains absent because it has no reviewed adapter; an absent city returns
-`CITY_NOT_FOUND`. Batumi is available through its reviewed two-origin adapter only after explicit
+booleans. Kutaisi's opt-in OSM adapter serves static stops. The alternate AZRY adapter adds directions,
+geometry, timetables, GPS positions and stop predictions under the same capability control.
+See the [local Kutaisi runbook](docs/development/kutaisi-integration.md).
+An absent city returns `CITY_NOT_FOUND`. Batumi is available through its reviewed two-origin adapter only after explicit
 operator activation and capability-control approval. Trip planning is capability-gated for every
 configured city. In `production`, fixtures are rejected and startup fails closed when no reviewed
 adapter has been explicitly activated.
@@ -253,9 +297,9 @@ Prerequisites:
 
 - JDK 17.
 - Android SDK platform 37.0 and build tools 37.0.0. Set `ANDROID_HOME` to the SDK root, or put the local SDK path in an uncommitted `local.properties` file such as `sdk.dir=/absolute/path/to/android-sdk`.
-- For Apple targets, macOS with Xcode and an installed iOS Simulator runtime on Apple Silicon. The shared `iosSimulatorArm64` target needs an `arm64` host; `iosX64` is available only on Intel macOS.
+- For Apple targets, macOS with Xcode 26.2 or later and an installed iOS Simulator runtime on Apple Silicon. The shared `iosSimulatorArm64` target needs an `arm64` host; `iosX64` is available only on Intel macOS.
 
-`local.properties`, `ANDROID_HOME` values, signing material, and provider configuration are local-only. Do not commit them. This shell does not require secrets or signing to run its quality gates.
+`local.properties`, `ANDROID_HOME` values, signing material, and Transit BFF provider configuration are local-only. Do not commit them. This shell does not require secrets or signing to run its quality gates.
 
 Run the same quality checks locally with:
 

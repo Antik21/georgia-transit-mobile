@@ -14,9 +14,15 @@ internal class SessionNavigationEventApplier(
     fun apply(
         currentStack: List<Destination>,
         event: NavigationEvent,
-    ): List<Destination> = NavigationTransitionPolicy.transition(
-        currentStack = currentStack,
-        selectedCityId = session.selectedCity.value?.id,
-        event = event,
-    )
+        languagePickerAvailable: Boolean = false,
+    ): List<Destination> {
+        val city = session.selectedCity.value
+        return NavigationTransitionPolicy.transition(
+            currentStack = currentStack,
+            selectedCityId = city?.id,
+            event = event,
+            schedulesAvailable = city?.capabilities?.schedules == true,
+            languagePickerAvailable = languagePickerAvailable,
+        )
+    }
 }

@@ -25,5 +25,6 @@ internal fun CityCapabilities.capabilityEnabled(
     TelemetryCapability.ROUTE_GEOMETRY -> routeGeometry
     TelemetryCapability.VEHICLE_POSITIONS -> vehiclePositions
     TelemetryCapability.ARRIVALS -> arrivals
+    TelemetryCapability.SCHEDULES -> schedules
     TelemetryCapability.TRIP_PLANNING -> tripPlanning
 }

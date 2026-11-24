@@ -1,5 +1,6 @@
 package com.denis.georgiatransit.bff.config
 
+import com.denis.georgiatransit.bff.analytics.ProductAnalyticsConfig
 import java.net.URI
 import java.nio.charset.StandardCharsets
 import java.nio.file.Path
@@ -49,9 +50,20 @@ data class BffConfig(
     val schemaInterlockEnabled: Boolean = false,
     val schemaDriftThreshold: Int = DefaultSchemaDriftThreshold,
     val schemaDriftWindowSeconds: Long = DefaultSchemaDriftWindowSeconds,
+    val zugdidiPreviewCsv: Path? = null,
+    val zugdidiStaticCsv: Path? = null,
+    val kutaisiOsmEnabled: Boolean = false,
+    val kutaisiAzry: KutaisiAzryConfig = KutaisiAzryConfig.Disabled,
+    val analytics: ProductAnalyticsConfig? = null,
 ) {
     init {
         require(host.isNotBlank()) { "BFF_HOST must not be blank" }
+        require(zugdidiPreviewCsv == null || mode == RuntimeMode.DEVELOPMENT && host in setOf("127.0.0.1", "::1")) {
+            "BFF_ZUGDIDI_PREVIEW_CSV requires development mode and a loopback BFF_HOST"
+        }
+        require(zugdidiStaticCsv == null || mode == RuntimeMode.PRODUCTION && capabilityControlPath != null) {
+            "BFF_ZUGDIDI_STATIC_CSV requires production mode and an operator capability document"
+        }
         require(port in 1..65_535) { "BFF_PORT must be between 1 and 65535" }
         require(directoryCacheTtlSeconds in 3_600L..21_600L) {
             "BFF_DIRECTORY_CACHE_TTL_SECONDS must be between 3600 and 21600"
@@ -104,6 +116,12 @@ data class BffConfig(
         require(mode != RuntimeMode.PRODUCTION || !batumiTheta.isActivated || schemaInterlockEnabled) {
             "BFF_SCHEMA_INTERLOCK_ENABLED must be true for a production Batumi Theta activation"
         }
+        require(!(kutaisiOsmEnabled && kutaisiAzry.enabled)) {
+            "Only one Kutaisi provider adapter may be activated"
+        }
+        require(mode != RuntimeMode.PRODUCTION || !kutaisiAzry.enabled || schemaInterlockEnabled) {
+            "BFF_SCHEMA_INTERLOCK_ENABLED must be true for production Kutaisi AZRY activation"
+        }
         require(!(transitous.isActivated && ttc.isActivated)) {
             "Only one Tbilisi production provider adapter may be activated"
         }
@@ -136,6 +154,10 @@ data class BffConfig(
                         DefaultRealtimeSingleFlightSeconds,
                     ),
                     fixturesEnabled = parseBoolean(environment, "BFF_FIXTURES_ENABLED", false),
+                    zugdidiPreviewCsv = parseOptionalPath(environment, "BFF_ZUGDIDI_PREVIEW_CSV"),
+                    zugdidiStaticCsv = parseOptionalPath(environment, "BFF_ZUGDIDI_STATIC_CSV"),
+                    kutaisiOsmEnabled = parseBoolean(environment, "BFF_KUTAISI_OSM_ENABLED", false),
+                    kutaisiAzry = KutaisiAzryConfig.fromEnvironment(environment),
                     capabilityControlPath = parseOptionalPath(environment, "BFF_CAPABILITY_CONTROL_PATH"),
                     capabilityControlStateDirectory = parseOptionalPath(
                         environment,
@@ -157,6 +179,7 @@ data class BffConfig(
                     ttc = TtcActivationConfig.fromEnvironment(environment),
                     batumiTheta = BatumiThetaActivationConfig.fromEnvironment(environment),
                     map = MapProxyActivationConfig.fromEnvironment(environment, parseMode(environment["BFF_MODE"] ?: "development")),
+                    analytics = ProductAnalyticsConfig.fromEnvironment(environment),
                     metricsEnabled = parseBoolean(environment, "BFF_METRICS_ENABLED", true),
                     probesEnabled = parseBoolean(environment, "BFF_PROBES_ENABLED", false),
                     probeIntervalSeconds = parseLong(
@@ -249,53 +272,6 @@ data class BffConfig(
             } catch (_: IllegalArgumentException) {
                 throw BffConfigurationException("$name is invalid")
             }
-        }
-    }
-}
-
-/** A narrowly scoped raster proxy, disabled unless an operator supplies the complete map contract. */
-data class MapProxyActivationConfig(
-    val enabled: Boolean,
-    val tileTemplate: String?,
-    val attribution: String?,
-    val publicBaseUrl: URI?,
-) {
-    val isActivated get() = enabled && tileTemplate != null && attribution != null && publicBaseUrl != null
-    init {
-        if (enabled) {
-            require(tileTemplate != null) { "BFF_MAP_TILE_TEMPLATE is required when BFF_MAP_ENABLED=true" }
-            require(!attribution.isNullOrBlank() && attribution.length <= 512) { "BFF_MAP_ATTRIBUTION is required when BFF_MAP_ENABLED=true" }
-            require(publicBaseUrl != null) { "BFF_MAP_PUBLIC_BASE_URL is required when BFF_MAP_ENABLED=true" }
-        }
-    }
-    companion object {
-        fun disabled() = fromEnvironment(emptyMap())
-        fun fromEnvironment(environment: Map<String, String>, mode: RuntimeMode = RuntimeMode.DEVELOPMENT): MapProxyActivationConfig {
-            val enabled = when ((environment["BFF_MAP_ENABLED"] ?: "false").lowercase()) {
-                "true" -> true; "false" -> false; else -> throw BffConfigurationException("BFF_MAP_ENABLED must be true or false")
-            }
-            val template = environment["BFF_MAP_TILE_TEMPLATE"]?.takeIf(String::isNotBlank)?.also(::requireTemplate)
-            val publicBase = environment["BFF_MAP_PUBLIC_BASE_URL"]?.takeIf(String::isNotBlank)?.let { parsePublicBase(it, mode) }
-            return MapProxyActivationConfig(enabled, template, environment["BFF_MAP_ATTRIBUTION"]?.takeIf(String::isNotBlank), publicBase)
-        }
-        private fun requireTemplate(template: String) {
-            require(template.length <= 1_024 && template.count { it == '{' } == 3 && template.contains("{z}") && template.contains("{x}") && template.contains("{y}")) {
-                "BFF_MAP_TILE_TEMPLATE must contain exactly {z}, {x}, and {y}"
-            }
-            val uri = try { URI(template.replace("{z}", "0").replace("{x}", "0").replace("{y}", "0")) } catch (_: Exception) { null }
-            require(uri != null && uri.isAbsolute && uri.scheme.equals("https", true) && !uri.host.isNullOrBlank() && uri.userInfo == null && uri.query == null && uri.fragment == null) {
-                "BFF_MAP_TILE_TEMPLATE must be an exact HTTPS template without credentials, query, or fragment"
-            }
-        }
-        private fun parsePublicBase(value: String, mode: RuntimeMode): URI = try {
-            URI(value).also { uri ->
-                val loopbackHttp = uri.scheme.equals("http", true) && uri.host in setOf("127.0.0.1", "localhost", "10.0.2.2", "::1")
-                require(uri.isAbsolute && !uri.host.isNullOrBlank() && uri.userInfo == null && uri.query == null && uri.fragment == null && (uri.path.isNullOrEmpty() || uri.path == "/") && (uri.scheme.equals("https", true) || (mode == RuntimeMode.DEVELOPMENT && loopbackHttp))) {
-                    "BFF_MAP_PUBLIC_BASE_URL must be HTTPS, or a development loopback HTTP origin"
-                }
-            }
-        } catch (_: Exception) {
-            throw BffConfigurationException("BFF_MAP_PUBLIC_BASE_URL must be HTTPS, or a development loopback HTTP origin")
         }
     }
 }

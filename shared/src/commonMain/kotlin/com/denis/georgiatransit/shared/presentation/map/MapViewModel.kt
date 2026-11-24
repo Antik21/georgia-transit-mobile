@@ -2,6 +2,8 @@ package com.denis.georgiatransit.shared.presentation.map
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.denis.georgiatransit.shared.domain.analytics.ProductAnalytics
+import com.denis.georgiatransit.shared.domain.analytics.ZoomType
 import com.denis.georgiatransit.shared.domain.model.CityId
 import com.denis.georgiatransit.shared.domain.model.GeoPoint
 import com.denis.georgiatransit.shared.domain.model.RouteId
@@ -41,16 +43,17 @@ class MapViewModel(
     journeyPlanRepository: JourneyPlanRepository = JourneyPlanRepository.Unconfigured,
     journeyPlanClock: LocationFreshnessClock = SystemLocationFreshnessClock,
     private val connectionNotices: ConnectionErrorNotices = ConnectionErrorNotices(),
+    private val analytics: ProductAnalytics? = null,
 ) : ViewModel(), ContainerHost<ViewState, SideEffect> {
     private var currentLocale = TransitLocale.English
-    private val cameraController = MapCameraController()
+    private val cameraController = MapCameraController { analytics?.zoomStarted(ZoomType.Button) }
     private val stopSelection = MapStopSelection(cameraController)
     private val locationActions = MapLocationActions(locationSession)
     private val nearbyStops = MapNearbyStops(repository, session)
     private val nearbyWorkflow = MapNearbyWorkflow(nearbyStops)
     private val lastViewport: MapViewport? get() = nearbyStops.viewport
     private val supplementalStops = MapSupplementalStops(repository)
-    private val stopArrivals = StopArrivalsFeature(repository)
+    private val stopArrivals = StopArrivalsFeature(repository, analytics)
     private val stopTransitions = MapStopTransitions(nearbyStops, supplementalStops, stopSelection, cameraController, stopArrivals)
     private val stopArrivalsStop: TransitStop? get() = stopArrivals.stop
     private val sessionSelection = MapSessionSelection(repository)
@@ -60,11 +63,11 @@ class MapViewModel(
     private val selectedVehicleRoutes: List<TransitRoute> get() = sessionSelection.vehicleRoutes
     private var realtimeVisibleAndStarted = false
     private var routeGeometrySnapshot = RouteGeometrySnapshot()
-    private val vehicleFeature = MapVehicleFeature(repository, realtimeClock, realtimeTickerPolicy)
+    private val vehicleFeature = MapVehicleFeature(repository, realtimeClock, realtimeTickerPolicy, analytics)
     private val vehiclePresentation get() = vehicleFeature.presentation
-    private val renderProjector by lazy { MapRenderProjector(cameraController, stopSelection, vehiclePresentation, bffStyleUrl) }
-    private val journeyPlanner =
-        JourneyPlannerWorkflow(journeyPlanRepository, repository, journeyPlanClock, realtimeTickerPolicy.pollIntervalMillis)
+    private val renderProjector by lazy { MapRenderProjector(cameraController, stopSelection, vehiclePresentation) }
+    private val journeyPlanner = JourneyPlannerWorkflow(
+        journeyPlanRepository, repository, journeyPlanClock, realtimeTickerPolicy, analytics = analytics, vehicleClock = realtimeClock)
 
     override val container: Container<ViewState, SideEffect> = viewModelScope.container(
         initialState = ViewState(
@@ -83,6 +86,7 @@ class MapViewModel(
                 Triple(city, selectedIds, location)
             }.collect { (city, selectedIds, location) ->
                 val change = sessionSelection.update(city, selectedIds)
+                cameraController.onRouteSelection(city, selectedIds, change, lastViewport)
                 if (change.resetStops) stopTransitions.resetForCityChange()
                 if (city == null) cameraController.reset()
                 val locationStopKey = reconcileUserLocationStopRequest(city, location.fix?.point)
@@ -90,7 +94,7 @@ class MapViewModel(
                 if (change.cityChanged || change.arrivalsCapabilityChanged) stopArrivals.unblock()
                 if (change.resetVehicles) vehicleFeature.reset()
                 if (change.resetRouteStops) resetSelectedRouteStopState()
-                if (change.selectionOverlayChanged) nextStopSourceRevision()
+                if (change.selectionOverlayChanged) stopSelection.nextSourceRevision()
                 val routeNames = selectedRouteProjection.routes.map { route -> route.displayLabel }
                 // Reconcile synchronously before creating a render state. This makes a city or
                 // selection replacement fail closed instead of briefly rendering old geometry.
@@ -104,7 +108,7 @@ class MapViewModel(
                 reduce {
                     MapSessionStateReducer.reduce(state, MapSessionStateInput(
                         city, change, location, renderState, routeNames, routeGeometrySnapshot,
-                        selectedStopUi(), nearbyStopItems(),
+                        stopProjector().selectedStopUi(), nearbyStopItems(),
                         stopArrivals.reproject(state.stopArrivalsSheet, currentLocale, selectedRouteProjection),
                         vehicleLayer, vehiclePresentation.vehicleAccessibilityItems(), plannerStep.state,
                     ))
@@ -126,19 +130,15 @@ class MapViewModel(
 
     fun dispatchAction(action: Action) {
         when (action) {
-            Action.RoutesClicked -> intent {
-                if (currentCity?.capabilities?.routes == true) {
-                    postSideEffect(NavigationEffect.OpenRoutes)
-                }
-            }
-            Action.ChangeCityClicked -> intent {
-                if (state.canChangeCity) postSideEffect(NavigationEffect.OpenCitySelection)
-            }
+            Action.SchedulesClicked -> navigateWhen(NavigationEffect.OpenSchedules) { session.selectedCity.value?.capabilities?.schedules == true }
+            Action.RoutesClicked -> navigateWhen(NavigationEffect.OpenRoutes) { currentCity?.capabilities?.routes == true }
+            Action.ChangeCityClicked -> navigateWhen(NavigationEffect.OpenCitySelection) { state.canChangeCity }
             Action.MyLocationClicked, Action.RefreshLocation, is Action.LocationEventReceived -> intent {
-                locationActions.forAction(action, state.location.permission, realtimeVisibleAndStarted)
-                    ?.let { postSideEffect(SideEffect.HandleLocation(it)) }
+                val update = locationActions.forAction(action, realtimeVisibleAndStarted)
+                update.command?.let { postSideEffect(SideEffect.HandleLocation(it)) }
+                if (update.showCameraError) postSideEffect(SideEffect.ShowLocationError)
             }
-            is Action.ZoomClicked -> intent { cameraController.zoomBy(action.direction.delta).let { reduce { state.withZoomStep(it) } } }
+            is Action.ZoomClicked -> intent { cameraController.zoomByButton(action.direction.delta).let { reduce { state.withZoomStep(it) } } }
             Action.RetryNearby -> retryNearby()
             is Action.RouteGeometryFocused -> routeGeometryCoordinator.focus(action.routeId)
             is Action.RetryRouteGeometry -> routeGeometryCoordinator.retry(viewModelScope, action.routeId)
@@ -153,25 +153,35 @@ class MapViewModel(
             is Action.MapViewportInsetsChanged -> onMapViewportInsetsChanged(action.insets)
             Action.RetryStopArrivals -> retryStopArrivals()
             is Action.LocaleChanged -> onLocaleChanged(action.locale)
-            is Action.RealtimeVisibilityChanged -> onRealtimeVisibilityChanged(action.isVisibleAndStarted)
+            is Action.RealtimeVisibilityChanged -> onRealtimeVisibilityChanged(action)
             is JourneyPlannerAction -> updatePlanner { planner, context -> journeyPlanner.onAction(planner, action, context) }
         }
     }
-    /** Cancels non-cooperative polling/animation work before generation advances and markers clear. */
+
+    private fun navigateWhen(effect: NavigationEffect, available: Syntax<ViewState, SideEffect>.() -> Boolean) = intent {
+        if (available()) postSideEffect(effect)
+    }
+
     private fun syncVehiclePresentationInputs() {
         vehicleFeature.updateInputs(currentCity, selectedVehicleRoutes, selectedRouteProjection,
             realtimeVisibleAndStarted, routeGeometrySnapshot)
     }
     private fun resetSelectedRouteStopState() {
-        if (supplementalStops.resetSelected()) nextStopSourceRevision()
+        if (supplementalStops.resetSelected()) stopSelection.nextSourceRevision()
     }
 
     private fun renderStateFor(city: TransitCity, fix: UserLocationFix?, viewportZoom: Double?): MapRenderState {
         syncVehiclePresentationInputs()
-        return renderProjector.project(city, fix, viewportZoom, stopProjector(), routeGeometrySnapshot)
+        val styleUrl = localizedMapStyleUrl(bffStyleUrl, currentLocale)
+        val routeFrame = MapRouteFrameData(city, session.selectedRouteIds.value, selectedVehicleRoutes,
+            routeGeometrySnapshot.polylines, supplementalStops.selectedStops,
+            realtimeVisibleAndStarted && session.selectedCity.value?.id == city.id)
+        return renderProjector.project(city, fix, viewportZoom, styleUrl, stopProjector(), routeGeometrySnapshot, routeFrame)
     }
 
-    private fun onRealtimeVisibilityChanged(isVisibleAndStarted: Boolean) {
+    private fun onRealtimeVisibilityChanged(action: Action.RealtimeVisibilityChanged) {
+        cameraController.routeBoundsSupported = action.routeBoundsSupported
+        val isVisibleAndStarted = action.isVisibleAndStarted
         if (realtimeVisibleAndStarted == isVisibleAndStarted) return
         realtimeVisibleAndStarted = isVisibleAndStarted
         syncVehiclePresentationInputs()
@@ -208,21 +218,16 @@ class MapViewModel(
 
     private fun reconcileUserLocationStopRequest(city: TransitCity?, point: GeoPoint?): UserLocationStopKey? {
         val (key, changed) = supplementalStops.reconcileUser(city, point, currentLocale)
-        if (changed) nextStopSourceRevision()
+        if (changed) stopSelection.nextSourceRevision()
         return key
     }
 
     private fun publishSupplementalStopChange() {
-        nextStopSourceRevision()
+        stopSelection.nextSourceRevision()
         intent {
             val city = currentCity ?: return@intent
             reduce {
-                state.copy(
-                    renderState = renderStateFor(city, state.location.fix, lastViewport?.zoom),
-                    selectedStop = selectedStopUi(),
-                    // List items carry the source revision; stale ones are rejected on tap.
-                    nearbyStops = nearbyStopItems(),
-                )
+                stopProjector().publishTo(state, renderStateFor(city, state.location.fix, lastViewport?.zoom))
             }
         }
     }
@@ -240,14 +245,10 @@ class MapViewModel(
             routes = selectedVehicleRoutes,
             locale = locale,
             isCurrent = { key -> realtimeVisibleAndStarted && currentCity?.id == city.id &&
-                currentLocale == locale && key in selectedRouteStopKeys() },
+                currentLocale == locale && key in selectedVehicleRoutes.directionKeys() },
             onChanged = ::publishSupplementalStopChange,
         )
     }
-    private fun selectedRouteStopKeys(): List<SelectedRouteStopKey> = selectedVehicleRoutes.flatMap { route ->
-        route.directions.map { direction -> SelectedRouteStopKey(route.id, direction.id) }
-    }
-
     private fun onRouteGeometrySnapshot(snapshot: RouteGeometrySnapshot) {
         val geometryChanged = snapshot.polylineSourceRevision != routeGeometrySnapshot.polylineSourceRevision
         routeGeometrySnapshot = snapshot
@@ -307,6 +308,8 @@ class MapViewModel(
                 requireVisibleMarker = true,
             )
             is MapPlatformEvent.VehicleTapped -> vehicleFeature.acceptTap(event.vehicleId, event.sourceRevision)
+            is MapPlatformEvent.ZoomGestureStarted -> analytics?.zoomStarted(event.type)
+            MapPlatformEvent.UserCameraMoveStarted -> cameraController.cancelRouteFrame()
             MapPlatformEvent.CameraMoveStarted, is MapPlatformEvent.MapTapped, is MapPlatformEvent.MapPointResolved -> Unit
             is MapPlatformEvent.MapLongPressed ->
                 updatePlanner { planner, context -> journeyPlanner.onLongPress(planner, event.point, context) }
@@ -335,13 +338,13 @@ class MapViewModel(
         currentLocale = locale
         resetSelectedRouteStopState()
         val locationStopKey = reconcileUserLocationStopRequest(currentCity, state.location.fix?.point)
-        nextStopSourceRevision()
+        stopSelection.nextSourceRevision()
         val city = currentCity
         val localizedStopArrivals = stopArrivals.restartForLocale(state.stopArrivalsSheet, city, locale, selectedRouteProjection)
         reduce {
             state.copy(
                 renderState = city?.let { renderStateFor(it, state.location.fix, lastViewport?.zoom) },
-                selectedStop = selectedStopUi(),
+                selectedStop = stopProjector().selectedStopUi(),
                 nearbyStops = nearbyStopItems(),
                 stopArrivalsSheet = localizedStopArrivals,
             )
@@ -365,7 +368,7 @@ class MapViewModel(
             viewModelScope, city, candidate, currentLocale, force,
             { currentCity }, { currentLocale }, ::onNearbyEvent,
         )
-        if (request != null) nextStopSourceRevision()
+        if (request != null) stopSelection.nextSourceRevision()
     }
 
     private suspend fun onNearbyEvent(event: MapNearbyEvent) {
@@ -388,12 +391,12 @@ class MapViewModel(
             if (!nearbyStops.isCurrent(request, currentCity, currentLocale)) return@intent
             val outcome = (event as? MapNearbyEvent.Result)?.let { nearbyWorkflow.accept(it.result, request.city) }
             if (outcome?.clearDerived == true) stopTransitions.clearForRecovery()
-            else if (outcome?.advanceRevision == true) nextStopSourceRevision()
+            else if (outcome?.advanceRevision == true) stopSelection.nextSourceRevision()
             reduce {
                 state.copy(
                     renderState = renderStateFor(request.city, state.location.fix, request.viewport.zoom),
                     contentState = outcome?.contentState ?: MapContentState.Loading,
-                    selectedStop = selectedStopUi(), nearbyStops = nearbyStopItems(),
+                    selectedStop = stopProjector().selectedStopUi(), nearbyStops = nearbyStopItems(),
                     stopArrivalsSheet = if (stopArrivalsStop == null) null else state.stopArrivalsSheet,
                 )
             }
@@ -409,14 +412,14 @@ class MapViewModel(
             reduce { state.copy(renderState = state.renderState?.copy(camera = command)) }
             return@intent
         }
-        val stop = stopSnapshot(stopId)
+        val stop = stopProjector().stopSnapshot(stopId)
         if (!stopSelection.select(stop, sourceRevision, requireVisibleMarker,
                 state.renderState?.stops, city, lastViewport?.zoom)) return@intent
         stopArrivals.open(checkNotNull(stop), city)
         reduce {
             state.copy(
                 renderState = renderStateFor(city, state.location.fix, lastViewport?.zoom),
-                selectedStop = selectedStopUi(),
+                selectedStop = stopProjector().selectedStopUi(),
                 nearbyStops = nearbyStopItems(),
                 stopArrivalsSheet = stopArrivals.initialSheet(currentCity, currentLocale, selectedRouteProjection),
             )
@@ -441,7 +444,7 @@ class MapViewModel(
     }
 
     private fun onMapViewportInsetsChanged(insets: MapViewportInsets) = intent {
-        val selected = stopSelection.selectedStopId?.let(::stopSnapshot) ?: return@intent
+        val selected = stopSelection.selectedStopId?.let { stopProjector().stopSnapshot(it) } ?: return@intent
         if (state.stopArrivalsSheet == null) return@intent
         val city = currentCity ?: return@intent
         if (!stopSelection.updateInsets(insets, selected, city, lastViewport?.zoom)) return@intent
@@ -493,8 +496,5 @@ class MapViewModel(
         locale = currentLocale,
         sourceRevision = stopSelection.sourceRevision,
     )
-    private fun selectedStopUi(): SelectedStopUi? = stopProjector().selectedStopUi()
-    private fun stopSnapshot(stopId: StopId): TransitStop? = stopProjector().stopSnapshot(stopId)
     private fun nearbyStopItems(): List<NearbyStopUi> = stopProjector().nearbyStopItems()
-    private fun nextStopSourceRevision(): Long = stopSelection.nextSourceRevision()
 }

@@ -124,7 +124,8 @@ internal class JourneySearch(
         label: SearchLabel,
         bufferSeconds: Long,
     ): RouteEntry? {
-        val threshold = label.arrival + bufferSeconds
+        val boardingBuffer = if (label is AccessLabel) 0L else bufferSeconds
+        val threshold = label.arrival + boardingBuffer
         var bestTrip: LiveTrip? = null
         for (trip in service.liveTrips) {
             val time = trip.times[position]
@@ -147,7 +148,7 @@ internal class JourneySearch(
         return RouteEntry(
             boarding = label,
             boardPosition = position,
-            departure = label.arrival + maxOf(service.headwaySeconds, bufferSeconds),
+            departure = label.arrival + maxOf(service.headwaySeconds, boardingBuffer),
             lastPosition = pattern.size - 1,
             waitBasis = JourneyWaitBasis.HEADWAY_ESTIMATE,
             vehicleId = null,

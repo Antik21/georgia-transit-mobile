@@ -2,20 +2,22 @@ package com.denis.georgiatransit.shared.presentation.cityselection.sections
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.ListItem
+import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.Role
@@ -113,7 +115,7 @@ private fun CityList(
             )
         }
         LazyColumn(
-            modifier = Modifier.weight(1f),
+            modifier = Modifier.weight(1f).selectableGroup(),
             verticalArrangement = Arrangement.spacedBy(TransitSpacing.Small),
         ) {
             items(cities, key = { it.id.value }) { city ->
@@ -139,41 +141,38 @@ private fun CityRow(
         modifier = automationModifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(
             containerColor = if (selected) {
-                MaterialTheme.colorScheme.primaryContainer
+                MaterialTheme.colorScheme.secondaryContainer
             } else {
-                MaterialTheme.colorScheme.surfaceContainer
+                MaterialTheme.colorScheme.surfaceContainerLow
             },
         ),
     ) {
-        Column(modifier = Modifier.fillMaxWidth()) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .selectable(
-                        selected = selected,
-                        enabled = city.isEnabled,
-                        role = Role.RadioButton,
-                        onClick = onClick,
-                    )
-                    .padding(TransitSpacing.Medium),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
+        ListItem(
+            headlineContent = {
+                Text(city.localizedName.citySelectionDisplayName(Locale.current.language, city.name))
+            },
+            modifier = Modifier.selectable(
+                selected = selected,
+                enabled = city.isEnabled,
+                role = Role.RadioButton,
+                onClick = onClick,
+            ),
+            leadingContent = {
                 RadioButton(selected = selected, enabled = city.isEnabled, onClick = null)
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = city.localizedName.citySelectionDisplayName(Locale.current.language, city.name),
-                        style = MaterialTheme.typography.titleMedium,
-                    )
-                    if (city.isExperimental) {
-                        Text(stringResource(Res.string.city_experimental), style = MaterialTheme.typography.bodyMedium)
-                    }
-                }
-                if (!city.isEnabled) {
-                    Text(stringResource(Res.string.city_unavailable), style = MaterialTheme.typography.labelLarge)
-                }
-            }
-            CityAttribution(city)
-        }
+            },
+            supportingContent = if (city.isExperimental) {
+                { Text(stringResource(Res.string.city_experimental)) }
+            } else {
+                null
+            },
+            trailingContent = if (!city.isEnabled) {
+                { Text(stringResource(Res.string.city_unavailable)) }
+            } else {
+                null
+            },
+            colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+        )
+        CityAttribution(city)
     }
 }
 
@@ -183,7 +182,7 @@ private fun CityAttribution(
     city: CityItemUiModel,
     modifier: Modifier = Modifier,
 ) {
-    if (city.attribution.isEmpty()) return
+    if (city.attribution.isEmpty() || city.id.value == "zugdidi" || city.id.value == "kutaisi") return
     val automationModifier = city.id.cityAttributionAutomationId()?.let { modifier.testTag(it) } ?: modifier
     Column(
         modifier = automationModifier.fillMaxWidth().padding(

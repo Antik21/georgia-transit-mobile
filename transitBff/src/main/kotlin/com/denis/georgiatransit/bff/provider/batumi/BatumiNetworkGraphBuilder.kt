@@ -1,9 +1,8 @@
 package com.denis.georgiatransit.bff.provider.batumi
 
-import com.denis.georgiatransit.bff.api.GeoPoint
-import com.denis.georgiatransit.bff.planning.MeasuredPolyline
 import com.denis.georgiatransit.bff.planning.TransitNetworkGraph
 import com.denis.georgiatransit.bff.planning.TransitPattern
+import com.denis.georgiatransit.bff.planning.TransitRouteShape
 import com.denis.georgiatransit.bff.planning.TransitStop
 import com.denis.georgiatransit.bff.provider.BatumiCatalog
 import com.denis.georgiatransit.bff.provider.RouteCycle
@@ -31,11 +30,6 @@ internal class BatumiPlanningNetwork(
  * service. `RouteIsCircle` routes get one doubled lap instead, which lets a ride wrap the terminal.
  */
 internal object BatumiNetworkGraphBuilder {
-    private const val MaximumStopOffsetMeters = 60.0
-    private const val MinimumSearchWindowMeters = 500.0
-    private const val SearchWindowFactor = 4.0
-    private const val ClosedShapeToleranceMeters = 50.0
-
     fun build(catalog: BatumiCatalog, publishedAt: Instant): BatumiPlanningNetwork {
         val stops = catalog.stops.map { TransitStop(it.id, it.position) }
         val stopIndex = stops.withIndex().associate { (index, stop) -> stop.id to index }
@@ -43,19 +37,27 @@ internal object BatumiNetworkGraphBuilder {
         val metas = mutableListOf<BatumiPatternMeta>()
         catalog.routes.forEach { route ->
             val cycle = catalog.cycle(route.id)
-            val shape = MeasuredPolyline(catalog.geometry(route.id))
-            val anchors = anchorStops(shape, cycle)
+            val shape = TransitRouteShape(catalog.geometry(route.id))
             val circle = route.id in catalog.circleRouteIds
             val runs = if (circle) listOf(doubledLap(cycle.chain.size)) else statusBlocks(cycle)
             runs.filter { it.size >= 2 }.forEach { chainIndices ->
-                val segments = chainIndices.toList().zipWithNext { from, to ->
-                    segment(shape, cycle, anchors, from, to)
+                val runSize = if (circle) cycle.chain.size else chainIndices.size
+                val positions = List(runSize) { cycle.chain[chainIndices[it]].stop.position }
+                val match = shape.match(positions)
+                val segments = List(chainIndices.size - 1) { index ->
+                    val from = index % runSize
+                    val to = (index + 1) % runSize
+                    match.segment(from, to) ?: TransitRouteShape.Segment(
+                        points = listOf(positions[from], positions[to]),
+                        approximate = true,
+                        meters = chainMeters(positions[from], positions[to]),
+                    )
                 }
                 patterns += TransitPattern(
                     routeId = route.id,
                     directionId = route.directions.single().id,
                     stops = IntArray(chainIndices.size) { stopIndex.getValue(cycle.chain[chainIndices[it]].stop.id) },
-                    segmentGeometry = segments.map(Segment::points),
+                    segmentGeometry = segments.map(TransitRouteShape.Segment::points),
                     segmentApproximate = BooleanArray(segments.size) { segments[it].approximate },
                     segmentMeters = DoubleArray(segments.size) { segments[it].meters },
                 )
@@ -74,50 +76,4 @@ internal object BatumiNetworkGraphBuilder {
 
     private fun statusBlocks(cycle: RouteCycle): List<IntArray> =
         cycle.chain.indices.groupBy { cycle.chain[it].status }.values.map(List<Int>::toIntArray)
-
-    private fun anchorStops(shape: MeasuredPolyline, cycle: RouteCycle): Array<Double?> {
-        val anchors = arrayOfNulls<Double>(cycle.chain.size)
-        var minAlong = 0.0
-        cycle.chain.forEachIndexed { index, point ->
-            val window = if (index == 0) {
-                shape.lengthMeters
-            } else {
-                maxOf(MinimumSearchWindowMeters, SearchWindowFactor * chainMeters(cycle.chain[index - 1].stop.position, point.stop.position))
-            }
-            val along = shape.projectForward(
-                target = point.stop.position,
-                minAlong = minAlong,
-                maxAlong = minAlong + window,
-                maxDistanceMeters = MaximumStopOffsetMeters,
-                preferEarliest = index == 0,
-            )
-            anchors[index] = along
-            if (along != null) minAlong = along
-        }
-        return anchors
-    }
-
-    private fun segment(
-        shape: MeasuredPolyline,
-        cycle: RouteCycle,
-        anchors: Array<Double?>,
-        from: Int,
-        to: Int,
-    ): Segment {
-        val start = anchors[from]
-        val end = anchors[to]
-        val fromPoint = cycle.chain[from].stop.position
-        val toPoint = cycle.chain[to].stop.position
-        if (start != null && end != null) {
-            if (to == from + 1 && end > start) return Segment(shape.slice(start, end), approximate = false, meters = end - start)
-            val closed = chainMeters(shape.points.first(), shape.points.last()) <= ClosedShapeToleranceMeters
-            if (to == 0 && from == cycle.chain.lastIndex && closed) {
-                val points = shape.slice(start, shape.lengthMeters) + shape.slice(0.0, end).drop(1)
-                return Segment(points, approximate = false, meters = shape.lengthMeters - start + end)
-            }
-        }
-        return Segment(listOf(fromPoint, toPoint), approximate = true, meters = chainMeters(fromPoint, toPoint))
-    }
-
-    private class Segment(val points: List<GeoPoint>, val approximate: Boolean, val meters: Double)
 }

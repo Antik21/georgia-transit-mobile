@@ -10,7 +10,7 @@ platform=$1
 target=$2
 artifact=$3
 evidence_dir=$4
-app_id=com.denis.georgiatransit
+app_id=com.anti.georgiatransit.sandbox
 script_dir=$(cd "$(dirname "$0")" && pwd)
 fixture_path="$script_dir/fixtures/route-geometry-fixture-server.mjs"
 prime_flow="$script_dir/flows/route-geometry-load-prime.yaml"
@@ -114,13 +114,21 @@ case "$platform" in
       echo "Refusing target that is not an explicitly booted iOS simulator: $target" >&2
       exit 74
     fi
+    simulator_app_pid() {
+      xcrun simctl spawn "$target" launchctl list |
+        awk -v label_prefix="UIKitApplication:$app_id[" '
+          index($3, label_prefix) == 1 && $1 ~ /^[0-9]+$/ && pid == "" { pid = $1 }
+          END { if (pid != "") print pid }
+        '
+    }
+
     xcrun simctl terminate "$target" "$app_id" 2>/dev/null || true
     xcrun simctl uninstall "$target" "$app_id" 2>/dev/null || true
     xcrun simctl install "$target" "$artifact"
     maestro --device "$target" test "$prime_flow" | tee "$evidence_dir/ios-route-geometry-prime-maestro.txt"
     xcrun simctl launch "$target" "$app_id" >/dev/null
     verify_owned_fixture || { echo "Fixture ownership changed before iOS baseline" >&2; exit 70; }
-    ios_baseline_pid=$(xcrun simctl spawn "$target" launchctl list | awk '/UIKitApplication:com\.denis\.georgiatransit/ { print $1; exit }')
+    ios_baseline_pid=$(simulator_app_pid)
     if [[ -z $ios_baseline_pid ]]; then
       echo "Unable to locate simulator process for baseline memory capture" >&2
       exit 75
@@ -129,7 +137,7 @@ case "$platform" in
     vmmap "$ios_baseline_pid" >"$evidence_dir/ios-route-geometry-baseline-vmmap.txt"
     maestro --device "$target" test "$cycle_flow" | tee "$evidence_dir/ios-route-geometry-3-cycles-maestro.txt"
     verify_owned_fixture || { echo "Fixture ownership changed before iOS three-cycle capture" >&2; exit 70; }
-    ios_after_three_pid=$(xcrun simctl spawn "$target" launchctl list | awk '/UIKitApplication:com\.denis\.georgiatransit/ { print $1; exit }')
+    ios_after_three_pid=$(simulator_app_pid)
     if [[ $ios_after_three_pid != $ios_baseline_pid ]]; then
       echo "Simulator app process changed during three-cycle sample; refusing leak comparison" >&2
       exit 75
@@ -138,7 +146,7 @@ case "$platform" in
     vmmap "$ios_after_three_pid" >"$evidence_dir/ios-route-geometry-after-3-cycles-vmmap.txt"
     maestro --device "$target" test "$cycle_flow" | tee "$evidence_dir/ios-route-geometry-6-cycles-maestro.txt"
     verify_owned_fixture || { echo "Fixture ownership changed before iOS six-cycle capture" >&2; exit 70; }
-    ios_after_six_pid=$(xcrun simctl spawn "$target" launchctl list | awk '/UIKitApplication:com\.denis\.georgiatransit/ { print $1; exit }')
+    ios_after_six_pid=$(simulator_app_pid)
     if [[ $ios_after_six_pid != $ios_baseline_pid ]]; then
       echo "Simulator app process changed during six-cycle sample; refusing leak comparison" >&2
       exit 75

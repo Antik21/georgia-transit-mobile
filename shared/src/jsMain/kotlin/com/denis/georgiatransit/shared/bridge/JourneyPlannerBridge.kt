@@ -18,6 +18,9 @@ import com.denis.georgiatransit.shared.presentation.map.JourneyPlannerStatus
 import com.denis.georgiatransit.shared.presentation.map.JourneyPlannerUi
 import com.denis.georgiatransit.shared.presentation.map.MapPlatformEvent
 import com.denis.georgiatransit.shared.presentation.map.MapViewModel
+import com.denis.georgiatransit.shared.presentation.map.boardingBus
+import com.denis.georgiatransit.shared.presentation.map.journeyDefaultExpandedSideFor
+import com.denis.georgiatransit.shared.presentation.map.withoutBoardingFrames
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Job
@@ -36,7 +39,7 @@ class PlannerEndpoint(val kind: String, val point: PlannerPoint?)
 @JsExport
 class PlannerLeg(
     val kind: String,
-    val minutes: Int,
+    val minutes: Int?,
     val role: String? = null,
     val meters: Int? = null,
     val approximate: Boolean = false,
@@ -48,30 +51,19 @@ class PlannerLeg(
     val waitMinutes: Int? = null,
     val waitLive: Boolean = false,
     val routeMode: String? = null,
+    val fromStopName: String? = null,
+    val toStopName: String? = null,
 )
 
 /** A highlight label: [key] picks the localized text, the colours come from the shared palette. */
 @JsExport
 class PlannerLabel(val key: String, val color: String, val textColor: String)
 
-/** One of the soonest buses to the selected option's first boarding stop. */
-@JsExport
-class PlannerBus(
-    val id: String,
-    val latitude: Double,
-    val longitude: Double,
-    val bearing: Double?,
-    val etaMinutes: Int,
-    val label: String,
-    val color: String,
-    val textColor: String,
-)
-
 @JsExport
 class PlannerOption(
     val id: String,
-    val totalMinutes: Int,
-    val arrivalEpochMillis: Double,
+    val totalMinutes: Int?,
+    val arrivalEpochMillis: Double?,
     val transfers: Int,
     val walkingMeters: Int?,
     val timing: String?,
@@ -112,9 +104,11 @@ class PlannerState(
     val walkMinutes: Int?,
     val options: Array<PlannerOption>,
     val route: PlannerRoute,
-    val buses: Array<PlannerBus> = emptyArray(),
-    /** Frame the route only when this changes; periodic refreshes keep it. */
+    val boardingFitPosition: PlannerPoint? = null,
+    /** Frame the route and boarding bus only when this changes. */
     val cameraFitRevision: String = "0",
+    val mapPick: String? = null,
+    val defaultExpandedSide: String? = null,
 )
 
 /** Planner commands and state for the Map entry; it lives and dies with its [MapBridge]. */
@@ -134,7 +128,12 @@ class JourneyPlannerBridge internal constructor(
         val newSubscription = scope.launch(start = CoroutineStart.LAZY) {
             var render: JourneyPlanRenderUi? = null
             var projected: PlannerRoute? = null
-            viewModel.container.stateFlow.map { it.journeyPlanner }.distinctUntilChanged().collect { planner ->
+            viewModel.container.stateFlow.map { state ->
+                val planner = state.journeyPlanner
+                planner.withoutBoardingFrames().copy(
+                    boardingFitPosition = planner.boardingFitPosition.takeIf { planner.boardingBus() != null },
+                )
+            }.distinctUntilChanged().collect { planner ->
                 // The renderer redraws lines only when this route object changes identity.
                 val route = projected?.takeIf { render == planner.render } ?: planner.render.toJs(++routeRevision)
                 render = planner.render
@@ -156,6 +155,7 @@ class JourneyPlannerBridge internal constructor(
         dispatch(Action.MapEventReceived(MapPlatformEvent.MapLongPressed(GeoPoint(latitude, longitude))))
     }
 
+    fun open() = dispatch(JourneyPlannerAction.OpenPlanner)
     fun routeHere() = dispatch(JourneyPlannerAction.RouteHere)
     fun routeFromHere() = dispatch(JourneyPlannerAction.RouteFromHere)
     fun dismissPin() = dispatch(JourneyPlannerAction.DismissPin)
@@ -167,10 +167,17 @@ class JourneyPlannerBridge internal constructor(
     }
 
     fun pickPointFor(side: String) = when (side) {
-        "origin" -> dispatch(JourneyPlannerAction.StartPickingOrigin)
-        "destination" -> dispatch(JourneyPlannerAction.StartPickingDestination)
+        "origin" -> dispatch(JourneyPlannerAction.StartMapPick(JourneyPlanSide.Origin))
+        "destination" -> dispatch(JourneyPlannerAction.StartMapPick(JourneyPlanSide.Destination))
         else -> Unit
     }
+
+    fun confirmMapPick(latitude: Double, longitude: Double) {
+        if (latitude !in -90.0..90.0 || longitude !in -180.0..180.0) return
+        dispatch(JourneyPlannerAction.ConfirmMapPick(GeoPoint(latitude, longitude)))
+    }
+
+    fun cancelMapPick() = dispatch(JourneyPlannerAction.CancelMapPick)
 
     fun swap() = dispatch(JourneyPlannerAction.Swap)
     fun clear() = dispatch(JourneyPlannerAction.Clear)
@@ -226,20 +233,16 @@ private fun JourneyPlannerUi.toJs(route: PlannerRoute): PlannerState {
         } ?: emptyArray(),
         route = route,
         cameraFitRevision = cameraFitRevision.toString(),
-        buses = buses?.vehicles.orEmpty().map { bus ->
-            PlannerBus(
-                id = bus.id.value, latitude = bus.position.latitude, longitude = bus.position.longitude,
-                bearing = bus.bearingDegrees, etaMinutes = bus.etaMinutes, label = bus.route.label,
-                color = bus.route.backgroundArgb.toCssColor(), textColor = bus.route.textArgb.toCssColor(),
-            )
-        }.toTypedArray(),
+        mapPick = mapPick?.toJs(),
+        defaultExpandedSide = journeyDefaultExpandedSideFor(origin, destination)?.toJs(),
+        boardingFitPosition = boardingFitPosition?.toPlannerPoint(),
     )
 }
 
 private fun JourneyOptionUi.toJs(selected: Boolean, buses: JourneyBusesUi?) = PlannerOption(
     id = id.value,
     totalMinutes = totalMinutes,
-    arrivalEpochMillis = arrivalAt.toEpochMilliseconds().toDouble(),
+    arrivalEpochMillis = arrivalAt?.toEpochMilliseconds()?.toDouble(),
     transfers = transfers,
     walkingMeters = walkingMeters,
     timing = timing?.name?.replaceFirstChar { it.lowercase() },
@@ -255,6 +258,7 @@ private fun JourneyOptionUi.toJs(selected: Boolean, buses: JourneyBusesUi?) = Pl
                 routeLabel = leg.route.label, routeColor = leg.route.backgroundArgb.toCssColor(),
                 routeTextColor = leg.route.textArgb.toCssColor(), stopCount = leg.stopCount,
                 waitMinutes = leg.waitMinutes, waitLive = leg.waitIsLive, routeMode = leg.route.mode.name.lowercase(),
+                fromStopName = leg.fromStopName, toStopName = leg.toStopName,
             )
         }
     }.toTypedArray(),

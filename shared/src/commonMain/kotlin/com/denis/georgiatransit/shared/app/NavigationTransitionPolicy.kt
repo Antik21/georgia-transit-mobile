@@ -24,14 +24,27 @@ object NavigationTransitionPolicy {
     fun restore(
         restoredStack: List<Destination>,
         selectedCityId: CityId?,
+        schedulesAvailable: Boolean = false,
+        languagePickerAvailable: Boolean = false,
     ): List<Destination> {
         if (selectedCityId == null) return listOf(Destination.CitySelection)
 
-        return when (restoredStack.lastOrNull()) {
+        return when (val destination = restoredStack.lastOrNull()) {
             null -> listOf(Destination.Map)
-            Destination.CitySelection -> listOf(Destination.CitySelection)
+            Destination.CitySelection ->
+                if (restoredStack == listOf(Destination.Map, Destination.CitySelection)) restoredStack
+                else listOf(Destination.CitySelection)
             Destination.Map -> listOf(Destination.Map)
             Destination.Routes -> listOf(Destination.Map, Destination.Routes)
+            Destination.LanguageSelection ->
+                if (languagePickerAvailable) listOf(Destination.Map, Destination.LanguageSelection)
+                else listOf(Destination.Map)
+            is Destination.Schedules ->
+                if (schedulesAvailable && destination.cityId == selectedCityId) {
+                    listOf(Destination.Map, destination)
+                } else {
+                    listOf(Destination.Map)
+                }
         }
     }
 
@@ -40,8 +53,10 @@ object NavigationTransitionPolicy {
         currentStack: List<Destination>,
         selectedCityId: CityId?,
         event: NavigationEvent,
+        schedulesAvailable: Boolean = false,
+        languagePickerAvailable: Boolean = false,
     ): List<Destination> {
-        val safeStack = restore(currentStack, selectedCityId)
+        val safeStack = restore(currentStack, selectedCityId, schedulesAvailable, languagePickerAvailable)
 
         return when (event) {
             NavigationEvent.CityConfirmed ->
@@ -51,15 +66,32 @@ object NavigationTransitionPolicy {
                 if (selectedCityId == null) listOf(Destination.CitySelection)
                 else listOf(Destination.Map, Destination.Routes)
 
+            NavigationEvent.OpenSchedules ->
+                if (schedulesAvailable && selectedCityId != null && safeStack.last() == Destination.Map) {
+                    listOf(Destination.Map, Destination.Schedules(selectedCityId))
+                } else {
+                    safeStack
+                }
+
+            NavigationEvent.Back ->
+                if (safeStack.size > 1) safeStack.dropLast(1) else safeStack
+
             NavigationEvent.RoutesConfirmed,
             NavigationEvent.RoutesDismissed,
-            NavigationEvent.Back,
             -> when (safeStack) {
                 listOf(Destination.Map, Destination.Routes) -> listOf(Destination.Map)
                 else -> safeStack
             }
 
-            NavigationEvent.ChangeCity -> listOf(Destination.CitySelection)
+            NavigationEvent.ChangeCity ->
+                if (safeStack.last() == Destination.Map) safeStack + Destination.CitySelection else safeStack
+
+            NavigationEvent.OpenLanguageSelection ->
+                if (languagePickerAvailable && safeStack.last() == Destination.Map) {
+                    safeStack + Destination.LanguageSelection
+                } else {
+                    safeStack
+                }
         }
     }
 }
@@ -68,8 +100,10 @@ object NavigationTransitionPolicy {
 sealed interface NavigationEvent {
     data object CityConfirmed : NavigationEvent
     data object OpenRoutes : NavigationEvent
+    data object OpenSchedules : NavigationEvent
     data object RoutesConfirmed : NavigationEvent
     data object RoutesDismissed : NavigationEvent
     data object ChangeCity : NavigationEvent
+    data object OpenLanguageSelection : NavigationEvent
     data object Back : NavigationEvent
 }

@@ -67,7 +67,9 @@ data class RouteGeometryLegendUi(
     val isFocused: Boolean,
     val canRetry: Boolean,
     val textColorArgb: Long = 0xFFFFFFFFL,
-)
+) {
+    val canFocus: Boolean get() = successfulDirections > 0
+}
 
 @Immutable
 data class RouteGeometrySnapshot(
@@ -262,7 +264,7 @@ class RouteGeometryCoordinator(
 
     /** Focus is presentation-only; changing it replaces only the common polyline source. */
     fun focus(routeId: RouteId) {
-        if (input.routes.none { it.id == routeId } || focusedRouteId == routeId) return
+        if (focusedRouteId == routeId || lastPublishedPolylines.none { it.routeId == routeId }) return
         focusedRouteId = routeId
         emitSnapshot()
     }
@@ -450,6 +452,13 @@ class RouteGeometryCoordinator(
 
     private fun snapshot(): RouteGeometrySnapshot {
         val activeKeys = activeDirectionKeys()
+        val visibleRouteIds = if (input.routeGeometryEnabled) {
+            activeKeys.filter { phases[it] is DirectionPhase.Ready }.mapTo(mutableSetOf(), RouteGeometryKey::routeId)
+        } else {
+            emptySet()
+        }
+        val visibleFocus = focusedRouteId?.takeIf { it in visibleRouteIds }
+            ?: input.routes.firstOrNull { it.id in visibleRouteIds }?.id
         val lines = input.routes.asSequence().takeIf { input.routeGeometryEnabled }?.flatMap { route ->
             route.directions.asSequence().mapNotNull { direction ->
                 val key = input.cityId?.let { RouteGeometryKey(it, route.id, direction.id) } ?: return@mapNotNull null
@@ -459,7 +468,7 @@ class RouteGeometryCoordinator(
                 val routeColor = selection.backgroundArgb.takeIf {
                     selection.colorAvailability == RouteColorAvailability.Assigned
                 } ?: return@mapNotNull null
-                val focused = route.id == focusedRouteId
+                val focused = route.id == visibleFocus
                 MapPolyline(
                     routeId = route.id,
                     directionId = direction.id,
@@ -488,7 +497,7 @@ class RouteGeometryCoordinator(
             val routeDirections = route.directions
             val ready = routeDirections.count { direction ->
                 val key = input.cityId?.let { RouteGeometryKey(it, route.id, direction.id) }
-                phases[key] is DirectionPhase.Ready
+                key in activeKeys && phases[key] is DirectionPhase.Ready
             }
             val phasesForRoute = routeDirections.map { direction ->
                 input.cityId?.let { phases[RouteGeometryKey(it, route.id, direction.id)] } ?: DirectionPhase.Unavailable
@@ -526,7 +535,7 @@ class RouteGeometryCoordinator(
                 // available to this snapshot while the capability suppresses every polyline.
                 successfulDirections = if (input.routeGeometryEnabled) ready else 0,
                 totalDirections = routeDirections.size,
-                isFocused = route.id == focusedRouteId,
+                isFocused = route.id == visibleFocus,
                 canRetry = canLoad() &&
                     routeSelection.colorAvailability == RouteColorAvailability.Assigned &&
                     hasRetryable,

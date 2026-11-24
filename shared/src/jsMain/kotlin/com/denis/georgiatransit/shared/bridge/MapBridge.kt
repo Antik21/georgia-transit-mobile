@@ -3,6 +3,7 @@
 package com.denis.georgiatransit.shared.bridge
 
 import androidx.lifecycle.ViewModelStore
+import com.denis.georgiatransit.shared.domain.analytics.ZoomType
 import com.denis.georgiatransit.shared.domain.model.GeoPoint
 import com.denis.georgiatransit.shared.domain.model.RouteId
 import com.denis.georgiatransit.shared.domain.model.StopId
@@ -36,6 +37,9 @@ import com.denis.georgiatransit.shared.presentation.map.SideEffect
 import com.denis.georgiatransit.shared.presentation.map.StopArrivalsSheetUi
 import com.denis.georgiatransit.shared.presentation.map.VehicleLayerState
 import com.denis.georgiatransit.shared.presentation.map.VehicleRouteAccessibilityUi
+import com.denis.georgiatransit.shared.presentation.map.boardingBadgeRevision
+import com.denis.georgiatransit.shared.presentation.map.boardingSourceRevision
+import com.denis.georgiatransit.shared.presentation.map.boardingVehicleMarker
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
@@ -113,6 +117,7 @@ class StopMapState(
     val userLocation: UserLocation? = null,
     val stopLayer: MapStopLayer? = null,
     val zoomStep: MapZoom? = null,
+    val journeyPlanningAvailable: Boolean = false,
 )
 
 private data class VehicleSlice(
@@ -142,6 +147,7 @@ private data class StopSlice(
     val mapStopClusters: List<MapStopCluster>,
     val stopSourceRevision: Long?,
     val zoomStep: MapZoomStep?,
+    val journeyPlanningAvailable: Boolean,
 )
 
 /** Owns the Map entry and its subscriptions; dispose when the host leaves the entry. */
@@ -170,7 +176,7 @@ class MapBridge internal constructor(
                 when (effect) {
                     is NavigationEffect -> onNavigation?.invoke(effect)
                     is SideEffect.HandleLocation -> deliverLocationCommand(effect.command)
-                    SideEffect.ShowConnectionError -> Unit
+                    SideEffect.ShowConnectionError, SideEffect.ShowLocationError -> Unit
                 }
             }
         }
@@ -194,6 +200,11 @@ class MapBridge internal constructor(
     fun myLocation() { if (!disposed) viewModel.dispatchAction(Action.MyLocationClicked) }
     fun zoomIn() { if (!disposed) viewModel.dispatchAction(Action.ZoomClicked(MapZoomDirection.In)) }
     fun zoomOut() { if (!disposed) viewModel.dispatchAction(Action.ZoomClicked(MapZoomDirection.Out)) }
+    fun zoomGesture(pinch: Boolean) {
+        if (!disposed) viewModel.dispatchAction(
+            Action.MapEventReceived(MapPlatformEvent.ZoomGestureStarted(if (pinch) ZoomType.Pinch else ZoomType.DoubleTap)),
+        )
+    }
     fun refreshLocation() { if (!disposed) viewModel.dispatchAction(Action.RefreshLocation) }
 
     fun locationPermission(state: String, precise: Boolean, canRetry: Boolean) =
@@ -241,6 +252,7 @@ class MapBridge internal constructor(
                         render?.stopClusters.orEmpty(),
                         render?.stopSourceRevision,
                         render?.zoomStep,
+                        state.journeyPlanningAvailable,
                     )
                 }
                 .distinctUntilChanged()
@@ -269,8 +281,14 @@ class MapBridge internal constructor(
         val newSubscription = scope.launch(start = CoroutineStart.LAZY) {
             viewModel.container.stateFlow
                 .map { state ->
-                    val render = state.renderState
-                    VehicleSlice(render?.vehicleSourceRevision ?: 0L, render?.vehicleBadgeRevision ?: 0L, render?.vehicles.orEmpty())
+                    val planner = state.journeyPlanner
+                    if (planner.isOpen) {
+                        val bus = planner.boardingVehicleMarker()
+                        VehicleSlice(bus.boardingSourceRevision(), bus.boardingBadgeRevision(), listOfNotNull(bus))
+                    } else {
+                        val render = state.renderState
+                        VehicleSlice(render?.vehicleSourceRevision ?: 0L, render?.vehicleBadgeRevision ?: 0L, render?.vehicles.orEmpty())
+                    }
                 }
                 .distinctUntilChanged()
                 .collect { slice ->
@@ -393,6 +411,7 @@ private fun StopSlice.toJs(
     userLocation = userLocation?.toJs(),
     stopLayer = stopLayer,
     zoomStep = zoomStep?.let { MapZoom(it.totalDelta) },
+    journeyPlanningAvailable = journeyPlanningAvailable,
 )
 
 private fun StopArrivalsSheetUi.toJs(): ArrivalsState = ArrivalsState(
