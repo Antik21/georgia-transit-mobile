@@ -39,11 +39,14 @@ internal class JourneyPlannerWorkflow(
     private val repository: JourneyPlanRepository,
     private val catalog: TransitRepository,
     private val clock: LocationFreshnessClock,
-    vehicleIntervalMillis: Long,
+    vehicleTickerPolicy: VehicleRealtimeTickerPolicy = DefaultVehicleRealtimeTickerPolicy,
     private val refreshIntervalMillis: Long = JOURNEY_REFRESH_INTERVAL_MILLIS,
     private val analytics: ProductAnalytics? = null,
+    vehicleClock: VehicleRealtimeClock = SystemVehicleRealtimeClock(),
 ) {
-    private val buses = JourneyBusesWorkflow(catalog, vehicleIntervalMillis)
+    private val buses = JourneyBusesWorkflow(
+        catalog, vehicleTickerPolicy.pollIntervalMillis, clock = vehicleClock, frameIntervalMillis = vehicleTickerPolicy.frameIntervalMillis,
+    )
     private var generation = 0L
     private var requestJob: Job? = null
     private var refreshJob: Job? = null

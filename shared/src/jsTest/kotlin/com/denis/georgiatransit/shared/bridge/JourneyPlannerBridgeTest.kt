@@ -37,11 +37,13 @@ import com.denis.georgiatransit.shared.domain.repository.TransitLoadResult
 import com.denis.georgiatransit.shared.domain.repository.TransitRepository
 import com.denis.georgiatransit.shared.presentation.location.RuntimeLocationSession
 import com.denis.georgiatransit.shared.presentation.map.MapViewModel
+import com.denis.georgiatransit.shared.presentation.map.VehicleRealtimeClock
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestScope
+import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
@@ -242,16 +244,22 @@ class JourneyPlannerBridgeTest {
     }
 
     @Test
-    fun theSelectedOptionCarriesLabelsAndArrivalTimesWithoutMapBuses() = runTest {
+    fun theSelectedOptionCarriesArrivalTimesAndTheVehicleStreamRendersOnlyItsBus() = runTest {
         Dispatchers.setMain(StandardTestDispatcher(testScheduler))
         val store = ViewModelStore()
-        val repository = Repository()
+        val repository = Repository { NOW + testScheduler.currentTime }
         try {
             val vm = viewModel(store, { _, _ -> plan(withWalk = true) }, LIVE_CITY, repository)
             val entry = MapBridge(vm, store, LIVE_CITY) {}
             try {
                 var state: PlannerState? = null
+                var vehicles: VehicleLayer? = null
+                val positions = mutableListOf<Double>()
                 entry.planner.subscribe { state = it }
+                entry.subscribeVehicles {
+                    vehicles = it
+                    it.vehicles.singleOrNull()?.let { bus -> positions += bus.latitude }
+                }
                 entry.setVisible(true)
                 settle()
                 entry.planner.longPressMap(A.latitude, A.longitude)
@@ -265,16 +273,25 @@ class JourneyPlannerBridgeTest {
                 assertEquals(listOf("#00796b", "#c2410c"), ride.labels.map { it.color })
                 assertEquals("bus", ride.legs[1].routeMode)
                 assertEquals(listOf(3, 11), ride.nearestEtas.toList())
-                val bus = checkNotNull(state).boardingVehicles.vehicles.single()
+                val bus = assertNotNull(vehicles?.vehicles?.singleOrNull(), "The first arrival must have an initial map frame")
                 assertEquals("demo:fixture:vehicle:v1", bus.id)
                 assertEquals(bus.latitude, state?.boardingFitPosition?.latitude)
                 assertTrue(state?.options?.last()?.labels?.isEmpty() == true)
 
+                val fitRevision = state?.cameraFitRevision
+                val targetLatitude = bus.latitude + 0.0008
+                repository.vehicleLatitude = targetLatitude
+                advanceTimeBy(10_000)
+                settle()
+                assertTrue(positions.any { it > bus.latitude && it < targetLatitude }, "Map frames must include an intermediate position")
+                assertEquals(fitRevision, state?.cameraFitRevision, "Vehicle frames must not refit the map")
+
                 entry.planner.selectOption("demo:fixture:journey:walk")
                 settle()
                 val arrivalCalls = repository.arrivalCalls
-                settle()
-                assertTrue(state?.boardingVehicles?.vehicles?.isEmpty() == true, "A walk-only option shows no buses")
+                advanceTimeBy(20_001)
+                runCurrent()
+                assertTrue(vehicles?.vehicles?.isEmpty() == true, "A walk-only option shows no buses")
                 assertTrue(state?.options?.all { it.nearestEtas.isEmpty() } == true)
                 assertEquals(arrivalCalls, repository.arrivalCalls, "Nothing polls without a selected transit option")
             } finally {
@@ -293,7 +310,13 @@ class JourneyPlannerBridgeTest {
         val location = RuntimeLocationSession(scope = backgroundScope, nowMillis = { NOW })
         val factory = viewModelFactory {
             initializer {
-                MapViewModel(repository, session, location, journeyPlanRepository = planner, journeyPlanClock = { NOW })
+                MapViewModel(
+                    repository, session, location, journeyPlanRepository = planner, journeyPlanClock = { NOW },
+                    realtimeClock = object : VehicleRealtimeClock {
+                        override fun wallNow() = Instant.fromEpochMilliseconds(NOW + testScheduler.currentTime)
+                        override fun monotonicNowMillis() = testScheduler.currentTime
+                    },
+                )
             }
         }
         return ViewModelProvider.create(store, factory)["map", MapViewModel::class]
@@ -326,8 +349,9 @@ class JourneyPlannerBridgeTest {
         return TransitLoadResult.Data(JourneyPage(items, start, ArrivalSource.ClientEstimate), TransitFreshness.Network)
     }
 
-    private class Repository : TransitRepository {
+    private class Repository(private val now: () -> Long = { NOW }) : TransitRepository {
         var arrivalCalls = 0
+        var vehicleLatitude = 41.642
         override fun cities() = listOf(CITY)
         override fun routes(cityId: CityId) = listOf(TransitRoute(ROUTE, CITY.id, "D1", "Demo Blue", 0xFF0057B8L))
 
@@ -345,10 +369,10 @@ class JourneyPlannerBridgeTest {
 
         override suspend fun vehicles(cityId: CityId, routeId: RouteId, directionId: DirectionId?): TransitLoadResult<VehiclePage> {
             val items = listOf("v1", "v2", "v3").mapIndexed { index, id ->
-                TransitVehicle(VehicleId("demo:fixture:vehicle:$id"), routeId, null, GeoPoint(41.642 + index * 0.002, 41.632), 90.0,
+                TransitVehicle(VehicleId("demo:fixture:vehicle:$id"), routeId, null, GeoPoint(vehicleLatitude + index * 0.002, 41.632), 90.0,
                     null, null, 0, VehiclePositionKind.Gps)
             }
-            return TransitLoadResult.Data(VehiclePage(items, Instant.fromEpochMilliseconds(NOW), 30, false), TransitFreshness.Network)
+            return TransitLoadResult.Data(VehiclePage(items, Instant.fromEpochMilliseconds(now()), 30, false), TransitFreshness.Network)
         }
     }
 

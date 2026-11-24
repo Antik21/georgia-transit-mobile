@@ -79,6 +79,8 @@ internal class JourneyBusesWorkflow(
     private val repository: TransitRepository,
     private val vehicleIntervalMillis: Long,
     private val arrivalsIntervalMillis: Long = JOURNEY_ARRIVALS_INTERVAL_MILLIS,
+    private val clock: VehicleRealtimeClock = SystemVehicleRealtimeClock(),
+    private val frameIntervalMillis: Long = DefaultVehicleRealtimeTickerPolicy.frameIntervalMillis,
 ) {
     private var key: JourneyBusKey? = null
     private var generation = 0L
@@ -99,10 +101,12 @@ internal class JourneyBusesWorkflow(
     private fun start(scope: CoroutineScope, key: JourneyBusKey, generation: Long, onUpdate: (JourneyBusesUpdate) -> Unit) =
         scope.launch {
             var soonest = emptyList<Pair<VehicleId, Int>>()
-            var positions = emptyMap<VehicleId, TransitVehicle>()
-            var headings = emptyMap<VehicleId, Double>()
+            var displayedVehicle: TransitVehicle? = null
             fun publish() {
                 if (generation == this@JourneyBusesWorkflow.generation) {
+                    val bus = displayedVehicle
+                    val positions = bus?.let { mapOf(it.id to it) }.orEmpty()
+                    val headings = bus?.bearing?.let { mapOf(bus.id to it) }.orEmpty()
                     onUpdate(JourneyBusesUpdate(key, generation, soonest, positions, headings))
                 }
             }
@@ -118,17 +122,25 @@ internal class JourneyBusesWorkflow(
                 }
             }
             if (key.positions) launch {
-                val headingSource = JourneyBusHeadings(routePath(key), key.boarding.stopPosition, key.boarding.departureBearing)
+                val motion = JourneyBoardingBusMotion(key.boarding, routePath(key), clock)
+                var animation: Job? = null
+                fun renderFrame() {
+                    val frame = motion.frame()
+                    if (frame == displayedVehicle) return
+                    displayedVehicle = frame
+                    if (soonest.isNotEmpty()) publish()
+                }
                 while (true) {
                     val page = guarded { repository.vehicles(key.cityId, key.boarding.routeId) }
-                    positions = if (page is TransitLoadResult.Data && !page.value.stale && page.freshness != TransitFreshness.StaleOffline) {
-                        page.value.items.filter { vehicle ->
-                            vehicle.routeId == key.boarding.routeId && vehicle.position.isMapCoordinate() &&
-                                (vehicle.ageSeconds ?: 0) <= page.value.maxAgeSeconds
-                        }.associateBy { it.id }
-                    } else emptyMap()
-                    headings = headingSource.update(positions.values)
-                    publish()
+                    animation?.cancel()
+                    motion.accept(page)
+                    renderFrame()
+                    if (motion.isMoving()) animation = launch {
+                        while (motion.isMoving()) {
+                            delay(frameIntervalMillis)
+                            renderFrame()
+                        }
+                    }
                     delay(vehicleIntervalMillis)
                 }
             }

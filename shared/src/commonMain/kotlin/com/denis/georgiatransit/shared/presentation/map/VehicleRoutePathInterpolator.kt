@@ -133,6 +133,11 @@ internal data class VehicleRouteMotion(
     )
 }
 
+internal fun VehicleTrack.interpolationFraction(nowMillis: Long): Double {
+    val start = interpolationStartedAtMonotonicMillis ?: return 1.0
+    return ((nowMillis - start).toDouble() / VEHICLE_INTERPOLATION_DURATION_MILLIS).coerceIn(0.0, 1.0)
+}
+
 internal object VehicleRoutePathInterpolator {
     fun prepare(polylines: List<MapPolyline>): Map<RouteId, List<PreparedVehicleRoutePath>> =
         polylines.mapNotNull(PreparedVehicleRoutePath::from).groupBy(PreparedVehicleRoutePath::routeId)

@@ -311,7 +311,6 @@ export interface PlannerState {
   readonly walkMinutes: number | null | undefined;
   readonly options: readonly PlannerOption[];
   readonly route: PlannerRoute;
-  readonly boardingVehicles: VehicleLayer;
   readonly boardingFitPosition: PlannerPoint | null | undefined;
   readonly cameraFitRevision: string;
 }
