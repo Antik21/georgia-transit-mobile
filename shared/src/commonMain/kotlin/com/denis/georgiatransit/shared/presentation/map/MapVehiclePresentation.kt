@@ -12,6 +12,7 @@ import com.denis.georgiatransit.shared.presentation.ui.RouteSelectionProjection
 import kotlinx.collections.immutable.PersistentList
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.toPersistentList
+import kotlin.math.abs
 import kotlin.time.Instant
 
 /** Owns marker frames, route-motion cache and native source revisions for one Map entry. */
@@ -276,8 +277,9 @@ internal class MapVehiclePresentation(
         monotonicNowMillis: Long,
         interpolate: Boolean,
     ): Double? {
-        val fallback = track.lastTravelBearing ?: track.bearingDegrees
+        val fallback = track.bearingDegrees ?: track.lastTravelBearing
         val motion = vehicleRouteMotion(track) ?: return fallback
+        if (track.bearingDegrees != null && abs(motion.deltaMeters) < MIN_JOURNEY_HEADING_MOVEMENT_METERS) return track.bearingDegrees
         val fraction = if (interpolate) track.interpolationFraction(monotonicNowMillis) else 1.0
         return motion.bearingAt(fraction) ?: fallback
     }
@@ -295,7 +297,7 @@ internal class MapVehiclePresentation(
                 directionId = track.directionId,
                 candidates = routePaths,
                 previousMotion = cached?.continuityMotionFor(track),
-                initialBearing = track.lastTravelBearing,
+                initialBearing = track.bearingDegrees ?: track.lastTravelBearing,
             ).also { resolved ->
                 vehicleRouteMotions[track.id] = CachedVehicleRouteMotion.from(track, resolved)
             }

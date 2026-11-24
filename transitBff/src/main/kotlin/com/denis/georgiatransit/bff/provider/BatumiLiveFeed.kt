@@ -26,6 +26,7 @@ internal class BatumiLiveFeed(
     private val clock: Clock,
     private val isEnabled: () -> Boolean,
 ) {
+    private val headings = BatumiVehicleHeadings()
     private var firstFailureAt: Instant? = null
     private var nextThetaSweepAt: Instant = Instant.MIN
 
@@ -33,7 +34,9 @@ internal class BatumiLiveFeed(
         if (!enabled) firstFailureAt = null
     }
 
-    suspend fun load(catalog: BatumiCatalog): BatumiLiveGeneration {
+    suspend fun load(catalog: BatumiCatalog): BatumiLiveGeneration = headings.update(loadGeneration(catalog))
+
+    private suspend fun loadGeneration(catalog: BatumiCatalog): BatumiLiveGeneration {
         if (!enabled()) throw ProviderUnavailable("Batumi live polling is disabled")
         val startedAt = clock.instant()
         try {
