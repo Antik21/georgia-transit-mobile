@@ -52,8 +52,6 @@
     <string name="map_route_geometry_chip_description">Ligne %1$s. %2$s</string>
     <string name="map_route_geometry_focus_action">Mettre en évidence la ligne %1$s</string>
     <string name="map_route_geometry_focused">Mise en évidence sur la carte</string>
-    <string name="map_route_geometry_status_loading">Chargement…</string>
-    <string name="map_route_geometry_status_partial">Affichage partiel</string>
     <string name="map_route_geometry_status_unavailable">Tracé indisponible</string>
     <string name="map_route_geometry_loading">Chargement du tracé… %1$d sens sur %2$d affichés</string>
     <string name="map_route_geometry_ready">Sens affichés : %1$d sur %2$d</string>

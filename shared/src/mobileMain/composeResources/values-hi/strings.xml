@@ -52,8 +52,6 @@
     <string name="map_route_geometry_chip_description">मार्ग %1$s। %2$s</string>
     <string name="map_route_geometry_focus_action">मार्ग %1$s हाइलाइट करें</string>
     <string name="map_route_geometry_focused">नक्शे पर हाइलाइट किया गया</string>
-    <string name="map_route_geometry_status_loading">लोड हो रहा है…</string>
-    <string name="map_route_geometry_status_partial">कुछ हिस्सा दिख रहा है</string>
     <string name="map_route_geometry_status_unavailable">मार्ग रेखा उपलब्ध नहीं</string>
     <string name="map_route_geometry_loading">लाइन का मार्ग लोड हो रहा है… %2$d में से %1$d दिशाएँ दिख रही हैं</string>
     <string name="map_route_geometry_ready">%2$d में से %1$d दिशाएँ दिख रही हैं</string>

@@ -1,7 +1,7 @@
 import {
   LngLatBounds, type AddLayerObject, type GeoJSONSource, type GeoJSONSourceSpecification, type Map as MapLibreMap,
 } from "maplibre-gl";
-import type { PlannerRoute, PlannerState } from "./contracts";
+import type { PlannerPoint, PlannerRoute, PlannerState } from "./contracts";
 import type { getCopy } from "./copy";
 import { renderPlannerPin } from "./planner-map-ui";
 
@@ -199,10 +199,10 @@ export function createPlannerMap(
         syncSource(pointSourceId, points, [pointLayer]);
         renderedPoints = pointsKey;
       }
-      // Only a new plan or another chosen option re-frames; refreshes leave the user's camera alone.
+      // Include the boarding bus on its first update without following its later positions.
       if (route?.lines.length && state && !state.mapPick && fittedRevision !== state.cameraFitRevision) {
         fittedRevision = state.cameraFitRevision;
-        fitRoute(route);
+        fitRoute(route, state.boardingFitPosition);
       }
     } catch {
       // MapLibre throws while a style it is (re)loading is not done; draw again once the style settles.
@@ -223,9 +223,10 @@ export function createPlannerMap(
     map.on("idle", retry);
   }
 
-  function fitRoute(route: PlannerRoute) {
+  function fitRoute(route: PlannerRoute, boardingBus?: PlannerPoint | null) {
     const bounds = new LngLatBounds();
     for (const line of route.lines) for (const point of line.points) bounds.extend([point.longitude, point.latitude]);
+    if (boardingBus) bounds.extend([boardingBus.longitude, boardingBus.latitude]);
     map.fitBounds(bounds, { padding: 48, maxZoom: 17, duration: reducedMotion.matches ? 0 : 400 });
   }
 

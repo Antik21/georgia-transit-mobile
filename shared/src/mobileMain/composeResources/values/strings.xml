@@ -52,8 +52,6 @@
     <string name="map_route_geometry_chip_description">Route %1$s. %2$s</string>
     <string name="map_route_geometry_focus_action">Highlight route %1$s</string>
     <string name="map_route_geometry_focused">Highlighted on the map</string>
-    <string name="map_route_geometry_status_loading">Loading…</string>
-    <string name="map_route_geometry_status_partial">Partially shown</string>
     <string name="map_route_geometry_status_unavailable">Line unavailable</string>
     <string name="map_route_geometry_loading">Loading route line… %1$d of %2$d directions shown</string>
     <string name="map_route_geometry_ready">%1$d of %2$d directions shown</string>

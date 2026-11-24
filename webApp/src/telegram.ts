@@ -21,6 +21,13 @@ export interface TelegramLocationManager {
   openSettings(): void;
 }
 
+export interface TelegramLocationHost {
+  readonly manager: TelegramLocationManager;
+  checkStatus?(onUpdated: () => void): () => void;
+}
+
+type TelegramEvent = "themeChanged" | "activated" | "locationManagerUpdated";
+
 interface TelegramWebApp {
   readonly platform?: string;
   readonly colorScheme?: "light" | "dark";
@@ -30,18 +37,40 @@ interface TelegramWebApp {
   ready(): void;
   expand(): void;
   disableVerticalSwipes?(): void;
-  onEvent(event: "themeChanged", handler: () => void): void;
-  offEvent(event: "themeChanged", handler: () => void): void;
+  onEvent(event: TelegramEvent, handler: () => void): void;
+  offEvent(event: TelegramEvent, handler: () => void): void;
 }
 
 declare global {
   interface Window {
-    Telegram?: { WebApp?: TelegramWebApp };
+    Telegram?: {
+      WebApp?: TelegramWebApp;
+      WebView?: { postEvent(event: "web_app_check_location", callback: false): void };
+    };
   }
 }
 
-export function connectTelegram(onBack: () => void) {
+export function connectTelegram(onBack: () => void, onActivated: () => void) {
   const webApp = window.Telegram?.WebApp;
+  const webView = window.Telegram?.WebView;
+  const isMiniApp = Boolean(webApp?.platform && webApp.platform !== "unknown");
+  const supportsLocation = isMiniApp && webApp?.isVersionAtLeast?.("8.0");
+  const manager = supportsLocation ? webApp?.LocationManager : undefined;
+  const location: TelegramLocationHost | undefined = manager ? { manager } : undefined;
+  if (location && webView && webApp) {
+    location.checkStatus = (onUpdated) => {
+      const unsubscribe = () => webApp.offEvent("locationManagerUpdated", onUpdated);
+      webApp.onEvent("locationManagerUpdated", onUpdated);
+      try {
+        // LocationManager.init() only asks the host for settings once per page.
+        webView.postEvent("web_app_check_location", false);
+        return unsubscribe;
+      } catch (error) {
+        unsubscribe();
+        throw error;
+      }
+    };
+  }
   const backButton = webApp?.isVersionAtLeast?.("6.1") === false ? undefined : webApp?.BackButton;
   const updateTheme = () => {
     // Telegram's script is also present in regular browsers; their OS preference still applies.
@@ -52,6 +81,7 @@ export function connectTelegram(onBack: () => void) {
 
   updateTheme();
   webApp?.onEvent("themeChanged", updateTheme);
+  if (supportsLocation) webApp?.onEvent("activated", onActivated);
   backButton?.onClick(onBack);
   webApp?.ready();
   webApp?.expand();
@@ -59,9 +89,8 @@ export function connectTelegram(onBack: () => void) {
   if (webApp?.isVersionAtLeast?.("7.7")) webApp.disableVerticalSwipes?.();
 
   return {
-    isMiniApp: Boolean(webApp?.platform && webApp.platform !== "unknown"),
-    // Bot API 8.0 location access lives in Telegram's own permission, not the WebView's geolocation.
-    locationManager: webApp?.isVersionAtLeast?.("8.0") ? webApp.LocationManager : undefined,
+    isMiniApp,
+    location,
     setBackVisible(visible: boolean) {
       if (visible) backButton?.show();
       else backButton?.hide();
@@ -70,6 +99,7 @@ export function connectTelegram(onBack: () => void) {
       backButton?.hide();
       backButton?.offClick(onBack);
       webApp?.offEvent("themeChanged", updateTheme);
+      if (supportsLocation) webApp?.offEvent("activated", onActivated);
     },
   };
 }

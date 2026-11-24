@@ -294,16 +294,6 @@ body { background: var(--background); color: var(--ink); }
   text-align: center;
   pointer-events: auto;
 }
-.map-vehicle-status {
-  max-inline-size: 100%;
-  margin: 0;
-  padding: 4px 8px;
-  border-radius: 8px;
-  background: var(--raised);
-  color: var(--muted);
-  font-size: 0.75rem;
-  box-shadow: 0 1px 4px #18191b24;
-}
 .map-route-legends {
   display: flex;
   gap: 8px;
@@ -343,8 +333,7 @@ body { background: var(--background); color: var(--ink); }
   background: transparent;
   text-align: start;
 }
-.map-route-label { display: grid; font-size: 0.875rem; font-weight: 550; }
-.map-route-status { max-inline-size: 9rem; font-size: 0.7rem; font-weight: 500; }
+.map-route-label { white-space: nowrap; font-size: 0.875rem; font-weight: 550; }
 .map-route-divider { inline-size: 1px; block-size: 18px; background: currentColor; opacity: 0.42; }
 .transit-app .map-route-remove, .transit-app .map-route-retry {
   display: grid;

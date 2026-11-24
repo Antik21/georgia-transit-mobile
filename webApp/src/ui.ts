@@ -80,14 +80,11 @@ export function createTransitView(root: HTMLElement, actions: ViewActions, langu
   const routeLegends = element("ul", "map-route-legends");
   routeLegends.setAttribute("aria-labelledby", routeHeading.id);
   routeSelection.append(routeHeading, routeLegends);
-  const vehicleStatus = element("p", "map-vehicle-status");
-  vehicleStatus.dataset.testid = "vehicle-status";
   // Mirrors the mobile accessibility summary: announced politely, never drawn.
   const vehicleSummary = element("p", "visually-hidden");
   vehicleSummary.setAttribute("aria-live", "polite");
   vehicleSummary.dataset.testid = "vehicle-summary";
-  // The footer grows upward. Placing status above the chips keeps their targets still as live data arrives.
-  mapControls.append(vehicleStatus, routeSelection, openRoutes);
+  mapControls.append(routeSelection, openRoutes);
   const mapCredits = element("div", "map-credits");
   const mapLeftControls = element("div", "map-left-controls");
   const plannerControls = element("div", "map-planner-controls");
@@ -295,10 +292,7 @@ export function createTransitView(root: HTMLElement, actions: ViewActions, langu
       replacePreservingFocus(routeLegends, legendRows);
     }
     renderLocation(state?.location);
-    const vehicleText = vehicleStatusText(copy, state?.vehicleStatus);
-    vehicleStatus.hidden = !vehicleText;
-    if (vehicleStatus.textContent !== (vehicleText ?? "")) vehicleStatus.textContent = vehicleText ?? "";
-    mapControls.hidden = planner?.open === true || (openRoutes.hidden && routeSelection.hidden && vehicleStatus.hidden);
+    mapControls.hidden = planner?.open === true || (openRoutes.hidden && routeSelection.hidden);
     const summaryText = vehicleSummaryText(copy, state?.vehicleStatus, state?.vehicleRoutes ?? []);
     if (vehicleSummary.textContent !== summaryText) vehicleSummary.textContent = summaryText;
 
@@ -586,10 +580,8 @@ function renderRouteLegend(route: MapState["routeLegends"][number], copy: Copy, 
   focus.disabled = !route.canFocus;
   const state = routeLineStatus(copy, route.status);
   focus.setAttribute("aria-label", [copy.focusRoute.replace("%1$s", route.label), state].filter(Boolean).join(". "));
-  const label = element("span", "map-route-label");
-  label.append(element("span", "", route.label));
-  if (state) label.append(element("small", "map-route-status", state));
-  focus.append(route.status === "loading" ? icon("spinner") : mapIcon("bus"), label);
+  focus.append(route.status === "loading" ? icon("spinner") : mapIcon("bus"),
+    element("span", "map-route-label", route.label));
   const remove = button("map-route-remove", "", () => actions.removeRoute(route.routeId), "remove-route");
   remove.dataset.focusKey = `remove-${route.routeId}`;
   remove.setAttribute("aria-label", copy.removeRoute.replace("%1$s", route.label));
@@ -654,17 +646,6 @@ function vehicleSummaryText(copy: Copy, status: string | undefined, routes: MapS
     .map((route) => `${route.label}: ${route.vehicleCount}, ${vehicleStateLabel(copy, route.status) ?? ""}`)
     .join(" · ");
   return copy.vehiclesSummary.replace("%1$s", label).replace("%2$s", counts);
-}
-
-function vehicleStatusText(copy: Copy, status?: string) {
-  const label = {
-    loading: copy.vehiclesLoading,
-    stale: copy.vehiclesStale,
-    retryable: copy.vehiclesRetryable,
-    unavailable: copy.vehiclesUnavailable,
-    mixed: copy.vehiclesMixed,
-  }[status ?? ""];
-  return label ? copy.vehiclesStatus.replace("%1$s", label) : null;
 }
 
 function formatNumber(template: string, count: number) {

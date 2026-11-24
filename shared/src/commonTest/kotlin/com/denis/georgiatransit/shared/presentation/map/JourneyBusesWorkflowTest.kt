@@ -117,23 +117,58 @@ class JourneyBusesWorkflowTest {
     }
 
     @Test
+    fun theFirstBusPositionFramesThePlanAndLaterUpdatesKeepTheCameraInPlace() = runTest {
+        val repository = BusRepository()
+        val workflow = JourneyBusesWorkflow(repository, vehicleIntervalMillis = 8_000)
+        val options = listOf(option(OPTION_A), option(OPTION_B))
+        var state = JourneyPlannerUi(isOpen = true, showingResults = true, status = JourneyPlannerStatus.Results(options, OPTION_A))
+        fun apply(update: JourneyBusesUpdate) {
+            state = assertNotNull(JourneyPlannerReducer.buses(state, update, context())).state
+        }
+        workflow.sync(backgroundScope, key(OPTION_A), ::apply)
+        runCurrent()
+        assertEquals(A, state.boardingFitPosition)
+        assertEquals(1L, state.cameraFitRevision)
+
+        repository.position = GeoPoint(41.641, 41.63)
+        advanceTimeBy(8_001)
+        assertEquals(repository.position, state.boardingBus()?.position)
+        assertEquals(1L, state.cameraFitRevision)
+
+        repository.stalePositions = true
+        advanceTimeBy(8_000)
+        assertEquals(null, state.boardingBus())
+        assertEquals(listOf(3, 11), state.buses?.etaMinutes)
+        assertEquals(1L, state.cameraFitRevision)
+
+        state = JourneyPlannerReducer.action(state, JourneyPlannerAction.SelectOption(OPTION_B), context()).state
+        repository.stalePositions = false
+        workflow.sync(backgroundScope, key(OPTION_B), ::apply)
+        runCurrent()
+        assertEquals(repository.position, state.boardingFitPosition)
+        assertEquals(3L, state.cameraFitRevision)
+    }
+
+    @Test
     fun theArrivalsCapabilityAHiddenMapAndAClosedPlannerStopEveryPoll() = runTest {
         val repository = BusRepository()
         val workflow = JourneyPlannerWorkflow({ _, _ -> error("No plan expected") }, repository, { 0L }, 8_000)
-        val results = JourneyPlannerUi(isOpen = true, origin = JourneyEndpoint.MapPoint(A), destination = JourneyEndpoint.MapPoint(A),
+        val results = JourneyPlannerUi(isOpen = true, showingResults = true,
+            origin = JourneyEndpoint.MapPoint(A), destination = JourneyEndpoint.MapPoint(A),
             status = JourneyPlannerStatus.Results(listOf(option(OPTION_A)), OPTION_A))
 
         execute(workflow, results, context(arrivals = false))
         assertEquals(0, repository.arrivalCalls, "Without the arrivals capability nothing is polled")
         execute(workflow, results, context())
         assertEquals(1, repository.arrivalCalls)
-        assertEquals(0, repository.vehicleCalls, "The planner needs arrivals, not vehicle positions")
+        assertEquals(1, repository.vehicleCalls)
         execute(workflow, results, context(visible = false))
         execute(workflow, results, context())
         assertEquals(2, repository.arrivalCalls, "A hidden map stops polling and a visible one starts afresh")
         execute(workflow, JourneyPlannerUi(), context())
         advanceTimeBy(10 * JOURNEY_ARRIVALS_INTERVAL_MILLIS)
         assertEquals(2, repository.arrivalCalls, "Closing the planner stops polling")
+        assertEquals(2, repository.vehicleCalls)
     }
 
     @Test
@@ -180,6 +215,8 @@ class JourneyBusesWorkflowTest {
     ) : TransitRepository {
         var arrivalCalls = 0
         var stale = false
+        var stalePositions = false
+        var position = A
         var vehicleCalls = 0
         var shapeCalls = 0
         override fun cities() = listOf(CITY)
@@ -198,8 +235,8 @@ class JourneyBusesWorkflowTest {
 
         override suspend fun vehicles(cityId: CityId, routeId: RouteId, directionId: DirectionId?): TransitLoadResult<VehiclePage> {
             vehicleCalls++
-            val items = listOf(V1, V2, V3).map { TransitVehicle(it, routeId, null, A, null, null, null, 0, VehiclePositionKind.Gps) }
-            return TransitLoadResult.Data(VehiclePage(items, Instant.fromEpochMilliseconds(0), 30, false), TransitFreshness.Network)
+            val items = listOf(V1, V2, V3).map { TransitVehicle(it, routeId, null, position, null, null, null, 0, VehiclePositionKind.Gps) }
+            return TransitLoadResult.Data(VehiclePage(items, Instant.fromEpochMilliseconds(0), 30, stalePositions), TransitFreshness.Network)
         }
     }
 

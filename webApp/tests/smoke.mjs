@@ -335,8 +335,20 @@ try {
   await waitFor('Route search filters by route number', `${visible(routeOption(fixtureRouteId))} && !${visible(routeOption(otherRouteId))}`);
   await tap(routeOption(fixtureRouteId));
   await waitFor('Tapping a route updates the selection draft', routePressed(fixtureRouteId, true));
-  await tap(testId('confirm-routes'));
-  await waitFor('Confirm returns to the map', `${mapScreen} && !${routesScreen}`);
+  const incomingShape = Promise.withResolvers();
+  fixtureControl.routeShapeHold = incomingShape.promise;
+  try {
+    await tap(testId('confirm-routes'));
+    await waitFor('Confirm returns to the map', `${mapScreen} && !${routesScreen}`);
+    await waitFor('The chip only shows the route number while geometry loads', async () =>
+      bffRequests.includes(fixtureShapePath) && await evaluate(`(() => {
+        const focus = document.querySelector('${testId('focus-route')}');
+        return Boolean(focus?.querySelector('.spinner') && focus.textContent.trim() === 'D1');
+      })()`));
+  } finally {
+    fixtureControl.routeShapeHold = null;
+    incomingShape.resolve();
+  }
   const routeSelectionEvents = () => analyticsRequests.filter((event) => event.routesSelection);
   await waitFor('Confirm records the route city and selected count', () => routeSelectionEvents().some(
     ({ routesSelection }) => routesSelection.cityId === fixtureCityId && routesSelection.routeCount === 1,
@@ -366,13 +378,13 @@ try {
   await tap(testId('dismiss-arrivals'));
   await waitFor('ETA closes back to the map with the route selected', `!${arrivalsPanel} && ${panelCollapsed}`);
   await waitFor('The live vehicle badge draws on the MapLibre canvas', () => mapContainsColor(vehicleHeadlightColor, 6));
-  await waitFor('Live vehicles show no degraded status', `!${visible(testId('vehicle-status'))}`);
   const vehicleSummary = `(document.querySelector('${testId('vehicle-summary')}')?.textContent ?? '')`;
   await waitFor('Screen readers get the live vehicle count per route', `${vehicleSummary}.includes('D1: 1, live')`);
   fixtureControl.staleVehicles = true;
-  await waitFor('A stale BFF page shows the older-positions status', `${visible(testId('vehicle-status'))} && ${vehicleSummary}.includes('showing older positions')`);
+  await waitFor('Older vehicle positions are announced without a visible status',
+    `${vehicleSummary}.includes('showing older positions') && !document.querySelector('${testId('vehicle-status')}')`);
   fixtureControl.staleVehicles = false;
-  await waitFor('Fresh positions clear the degraded status', `!${visible(testId('vehicle-status'))} && ${vehicleSummary}.includes('D1: 1, live')`);
+  await waitFor('Fresh positions update the accessibility summary', `${vehicleSummary}.includes('D1: 1, live')`);
 
   const animatedAreas = await pulseAreas(10);
   assert.ok(Math.min(...animatedAreas) > 0 && Math.max(...animatedAreas) > Math.min(...animatedAreas) * 1.5,
@@ -473,11 +485,12 @@ try {
   fixtureControl.vehicleHold = incomingVehicles.promise;
   try {
     await tap(testId('cancel-routes'));
-    await waitFor('The map shows the route while vehicle positions start loading',
-      `${mapScreen} && !${routesScreen} && ${visible(testId('remove-route'))} && ${visible(testId('vehicle-status'))}`);
+    await waitFor('The map shows the route while vehicle positions load silently',
+      `${mapScreen} && !${routesScreen} && ${visible(testId('remove-route'))}
+      && ${vehicleSummary}.includes('Vehicle positions: loading.') && !document.querySelector('${testId('vehicle-status')}')`);
     const removePoint = await touchTarget(testId('remove-route'));
     incomingVehicles.resolve();
-    await waitFor('The vehicle status clears when positions arrive', `!${visible(testId('vehicle-status'))}`);
+    await waitFor('Positions arrive in the background', `${vehicleSummary}.includes('D1: 1, live')`);
     assert.deepEqual(await touchTarget(testId('remove-route')), removePoint, 'The vehicle status must not move the route action');
     await tapAt(removePoint);
   } finally {
@@ -571,15 +584,30 @@ try {
   await waitFor('A Telegram denial asks the user to open settings', `${permissionIs('settingsRequired')} && ${visible(testId('location-status'))}`);
   await tap(locationButton);
   await waitFor('The settings action opens Telegram location settings', 'window.__telegramSmoke.settingsOpened === 1');
+  const locationActionable = `document.querySelector('${locationButton}')?.disabled === false`;
   await evaluate(`(() => {
     const location = window.__telegramSmoke.location;
     location.granted = true;
+    location.available = false;
     location.fix = { latitude: 41.6505, longitude: 41.6395, horizontal_accuracy: 25 };
-    document.dispatchEvent(new Event('visibilitychange'));
+    window.__telegramSmoke.emit('activated');
     return true;
   })()`);
-  await waitFor('Returning from settings grants access and locates the user', `${permissionIs('granted')} && !${visible(testId('location-status'))}`);
+  await waitFor('Returning from Telegram settings refreshes status and leaves unavailable location retryable',
+    `${permissionIs('unavailable')} && ${locationActionable}`);
+  await evaluate('window.__telegramSmoke.location.available = true; true');
+  await tap(locationButton);
+  await waitFor('Retry rechecks Telegram and obtains the location after access was granted',
+    `${permissionIs('granted')} && ${locationActionable} && !${visible(testId('location-status'))}`);
   await waitFor('The user location dot draws on the MapLibre canvas', () => mapContainsColor(userLocationDotColor, 20));
+  await evaluate('window.__telegramSmoke.location.dropResponse = true; true');
+  await tap(locationButton);
+  await waitFor('Location is busy during a Telegram request', `!(${locationActionable}) && ${permissionIs('granted')}`);
+  await waitFor('A missing Telegram response times out and unlocks the button',
+    `${locationActionable} && ${permissionIs('granted')} && ${visible(testId('location-status'))}`);
+  await evaluate('window.__telegramSmoke.location.dropResponse = false; true');
+  await tap(locationButton);
+  await waitFor('Location retry succeeds after a timeout', `${locationActionable} && !${visible(testId('location-status'))}`);
 
   const zoomIn = testId('zoom-in');
   const zoomOut = testId('zoom-out');

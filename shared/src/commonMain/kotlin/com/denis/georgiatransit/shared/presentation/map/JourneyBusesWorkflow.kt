@@ -63,7 +63,9 @@ internal object JourneyBusesProjector {
             boarding = update.key.boarding,
             etaMinutes = update.soonest.map { it.second },
             vehicles = update.soonest.mapNotNull { (id, eta) ->
-                update.positions[id]?.let { vehicle -> JourneyBusUi(id, vehicle.position, update.headings[id], eta, route) }
+                update.positions[id]?.let { vehicle ->
+                    JourneyBusUi(id, vehicle.position, update.headings[id], eta, route, vehicle.positionKind)
+                }
             },
         )
     }
@@ -99,15 +101,6 @@ internal class JourneyBusesWorkflow(
             var soonest = emptyList<Pair<VehicleId, Int>>()
             var positions = emptyMap<VehicleId, TransitVehicle>()
             var headings = emptyMap<VehicleId, Double>()
-            val headingSource = JourneyBusHeadings(routePath(key), key.boarding.stopPosition, key.boarding.departureBearing)
-            suspend fun refreshPositions() {
-                if (!key.positions || soonest.isEmpty()) return
-                val page = guarded { repository.vehicles(key.cityId, key.boarding.routeId) }
-                if (page is TransitLoadResult.Data) {
-                    positions = page.value.items.associateBy { it.id }
-                    headings = headingSource.update(positions.values)
-                }
-            }
             fun publish() {
                 if (generation == this@JourneyBusesWorkflow.generation) {
                     onUpdate(JourneyBusesUpdate(key, generation, soonest, positions, headings))
@@ -117,19 +110,26 @@ internal class JourneyBusesWorkflow(
                 while (true) {
                     val page = guarded { repository.arrivals(key.cityId, key.boarding.stopId, ARRIVALS_LIMIT, key.locale) }
                     // A stale or failed response cannot support a current countdown.
-                    soonest = if (page is TransitLoadResult.Data && !page.value.stale) {
+                    soonest = if (page is TransitLoadResult.Data && !page.value.stale && page.freshness != TransitFreshness.StaleOffline) {
                         JourneyBusesProjector.soonest(page.value.items, key.boarding)
                     } else emptyList()
-                    refreshPositions()
                     publish()
                     delay(arrivalsIntervalMillis)
                 }
             }
-            launch {
+            if (key.positions) launch {
+                val headingSource = JourneyBusHeadings(routePath(key), key.boarding.stopPosition, key.boarding.departureBearing)
                 while (true) {
-                    delay(vehicleIntervalMillis)
-                    refreshPositions()
+                    val page = guarded { repository.vehicles(key.cityId, key.boarding.routeId) }
+                    positions = if (page is TransitLoadResult.Data && !page.value.stale && page.freshness != TransitFreshness.StaleOffline) {
+                        page.value.items.filter { vehicle ->
+                            vehicle.routeId == key.boarding.routeId && vehicle.position.isMapCoordinate() &&
+                                (vehicle.ageSeconds ?: 0) <= page.value.maxAgeSeconds
+                        }.associateBy { it.id }
+                    } else emptyMap()
+                    headings = headingSource.update(positions.values)
                     publish()
+                    delay(vehicleIntervalMillis)
                 }
             }
         }

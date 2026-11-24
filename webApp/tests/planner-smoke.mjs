@@ -172,6 +172,7 @@ export function plannerSmoke({ send, evaluate, waitFor, tap, visible, testId, ma
   return {
     /** Point-to-point planning without any location permission, on a city with tripPlanning. */
     async pointToPoint(telegramBack) {
+      fixtureControl.boardingBusOutsidePlan = true;
       await longPress(0.3, 0.65);
       await waitFor('A dropped pin opens the trip actions', `${visible(testId('planner-pin-card'))}
         && Boolean(document.querySelector('${testId('planner-dropped-pin')} svg path'))`);
@@ -253,12 +254,12 @@ export function plannerSmoke({ send, evaluate, waitFor, tap, visible, testId, ma
       'The card summary does not repeat live bus status');
       assert.ok(!(await evaluate(`${optionText(0)}.includes('live bus')`)), 'The journey does not show technical live status');
       assert.equal(cards[2].spoken, 'Walk, then bus B12, then walk, then bus B7, then walk.');
-      await waitFor('The planned and following bus arrivals are shown within the first ride',
+      await waitFor('The first ride lists both arrivals and the camera includes only its planned bus',
         async () => await evaluate(`${nearestText} === 'In: 3, 11 min'
           && document.querySelector('${testId('planner-nearest')}')?.closest('.planner-leg-ride') !== null
           && document.querySelector('${testId('planner-nearest')}')?.parentElement?.firstElementChild?.dataset.testid === 'planner-nearest'
           && getComputedStyle(document.querySelector('${testId('planner-nearest')}')).fontWeight === '500'
-          && !${optionText(0)}.includes('wait ≈ 2 min')`) && await highlightedBuses() === 0);
+          && !${optionText(0)}.includes('wait ≈ 2 min')`) && await highlightedBuses() === 1);
       assert.equal(planRequests.length, 1);
       assertPrivateRequest(planRequests[0]);
       assert.equal(bffRequests.filter((path) => path === planPath).length, 1);
@@ -295,6 +296,7 @@ export function plannerSmoke({ send, evaluate, waitFor, tap, visible, testId, ma
       await waitFor('Telegram BackButton handles the planner', `window.__telegramSmoke?.backVisible === true`);
       await telegramBack();
       await waitFor('Telegram back closes the planner', `!${panel} && window.__telegramSmoke?.backVisible === false`);
+      fixtureControl.boardingBusOutsidePlan = false;
     },
 
     /** A plan that lands before the map style has loaded is drawn and framed once the style arrives. */

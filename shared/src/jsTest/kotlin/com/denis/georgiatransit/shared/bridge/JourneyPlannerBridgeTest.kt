@@ -265,14 +265,16 @@ class JourneyPlannerBridgeTest {
                 assertEquals(listOf("#00796b", "#c2410c"), ride.labels.map { it.color })
                 assertEquals("bus", ride.legs[1].routeMode)
                 assertEquals(listOf(3, 11), ride.nearestEtas.toList())
-                assertTrue(state?.buses?.isEmpty() == true, "The planner does not show buses on the map")
+                val bus = checkNotNull(state).boardingVehicles.vehicles.single()
+                assertEquals("demo:fixture:vehicle:v1", bus.id)
+                assertEquals(bus.latitude, state?.boardingFitPosition?.latitude)
                 assertTrue(state?.options?.last()?.labels?.isEmpty() == true)
 
                 entry.planner.selectOption("demo:fixture:journey:walk")
                 settle()
                 val arrivalCalls = repository.arrivalCalls
                 settle()
-                assertTrue(state?.buses?.isEmpty() == true, "A walk-only option shows no buses")
+                assertTrue(state?.boardingVehicles?.vehicles?.isEmpty() == true, "A walk-only option shows no buses")
                 assertTrue(state?.options?.all { it.nearestEtas.isEmpty() } == true)
                 assertEquals(arrivalCalls, repository.arrivalCalls, "Nothing polls without a selected transit option")
             } finally {
