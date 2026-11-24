@@ -35,6 +35,26 @@ class BatumiPatternRulesTest {
     }
 
     @Test
+    fun `a bus on the return leg cannot promise a live boarding on the outbound leg`() {
+        val out = eastLine("O", 41.640, count = 12)
+        val back = out.reversed().map { it.copy(rawId = "B${it.rawId}", latitude = 41.6402, status = 2) }
+        val fixture = PlanningFixture(listOf(FixtureRoute("9", out + back)))
+        fixture.vehicle("9", "returning", back[back.lastIndex - 2])
+
+        fun ride() = fixture.plan(near(out[2]), near(out[10])).fastest().transitSegments.single()
+
+        val estimated = ride()
+        assertEquals(JourneyWaitBasis.HEADWAY_ESTIMATE, estimated.waitBasis)
+        assertNull(estimated.vehicleId)
+
+        fixture.vehicle("9", "approaching", out[0])
+        val live = ride()
+        assertEquals(fixture.stopId("O2"), live.fromStopId)
+        assertEquals(JourneyWaitBasis.LIVE_VEHICLE, live.waitBasis)
+        assertEquals("batumi:theta:vehicle:approaching", live.vehicleId)
+    }
+
+    @Test
     fun `a RouteIsCircle route lets one ride wrap through the terminal`() {
         val fixture = PlanningFixture(listOf(FixtureRoute("9", outbound + inbound, circle = true)))
         assertTrue(fixture.routeId("9") in fixture.catalog.circleRouteIds)
