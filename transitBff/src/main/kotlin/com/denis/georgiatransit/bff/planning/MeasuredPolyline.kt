@@ -55,8 +55,9 @@ internal class MeasuredPolyline(val points: List<GeoPoint>) {
     fun slice(fromAlong: Double, toAlong: Double): List<GeoPoint> {
         require(toAlong >= fromAlong) { "A slice must run forward" }
         val result = mutableListOf(pointAt(fromAlong))
-        for (index in points.indices) {
-            if (cumulative[index] > fromAlong && cumulative[index] < toAlong) result += points[index]
+        var index = firstDistanceIndex { it > fromAlong }
+        while (index < points.size && cumulative[index] < toAlong) {
+            result += points[index++]
         }
         result += pointAt(toAlong)
         return result
@@ -64,14 +65,24 @@ internal class MeasuredPolyline(val points: List<GeoPoint>) {
 
     private fun pointAt(along: Double): GeoPoint {
         val clamped = along.coerceIn(0.0, lengthMeters)
-        var index = cumulative.indexOfFirst { it >= clamped }.coerceAtLeast(1)
-        if (index >= points.size) index = points.size - 1
+        val index = firstDistanceIndex { it >= clamped }.coerceAtLeast(1)
         val start = cumulative[index - 1]
         val span = cumulative[index] - start
         val t = if (span <= 0.0) 0.0 else (clamped - start) / span
         val a = points[index - 1]
         val b = points[index]
         return GeoPoint(a.latitude + (b.latitude - a.latitude) * t, a.longitude + (b.longitude - a.longitude) * t)
+    }
+
+    /** First cumulative distance satisfying a monotone predicate, or the size if none does. */
+    private inline fun firstDistanceIndex(matches: (Double) -> Boolean): Int {
+        var low = 0
+        var high = cumulative.size
+        while (low < high) {
+            val middle = (low + high) ushr 1
+            if (matches(cumulative[middle])) high = middle else low = middle + 1
+        }
+        return low
     }
 
     private companion object {

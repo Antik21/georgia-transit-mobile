@@ -12,6 +12,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
@@ -58,7 +59,7 @@ internal class RouteArrivalWorkerRegistry<V>(
         worker.job = scope.launch {
             while (currentCoroutineContext().isActive) {
                 val idleNanos = nowNanos() - worker.lastTouchedNanos.get()
-                if (idleNanos >= idleTimeout.toNanos()) {
+                if (worker.firstAttempt.isCompleted && idleNanos >= idleTimeout.toNanos()) {
                     val removed = synchronized(lock) {
                         val stillIdle = nowNanos() - worker.lastTouchedNanos.get() >= idleTimeout.toNanos()
                         stillIdle && workers[routeId] === worker && workers.remove(routeId) != null
@@ -69,9 +70,8 @@ internal class RouteArrivalWorkerRegistry<V>(
 
                 try {
                     worker.latest.set(Result.success(loader(routeId)))
-                } catch (failure: CancellationException) {
-                    throw failure
                 } catch (failure: Throwable) {
+                    currentCoroutineContext().ensureActive()
                     worker.latest.set(Result.failure(failure))
                 } finally {
                     worker.firstAttempt.complete(Unit)

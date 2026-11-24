@@ -41,12 +41,17 @@ internal object JourneySelection {
         options.groupBy(PlannedItinerary::routeSequence).values.map { group -> group.minWith(byCost) }
 
     /** A transfer must buy at least five minutes over every option with fewer transfers. */
-    private fun worthTheirTransfers(options: List<PlannedItinerary>): List<PlannedItinerary> =
-        options.filter { option ->
-            val fewer = options.filter { it.transfers < option.transfers }
-            fewer.isEmpty() ||
-                option.arrival + PlannerParameters.TransferMinimumSavingSeconds <= fewer.minOf(PlannedItinerary::arrival)
+    private fun worthTheirTransfers(options: List<PlannedItinerary>): List<PlannedItinerary> {
+        val earliestByTransfers = LongArray(PlannerParameters.MaximumTransfers + 1) { Long.MAX_VALUE }
+        for (option in options) {
+            earliestByTransfers[option.transfers] = minOf(earliestByTransfers[option.transfers], option.arrival)
         }
+        return options.filter { option ->
+            (0 until option.transfers).all { fewer ->
+                option.arrival + PlannerParameters.TransferMinimumSavingSeconds <= earliestByTransfers[fewer]
+            }
+        }
+    }
 
     private fun withinSlack(options: List<PlannedItinerary>, walk: PlannedItinerary?): List<PlannedItinerary> {
         val earliest = (options + listOfNotNull(walk)).minByOrNull(PlannedItinerary::arrival) ?: return emptyList()

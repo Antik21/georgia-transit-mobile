@@ -37,7 +37,7 @@ import io.ktor.client.engine.cio.CIO
 import io.ktor.client.plugins.HttpRequestTimeoutException
 import io.ktor.client.plugins.HttpTimeout
 import io.ktor.client.plugins.timeout
-import io.ktor.client.request.get
+import io.ktor.client.request.prepareGet
 import io.ktor.client.request.header
 import io.ktor.client.request.url
 import io.ktor.client.statement.HttpResponse
@@ -928,7 +928,7 @@ internal class TransitousClient(
             try {
                 when (
                     val attempt: TransitousAttempt<T> = TransitousUpstreamBudget.execute(labels, observability) {
-                        val response = httpClient.get {
+                        httpClient.prepareGet {
                             url(requireNotNull(activation.baseUrl).toString())
                             url {
                                 appendPathSegments("api", "v6", endpoint)
@@ -940,20 +940,21 @@ internal class TransitousClient(
                                 requestTimeoutMillis = TransitousRequestTimeoutMillis
                                 socketTimeoutMillis = TransitousRequestTimeoutMillis
                             }
-                        }
-                        if (response.status.value in RetryableStatusCodes && retry < TransitousMaximumRetries) {
-                            val retryAfterSeconds = response.retryAfterSeconds()
-                            if (
-                                response.status == HttpStatusCode.TooManyRequests &&
-                                retryAfterSeconds > TransitousMaximumRetryAfterSeconds
-                            ) {
+                        }.execute { response ->
+                            if (response.status.value in RetryableStatusCodes && retry < TransitousMaximumRetries) {
+                                val retryAfterSeconds = response.retryAfterSeconds()
+                                if (
+                                    response.status == HttpStatusCode.TooManyRequests &&
+                                    retryAfterSeconds > TransitousMaximumRetryAfterSeconds
+                                ) {
+                                    response.call.cancel()
+                                    throw ProviderRateLimited("The transit provider is rate limited", retryAfterSeconds)
+                                }
                                 response.call.cancel()
-                                throw ProviderRateLimited("The transit provider is rate limited", retryAfterSeconds)
+                                TransitousAttempt.Retry(retryDelayMillis(retry + 1, retryAfterSeconds))
+                            } else {
+                                TransitousAttempt.Complete<T>(response.decode(missing))
                             }
-                            response.call.cancel()
-                            TransitousAttempt.Retry(retryDelayMillis(retry + 1, retryAfterSeconds))
-                        } else {
-                            TransitousAttempt.Complete<T>(response.decode(missing))
                         }
                     }
                 ) {
@@ -985,14 +986,17 @@ internal class TransitousClient(
     }
 
     private suspend inline fun <reified T> HttpResponse.decode(missing: () -> ProviderFailure): T = when {
-        status == HttpStatusCode.OK -> try {
-            TransitousResponseJson.decodeFromString<T>(readBodyWithinLimit())
-        } catch (failure: CancellationException) {
-            throw failure
-        } catch (failure: ProviderFailure) {
-            throw failure
-        } catch (_: Throwable) {
-            throw ProviderJsonDecodeFailure("The transit provider returned an invalid response")
+        status == HttpStatusCode.OK -> {
+            val body = readBodyWithinLimit()
+            try {
+                TransitousResponseJson.decodeFromString<T>(body)
+            } catch (failure: CancellationException) {
+                throw failure
+            } catch (failure: ProviderFailure) {
+                throw failure
+            } catch (_: Throwable) {
+                throw ProviderJsonDecodeFailure("The transit provider returned an invalid response")
+            }
         }
         status == HttpStatusCode.NotFound -> discardAndThrow(missing())
         status == HttpStatusCode.RequestTimeout -> discardAndThrow(

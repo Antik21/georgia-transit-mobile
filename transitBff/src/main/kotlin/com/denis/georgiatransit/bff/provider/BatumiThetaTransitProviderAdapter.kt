@@ -42,7 +42,7 @@ import io.ktor.client.network.sockets.ConnectTimeoutException
 import io.ktor.client.network.sockets.SocketTimeoutException
 import io.ktor.client.plugins.HttpRequestTimeoutException
 import io.ktor.client.plugins.HttpTimeout
-import io.ktor.client.request.get
+import io.ktor.client.request.prepareGet
 import io.ktor.client.request.url
 import io.ktor.client.statement.bodyAsChannel
 import io.ktor.http.HttpStatusCode
@@ -127,6 +127,8 @@ internal class BatumiThetaTransitProviderAdapter(
      */
     private val arrivalCandidateMutex = Mutex()
     private val liveSnapshots = mutableMapOf<String, TimedLiveSnapshot>()
+    private var lastLiveSnapshotPrune: Instant? = null
+    private var lastArrivalPrune: Instant? = null
     private val arrivalCandidates = mutableMapOf<ArrivalCandidateKey, ArrivalCandidateState>()
     private val routeArrivalWorkers = RouteArrivalWorkerRegistry(
         pollInterval = routeWorkerPollInterval,
@@ -243,9 +245,8 @@ internal class BatumiThetaTransitProviderAdapter(
                 items = if (global.stale) {
                     emptyList()
                 } else {
-                    stop.routeIds
+                    stop.routeIds.asSequence()
                         .flatMap { routeId -> global.snapshot.arrivalsByRoute[routeId].orEmpty() }
-                        .asSequence()
                         .filter { it.stopId == stop.id }
                         .mapNotNull { it.retimedFor(clock.instant()) }
                         .sortedBy(Arrival::expectedAt)
@@ -393,11 +394,6 @@ internal class BatumiThetaTransitProviderAdapter(
             )
             arrivalsByRoute[route.id] = reconcileRouteArrivalCandidates(route.id, observedAt, fresh)
         }
-        liveMutex.withLock {
-            trackedByRoute.forEach { (routeId, tracked) ->
-                liveSnapshots[routeId] = TimedLiveSnapshot(LiveSnapshot(tracked, observedAt, stale = false))
-            }
-        }
         return BatumiAllRoutesSnapshot(trackedByRoute, arrivalsByRoute, observedAt, source)
     }
 
@@ -406,6 +402,11 @@ internal class BatumiThetaTransitProviderAdapter(
         val route = catalog.route(routeId)
         val rawRouteId = catalog.rawRouteId(routeId)
         val now = clock.instant()
+        val lastPrune = lastLiveSnapshotPrune
+        if (lastPrune == null || Duration.between(lastPrune, now) >= BatumiLiveMaximumAge) {
+            liveSnapshots.entries.removeIf { Duration.between(it.value.snapshot.observedAt, now) > BatumiLiveMaximumAge }
+            lastLiveSnapshotPrune = now
+        }
         val cached = liveSnapshots[routeId]
         if (cached != null && Duration.between(cached.snapshot.observedAt, now) <= BatumiLiveCacheTtl) {
             return@withLock cached.snapshot.copy(stale = false)
@@ -632,13 +633,20 @@ internal class BatumiThetaTransitProviderAdapter(
     }
 
     private fun pruneExpiredArrivalCandidates(now: Instant) {
-        arrivalCandidates.entries.removeIf { (_, candidate) ->
-            Duration.between(candidate.lastConfirmedAt, now) > ArrivalCandidateRetention ||
-                candidate.arrival.retimedFor(now) == null
+        // All routes in a feed share an observation time. Entries inserted at that time already
+        // satisfy the ETA horizon, so only capacity needs checking again within the same snapshot.
+        if (lastArrivalPrune != now) {
+            arrivalCandidates.entries.removeIf { (_, candidate) ->
+                Duration.between(candidate.lastConfirmedAt, now) > ArrivalCandidateRetention ||
+                    candidate.arrival.remainingSecondsAt(now) == null
+            }
+            lastArrivalPrune = now
         }
-        while (arrivalCandidates.size > MaximumArrivalCandidates) {
-            val oldest = arrivalCandidates.minByOrNull { (_, candidate) -> candidate.lastConfirmedAt } ?: return
-            arrivalCandidates.remove(oldest.key)
+        val excess = arrivalCandidates.size - MaximumArrivalCandidates
+        if (excess > 0) {
+            // Stable ordering preserves insertion order for vehicles confirmed at the same time.
+            val oldest = arrivalCandidates.entries.sortedBy { it.value.lastConfirmedAt }
+            for (index in 0 until excess) arrivalCandidates.remove(oldest[index].key)
         }
     }
 
@@ -696,9 +704,10 @@ internal class BatumiThetaClient(private val activation: BatumiThetaActivationCo
     private val http = HttpClient(CIO) { install(HttpTimeout) { requestTimeoutMillis = 8_000; connectTimeoutMillis = 2_000; socketTimeoutMillis = 8_000 } }
 
     override suspend fun getDbData(): String = try {
-        val response = http.get { url(activation.baseUrl.toString() + "/getDbData") }
-        if (response.status != HttpStatusCode.OK) throw ProviderUnavailable("Batumi catalog upstream is unavailable")
-        response.readBoundedUtf8(BatumiMaximumBodyBytes)
+        http.prepareGet { url(activation.baseUrl.toString() + "/getDbData") }.execute { response ->
+            if (response.status != HttpStatusCode.OK) throw ProviderUnavailable("Batumi catalog upstream is unavailable")
+            response.readBoundedUtf8(BatumiMaximumBodyBytes)
+        }
     } catch (exception: CancellationException) { throw exception
     } catch (_: HttpRequestTimeoutException) { throw ProviderTimeout("Batumi catalog timed out")
     } catch (_: ConnectTimeoutException) { throw ProviderTimeout("Batumi catalog timed out")
@@ -707,13 +716,14 @@ internal class BatumiThetaClient(private val activation: BatumiThetaActivationCo
     } catch (_: Exception) { throw ProviderUnavailable("Batumi catalog upstream is unavailable") }
 
     override suspend fun getBusLocsOnRoute(rawRouteId: String): String = try {
-        val response = http.get { url(activation.baseUrl.toString() + "/getBusLocsOnRoute?routeId=" + java.net.URLEncoder.encode(rawRouteId, StandardCharsets.UTF_8)) }
-        if (response.status == HttpStatusCode.TooManyRequests) {
-            val retryAfter = response.headers[HttpHeaders.RetryAfter]?.toIntOrNull()?.coerceIn(1, 86_400) ?: 30
-            throw ProviderRateLimited("Batumi route source is rate limited", retryAfter)
+        http.prepareGet { url(activation.baseUrl.toString() + "/getBusLocsOnRoute?routeId=" + java.net.URLEncoder.encode(rawRouteId, StandardCharsets.UTF_8)) }.execute { response ->
+            if (response.status == HttpStatusCode.TooManyRequests) {
+                val retryAfter = response.headers[HttpHeaders.RetryAfter]?.toIntOrNull()?.coerceIn(1, 86_400) ?: 30
+                throw ProviderRateLimited("Batumi route source is rate limited", retryAfter)
+            }
+            if (response.status != HttpStatusCode.OK) throw ProviderUnavailable("Batumi live upstream is unavailable")
+            response.readBoundedUtf8(BatumiMaximumBodyBytes)
         }
-        if (response.status != HttpStatusCode.OK) throw ProviderUnavailable("Batumi live upstream is unavailable")
-        response.readBoundedUtf8(BatumiMaximumBodyBytes)
     } catch (exception: CancellationException) { throw exception
     } catch (_: HttpRequestTimeoutException) { throw ProviderTimeout("Batumi live data timed out")
     } catch (_: ConnectTimeoutException) { throw ProviderTimeout("Batumi live data timed out")
@@ -734,9 +744,10 @@ internal class BatumiBatBusAllBusesClient : BatumiAllBusesClient {
     }
 
     override suspend fun getAllBuses(): String = try {
-        val response = http.get { url(BatumiAllBusesUrl) }
-        if (response.status != HttpStatusCode.OK) throw ProviderUnavailable("Batumi global live upstream is unavailable")
-        response.readBoundedUtf8(BatumiMaximumBodyBytes)
+        http.prepareGet { url(BatumiAllBusesUrl) }.execute { response ->
+            if (response.status != HttpStatusCode.OK) throw ProviderUnavailable("Batumi global live upstream is unavailable")
+            response.readBoundedUtf8(BatumiMaximumBodyBytes)
+        }
     } catch (exception: CancellationException) {
         throw exception
     } catch (_: HttpRequestTimeoutException) {
@@ -783,7 +794,6 @@ internal object BatumiThetaCatalogParser {
         if (routeEntries.map(RawRoute::rawId).toSet().size != routeEntries.size) invalid()
         val routesByRaw = routeEntries.associateBy(RawRoute::rawId)
         val routeIds = routesByRaw.keys.associateWith(BatumiIds::route)
-        val directions = routeIds.mapValues { (raw, _) -> BatumiIds.direction(raw) }
         val routes = routeEntries.sortedWith(compareBy<RawRoute> { it.order }.thenBy { it.name }).map { raw ->
             Route(routeIds.getValue(raw.rawId), BatumiIds.opaque(raw.rawId), raw.name, LocalizedText(raw.name, raw.name, raw.ka), "#1479B8", "#FFFFFF", TransitModeValues.Bus, listOf(technicalDirection(raw.rawId)))
         }
@@ -814,22 +824,18 @@ internal object BatumiThetaCatalogParser {
             )
         }
         val stops = stopsByRawId.values.sortedBy(Stop::id)
-        val stopOrderByRoute = routeEntries.associate { route ->
-            routeIds.getValue(route.rawId) to rawStopEntries
-                .filter { raw -> raw.memberships.any { it.rawRouteId == route.rawId } }
-                .sortedWith(compareBy<RawStop> { raw -> raw.memberships.single { it.rawRouteId == route.rawId }.status }
-                    .thenBy { raw -> raw.memberships.single { it.rawRouteId == route.rawId }.order })
-                .map { raw -> stopsByRawId.getValue(raw.rawId) }
+        val membersByRoute = routeIds.values.associateWith { mutableListOf<RouteStop>() }
+        for (raw in rawStopEntries) {
+            val stop = stopsByRawId.getValue(raw.rawId)
+            for (membership in raw.memberships) {
+                val routeId = routeIds.getValue(membership.rawRouteId)
+                membersByRoute.getValue(routeId).add(RouteStop(stop, membership.status, membership.order))
+            }
         }
-        val cycles = routeEntries.associate { route ->
-            val routeId = routeIds.getValue(route.rawId)
-            val members = rawStopEntries
-                .mapNotNull { raw -> raw.memberships.singleOrNull { it.rawRouteId == route.rawId }?.let { membership -> raw to membership } }
-                .sortedWith(compareBy<Pair<RawStop, RawRouteMembership>> { it.second.status }.thenBy { it.second.order })
-            routeId to buildRouteCycle(members.map { (raw, membership) ->
-                RouteStop(stopsByRawId.getValue(raw.rawId), membership.status, membership.order)
-            })
-        }
+        val byStatusAndOrder = compareBy(RouteStop::status, RouteStop::order)
+        membersByRoute.values.forEach { it.sortWith(byStatusAndOrder) }
+        val stopOrderByRoute = membersByRoute.mapValues { (_, members) -> members.map(RouteStop::stop) }
+        val cycles = membersByRoute.mapValues { (_, members) -> buildRouteCycle(members) }
         val coords = data["routeCoordinatesGrouped"] as? JsonObject ?: invalid()
         val geometries = routeEntries.associate { route ->
             val points = (coords[route.rawId] as? JsonArray ?: invalid()).map(::point).also { if (it.size < 2) invalid() }
@@ -1070,10 +1076,13 @@ private val ArrivalCandidateRetention: Duration = Duration.ofMinutes(1)
 
 /** Reuses only a still-future, previously accepted ETA during the one-snapshot continuity bridge. */
 private fun Arrival.retimedFor(observedAt: Instant): Arrival? {
-    val expected = expectedAt?.let { runCatching { Instant.parse(it) }.getOrNull() } ?: return null
-    val seconds = Duration.between(observedAt, expected).seconds
-    if (seconds < 0 || seconds > EtaMaximumSeconds) return null
+    val seconds = remainingSecondsAt(observedAt) ?: return null
     return copy(expectedInMinutes = ceil(seconds / 60.0).toInt())
+}
+
+private fun Arrival.remainingSecondsAt(observedAt: Instant): Long? {
+    val expected = expectedAt?.let { runCatching { Instant.parse(it) }.getOrNull() } ?: return null
+    return Duration.between(observedAt, expected).seconds.takeIf { it in 0..EtaMaximumSeconds }
 }
 
 internal fun validateEtaWorkload(routeSizes: Iterable<Pair<Int, Int>>) {

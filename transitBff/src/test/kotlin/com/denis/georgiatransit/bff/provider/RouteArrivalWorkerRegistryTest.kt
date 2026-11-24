@@ -2,8 +2,11 @@ package com.denis.georgiatransit.bff.provider
 
 import java.time.Duration
 import java.util.concurrent.atomic.AtomicInteger
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeout
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
@@ -80,6 +83,45 @@ class RouteArrivalWorkerRegistryTest {
             delay(25)
             assertEquals(42, registry.get("route-a"))
             assertTrue(calls.get() >= 2)
+        }
+    }
+
+    @Test
+    fun `late dispatch still completes the pending first request`() = runBlocking {
+        val clockReads = AtomicInteger()
+        RouteArrivalWorkerRegistry(
+            pollInterval = Duration.ofSeconds(1),
+            idleTimeout = Duration.ofSeconds(1),
+            loader = { 42 },
+            nowNanos = { if (clockReads.getAndIncrement() == 0) 0L else Duration.ofSeconds(2).toNanos() },
+        ).use { registry ->
+            assertEquals(42, withTimeout(2_000) { registry.get("route-a") })
+        }
+    }
+
+    @Test
+    fun `cancellation of one fetch leaves route polling active`() = runBlocking {
+        val calls = AtomicInteger()
+        val allowRetry = CompletableDeferred<Unit>()
+        val polledAfterRecovery = CompletableDeferred<Unit>()
+        RouteArrivalWorkerRegistry(
+            pollInterval = Duration.ofMillis(10),
+            idleTimeout = Duration.ofSeconds(5),
+            loader = {
+                when (calls.incrementAndGet()) {
+                    1 -> throw CancellationException("fetch cancelled")
+                    2 -> allowRetry.await()
+                    3 -> polledAfterRecovery.complete(Unit)
+                }
+                42
+            },
+        ).use { registry ->
+            withTimeout(2_000) {
+                assertFailsWith<CancellationException> { registry.get("route-a") }
+                allowRetry.complete(Unit)
+                polledAfterRecovery.await()
+                assertEquals(42, registry.get("route-a"))
+            }
         }
     }
 }

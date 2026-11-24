@@ -22,6 +22,24 @@ import kotlin.time.Duration.Companion.seconds
 
 class BoundedKeyedTtlCacheTest {
     @Test
+    fun `closing cancels even a cleared generation and rejects new loads`() = runTest {
+        val cache = BoundedKeyedTtlCache<String, Int>(60.seconds, 1)
+        val started = CompletableDeferred<Unit>()
+        val old = async {
+            cache.getOrLoad("old") {
+                started.complete(Unit)
+                kotlinx.coroutines.awaitCancellation()
+            }
+        }
+        started.await()
+        cache.clear()
+        cache.close()
+
+        assertFailsWith<CancellationException> { old.await() }
+        assertFailsWith<CancellationException> { cache.getOrLoad("new") { error("closed loader ran") } }
+    }
+
+    @Test
     fun `bounded observer reports one owner a coalesced follower and a subsequent hit`() = runTest {
         val cache = BoundedKeyedTtlCache<String, Int>(60.seconds, 2)
         val started = CompletableDeferred<Unit>()

@@ -605,6 +605,19 @@ class TtcTransitProviderAdapterTest {
     }
 
     @Test
+    fun `oversized advertised body is rejected and closed before waiting for its contents`() = runTest {
+        val body = ByteChannel(autoFlush = true)
+        val client = client(RecordingEngine { responseWithBody(body, contentLength = 256 * 1024 + 1) })
+        try {
+            assertFailsWith<ProviderNormalizedSchemaFailure> { client.routes("en", TelemetryOperation.LIST_ROUTES) }
+            assertTrue(body.isClosedForRead)
+        } finally {
+            body.cancel(null)
+            client.close()
+        }
+    }
+
+    @Test
     fun `malformed null and oversized provider DTOs fail closed`() = runTest {
         val malformedBodies = listOf(
             "not-json",
@@ -820,11 +833,11 @@ class TtcTransitProviderAdapterTest {
     )
 
     @OptIn(InternalAPI::class)
-    private suspend fun responseWithBody(body: ByteReadChannel): io.ktor.client.request.HttpResponseData =
+    private suspend fun responseWithBody(body: ByteReadChannel, contentLength: Int? = null): io.ktor.client.request.HttpResponseData =
         io.ktor.client.request.HttpResponseData(
             statusCode = HttpStatusCode.OK,
             requestTime = GMTDate(),
-            headers = headersOf(),
+            headers = contentLength?.let { headersOf(HttpHeaders.ContentLength, it.toString()) } ?: headersOf(),
             version = HttpProtocolVersion.HTTP_1_1,
             body = body,
             callContext = callContext(),

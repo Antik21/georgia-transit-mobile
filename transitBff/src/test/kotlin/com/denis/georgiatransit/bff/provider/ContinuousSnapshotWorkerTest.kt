@@ -4,8 +4,11 @@ import java.time.Duration
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
 import kotlinx.coroutines.async
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeout
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
@@ -55,6 +58,25 @@ class ContinuousSnapshotWorkerTest {
             enabled.set(true)
             assertEquals(1, first.await())
             assertTrue(calls.get() >= 1)
+        }
+    }
+
+    @Test
+    fun `cancellation of one fetch leaves global polling active`() = runBlocking {
+        val calls = AtomicInteger()
+        val failed = CompletableDeferred<Throwable>()
+        ContinuousSnapshotWorker(
+            pollInterval = Duration.ofMillis(10),
+            onFailure = { failure, _ -> failed.complete(failure) },
+        ) {
+            if (calls.incrementAndGet() == 1) throw CancellationException("fetch cancelled")
+            42
+        }.use { worker ->
+            withTimeout(2_000) {
+                assertTrue(failed.await() is CancellationException)
+                while (worker.currentOrNull() == null) delay(1)
+                assertEquals(42, worker.get())
+            }
         }
     }
 }
