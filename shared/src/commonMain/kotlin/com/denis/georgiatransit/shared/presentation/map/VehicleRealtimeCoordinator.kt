@@ -84,7 +84,7 @@ internal data class VehicleTrack(
     val freshness: TransitFreshness,
     val isStale: Boolean,
     val interpolationStartedAtMonotonicMillis: Long?,
-    val directTravelBearing: Double? = null,
+    val lastTravelBearing: Double? = null,
 )
 
 @Immutable
@@ -365,7 +365,7 @@ internal object VehicleRealtimeReducer {
             freshness = freshness,
             isStale = false,
             interpolationStartedAtMonotonicMillis = monotonicNowMillis,
-            directTravelBearing = directVehicleTravelBearing(start, vehicle.position) ?: directTravelBearing,
+            lastTravelBearing = directVehicleTravelBearing(start, vehicle.position) ?: lastTravelBearing,
         )
     }
 
@@ -705,7 +705,7 @@ private const val MAX_TTL_SECONDS = 90
  * remains readable at city scale and lets the map animate only a small deterministic subset.
  */
 private const val MAX_VISIBLE_VEHICLES = 1_000
-private const val MAX_OBSERVATION_GAP_MILLIS = 20_000L
+internal const val MAX_OBSERVATION_GAP_MILLIS = 20_000L
 private const val MAX_STITCH_DISTANCE_METERS = 250.0
 private const val MAX_SPEED_METERS_PER_SECOND = 25.0
 private const val MAX_STITCH_CANDIDATES_PER_TRACK = 32

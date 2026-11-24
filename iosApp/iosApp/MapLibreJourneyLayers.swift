@@ -74,7 +74,7 @@ final class MapLibreJourneyLayers {
         hasRendered = true
     }
 
-    /** Frames the plan once per user intent; a re-created view frames the visible plan again. */
+    /** Includes the boarding bus on its first update; subsequent positions leave the camera alone. */
     func fitIfNeeded(mapView: MLNMapView, overlay: MapJourneyOverlay?) {
         if overlay?.fitSuspended == true { return cancelPendingFit() }
         guard let overlay, !overlay.lines.isEmpty else { return }
@@ -100,7 +100,8 @@ final class MapLibreJourneyLayers {
     }
 
     private func fit(mapView: MLNMapView, overlay: MapJourneyOverlay) {
-        let points = (overlay.lines.flatMap { $0.points } + [overlay.origin, overlay.destination].compactMap { $0 })
+        let endpoints = [overlay.origin, overlay.destination, overlay.boardingFitPosition].compactMap { $0 }
+        let points = (overlay.lines.flatMap { $0.points } + endpoints)
             .filter(Self.isCoordinateValid)
         guard let first = points.first, points.contains(where: { $0 != first }) else { return }
         var bounds = MLNCoordinateBounds(

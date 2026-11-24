@@ -133,6 +133,11 @@ internal data class VehicleRouteMotion(
     )
 }
 
+internal fun VehicleTrack.interpolationFraction(nowMillis: Long): Double {
+    val start = interpolationStartedAtMonotonicMillis ?: return 1.0
+    return ((nowMillis - start).toDouble() / VEHICLE_INTERPOLATION_DURATION_MILLIS).coerceIn(0.0, 1.0)
+}
+
 internal object VehicleRoutePathInterpolator {
     fun prepare(polylines: List<MapPolyline>): Map<RouteId, List<PreparedVehicleRoutePath>> =
         polylines.mapNotNull(PreparedVehicleRoutePath::from).groupBy(PreparedVehicleRoutePath::routeId)
@@ -143,6 +148,7 @@ internal object VehicleRoutePathInterpolator {
         directionId: DirectionId?,
         candidates: List<PreparedVehicleRoutePath>,
         previousMotion: VehicleRouteMotion? = null,
+        initialBearing: Double? = null,
     ): VehicleRouteMotion? {
         val exactDirection = directionId?.let { requested -> candidates.filter { it.directionId == requested } }.orEmpty()
         val scoped = exactDirection.takeIf(List<PreparedVehicleRoutePath>::isNotEmpty) ?: candidates
@@ -154,7 +160,13 @@ internal object VehicleRoutePathInterpolator {
         ) {
             return null
         }
-        return best.withStableDirection(previousMotion?.takeIf { it.path === best.path })
+        val previous = previousMotion?.takeIf { it.path === best.path }
+        if (previous != null) return best.withStableDirection(previous)
+        if (initialBearing == null || abs(best.deltaMeters) >= MIN_MEANINGFUL_MOVEMENT_METERS) return best
+        // A single position has no travel direction. Use the last heading to orient the route tangent.
+        val forwardBearing = best.path.bearingAt(best.endAlongMeters, forward = true) ?: return best
+        val difference = (forwardBearing - initialBearing + 180.0).positiveModulo(360.0) - 180.0
+        return best.copy(travelForward = abs(difference) <= 90.0)
     }
 
     /** A single GPS setback must not turn a vehicle around on an otherwise stable route. */

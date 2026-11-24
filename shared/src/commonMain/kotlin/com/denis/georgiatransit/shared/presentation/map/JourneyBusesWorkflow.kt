@@ -63,7 +63,9 @@ internal object JourneyBusesProjector {
             boarding = update.key.boarding,
             etaMinutes = update.soonest.map { it.second },
             vehicles = update.soonest.mapNotNull { (id, eta) ->
-                update.positions[id]?.let { vehicle -> JourneyBusUi(id, vehicle.position, update.headings[id], eta, route) }
+                update.positions[id]?.let { vehicle ->
+                    JourneyBusUi(id, vehicle.position, update.headings[id], eta, route, vehicle.positionKind)
+                }
             },
         )
     }
@@ -77,6 +79,8 @@ internal class JourneyBusesWorkflow(
     private val repository: TransitRepository,
     private val vehicleIntervalMillis: Long,
     private val arrivalsIntervalMillis: Long = JOURNEY_ARRIVALS_INTERVAL_MILLIS,
+    private val clock: VehicleRealtimeClock = SystemVehicleRealtimeClock(),
+    private val frameIntervalMillis: Long = DefaultVehicleRealtimeTickerPolicy.frameIntervalMillis,
 ) {
     private var key: JourneyBusKey? = null
     private var generation = 0L
@@ -97,19 +101,12 @@ internal class JourneyBusesWorkflow(
     private fun start(scope: CoroutineScope, key: JourneyBusKey, generation: Long, onUpdate: (JourneyBusesUpdate) -> Unit) =
         scope.launch {
             var soonest = emptyList<Pair<VehicleId, Int>>()
-            var positions = emptyMap<VehicleId, TransitVehicle>()
-            var headings = emptyMap<VehicleId, Double>()
-            val headingSource = JourneyBusHeadings(routePath(key), key.boarding.stopPosition, key.boarding.departureBearing)
-            suspend fun refreshPositions() {
-                if (!key.positions || soonest.isEmpty()) return
-                val page = guarded { repository.vehicles(key.cityId, key.boarding.routeId) }
-                if (page is TransitLoadResult.Data) {
-                    positions = page.value.items.associateBy { it.id }
-                    headings = headingSource.update(positions.values)
-                }
-            }
+            var displayedVehicle: TransitVehicle? = null
             fun publish() {
                 if (generation == this@JourneyBusesWorkflow.generation) {
+                    val bus = displayedVehicle
+                    val positions = bus?.let { mapOf(it.id to it) }.orEmpty()
+                    val headings = bus?.bearing?.let { mapOf(bus.id to it) }.orEmpty()
                     onUpdate(JourneyBusesUpdate(key, generation, soonest, positions, headings))
                 }
             }
@@ -117,19 +114,34 @@ internal class JourneyBusesWorkflow(
                 while (true) {
                     val page = guarded { repository.arrivals(key.cityId, key.boarding.stopId, ARRIVALS_LIMIT, key.locale) }
                     // A stale or failed response cannot support a current countdown.
-                    soonest = if (page is TransitLoadResult.Data && !page.value.stale) {
+                    soonest = if (page is TransitLoadResult.Data && !page.value.stale && page.freshness != TransitFreshness.StaleOffline) {
                         JourneyBusesProjector.soonest(page.value.items, key.boarding)
                     } else emptyList()
-                    refreshPositions()
                     publish()
                     delay(arrivalsIntervalMillis)
                 }
             }
-            launch {
+            if (key.positions) launch {
+                val motion = JourneyBoardingBusMotion(key.boarding, routePath(key), clock)
+                var animation: Job? = null
+                fun renderFrame() {
+                    val frame = motion.frame()
+                    if (frame == displayedVehicle) return
+                    displayedVehicle = frame
+                    if (soonest.isNotEmpty()) publish()
+                }
                 while (true) {
+                    val page = guarded { repository.vehicles(key.cityId, key.boarding.routeId) }
+                    animation?.cancel()
+                    motion.accept(page)
+                    renderFrame()
+                    if (motion.isMoving()) animation = launch {
+                        while (motion.isMoving()) {
+                            delay(frameIntervalMillis)
+                            renderFrame()
+                        }
+                    }
                     delay(vehicleIntervalMillis)
-                    refreshPositions()
-                    publish()
                 }
             }
         }

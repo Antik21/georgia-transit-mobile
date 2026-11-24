@@ -67,12 +67,14 @@ internal fun chainMeters(a: GeoPoint, b: GeoPoint): Double {
     return 12_742_000.0 * kotlin.math.asin(kotlin.math.sqrt(h.coerceIn(0.0, 1.0)))
 }
 
+internal data class BatumiVehicleProjection(val vehicleId: String, val alongMeters: Double, val status: Int)
+
 internal fun projectVehicle(
     catalog: BatumiCatalog,
     routeId: String,
     cycle: RouteCycle,
     live: BatumiLiveVehicle,
-): PolylineProjection? {
+): BatumiVehicleProjection? {
     if (projectOntoPolyline(catalog.geometry(routeId), live.vehicle.position)?.distanceMeters?.let { it > EtaMaxProjectionMeters } != false) {
         return null
     }
@@ -92,6 +94,7 @@ internal fun projectVehicle(
         if (best == null || candidate.distanceMeters < requireNotNull(best).distanceMeters) best = candidate
     }
     return best?.takeIf { it.distanceMeters <= EtaMaxProjectionMeters }
+        ?.let { BatumiVehicleProjection(live.vehicle.id, it.alongMeters, status) }
 }
 
 internal fun projectSegment(

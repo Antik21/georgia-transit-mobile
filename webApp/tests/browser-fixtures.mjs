@@ -20,9 +20,9 @@ export const stopPinGlyphColor = [52, 65, 85];
 export const fixtureVehiclesPath = `/v1/cities/${fixtureCityId}/vehicles`;
 export const fixtureAttribution = 'Fixture tiles';
 // Toggled by the smoke to exercise the local-style fallback and its recovery.
-export const fixtureControl = { failStyle: false, failVectorTile: false, staleVehicles: false, telegram: true, vehicleAdvanced: false, planStatus: 200, styleHold: null, runtimeHold: null, nearbyStopsHold: null, vehicleHold: null, lastPlan: null };
+export const fixtureControl = { failStyle: false, failVectorTile: false, staleVehicles: false, telegram: true, vehicleAdvanced: false, planStatus: 200, styleHold: null, runtimeHold: null, nearbyStopsHold: null, routeShapeHold: null, vehicleHold: null, lastPlan: null, boardingBusOutsidePlan: false };
 export const plannerRouteColors = { orange: [228, 87, 46], yellow: [242, 193, 78] };
-// The buses the planner should highlight: the two soonest of a route at the first boarding stop.
+// The planned bus and one following arrival at the first boarding stop.
 export const plannerArrivalMinutes = { orange: [3, 11], yellow: [5] };
 
 function plannerArrivals() {
@@ -49,8 +49,11 @@ function plannerVehicles(routeId) {
   const vehicle = (id, position) => ({
     id: `batumi:fixture:vehicle:${id}`, routeId, position, bearing: 90, observedAt, ageSeconds: 0, positionKind: 'GPS',
   });
+  const boardingBus = plan && (fixtureControl.boardingBusOutsidePlan
+    ? { ...plan.boarding, latitude: plan.boarding.latitude - 0.013 }
+    : at(plan.boarding, plan.mid, 0.4));
   const items = !plan ? [] : routeId.endsWith(':orange')
-    ? [vehicle('v1', at(plan.boarding, plan.mid, 0.4)), vehicle('v2', at(plan.mid, plan.alighting, 0.7)),
+    ? [vehicle('v1', boardingBus), vehicle('v2', at(plan.mid, plan.alighting, 0.7)),
       vehicle('v3', at(plan.mid, plan.alighting, 0.9))]
     : [vehicle('y1', at(plan.boarding, plan.mid, 0.4))];
   return { items, observedAt, maxAgeSeconds: 30, stale: false };
@@ -301,17 +304,29 @@ const telegramFixture = `
     const state = { ready: 0, expand: 0, backVisible: false, backHandler: null, settingsOpened: 0 };
     window.__telegramSmoke = state;
     // Mirrors Bot API 8.0: the first getLocation prompts, and the answer sticks until settings change it.
-    const location = { inited: false, requested: false, granted: false, allow: false, fix: null };
+    const location = { available: true, requested: false, granted: false, allow: false, fix: null, dropResponse: false };
+    let locationStatus;
+    const handlers = new Map();
+    state.emit = (event) => handlers.get(event)?.forEach((handler) => handler());
     state.location = location;
+    function checkLocation(callback) {
+      setTimeout(() => {
+        locationStatus = { available: location.available, requested: location.requested, granted: location.granted };
+        callback?.();
+        state.emit('locationManagerUpdated');
+      }, 30);
+    }
     const locationManager = {
-      get isInited() { return location.inited; },
-      get isLocationAvailable() { return true; },
-      get isAccessRequested() { return location.requested; },
-      get isAccessGranted() { return location.granted; },
-      init(callback) { location.inited = true; callback?.(); return this; },
+      get isInited() { return Boolean(locationStatus); },
+      get isLocationAvailable() { return locationStatus?.available === true; },
+      get isAccessRequested() { return locationStatus?.available && locationStatus.requested; },
+      get isAccessGranted() { return locationStatus?.available && locationStatus.granted; },
+      init(callback) { if (!locationStatus) checkLocation(callback); return this; },
       getLocation(callback) {
+        if (!locationStatus?.available) throw new Error('Location is not available');
+        if (location.dropResponse) return this;
         if (!location.requested) { location.requested = true; location.granted = location.allow; }
-        setTimeout(() => callback(location.granted ? location.fix : null), 50);
+        checkLocation(() => callback(location.available && location.granted ? location.fix : null));
         return this;
       },
       openSettings() { state.settingsOpened += 1; return this; },
@@ -324,7 +339,6 @@ const telegramFixture = `
       offClick(handler) { if (state.backHandler === handler) state.backHandler = null; return this; },
     };
     window.Telegram = { WebApp: {
-      platform: 'android',
       version: '9.0',
       colorScheme: 'light',
       platform: 'ios',
@@ -336,13 +350,16 @@ const telegramFixture = `
       isVersionAtLeast: () => true,
       ready() { state.ready += 1; },
       expand() { state.expand += 1; },
-      onEvent() {},
-      offEvent() {},
+      onEvent(event, handler) {
+        if (!handlers.has(event)) handlers.set(event, new Set());
+        handlers.get(event).add(handler);
+      },
+      offEvent(event, handler) { handlers.get(event)?.delete(handler); },
       setBackgroundColor() {},
       setHeaderColor() {},
       BackButton: backButton,
       LocationManager: locationManager,
-    } };
+    }, WebView: { postEvent(event) { if (event === 'web_app_check_location') checkLocation(); } } };
   })();
 `;
 
@@ -395,7 +412,9 @@ export function browserFixture(dist, bffRequests, origin) {
       case `/v1/cities/${fixtureCityId}/routes`: return json([route, otherRoute]);
       case `/v1/cities/${fixtureCityId}/routes/${fixtureRouteId}`: return json(route);
       case `/v1/cities/${fixtureCityId}/routes/${otherRouteId}`: return json(otherRoute);
-      case fixtureShapePath: return json(routeShape(0));
+      case fixtureShapePath:
+        await fixtureControl.routeShapeHold;
+        return json(routeShape(0));
       case otherShapePath: return json(routeShape(-0.003));
       case `/v1/cities/${fixtureCityId}/stops/nearby`:
         await fixtureControl.nearbyStopsHold;

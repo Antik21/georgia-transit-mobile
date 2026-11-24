@@ -409,12 +409,12 @@ export function createTransitMap(
   }
 
   function renderVehicles() {
-    if (!styleReady || !vehicles || renderedVehicleRevision === vehicles.revision) return;
-    if (renderedBadgeRevision !== vehicles.badgeRevision) {
-      syncBadgeImages(vehicles);
-      renderedBadgeRevision = vehicles.badgeRevision;
+    const visibleVehicles = vehicles;
+    if (!styleReady || !visibleVehicles || renderedVehicleRevision === visibleVehicles.revision) return;
+    if (renderedBadgeRevision !== visibleVehicles.badgeRevision) {
+      syncBadgeImages(visibleVehicles);
+      renderedBadgeRevision = visibleVehicles.badgeRevision;
     }
-    const visibleVehicles = plannerOpen ? { ...vehicles, vehicles: [] } : vehicles;
     const { attentionCount: nextAttentionCount, ...data } = vehicleData(visibleVehicles, badgeImageIds);
     const source = map.getSource<GeoJSONSource>(vehicleSourceId);
     if (source) {
@@ -447,7 +447,7 @@ export function createTransitMap(
         paint: { "icon-opacity": ["get", "opacity"] },
       });
     }
-    renderedVehicleRevision = vehicles.revision;
+    renderedVehicleRevision = visibleVehicles.revision;
     if (attentionCount !== nextAttentionCount) {
       attentionCount = nextAttentionCount;
       refreshAttention();
@@ -526,7 +526,7 @@ export function createTransitMap(
 
   // Badges are about 39×24 px, so taps are matched within a 48×48 target like the Android adapter.
   function vehicleAt(event: MapMouseEvent) {
-    if (!map.getLayer(vehicleLayerId)) return undefined;
+    if (plannerOpen || !map.getLayer(vehicleLayerId)) return undefined;
     const { x, y } = event.point;
     const half = minVehicleTarget / 2;
     let nearest: { id: string; revision: string; distance: number } | undefined;
@@ -716,12 +716,10 @@ export function createTransitMap(
   }
 
   function updatePlanner(state: PlannerState) {
-    planner.update(state);
-    if (plannerOpen === state.open) return;
+    const modeChanged = plannerOpen !== state.open;
     plannerOpen = state.open;
-    renderRouteLines();
-    renderedVehicleRevision = undefined;
-    renderVehicles();
+    planner.update(state);
+    if (modeChanged) renderRouteLines();
   }
 
   return { update, updateVehicles, updatePlanner, pointAt, retry, resize, setVisible, dispose };

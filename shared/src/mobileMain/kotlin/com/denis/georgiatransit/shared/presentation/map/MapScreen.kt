@@ -307,7 +307,7 @@ private fun Content(
                     onClose = { onAction(JourneyPlannerAction.ClosePlanner) },
                 ) { sheetModifier, headerModifier ->
                     JourneyPlannerPanel(
-                        planner = planner,
+                        planner = planner.withoutBoardingFrames(),
                         expandedSide = expandedSide,
                         onToggleSide = { side -> expandedSide = side.takeIf { it != expandedSide } },
                         onClose = { onAction(JourneyPlannerAction.ClosePlanner) },

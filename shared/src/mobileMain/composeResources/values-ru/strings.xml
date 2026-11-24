@@ -52,8 +52,6 @@
     <string name="map_route_geometry_chip_description">Маршрут %1$s. %2$s</string>
     <string name="map_route_geometry_focus_action">Выделить маршрут %1$s</string>
     <string name="map_route_geometry_focused">Выделен на карте</string>
-    <string name="map_route_geometry_status_loading">Загрузка…</string>
-    <string name="map_route_geometry_status_partial">Показана часть</string>
     <string name="map_route_geometry_status_unavailable">Линия недоступна</string>
     <string name="map_route_geometry_loading">Загружаем линию маршрута… Показано направлений: %1$d из %2$d</string>
     <string name="map_route_geometry_ready">Показано направлений: %1$d из %2$d</string>

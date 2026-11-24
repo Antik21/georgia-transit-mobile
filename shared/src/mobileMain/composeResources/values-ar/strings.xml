@@ -52,8 +52,6 @@
     <string name="map_route_geometry_chip_description">المسار %1$s. %2$s</string>
     <string name="map_route_geometry_focus_action">تمييز المسار %1$s</string>
     <string name="map_route_geometry_focused">مميّز على الخريطة</string>
-    <string name="map_route_geometry_status_loading">جارٍ التحميل…</string>
-    <string name="map_route_geometry_status_partial">معروض جزئيًا</string>
     <string name="map_route_geometry_status_unavailable">خط المسار غير متاح</string>
     <string name="map_route_geometry_loading">جارٍ تحميل مسار الخط… الاتجاهات المعروضة: %1$d من %2$d</string>
     <string name="map_route_geometry_ready">الاتجاهات المعروضة: %1$d من %2$d</string>

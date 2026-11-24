@@ -52,8 +52,6 @@
     <string name="map_route_geometry_chip_description">მარშრუტი %1$s. %2$s</string>
     <string name="map_route_geometry_focus_action">მარშრუტის %1$s გამოყოფა</string>
     <string name="map_route_geometry_focused">რუკაზე გამოყოფილია</string>
-    <string name="map_route_geometry_status_loading">იტვირთება…</string>
-    <string name="map_route_geometry_status_partial">ნაწილობრივ ჩანს</string>
     <string name="map_route_geometry_status_unavailable">ხაზი მიუწვდომელია</string>
     <string name="map_route_geometry_loading">მარშრუტის ხაზი იტვირთება… ნაჩვენებია: %1$d / %2$d</string>
     <string name="map_route_geometry_ready">ნაჩვენებია მიმართულებები: %1$d / %2$d</string>

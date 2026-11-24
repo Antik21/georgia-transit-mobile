@@ -273,17 +273,6 @@ export interface PlannerLabel {
   readonly textColor: string;
 }
 
-export interface PlannerBus {
-  readonly id: string;
-  readonly latitude: number;
-  readonly longitude: number;
-  readonly bearing: number | null | undefined;
-  readonly etaMinutes: number;
-  readonly label: string;
-  readonly color: string;
-  readonly textColor: string;
-}
-
 export interface PlannerOption {
   readonly id: string;
   readonly totalMinutes: number | null | undefined;
@@ -322,7 +311,7 @@ export interface PlannerState {
   readonly walkMinutes: number | null | undefined;
   readonly options: readonly PlannerOption[];
   readonly route: PlannerRoute;
-  readonly buses: readonly PlannerBus[];
+  readonly boardingFitPosition: PlannerPoint | null | undefined;
   readonly cameraFitRevision: string;
 }
 

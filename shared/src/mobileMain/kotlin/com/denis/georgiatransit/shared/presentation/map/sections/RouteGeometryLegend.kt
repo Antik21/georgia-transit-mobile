@@ -57,8 +57,6 @@ import georgiatransit.shared.generated.resources.map_route_geometry_ready
 import georgiatransit.shared.generated.resources.map_route_geometry_remove_accessibility
 import georgiatransit.shared.generated.resources.map_route_geometry_retry_accessibility
 import georgiatransit.shared.generated.resources.map_route_geometry_retryable
-import georgiatransit.shared.generated.resources.map_route_geometry_status_loading
-import georgiatransit.shared.generated.resources.map_route_geometry_status_partial
 import georgiatransit.shared.generated.resources.map_route_geometry_status_unavailable
 import georgiatransit.shared.generated.resources.map_route_geometry_title
 import georgiatransit.shared.generated.resources.map_route_geometry_unavailable
@@ -127,16 +125,6 @@ private fun RouteGeometryChip(
         route.routeLabel,
         routeGeometryStatusLabel(route),
     )
-    val visibleStatus = when (route.state) {
-        RouteGeometryLegendState.Ready -> null
-        RouteGeometryLegendState.Loading -> stringResource(Res.string.map_route_geometry_status_loading)
-        RouteGeometryLegendState.Partial -> stringResource(Res.string.map_route_geometry_status_partial)
-        RouteGeometryLegendState.Retryable,
-        RouteGeometryLegendState.Unavailable,
-        RouteGeometryLegendState.SelectionOverflow,
-        -> stringResource(Res.string.map_route_geometry_status_unavailable)
-    }
-
     Surface(
         modifier = modifier.heightIn(min = RouteGeometryChipHeight),
         shape = InputChipDefaults.shape,
@@ -181,12 +169,14 @@ private fun RouteGeometryChip(
                 } else {
                     Icon(DirectionsBusIcon, contentDescription = null, tint = foreground, modifier = Modifier.size(InputChipDefaults.IconSize))
                 }
-                Column(modifier = Modifier.clearAndSetSemantics {}) {
-                    Text(route.routeLabel, color = foreground, maxLines = 1, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Medium)
-                    visibleStatus?.let {
-                        Text(it, color = foreground, style = MaterialTheme.typography.labelSmall, maxLines = 1)
-                    }
-                }
+                Text(
+                    route.routeLabel,
+                    modifier = Modifier.clearAndSetSemantics {},
+                    color = foreground,
+                    maxLines = 1,
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.Medium,
+                )
             }
             VerticalDivider(modifier = Modifier.height(InputChipDefaults.IconSize), color = foreground.copy(alpha = 0.42f))
             Box(

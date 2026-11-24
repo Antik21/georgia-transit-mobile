@@ -67,7 +67,7 @@ class MapViewModel(
     private val vehiclePresentation get() = vehicleFeature.presentation
     private val renderProjector by lazy { MapRenderProjector(cameraController, stopSelection, vehiclePresentation) }
     private val journeyPlanner = JourneyPlannerWorkflow(
-        journeyPlanRepository, repository, journeyPlanClock, realtimeTickerPolicy.pollIntervalMillis, analytics = analytics)
+        journeyPlanRepository, repository, journeyPlanClock, realtimeTickerPolicy, analytics = analytics, vehicleClock = realtimeClock)
 
     override val container: Container<ViewState, SideEffect> = viewModelScope.container(
         initialState = ViewState(
@@ -185,9 +185,8 @@ class MapViewModel(
         if (realtimeVisibleAndStarted == isVisibleAndStarted) return
         realtimeVisibleAndStarted = isVisibleAndStarted
         syncVehiclePresentationInputs()
-        // A newly visible composition starts from an empty generation; a late response from the
-        // previous entry/lifecycle can therefore never republish vehicle geometry.
-        vehicleFeature.reset()
+        // Invalidate in-flight requests without losing the last vehicle headings on resume.
+        if (!isVisibleAndStarted) vehicleFeature.pause()
         syncRouteGeometry()
         publishVehicleState()
         updatePlanner(journeyPlanner::onVisibility)

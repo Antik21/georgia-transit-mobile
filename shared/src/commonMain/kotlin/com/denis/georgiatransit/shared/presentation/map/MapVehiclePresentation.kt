@@ -1,5 +1,6 @@
 package com.denis.georgiatransit.shared.presentation.map
 
+import com.denis.georgiatransit.shared.domain.model.DirectionId
 import com.denis.georgiatransit.shared.domain.model.GeoPoint
 import com.denis.georgiatransit.shared.domain.model.RouteId
 import com.denis.georgiatransit.shared.domain.model.TransitCity
@@ -11,6 +12,7 @@ import com.denis.georgiatransit.shared.presentation.ui.RouteSelectionProjection
 import kotlinx.collections.immutable.PersistentList
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.toPersistentList
+import kotlin.time.Instant
 
 /** Owns marker frames, route-motion cache and native source revisions for one Map entry. */
 internal class MapVehiclePresentation(
@@ -33,6 +35,7 @@ internal class MapVehiclePresentation(
     private var vehicleRoutePathRevision: Long? = null
     private var vehicleRoutePaths: Map<RouteId, List<PreparedVehicleRoutePath>> = emptyMap()
     private val vehicleRouteMotions = mutableMapOf<VehicleId, CachedVehicleRouteMotion>()
+    private val pausedHeadings = mutableMapOf<VehicleId, PausedVehicleHeading>()
 
     fun updateInputs(
         city: TransitCity?,
@@ -49,6 +52,24 @@ internal class MapVehiclePresentation(
     }
 
     fun reset() {
+        pausedHeadings.clear()
+        clearFrames()
+    }
+
+    fun pause() {
+        val wallNow = realtimeClock.wallNow()
+        pausedHeadings.values.removeAll { it.expiresAt <= wallNow }
+        val markers = vehicleMarkers.associateBy(MapVehicleMarker::id)
+        vehicleRealtimeState.tracks.forEach { track ->
+            val bearing = markers[track.id]?.bearingDegrees
+            if (bearing != null && track.expiresAt > wallNow) {
+                pausedHeadings[track.id] = PausedVehicleHeading(track.routeId, track.directionId, track.expiresAt, bearing)
+            }
+        }
+        clearFrames()
+    }
+
+    private fun clearFrames() {
         vehicleRealtimeState = VehicleRealtimeState()
         vehicleRouteMotions.clear()
         val vehicleSourceChanged = vehicleMarkers.isNotEmpty()
@@ -76,17 +97,37 @@ internal class MapVehiclePresentation(
                     monotonicNowMillis = realtimeClock.monotonicNowMillis(),
                 )
             ) {
-                is VehiclePageReduction.Applied -> vehicleRealtimeState = reduction.state
+                is VehiclePageReduction.Applied -> {
+                    vehicleRealtimeState = reduction.state
+                    restorePausedHeadings(routeId)
+                }
                 is VehiclePageReduction.IgnoredOlder -> vehicleRealtimeState = reduction.state
-                is VehiclePageReduction.Rejected -> vehicleRealtimeState = reduction.state
+                is VehiclePageReduction.Rejected -> {
+                    vehicleRealtimeState = reduction.state
+                    pausedHeadings.values.removeAll { it.routeId == routeId }
+                }
             }
             is TransitLoadResult.Empty -> {
                 vehicleRealtimeState = VehicleRealtimeReducer.acceptEmpty(vehicleRealtimeState, routeId, result.freshness)
+                pausedHeadings.values.removeAll { it.routeId == routeId }
             }
             is TransitLoadResult.Failure -> {
                 vehicleRealtimeState = VehicleRealtimeReducer.handleFailure(vehicleRealtimeState, routeId, result.error)
             }
         }
+    }
+
+    private fun restorePausedHeadings(routeId: RouteId) {
+        if (pausedHeadings.none { it.value.routeId == routeId }) return
+        val wallNow = realtimeClock.wallNow()
+        val tracks = vehicleRealtimeState.tracks.map { track ->
+            val heading = pausedHeadings[track.id]?.takeIf {
+                track.routeId == routeId && it.routeId == routeId && it.directionId == track.directionId && it.expiresAt > wallNow
+            }
+            if (heading == null || track.lastTravelBearing != null) track else track.copy(lastTravelBearing = heading.bearing)
+        }.toPersistentList()
+        pausedHeadings.values.removeAll { it.routeId == routeId }
+        vehicleRealtimeState = vehicleRealtimeState.copy(tracks = tracks)
     }
 
     private companion object {
@@ -226,8 +267,7 @@ internal class MapVehiclePresentation(
             return if (interpolate) VehicleRealtimeReducer.frame(track, monotonicNowMillis) else track.to
         }
         if (!interpolate) return motion.endPoint
-        val startedAt = track.interpolationStartedAtMonotonicMillis ?: return motion.endPoint
-        return motion.positionAt(interpolationFraction(startedAt, monotonicNowMillis))
+        return motion.positionAt(track.interpolationFraction(monotonicNowMillis))
     }
 
     /** Rotation is deliberately separate so it can never gate or replace the position frame. */
@@ -236,10 +276,9 @@ internal class MapVehiclePresentation(
         monotonicNowMillis: Long,
         interpolate: Boolean,
     ): Double? {
-        val fallback = track.directTravelBearing ?: track.bearingDegrees
+        val fallback = track.lastTravelBearing ?: track.bearingDegrees
         val motion = vehicleRouteMotion(track) ?: return fallback
-        val startedAt = track.interpolationStartedAtMonotonicMillis
-        val fraction = if (interpolate && startedAt != null) interpolationFraction(startedAt, monotonicNowMillis) else 1.0
+        val fraction = if (interpolate) track.interpolationFraction(monotonicNowMillis) else 1.0
         return motion.bearingAt(fraction) ?: fallback
     }
 
@@ -256,15 +295,13 @@ internal class MapVehiclePresentation(
                 directionId = track.directionId,
                 candidates = routePaths,
                 previousMotion = cached?.continuityMotionFor(track),
+                initialBearing = track.lastTravelBearing,
             ).also { resolved ->
                 vehicleRouteMotions[track.id] = CachedVehicleRouteMotion.from(track, resolved)
             }
         }
         return motion
     }
-
-    private fun interpolationFraction(startedAt: Long, monotonicNowMillis: Long): Double =
-        (monotonicNowMillis - startedAt).coerceAtLeast(0L).toDouble() / VEHICLE_INTERPOLATION_DURATION_MILLIS
 
     private fun refreshVehicleRoutePaths() {
         val revision = routeGeometrySnapshot.polylineSourceRevision
@@ -387,9 +424,16 @@ private data class VehicleBadgeRenderStyle(
     val stale: Boolean,
 )
 
+private data class PausedVehicleHeading(
+    val routeId: RouteId,
+    val directionId: DirectionId?,
+    val expiresAt: Instant,
+    val bearing: Double,
+)
+
 private data class CachedVehicleRouteMotion(
     val routeId: RouteId,
-    val directionId: com.denis.georgiatransit.shared.domain.model.DirectionId?,
+    val directionId: DirectionId?,
     val observationEpochMillis: Long,
     val from: GeoPoint,
     val to: GeoPoint,

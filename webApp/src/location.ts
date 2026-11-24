@@ -1,5 +1,5 @@
 import type { LocationCommand, MapEntry } from "./contracts";
-import type { TelegramLocationManager } from "./telegram";
+import type { TelegramLocationData, TelegramLocationHost } from "./telegram";
 
 // Matches the native adapters' request timeout and the shared precise-fix accuracy limit.
 const requestTimeoutMillis = 10_000;
@@ -18,7 +18,7 @@ interface Fix {
 interface Provider {
   permission(): Promise<Permission>;
   /** Resolves null when no fix is available; rejects with "timedOut" or "denied". */
-  locate(): Promise<Fix | null>;
+  locate(prompt: boolean): Promise<Fix | null>;
   openSettings(): boolean;
 }
 
@@ -42,23 +42,38 @@ function withTimeout<T>(promise: Promise<T>): Promise<T> {
   });
 }
 
-function telegramProvider(manager: TelegramLocationManager): Provider {
-  const ready = new Promise<void>((resolve) => {
-    if (manager.isInited) resolve();
-    else manager.init(() => resolve());
-  });
+function telegramProvider({ manager, checkStatus }: TelegramLocationHost): Provider {
+  let checkingStatus: Promise<void> | undefined;
+
+  async function readStatus() {
+    if (!manager.isInited) {
+      await withTimeout(new Promise<void>((resolve) => manager.init(resolve)));
+    } else if (checkStatus) {
+      let unsubscribe: (() => void) | undefined;
+      try {
+        await withTimeout(new Promise<void>((resolve) => { unsubscribe = checkStatus(resolve); }));
+      } finally {
+        unsubscribe?.();
+      }
+    }
+  }
+
+  function refreshStatus() {
+    return checkingStatus ??= readStatus().finally(() => { checkingStatus = undefined; });
+  }
+
   return {
     async permission() {
-      await ready;
+      await refreshStatus();
       if (!manager.isLocationAvailable) return "unavailable";
       if (!manager.isAccessRequested) return "notDetermined";
       return manager.isAccessGranted ? "granted" : "settingsRequired";
     },
-    async locate() {
-      await ready;
-      const data = await new Promise<Parameters<Parameters<TelegramLocationManager["getLocation"]>[0]>[0]>(
-        (resolve) => manager.getLocation(resolve),
-      );
+    async locate(prompt) {
+      if (!manager.isInited || !manager.isLocationAvailable) await refreshStatus();
+      if (!manager.isLocationAvailable) return null;
+      if (!prompt && !manager.isAccessGranted) throw new Error("denied");
+      const data = await new Promise<TelegramLocationData | null>((resolve) => manager.getLocation(resolve));
       if (!data) {
         if (manager.isAccessRequested && !manager.isAccessGranted) throw new Error("denied");
         return null;
@@ -112,11 +127,13 @@ function browserProvider(): Provider | undefined {
   };
 }
 
-export function createLocationAdapter(entry: MapEntry, manager: TelegramLocationManager | undefined): LocationAdapter {
-  const provider = manager ? telegramProvider(manager) : browserProvider();
+export function createLocationAdapter(entry: MapEntry, host: TelegramLocationHost | undefined): LocationAdapter {
+  const provider = host ? telegramProvider(host) : browserProvider();
   // The shared session ties precision to the permission; browsers only reveal it per fix.
   let precise = true;
   let activeRequest: string | undefined;
+  let permissionPending = false;
+  let permissionFix: Fix | undefined;
   let generation = 0;
   let refreshTimer: number | undefined;
   let disposed = false;
@@ -124,18 +141,17 @@ export function createLocationAdapter(entry: MapEntry, manager: TelegramLocation
 
   function reportPermission(permission: Permission) {
     if (disposed) return;
-    entry.locationPermission(permission, precise, permission === "error");
+    if (permission !== "granted") permissionFix = undefined;
+    entry.locationPermission(permission, precise, permission === "error" || (Boolean(host) && permission === "unavailable"));
   }
 
   async function queryPermission() {
-    if (!provider) {
-      reportPermission("unavailable");
-      return;
-    }
+    const current = generation;
     try {
-      reportPermission(await provider.permission());
+      const permission = provider ? await provider.permission() : "unavailable";
+      if (current === generation && !paused) reportPermission(permission);
     } catch {
-      entry.locationPermission("error", precise, true);
+      if (current === generation && !paused) reportPermission("error");
     }
   }
 
@@ -144,13 +160,24 @@ export function createLocationAdapter(entry: MapEntry, manager: TelegramLocation
       reportPermission("unavailable");
       return;
     }
+    if (prompt && (permissionPending || activeRequest)) return;
     const current = ++generation;
+    permissionPending = prompt;
     activeRequest = prompt ? undefined : id;
+    const recentPermissionFix = !prompt && permissionFix && Date.now() - permissionFix.capturedAt < requestTimeoutMillis
+      ? permissionFix : undefined;
+    permissionFix = undefined;
     try {
-      const fix = await withTimeout(provider.locate());
+      const fix = recentPermissionFix ?? await withTimeout(provider.locate(prompt));
       if (disposed || current !== generation) return;
       if (prompt) {
-        reportPermission(fix ? "granted" : await provider.permission());
+        if (fix) {
+          // Telegram returns a fix with the grant. The next shared request can use it immediately.
+          if (host) permissionFix = fix;
+          reportPermission("granted");
+        } else {
+          await queryPermission();
+        }
         return;
       }
       if (!fix) {
@@ -167,7 +194,7 @@ export function createLocationAdapter(entry: MapEntry, manager: TelegramLocation
       if (disposed || current !== generation) return;
       const reason = error instanceof Error ? error.message : "unavailable";
       if (reason === "denied") {
-        reportPermission(manager ? "settingsRequired" : "denied");
+        reportPermission(host ? "settingsRequired" : "denied");
         if (!prompt) entry.locationFailed(id, "unavailable");
       } else if (prompt) {
         await queryPermission();
@@ -175,7 +202,10 @@ export function createLocationAdapter(entry: MapEntry, manager: TelegramLocation
         entry.locationFailed(id, reason === "timedOut" ? "timedOut" : "unavailable");
       }
     } finally {
-      if (current === generation) activeRequest = undefined;
+      if (current === generation) {
+        activeRequest = undefined;
+        permissionPending = false;
+      }
     }
   }
 
@@ -184,7 +214,7 @@ export function createLocationAdapter(entry: MapEntry, manager: TelegramLocation
       if (disposed) return;
       switch (command.kind) {
         case "queryPermission":
-          void queryPermission();
+          if (!permissionPending) void queryPermission();
           break;
         case "requestPermission":
           void requestLocation(command.id, true);
@@ -196,20 +226,27 @@ export function createLocationAdapter(entry: MapEntry, manager: TelegramLocation
           break;
         case "openAppSettings":
         case "openLocationSettings":
-          if (!provider?.openSettings()) entry.locationPermission("error", precise, true);
+          try {
+            if (provider?.openSettings()) break;
+          } catch {
+            // Telegram can reject opening settings if its permission snapshot just changed.
+          }
+          reportPermission("error");
           break;
       }
     },
     resume(force = false) {
       if (disposed || (!paused && !force)) return;
       paused = false;
-      void queryPermission();
+      if (!permissionPending) void queryPermission();
     },
     pause() {
       if (paused) return;
       paused = true;
       // Also invalidates a pending permission prompt, which never sets activeRequest.
       generation++;
+      permissionPending = false;
+      permissionFix = undefined;
       const id = activeRequest;
       activeRequest = undefined;
       if (id) entry.locationCancelled(id);

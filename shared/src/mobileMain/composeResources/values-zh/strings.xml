@@ -52,8 +52,6 @@
     <string name="map_route_geometry_chip_description">线路 %1$s。%2$s</string>
     <string name="map_route_geometry_focus_action">高亮线路 %1$s</string>
     <string name="map_route_geometry_focused">已在地图上高亮</string>
-    <string name="map_route_geometry_status_loading">正在加载…</string>
-    <string name="map_route_geometry_status_partial">部分显示</string>
     <string name="map_route_geometry_status_unavailable">线路走向不可用</string>
     <string name="map_route_geometry_loading">正在加载线路…已显示 %1$d/%2$d 个方向</string>
     <string name="map_route_geometry_ready">已显示 %1$d/%2$d 个方向</string>

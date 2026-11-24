@@ -39,11 +39,14 @@ internal class JourneyPlannerWorkflow(
     private val repository: JourneyPlanRepository,
     private val catalog: TransitRepository,
     private val clock: LocationFreshnessClock,
-    vehicleIntervalMillis: Long,
+    vehicleTickerPolicy: VehicleRealtimeTickerPolicy = DefaultVehicleRealtimeTickerPolicy,
     private val refreshIntervalMillis: Long = JOURNEY_REFRESH_INTERVAL_MILLIS,
     private val analytics: ProductAnalytics? = null,
+    vehicleClock: VehicleRealtimeClock = SystemVehicleRealtimeClock(),
 ) {
-    private val buses = JourneyBusesWorkflow(catalog, vehicleIntervalMillis)
+    private val buses = JourneyBusesWorkflow(
+        catalog, vehicleTickerPolicy.pollIntervalMillis, clock = vehicleClock, frameIntervalMillis = vehicleTickerPolicy.frameIntervalMillis,
+    )
     private var generation = 0L
     private var requestJob: Job? = null
     private var refreshJob: Job? = null
@@ -112,10 +115,15 @@ internal class JourneyPlannerWorkflow(
     /** Buses are looked up only for a visible, selected option that boards transit, under the arrivals capability. */
     private fun busKey(state: JourneyPlannerUi, context: JourneyPlannerContext): JourneyBusKey? {
         val city = context.city?.takeIf { context.visible && context.available && it.capabilities.arrivals } ?: return null
+        if (!state.isOpen || !state.showingResults || state.mapPick != null) return null
         val option = state.selectedOption() ?: return null
         val boarding = option.boarding ?: return null
         if (boarding.plannedVehicleId == null) return null
-        return JourneyBusKey(city.id, option.id, boarding, context.locale, positions = false)
+        return JourneyBusKey(
+            city.id, option.id, boarding, context.locale,
+            positions = city.capabilities.vehicles,
+            shapes = city.capabilities.routeShapes,
+        )
     }
 
     fun cancel() {

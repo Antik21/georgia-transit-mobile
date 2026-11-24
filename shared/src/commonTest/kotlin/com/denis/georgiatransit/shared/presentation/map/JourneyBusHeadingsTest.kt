@@ -65,10 +65,16 @@ class JourneyBusHeadingsTest {
     }
 
     @Test
-    fun aFeedBearingIsTheLastResort() {
-        val headings = JourneyBusHeadings(path = null, boardingStop = null, departureBearing = null)
+    fun anInitialFeedBearingOverridesAnInferredApproach() {
+        val headings = JourneyBusHeadings(loop, westboundStop, departureBearing = WEST)
 
-        assertEquals(42.0, headings.update(listOf(bus(41.606, bearing = 42.0)))[BUS])
+        assertFacing(EAST, headings.update(listOf(bus(41.606, bearing = EAST)))[BUS])
+    }
+
+    @Test
+    fun oppositeBranchesWithoutBoardingEvidenceGiveNoInitialHeading() {
+        val headings = JourneyBusHeadings(loop, boardingStop = null, departureBearing = null)
+        assertNull(headings.update(listOf(bus(41.606)))[BUS])
     }
 
     private fun assertFacing(expected: Double, actual: Double?) {
