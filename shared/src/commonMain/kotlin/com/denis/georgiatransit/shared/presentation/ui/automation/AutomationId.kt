@@ -19,6 +19,7 @@ object AutomationId {
     const val CityBatumi = "city-selection.batumi"
     const val CityKutaisi = "city-selection.kutaisi"
     const val CityZugdidi = "city-selection.zugdidi"
+    const val CityPrivacyNotice = "city-selection.privacy-notice"
     const val CityContinue = "city-selection.continue"
     const val LanguageScreen = "language-selection.screen"
     const val LanguageClose = "language-selection.close"

@@ -17,6 +17,8 @@
     <string name="city_unavailable">Coming later</string>
     <string name="city_attribution_title">Data sources and attribution</string>
     <string name="city_open_map">Open map</string>
+    <string name="city_privacy_notice">By tapping “%1$s”, you agree to the %2$s.</string>
+    <string name="city_privacy_link">Privacy Policy</string>
     <string name="location_title">Use your location</string>
     <string name="location_body">Center the map and show nearby transit stops. City selection still works without location.</string>
     <string name="location_status_not_determined">Location access has not been requested.</string>

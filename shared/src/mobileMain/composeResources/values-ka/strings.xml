@@ -17,6 +17,8 @@
     <string name="city_unavailable">მოგვიანებით</string>
     <string name="city_attribution_title">მონაცემთა წყაროები და ატრიბუცია</string>
     <string name="city_open_map">რუკის გახსნა</string>
+    <string name="city_privacy_notice">ღილაკზე „%1$s“ დაჭერით თქვენ ეთანხმებით %2$s.</string>
+    <string name="city_privacy_link">კონფიდენციალურობის პოლიტიკას</string>
     <string name="location_title">თქვენი მდებარეობის გამოყენება</string>
     <string name="location_body">რუკის ცენტრირება და ახლომდებარე გაჩერებების ჩვენება. ქალაქის არჩევა მდებარეობის გარეშეც მუშაობს.</string>
     <string name="location_status_not_determined">მდებარეობაზე წვდომა ჯერ არ მოთხოვნილა.</string>

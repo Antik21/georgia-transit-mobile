@@ -17,6 +17,8 @@
     <string name="city_unavailable">बाद में उपलब्ध होगा</string>
     <string name="city_attribution_title">डेटा स्रोत और श्रेय</string>
     <string name="city_open_map">नक्शा खोलें</string>
+    <string name="city_privacy_notice">“%1$s” पर टैप करके आप %2$s से सहमत होते हैं।</string>
+    <string name="city_privacy_link">गोपनीयता नीति</string>
     <string name="location_title">अपने स्थान का उपयोग करें</string>
     <string name="location_body">अपने स्थान पर नक्शा केंद्रित करें और आस-पास के स्टॉप देखें। स्थान साझा किए बिना भी शहर चुन सकते हैं।</string>
     <string name="location_status_not_determined">स्थान की अनुमति अभी नहीं माँगी गई है।</string>

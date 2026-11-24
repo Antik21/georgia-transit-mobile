@@ -55,7 +55,16 @@ export function createTransitView(root: HTMLElement, actions: ViewActions, langu
   const cityContent = element("div", "city-content");
   const cityFooter = element("div", "city-footer");
   const confirmCity = button("primary-button", copy.openMap, actions.confirmCity, "confirm-city");
-  cityFooter.append(confirmCity);
+  const privacyNotice = element("p", "city-privacy-notice");
+  privacyNotice.id = "city-privacy-notice";
+  const privacyLink = element("a", "", copy.cityPrivacyLink);
+  privacyLink.href = `https://www.geotransit.com.ge/privacy.html?lang=${language}`;
+  privacyLink.target = "_blank";
+  privacyLink.rel = "noopener noreferrer";
+  const [beforeLink, afterLink] = copy.cityPrivacyNotice.replace("%1$s", copy.openMap).split("%2$s");
+  privacyNotice.append(beforeLink, privacyLink, afterLink);
+  confirmCity.setAttribute("aria-describedby", privacyNotice.id);
+  cityFooter.append(confirmCity, privacyNotice);
   cityCard.append(cityHeading, cityContent, cityFooter);
   city.append(cityCard);
 
