@@ -3,6 +3,7 @@
 package com.denis.georgiatransit.shared.domain.analytics
 
 import com.denis.georgiatransit.shared.domain.model.CityId
+import com.denis.georgiatransit.shared.domain.analytics.schema.AnalyticsCatalog
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.launch
@@ -10,21 +11,21 @@ import kotlin.time.Clock
 import kotlin.uuid.Uuid
 
 enum class AnalyticsClient(val wireName: String) {
-    Android("android"),
-    Ios("ios"),
-    Web("web"),
-    TelegramMiniApp("telegram_mini_app"),
+    Android(AnalyticsCatalog.Android),
+    Ios(AnalyticsCatalog.Ios),
+    Web(AnalyticsCatalog.Web),
+    TelegramMiniApp(AnalyticsCatalog.TelegramMiniApp),
 }
 
 enum class ZoomType(val wireName: String) {
-    DoubleTap("finger_double_tap"),
-    Pinch("finger_pinch"),
-    Button("button"),
+    DoubleTap(AnalyticsCatalog.FingerDoubleTap),
+    Pinch(AnalyticsCatalog.FingerPinch),
+    Button(AnalyticsCatalog.Button),
 }
 
 internal enum class JourneyPlanningSource(val wireName: String) {
-    MapButton("map_button"),
-    LongPress("long_press"),
+    MapButton(AnalyticsCatalog.MapButton),
+    LongPress(AnalyticsCatalog.LongPress),
 }
 
 internal sealed interface AnalyticsEvent {
@@ -76,7 +77,7 @@ class ProductAnalytics internal constructor(
         }
         val leftAt = backgroundAt
         backgroundAt = null
-        if (sessionId == 0L || (leftAt != null && now - leftAt >= SessionIdleMillis)) startSession(now)
+        if (sessionId == 0L || (leftAt != null && now - leftAt >= AnalyticsCatalog.SessionIdleMillis)) startSession(now)
     }
 
     fun zoomStarted(type: ZoomType) = recordOnce(AnalyticsEvent.ZoomStarted(type))
@@ -126,9 +127,6 @@ class ProductAnalytics internal constructor(
         records.trySend(AnalyticsRecord(client, deviceId, sessionId, maxOf(now, sessionId), event))
     }
 
-    private companion object {
-        const val SessionIdleMillis = 30 * 60 * 1_000L
-    }
 }
 
 fun loadAnalyticsDeviceId(read: () -> String?, write: (String) -> Unit): String {

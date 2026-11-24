@@ -2,6 +2,8 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<key>AmplitudeApiKey</key>
+	<string>$(SANDBOX_AMPLITUDE_API_KEY)</string>
 	<key>BffBaseURL</key>
 	<string>$(BFF_BASE_URL)</string>
 	<key>CADisableMinimumFrameDurationOnPhone</key>

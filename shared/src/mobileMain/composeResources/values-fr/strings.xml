@@ -195,7 +195,7 @@
     <string name="map_planner_meters">%1$d m</string>
     <string name="map_planner_minutes">%1$d min</string>
     <string name="map_planner_stops">Arrêts : %1$d</string>
-    <string name="map_planner_wait_estimate">Attente ≈ %1$d min</string>
+    <string name="map_planner_wait_estimate">Dans environ %1$d min</string>
     <string name="map_planner_wait_unknown">Temps d’attente inconnu</string>
     <string name="map_planner_timing_live">Bus en temps réel</string>
     <string name="map_planner_timing_mixed">Partiellement en temps réel</string>

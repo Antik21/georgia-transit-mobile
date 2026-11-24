@@ -12,6 +12,9 @@ java {
 }
 
 kotlin {
+    sourceSets.main {
+        kotlin.srcDir(rootProject.file("shared/src/commonMain/kotlin/com/denis/georgiatransit/shared/domain/analytics/schema"))
+    }
     compilerOptions {
         jvmTarget.set(JvmTarget.JVM_17)
     }

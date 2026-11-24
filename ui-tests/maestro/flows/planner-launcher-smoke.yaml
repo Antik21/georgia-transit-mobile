@@ -1,0 +1,31 @@
+appId: com.anti.georgiatransit.sandbox
+---
+- launchApp:
+    clearState: true
+- assertVisible:
+    id: map.planner.open.label
+- tapOn:
+    id: map.planner.open
+- assertVisible:
+    id: 'map\.planner\.(panel|unavailable)'
+- runFlow:
+    when:
+      visible:
+        id: map.planner.close
+    commands:
+      - tapOn:
+          id: map.planner.close
+- assertVisible:
+    id: map.planner.open
+- assertNotVisible:
+    id: map.planner.open.label
+- stopApp
+- launchApp
+- assertVisible:
+    id: map.planner.open
+- assertNotVisible:
+    id: map.planner.open.label
+- tapOn:
+    id: map.planner.open
+- assertVisible:
+    id: 'map\.planner\.(panel|unavailable)'

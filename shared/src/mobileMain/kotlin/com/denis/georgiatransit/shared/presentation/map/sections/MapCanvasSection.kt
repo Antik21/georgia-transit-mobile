@@ -17,6 +17,11 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Rect
@@ -34,6 +39,7 @@ import com.denis.georgiatransit.shared.presentation.map.MapPlatformEvent
 import com.denis.georgiatransit.shared.presentation.map.MapRenderState
 import com.denis.georgiatransit.shared.presentation.map.PlatformMap
 import com.denis.georgiatransit.shared.presentation.map.MapZoomDirection
+import com.denis.georgiatransit.shared.presentation.map.rememberPlannerLauncherPreference
 import com.denis.georgiatransit.shared.presentation.ui.automation.AutomationId
 import com.denis.georgiatransit.shared.presentation.ui.theme.TransitColors
 import com.denis.georgiatransit.shared.presentation.ui.theme.TransitShapes
@@ -81,6 +87,11 @@ internal fun MapCanvas(
     onMapEvent: (MapPlatformEvent) -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val plannerPreference = rememberPlannerLauncherPreference()
+    var plannerLauncherUsed by remember(plannerPreference) { mutableStateOf<Boolean?>(null) }
+    LaunchedEffect(plannerPreference) {
+        plannerLauncherUsed = plannerPreference.wasUsed()
+    }
     val localizedRenderState = renderState.withLocalizedClusterLabels()
     val accessibleStops = localizedRenderState.stops.filter { it.accessibilityLabel.isNotBlank() }
     val nearbyStopsLabel = stringResource(Res.string.map_nearby_stops_title)
@@ -169,7 +180,8 @@ internal fun MapCanvas(
             onZoomClick = onZoomClick,
             modifier = Modifier.align(Alignment.BottomEnd).then(controlInsets),
         )
-        if (onOpenPlanner != null) {
+        val launcherUsed = plannerLauncherUsed
+        if (onOpenPlanner != null && launcherUsed != null) {
             Column(
                 modifier = Modifier.align(Alignment.BottomStart).then(controlInsets)
                     .padding(end = MapControlSize + TransitSpacing.Small),
@@ -178,7 +190,14 @@ internal fun MapCanvas(
                 MapToast(notice = plannerNotice)
                 MapPlannerLauncher(
                     available = journeyPlanningAvailable,
-                    onClick = onOpenPlanner,
+                    expanded = !launcherUsed,
+                    onClick = {
+                        if (plannerLauncherUsed != true) {
+                            plannerLauncherUsed = true
+                            plannerPreference.markUsed()
+                        }
+                        onOpenPlanner()
+                    },
                     modifier = Modifier.onGloballyPositioned { onPlannerLauncherPositioned(it.boundsInRoot()) },
                 )
             }

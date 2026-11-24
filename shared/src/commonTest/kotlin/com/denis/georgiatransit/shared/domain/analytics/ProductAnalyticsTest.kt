@@ -10,6 +10,32 @@ import kotlin.test.assertNotEquals
 @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
 class ProductAnalyticsTest {
     @Test
+    fun nativeDeliveryKeepsEstablishedEventNamesPropertiesAndDeduplication() {
+        val city = CityId("kutaisi")
+        val cases = listOf(
+            Triple(AnalyticsEvent.SessionStarted, "\$identify", emptyMap()),
+            Triple(AnalyticsEvent.ZoomStarted(ZoomType.Button), "zoom_started", mapOf("type" to "button")),
+            Triple(AnalyticsEvent.RecentRoutesUsed, "recent_routes_used", emptyMap()),
+            Triple(AnalyticsEvent.RouteSearchUsed, "route_search_used", emptyMap()),
+            Triple(AnalyticsEvent.RoutesSelected(city, 3, "selection"), "routes_selected", mapOf("city" to "kutaisi", "route_count" to 3)),
+            Triple(AnalyticsEvent.JourneyPlanningStarted(JourneyPlanningSource.LongPress, "plan"), "journey_planning_started", mapOf("source" to "long_press")),
+            Triple(AnalyticsEvent.StopOpened(city, "stop"), "stop_opened", mapOf("city" to "kutaisi")),
+            Triple(AnalyticsEvent.VehicleTapped("tap"), "vehicle_tapped", emptyMap()),
+        )
+        for ((event, name, properties) in cases) {
+            val record = AnalyticsRecord(AnalyticsClient.Android, "device", 1_000L, 1_010L, event)
+            val payload = record.toNativeEvent()
+            assertEquals(name, payload.name)
+            assertEquals(properties, payload.properties)
+            assertEquals(mapOf("client" to "android"), payload.userProperties)
+            assertEquals(1_010L, payload.timestamp)
+            assertEquals(event == AnalyticsEvent.SessionStarted, payload.isIdentify)
+            assertEquals(payload.insertId, record.copy(time = 1_020L).toNativeEvent().insertId)
+            assertNotEquals(payload.insertId, record.copy(sessionId = 2_000L).toNativeEvent().insertId)
+        }
+    }
+
+    @Test
     fun sendsEachZoomTypeOnceAndResetsOnlyAfterTheBackgroundTimeout() = runTest {
         var time = 1_000L
         val records = mutableListOf<AnalyticsRecord>()

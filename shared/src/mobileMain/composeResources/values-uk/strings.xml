@@ -197,7 +197,7 @@
     <string name="map_planner_meters">%1$d м</string>
     <string name="map_planner_minutes">%1$d хв</string>
     <string name="map_planner_stops">Зупинок: %1$d</string>
-    <string name="map_planner_wait_estimate">очікування ≈ %1$d хв</string>
+    <string name="map_planner_wait_estimate">Приблизно через %1$d хв</string>
     <string name="map_planner_wait_unknown">Час очікування невідомий</string>
     <string name="map_planner_timing_live">Автобуси в реальному часі</string>
     <string name="map_planner_timing_mixed">Частково в реальному часі</string>

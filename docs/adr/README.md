@@ -62,3 +62,5 @@ Product analytics, the session rules, and Amplitude delivery are recorded in
 [ADR 0031](0031-product-analytics-via-bff.md).
 The localized Natural-inspired vector basemap are recorded in
 [ADR 0032](0032-localized-vector-basemap.md).
+Direct mobile product analytics with a shared event catalog are recorded in
+[ADR 0033](0033-native-amplitude.md).

@@ -48,6 +48,7 @@ private final class GeorgiaTransitAppDelegate: NSObject, UIApplicationDelegate {
 #if SANDBOX
         DebugNetworkInspector.install()
 #endif
+        let deviceId = IosAnalyticsIdentityKt.iosAnalyticsDeviceId()
         GeorgiaTransitKoinKt.doInitGeorgiaTransitKoin(
             selectedCityStore: IosSelectedCityStore(),
             runtimeConfigurationSource: IosRuntimeBootstrapConfigurationSource(),
@@ -55,7 +56,8 @@ private final class GeorgiaTransitAppDelegate: NSObject, UIApplicationDelegate {
             bffEndpointConfiguration: AppEnvironment.bffEndpointConfiguration(),
             appTelemetry: FirebaseAppTelemetry(),
             analyticsClient: AnalyticsClient.ios,
-            analyticsDeviceId: IosAnalyticsIdentityKt.iosAnalyticsDeviceId()
+            analyticsDeviceId: deviceId,
+            nativeAnalytics: AmplitudeProductAnalytics(deviceId: deviceId)
         )
         return true
     }

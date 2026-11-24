@@ -110,6 +110,7 @@ private class LocalMapController(
     init {
         mapView.getMapAsync { mapLibreMap ->
             if (destroyed) return@getMapAsync
+            mapLibreMap.uiSettings.isCompassEnabled = false
             // The public vector source is requested only for an interactive viewport (ADR 0032).
             mapLibreMap.setPrefetchZoomDelta(0)
             map = mapLibreMap

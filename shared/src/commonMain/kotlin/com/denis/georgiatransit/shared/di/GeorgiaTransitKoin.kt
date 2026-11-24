@@ -9,7 +9,10 @@ import com.denis.georgiatransit.shared.data.config.BffEndpointConfiguration
 import com.denis.georgiatransit.shared.data.network.TransitBffClient
 import com.denis.georgiatransit.shared.domain.model.CityId
 import com.denis.georgiatransit.shared.domain.analytics.AnalyticsClient
+import com.denis.georgiatransit.shared.domain.analytics.AnalyticsRecord
+import com.denis.georgiatransit.shared.domain.analytics.NativeAnalyticsSink
 import com.denis.georgiatransit.shared.domain.analytics.ProductAnalytics
+import com.denis.georgiatransit.shared.domain.analytics.toNativeEvent
 import com.denis.georgiatransit.shared.domain.repository.ConnectionErrorNotices
 import com.denis.georgiatransit.shared.data.network.createTransitHttpClient
 import com.denis.georgiatransit.shared.data.repository.BffJourneyPlanRepository
@@ -51,6 +54,7 @@ internal fun appModule(
     appTelemetry: AppTelemetry = NoOpAppTelemetry,
     analyticsClient: AnalyticsClient? = null,
     analyticsDeviceId: String? = null,
+    analyticsDelivery: (suspend (AnalyticsRecord) -> Unit)? = null,
 ) = module {
     single<AppTelemetry> { SafeAppTelemetry(appTelemetry) }
     single<SelectedCityStore> { selectedCityStore }
@@ -74,7 +78,7 @@ internal fun appModule(
             ProductAnalytics(
                 analyticsClient, analyticsDeviceId,
                 CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate),
-                deliver = bff::sendAnalytics,
+                deliver = analyticsDelivery ?: bff::sendAnalytics,
             )
         }
     }
@@ -123,6 +127,7 @@ fun initGeorgiaTransitKoin(
     appTelemetry: AppTelemetry,
     analyticsClient: AnalyticsClient,
     analyticsDeviceId: String,
+    nativeAnalytics: NativeAnalyticsSink?,
 ) {
     startKoin {
         modules(
@@ -134,6 +139,9 @@ fun initGeorgiaTransitKoin(
                 appTelemetry = appTelemetry,
                 analyticsClient = analyticsClient,
                 analyticsDeviceId = analyticsDeviceId,
+                analyticsDelivery = { record ->
+                    runCatching { nativeAnalytics?.send(record.toNativeEvent()) }
+                },
             ),
         )
     }

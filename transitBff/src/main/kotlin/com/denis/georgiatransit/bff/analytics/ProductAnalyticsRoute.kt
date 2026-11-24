@@ -1,6 +1,7 @@
 package com.denis.georgiatransit.bff.analytics
 
 import com.denis.georgiatransit.bff.api.KnownCityIds
+import com.denis.georgiatransit.shared.domain.analytics.schema.AnalyticsCatalog as Catalog
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.cio.CIO
 import io.ktor.client.plugins.HttpTimeout
@@ -83,7 +84,7 @@ internal data class AnalyticsRequest(
             zoomType != null, routesSelection != null, recentRoutesUsed,
             routeSearchUsed, journeyPlanning != null, stopOpening != null, vehicleTapId != null,
         ).count { it }
-        if (client == "landing") return eventCount == 0 && landing?.isValid() == true
+        if (client == Catalog.Landing) return eventCount == 0 && landing?.isValid() == true
         return client in Clients && landing == null &&
             eventCount <= 1 && (zoomType == null || zoomType in ZoomTypes) &&
             routesSelection?.isValid() != false && journeyPlanning?.isValid() != false &&
@@ -93,15 +94,15 @@ internal data class AnalyticsRequest(
     fun toAmplitudeEvent(): JsonObject = buildJsonObject {
         val eventType = when {
             landing != null -> landing.action.eventName
-            recentRoutesUsed -> "recent_routes_used"
-            routeSearchUsed -> "route_search_used"
-            journeyPlanning != null -> "journey_planning_started"
-            stopOpening != null -> "stop_opened"
-            vehicleTapId != null -> "vehicle_tapped"
-            routesSelection != null -> "routes_selected"
-            zoomType != null -> "zoom_started"
-            client in WebEntrySources -> "web_app_opened"
-            else -> "\$identify"
+            recentRoutesUsed -> Catalog.RecentRoutesUsed
+            routeSearchUsed -> Catalog.RouteSearchUsed
+            journeyPlanning != null -> Catalog.JourneyPlanningStarted
+            stopOpening != null -> Catalog.StopOpened
+            vehicleTapId != null -> Catalog.VehicleTapped
+            routesSelection != null -> Catalog.RoutesSelected
+            zoomType != null -> Catalog.ZoomStarted
+            client in WebEntrySources -> Catalog.WebAppOpened
+            else -> Catalog.Identify
         }
         put("device_id", deviceId)
         put("event_type", eventType)
@@ -112,25 +113,25 @@ internal data class AnalyticsRequest(
         val eventKey = when {
             interactionId != null -> "$eventType:$interactionId"
             zoomType != null -> zoomType
-            eventType == "\$identify" -> "identify"
+            eventType == Catalog.Identify -> "identify"
             else -> eventType
         }
-        put("insert_id", "$client:$sessionId:$eventKey")
+        put("insert_id", Catalog.insertId(client, sessionId, eventKey))
         putJsonObject("user_properties") {
-            if (eventType == "\$identify") putJsonObject("\$set") { put("client", client) }
-            else put("client", client)
+            if (eventType == Catalog.Identify) putJsonObject("\$set") { put(Catalog.Client, client) }
+            else put(Catalog.Client, client)
         }
         when {
             landing != null -> put("event_properties", landing.toAmplitudeProperties())
             routesSelection != null -> putJsonObject("event_properties") {
-                put("city", routesSelection.cityId)
-                put("route_count", routesSelection.routeCount)
+                put(Catalog.City, routesSelection.cityId)
+                put(Catalog.RouteCount, routesSelection.routeCount)
             }
-            journeyPlanning != null -> putJsonObject("event_properties") { put("source", journeyPlanning.source) }
-            stopOpening != null -> putJsonObject("event_properties") { put("city", stopOpening.cityId) }
-            zoomType != null -> putJsonObject("event_properties") { put("type", zoomType) }
-            eventType == "web_app_opened" -> putJsonObject("event_properties") {
-                put("entry_source", WebEntrySources.getValue(client))
+            journeyPlanning != null -> putJsonObject("event_properties") { put(Catalog.Source, journeyPlanning.source) }
+            stopOpening != null -> putJsonObject("event_properties") { put(Catalog.City, stopOpening.cityId) }
+            zoomType != null -> putJsonObject("event_properties") { put(Catalog.ZoomType, zoomType) }
+            eventType == Catalog.WebAppOpened -> putJsonObject("event_properties") {
+                put(Catalog.EntrySource, WebEntrySources.getValue(client))
             }
         }
     }
@@ -138,9 +139,9 @@ internal data class AnalyticsRequest(
 
 @Serializable
 internal enum class LandingAction(val eventName: String) {
-    @SerialName("page_viewed") PageViewed("landing_page_viewed"),
-    @SerialName("language_changed") LanguageChanged("landing_language_changed"),
-    @SerialName("platform_clicked") PlatformClicked("landing_platform_clicked"),
+    @SerialName("page_viewed") PageViewed(Catalog.LandingPageViewed),
+    @SerialName("language_changed") LanguageChanged(Catalog.LandingLanguageChanged),
+    @SerialName("platform_clicked") PlatformClicked(Catalog.LandingPlatformClicked),
 }
 
 @Serializable
@@ -162,21 +163,21 @@ internal data class LandingInteraction(
     }
 
     fun toAmplitudeProperties(): JsonObject = buildJsonObject {
-        put("language", language)
-        previousLanguage?.let { put("previous_language", it) }
-        targetPlatform?.let { put("target_platform", it) }
+        put(Catalog.Language, language)
+        previousLanguage?.let { put(Catalog.PreviousLanguage, it) }
+        targetPlatform?.let { put(Catalog.TargetPlatform, it) }
     }
 }
 
-private val Clients = setOf("android", "ios", "web", "telegram_mini_app")
-private val WebEntrySources = mapOf("web" to "browser", "telegram_mini_app" to "telegram")
-private val ZoomTypes = setOf("finger_double_tap", "finger_pinch", "button")
-private val JourneyPlanningSources = setOf("map_button", "long_press")
+private val Clients = setOf(Catalog.Android, Catalog.Ios, Catalog.Web, Catalog.TelegramMiniApp)
+private val WebEntrySources = mapOf(Catalog.Web to Catalog.Browser, Catalog.TelegramMiniApp to Catalog.Telegram)
+private val ZoomTypes = setOf(Catalog.FingerDoubleTap, Catalog.FingerPinch, Catalog.Button)
+private val JourneyPlanningSources = setOf(Catalog.MapButton, Catalog.LongPress)
 private val AnalyticsCities = setOf(
     KnownCityIds.Batumi, KnownCityIds.Demo, KnownCityIds.Kutaisi, KnownCityIds.Tbilisi, KnownCityIds.Zugdidi,
 )
 private val LandingLanguages = setOf("en", "ka", "ru", "zh-Hans", "fr", "de")
-private val LandingPlatforms = setOf("web", "telegram_mini_app", "android", "ios")
+private val LandingPlatforms = setOf(Catalog.Web, Catalog.TelegramMiniApp, Catalog.Android, Catalog.Ios)
 private const val MaximumSelectedRoutes = 10
 private val UuidPattern = Regex("[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}")
 

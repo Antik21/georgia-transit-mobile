@@ -16,6 +16,13 @@ targets. Keep Android versions in the Gradle catalog and the iOS version pinned
 in Xcode's Swift package settings. See [ADR 0029](../../docs/adr/0029-native-crash-reporting.md)
 for the supported toolchain, data sent to Firebase, and production pricing.
 
+## Native product analytics
+
+Amplitude Android Kotlin 1.36.0 and Amplitude Swift 1.20.1 are MIT-licensed. The
+Analytics SDKs support the existing Android and iOS targets and the free
+Amplitude plan. See [ADR 0033](../../docs/adr/0033-native-amplitude.md) for the
+approved event categories, data controls, and dependency sources.
+
 ## Kotlin/JS time zones
 
 The shared JavaScript target uses `@js-joda/timezone` (BSD-3-Clause) to load IANA

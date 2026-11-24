@@ -1,6 +1,7 @@
 package com.denis.georgiatransit.android
 
 import android.app.Application
+import com.denis.georgiatransit.shared.app.NativeAmplitudeConfiguration
 import com.denis.georgiatransit.shared.data.cache.AndroidTransitCacheStore
 import com.denis.georgiatransit.shared.data.config.AndroidRuntimeBootstrapConfigurationSource
 import com.denis.georgiatransit.shared.data.config.BffEndpointConfiguration
@@ -15,6 +16,15 @@ open class GeorgiaTransitApplication : Application() {
     override fun onCreate() {
         super.onCreate()
         val analytics = getSharedPreferences("product_analytics", MODE_PRIVATE)
+        val deviceId = loadAnalyticsDeviceId(
+            { analytics.getString("device_id", null) },
+            { analytics.edit().putString("device_id", it).apply() },
+        )
+        val amplitudeKey = if (BuildConfig.DEBUG) {
+            BuildConfig.SANDBOX_AMPLITUDE_API_KEY
+        } else {
+            NativeAmplitudeConfiguration.ProductionApiKey
+        }
         initGeorgiaTransitKoin(
             selectedCityStore = AndroidSelectedCityStore(this),
             runtimeConfigurationSource = AndroidRuntimeBootstrapConfigurationSource(),
@@ -22,10 +32,10 @@ open class GeorgiaTransitApplication : Application() {
             bffEndpointConfiguration = bffEndpointConfiguration,
             appTelemetry = FirebaseAppTelemetry(this),
             analyticsClient = AnalyticsClient.Android,
-            analyticsDeviceId = loadAnalyticsDeviceId(
-                { analytics.getString("device_id", null) },
-                { analytics.edit().putString("device_id", it).apply() },
-            ),
+            analyticsDeviceId = deviceId,
+            nativeAnalytics = amplitudeKey.takeIf(String::isNotBlank)?.let {
+                AmplitudeProductAnalytics(this, it, deviceId)
+            },
         )
     }
 }

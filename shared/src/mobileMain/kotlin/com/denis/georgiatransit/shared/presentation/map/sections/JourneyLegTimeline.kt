@@ -145,18 +145,21 @@ private fun JourneyTimelineRow(
                     (leg.fromStopName ?: leg.fromStopId?.let(stopNames::get))?.let {
                         JourneyStepNote(stringResource(Res.string.map_planner_board_at, it))
                     }
-                    if (nearestEtas.isNotEmpty()) {
-                        Text(
-                            nearestArrivalText(nearestEtas.first(), nearestEtas.getOrNull(1)),
-                            modifier = Modifier.testTag(AutomationId.MapPlannerNearest),
+                    if (isFirstRide) {
+                        val liveEta = nearestEtas.firstOrNull()
+                        val arrivalText = when {
+                            liveEta != null -> nearestArrivalText(liveEta, nearestEtas.getOrNull(1))
+                            leg.waitMinutes != null -> stringResource(Res.string.map_planner_wait_estimate, leg.waitMinutes)
+                            else -> null
+                        }
+                        if (arrivalText == null) JourneyUnknownWait()
+                        else Text(
+                            arrivalText,
+                            modifier = if (liveEta != null) Modifier.testTag(AutomationId.MapPlannerNearest) else Modifier,
                             style = MaterialTheme.typography.bodyMedium,
                             fontWeight = FontWeight.Medium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
-                    } else if (isFirstRide) {
-                        val wait = leg.waitMinutes
-                        if (wait == null) JourneyUnknownWait()
-                        else JourneyStepNote(stringResource(Res.string.map_planner_wait_estimate, wait))
                     }
                     leg.stopCount?.let { Text(stringResource(Res.string.map_planner_stops, it), style = MaterialTheme.typography.bodySmall) }
                     (leg.toStopName ?: leg.toStopId?.let(stopNames::get))?.let {

@@ -9,6 +9,7 @@ COPY gradle gradle
 COPY build.gradle.kts settings.gradle.kts gradle.properties ./
 COPY transitBff/build.gradle.kts transitBff/build.gradle.kts
 COPY transitBff/src transitBff/src
+COPY shared/src/commonMain/kotlin/com/denis/georgiatransit/shared/domain/analytics/schema shared/src/commonMain/kotlin/com/denis/georgiatransit/shared/domain/analytics/schema
 
 RUN --mount=type=cache,target=/root/.gradle \
     mkdir -p androidApp shared && \
