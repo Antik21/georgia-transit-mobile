@@ -85,6 +85,7 @@ export function drawVehicleBadge(
   pixelRatio: number,
   textScale: number,
   flipLabel: boolean,
+  directional = true,
 ): ImageData {
   const font = `bold ${textSize * textScale}px ${fontFamily}`;
   const measure = document.createElement("canvas").getContext("2d");
@@ -112,18 +113,20 @@ export function drawVehicleBadge(
   context.strokeStyle = "#ffffff";
   context.stroke();
 
-  context.fillStyle = dimmed(style.color);
-  const rearLeft = left + 9;
-  const frontRight = right - 5;
-  roundRect(context, rearLeft, -11, 8, 22, windowRadius);
-  context.fill();
-  roundRect(context, frontRight - 11, -13, 11, 26, windowRadius);
-  context.fill();
-  context.fillStyle = headlightColor;
-  for (const y of [top + 7, bottom - 7]) {
-    context.beginPath();
-    context.arc(right - 2, y, headlightRadius, 0, Math.PI * 2);
+  if (directional) {
+    context.fillStyle = dimmed(style.color);
+    const rearLeft = left + 9;
+    const frontRight = right - 5;
+    roundRect(context, rearLeft, -11, 8, 22, windowRadius);
     context.fill();
+    roundRect(context, frontRight - 11, -13, 11, 26, windowRadius);
+    context.fill();
+    context.fillStyle = headlightColor;
+    for (const y of [top + 7, bottom - 7]) {
+      context.beginPath();
+      context.arc(right - 2, y, headlightRadius, 0, Math.PI * 2);
+      context.fill();
+    }
   }
 
   context.save();

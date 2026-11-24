@@ -29,7 +29,7 @@ internal data class VehicleBadgeStyle(
     val stale: Boolean,
 )
 
-internal fun VehicleBadgeStyle.toBitmap(metrics: DisplayMetrics, flipLabel: Boolean): Bitmap {
+internal fun VehicleBadgeStyle.toBitmap(metrics: DisplayMetrics, flipLabel: Boolean, directional: Boolean = true): Bitmap {
     val density = metrics.density
     val textPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = Color.WHITE
@@ -58,7 +58,7 @@ internal fun VehicleBadgeStyle.toBitmap(metrics: DisplayMetrics, flipLabel: Bool
     canvas.drawRoundRect(body, BODY_RADIUS_DP, BODY_RADIUS_DP, paint)
 
     paint.style = Paint.Style.FILL
-    drawBusDetails(canvas, body, paint)
+    if (directional) drawBusDetails(canvas, body, paint)
     canvas.save()
     if (flipLabel) canvas.rotate(180f)
     canvas.drawText(label, 0f, -(textPaint.ascent() + textPaint.descent()) / 2f, textPaint)

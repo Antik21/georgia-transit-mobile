@@ -238,6 +238,22 @@ class VehicleRoutePathInterpolatorTest {
         assertTrue(motion.deltaMeters > 0.0)
     }
 
+    @Test
+    fun `rematching to the opposite branch keeps the bus facing its movement`() {
+        val path = prepared(
+            GeoPoint(0.0, 0.0), GeoPoint(0.0, 0.005),
+            GeoPoint(0.0003, 0.005), GeoPoint(0.0003, 0.0),
+        )
+        val previous = motion(path, 0.002, 0.0015)
+        val rematched = assertNotNull(VehicleRoutePathInterpolator.motion(
+            from = GeoPoint(0.0003, 0.0015), to = GeoPoint(0.0003, 0.001),
+            directionId = directionId, candidates = listOf(path), previousMotion = previous,
+        ))
+
+        assertTrue(previous.deltaMeters < 0 && rematched.deltaMeters > 0)
+        assertBearingNear(270.0, assertNotNull(rematched.bearingAt(0.0)))
+    }
+
     private fun prepared(vararg points: GeoPoint): PreparedVehicleRoutePath = assertNotNull(
         PreparedVehicleRoutePath.from(
             MapPolyline(

@@ -447,7 +447,7 @@ private data class CachedVehicleRouteMotion(
 
     fun continuityMotionFor(track: VehicleTrack): VehicleRouteMotion? = motion?.takeIf {
         routeId == track.routeId && directionId == track.directionId &&
-            observationEpochMillis < track.observationEpochMillis
+            observationEpochMillis < track.observationEpochMillis && track.interpolationStartedAtMonotonicMillis != null
     }
 
     companion object {

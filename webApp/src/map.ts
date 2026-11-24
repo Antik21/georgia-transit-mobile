@@ -24,6 +24,7 @@ const vehicleSourceId = "transit-vehicles";
 const vehicleLayerId = "transit-vehicles";
 const attentionLayerId = "transit-vehicle-attention";
 const flippedSuffix = "-flipped";
+const neutralSuffix = "-neutral";
 const overflowBadgeId = "transit-vehicle-badge-overflow";
 const stopSourceId = "transit-stops";
 const selectedStopSourceId = "transit-selected-stop";
@@ -110,7 +111,7 @@ function vehicleData(layer: VehicleLayer, imageIds: Map<string, string>) {
         properties: {
           id: vehicle.id,
           revision: layer.revision,
-          image: imageIds.get(style.key) ?? overflowBadgeId,
+          image: (imageIds.get(style.key) ?? overflowBadgeId) + (vehicle.bearing == null ? neutralSuffix : ""),
           color: style.color,
           attention: attention.has(vehicle.id),
           rotation: vehicle.bearing == null ? 0 : normalizedBearing(vehicle.bearing - eastwardArtworkBearing),
@@ -378,10 +379,10 @@ export function createTransitMap(
 
   function addBadgeImages(id: string, style: VehicleBadgeStyle) {
     const pixelRatio = window.devicePixelRatio || 1;
-    for (const flipped of [false, true]) {
-      const image = drawVehicleBadge(style, pixelRatio, textScale, flipped);
+    for (const suffix of ["", flippedSuffix, neutralSuffix]) {
+      const image = drawVehicleBadge(style, pixelRatio, textScale, suffix === flippedSuffix, suffix !== neutralSuffix);
       // Badges are drawn at the native adapters' size and shown at the same 1/1.5 scale.
-      map.addImage(flipped ? id + flippedSuffix : id, image, { pixelRatio: pixelRatio * 1.5 });
+      map.addImage(id + suffix, image, { pixelRatio: pixelRatio * 1.5 });
     }
   }
 
@@ -395,6 +396,7 @@ export function createTransitMap(
       if (styles.has(key)) continue;
       map.removeImage(id);
       map.removeImage(id + flippedSuffix);
+      map.removeImage(id + neutralSuffix);
       badgeImageIds.delete(key);
     }
     for (const [key, style] of styles) {
@@ -670,7 +672,7 @@ export function createTransitMap(
   function rebuildBadges() {
     if (!styleReady) return;
     for (const id of [...badgeImageIds.values(), overflowBadgeId]) {
-      for (const imageId of [id, id + flippedSuffix]) if (map.hasImage(imageId)) map.removeImage(imageId);
+      for (const imageId of [id, id + flippedSuffix, id + neutralSuffix]) if (map.hasImage(imageId)) map.removeImage(imageId);
     }
     badgeImageIds.clear();
     renderedBadgeRevision = undefined;

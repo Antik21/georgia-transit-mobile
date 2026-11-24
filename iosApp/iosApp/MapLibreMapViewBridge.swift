@@ -841,6 +841,7 @@ private final class LocalMapLibreView: UIView, MLNMapViewDelegate {
         badgeImageNames.keys.filter { !retainedStyles.contains($0) }.forEach { badgeStyle in
             if let imageName = badgeImageNames.removeValue(forKey: badgeStyle) {
                 style.removeImage(forName: imageName)
+                style.removeImage(forName: imageName + Self.neutralBadgeSuffix)
             }
         }
         renderInput.styles.forEach { badgeStyle in
@@ -848,10 +849,13 @@ private final class LocalMapLibreView: UIView, MLNMapViewDelegate {
             nextBadgeImageIndex += 1
             let imageName = "gt-vehicle-badge-\(nextBadgeImageIndex)"
             style.setImage(badgeStyle.image(), forName: imageName)
+            style.setImage(badgeStyle.image(directional: false), forName: imageName + Self.neutralBadgeSuffix)
             badgeImageNames[badgeStyle] = imageName
         }
         if renderInput.needsOverflow && style.image(forName: Self.overflowBadgeImageName) == nil {
-            style.setImage(VehicleBadgeStyle(label: "?", backgroundArgb: 0xFF455A64, textArgb: 0xFFFFFFFF, stale: false).image(), forName: Self.overflowBadgeImageName)
+            let badge = VehicleBadgeStyle(label: "?", backgroundArgb: 0xFF455A64, textArgb: 0xFFFFFFFF, stale: false)
+            style.setImage(badge.image(), forName: Self.overflowBadgeImageName)
+            style.setImage(badge.image(directional: false), forName: Self.overflowBadgeImageName + Self.neutralBadgeSuffix)
         }
     }
 
@@ -964,7 +968,8 @@ private final class LocalMapLibreView: UIView, MLNMapViewDelegate {
                     Self.featureIDProperty: marker.stableId,
                     Self.featureKindProperty: Self.vehicleFeatureKind,
                     Self.sourceRevisionProperty: String(sourceRevision),
-                    Self.vehicleBadgeImageProperty: badgeImageNames[badgeStyle(marker)] ?? Self.overflowBadgeImageName,
+                    Self.vehicleBadgeImageProperty: (badgeImageNames[badgeStyle(marker)] ?? Self.overflowBadgeImageName)
+                        + (marker.bearingDegrees == nil ? Self.neutralBadgeSuffix : ""),
                     Self.vehicleOpacityProperty: marker.isStale ? Self.staleVehicleOpacity : 1.0,
                     Self.positionKindProperty: marker.positionKind.name,
                 ]
@@ -1228,6 +1233,7 @@ private final class LocalMapLibreView: UIView, MLNMapViewDelegate {
     private static let maximumStopMarkers = 1_000
     private static let maximumVehicleMarkers = 2_000
     private static let maximumVehicleBadgeImages = 256
+    private static let neutralBadgeSuffix = "-neutral"
     private static let defaultVehicleBearing = 0.0
     private static let maximumAttentionMarkers = 32
     private static let maximumPolylines = 256
@@ -1298,7 +1304,7 @@ private struct VehicleBadgeStyle: Hashable {
         "\(label)|\(backgroundArgb)|\(textArgb)|\(stale)"
     }
 
-    func image() -> UIImage {
+    func image(directional: Bool = true) -> UIImage {
         var font = UIFont.boldSystemFont(ofSize: 28)
         let maximumTextWidth: CGFloat = 48
         let initialTextWidth = (label as NSString).size(withAttributes: [.font: font]).width
@@ -1331,12 +1337,14 @@ private struct VehicleBadgeStyle: Hashable {
             border.lineWidth = 3
             border.stroke()
 
-            UIColor(red: 0.15, green: 0.20, blue: 0.25, alpha: 0.70).setFill()
-            UIBezierPath(roundedRect: CGRect(x: 34, y: 20, width: 44, height: 16), cornerRadius: 4).fill()
-            UIBezierPath(roundedRect: CGRect(x: 34, y: 82, width: 44, height: 9), cornerRadius: 4).fill()
-            UIColor(red: 1, green: 0.88, blue: 0.51, alpha: 1).setFill()
-            UIBezierPath(ovalIn: CGRect(x: 33.5, y: 13.5, width: 5, height: 5)).fill()
-            UIBezierPath(ovalIn: CGRect(x: 73.5, y: 13.5, width: 5, height: 5)).fill()
+            if directional {
+                UIColor(red: 0.15, green: 0.20, blue: 0.25, alpha: 0.70).setFill()
+                UIBezierPath(roundedRect: CGRect(x: 34, y: 20, width: 44, height: 16), cornerRadius: 4).fill()
+                UIBezierPath(roundedRect: CGRect(x: 34, y: 82, width: 44, height: 9), cornerRadius: 4).fill()
+                UIColor(red: 1, green: 0.88, blue: 0.51, alpha: 1).setFill()
+                UIBezierPath(ovalIn: CGRect(x: 33.5, y: 13.5, width: 5, height: 5)).fill()
+                UIBezierPath(ovalIn: CGRect(x: 73.5, y: 13.5, width: 5, height: 5)).fill()
+            }
 
             let textRect = CGRect(
                 x: 0,
