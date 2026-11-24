@@ -254,26 +254,39 @@ android {
     compileSdk = libs.versions.android.compileSdk.get().toInt()
 
     defaultConfig {
-        applicationId = "com.anti.georgiatransit"
+        applicationId = "com.antik.geotransit"
         minSdk = libs.versions.android.minSdk.get().toInt()
         targetSdk = libs.versions.android.targetSdk.get().toInt()
         versionCode = 1
         versionName = "0.1.0"
+        buildConfigField("String", "SANDBOX_AMPLITUDE_API_KEY", buildConfigString(""))
     }
 
     flavorDimensions += "environment"
     productFlavors {
         create("sandbox") {
             dimension = "environment"
-            applicationIdSuffix = ".sandbox"
+            applicationId = "com.anti.georgiatransit.sandbox"
             versionNameSuffix = "-sandbox"
             resValue("string", "app_name", "Geo Transit Sandbox")
             buildConfigField("String", "BFF_BASE_URL", buildConfigString(sandboxEndpoint.baseUrl))
+            buildConfigField(
+                "String", "SANDBOX_AMPLITUDE_API_KEY",
+                buildConfigString(providers.gradleProperty("SANDBOX_AMPLITUDE_API_KEY").orElse("").get().trim()),
+            )
         }
         create("prod") {
             dimension = "environment"
             resValue("string", "app_name", "Geo Transit")
             buildConfigField("String", "BFF_BASE_URL", buildConfigString(productionBffBaseUrl))
+        }
+    }
+
+    buildTypes {
+        release {
+            isMinifyEnabled = true
+            isShrinkResources = true
+            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"))
         }
     }
 
@@ -314,6 +327,7 @@ dependencies {
     implementation(platform(libs.firebase.bom))
     implementation(libs.firebase.analytics)
     implementation(libs.firebase.crashlytics)
+    implementation(libs.amplitude.android)
     debugImplementation(libs.chucker)
     debugImplementation(libs.ktor.client.core)
 }

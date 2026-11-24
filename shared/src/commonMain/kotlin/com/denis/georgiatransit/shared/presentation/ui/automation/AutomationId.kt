@@ -90,6 +90,7 @@ object AutomationId {
     const val MapPlannerUnavailable = "map.planner.unavailable"
     const val MapOpenStreetMapAttribution = "map.attribution.openstreetmap"
     const val MapPlannerOpen = "map.planner.open"
+    const val MapPlannerOpenLabel = "map.planner.open.label"
     const val MapPlannerPin = "map.planner.pin"
     const val MapPlannerRouteHere = "map.planner.route-here"
     const val MapPlannerRouteFromHere = "map.planner.route-from-here"

@@ -1,5 +1,7 @@
 # ADR 0031 · Product analytics through the Transit BFF
 
+[ADR 0033](0033-native-amplitude.md) replaces the mobile delivery path and preserves this contract for web, Telegram, the landing site, and older mobile clients.
+
 ## Context
 
 Geo Transit needs Amplitude segmentation by launch client, unique web app visitors by entry source,

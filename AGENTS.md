@@ -8,7 +8,7 @@ Keep shared product behavior in `shared/src/commonMain`; native projects are ada
 - Routes carry typed identifiers/arguments only—never domain entities or `ViewState`.
 - ViewModels receive constructor dependencies and never resolve Koin directly.
 - Do not add parallel navigation, DI, networking, serialization, state-management, or persistence stacks.
-- Mobile clients talk only to the Transit BFF; provider secrets and provider-specific contracts never enter the app.
+- Mobile clients use the Transit BFF for transit data and map assets. Native Firebase telemetry and Amplitude Analytics are reviewed exceptions. Provider secrets and transit-provider contracts never enter the app.
 - Add a translation for every supported app language in the same change as any new user-facing string. Keep resource keys and format placeholders consistent across locales.
 - All production SDKs must be free for production use. Map SDK, tiles, APIs, attribution, quotas, and licenses require an explicit review.
 - Architecture-changing decisions require an ADR under `docs/adr`.

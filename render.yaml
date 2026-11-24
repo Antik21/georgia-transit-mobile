@@ -27,6 +27,7 @@ services:
         - render.yaml
         - settings.gradle.kts
         - transitBff/**
+        - shared/src/commonMain/kotlin/com/denis/georgiatransit/shared/domain/analytics/schema/**
       ignoredPaths: []
     envVars:
       - key: BFF_MODE

@@ -154,13 +154,15 @@ The [Geo Transit Firebase project](https://console.firebase.google.com/project/g
 has an Android app and an iOS app for each environment. The repository includes their public
 Firebase client configuration:
 
-| Environment | Application and bundle ID | Android file | iOS file |
-| --- | --- | --- | --- |
-| Sandbox | `com.anti.georgiatransit.sandbox` | `androidApp/src/sandbox/google-services.json` | `iosApp/Configuration/Firebase/Sandbox/GoogleService-Info.plist` |
-| Prod | `com.anti.georgiatransit` | `androidApp/src/prod/google-services.json` | `iosApp/Configuration/Firebase/Prod/GoogleService-Info.plist` |
+| Environment | Android application ID | Android file | iOS bundle ID | iOS file |
+| --- | --- | --- | --- | --- |
+| Sandbox | `com.anti.georgiatransit.sandbox` | `androidApp/src/sandbox/google-services.json` | `com.anti.georgiatransit.sandbox` | `iosApp/Configuration/Firebase/Sandbox/GoogleService-Info.plist` |
+| Prod | `com.antik.geotransit` | `androidApp/src/prod/google-services.json` | `com.anti.georgiatransit` | `iosApp/Configuration/Firebase/Prod/GoogleService-Info.plist` |
 
-Crash reporting starts automatically. Gradle uses the Crashlytics plugin for mapping files
-when minification is enabled. The last Xcode build phase packages the selected plist and
+Crash reporting starts automatically. Android `prodRelease` uses R8 and resource shrinking.
+The Crashlytics Gradle plugin uploads the build's mapping to Firebase. Archive
+`androidApp/build/outputs/mapping/prodRelease/mapping.txt` with the corresponding release artifact.
+The last Xcode build phase packages the selected plist and
 runs Firebase's dSYM uploader. Firebase requires Xcode 26.2 or later.
 
 Analytics exposes the active app city as the user-scoped **Selected city** dimension

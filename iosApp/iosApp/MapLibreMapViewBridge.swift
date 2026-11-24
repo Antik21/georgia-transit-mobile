@@ -83,6 +83,7 @@ private final class LocalMapLibreView: UIView, MLNMapViewDelegate {
         // Public OSM policy forbids speculative tile requests outside the current viewport.
         mapView.prefetchesTiles = false
         mapView.delegate = self
+        mapView.showsCompassView = false
         mapView.showsUserLocation = false
         mapView.shouldRequestAuthorizationToUseLocationServices = false
         mapView.disableLocationManager()

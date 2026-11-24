@@ -15,6 +15,8 @@
 		0A0000010000000000000005 /* MapLibre in Frameworks */ = {isa = PBXBuildFile; productRef = 0A0000910000000000000001 /* MapLibre */; };
 		0A0000010000000000000014 /* FirebaseCrashlytics in Frameworks */ = {isa = PBXBuildFile; productRef = 0A0000910000000000000002 /* FirebaseCrashlytics */; };
 		0A0000010000000000000015 /* FirebaseAnalyticsCore in Frameworks */ = {isa = PBXBuildFile; productRef = 0A0000910000000000000003 /* FirebaseAnalyticsCore */; };
+		0A0000010000000000000016 /* AmplitudeSwift in Frameworks */ = {isa = PBXBuildFile; productRef = 0A0000910000000000000004 /* AmplitudeSwift */; };
+		0A0000010000000000000017 /* AmplitudeProductAnalytics.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A0000110000000000000020 /* AmplitudeProductAnalytics.swift */; };
 		0A0000010000000000000006 /* InfoPlist.strings in Resources */ = {isa = PBXBuildFile; fileRef = 0A0000310000000000000002 /* InfoPlist.strings */; };
 		0A0000010000000000000007 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 0A0000110000000000000009 /* Assets.xcassets */; };
 		0A0000010000000000000010 /* DebugNetworkInspector.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A0000110000000000000010 /* DebugNetworkInspector.swift */; };
@@ -22,6 +24,7 @@
 
 /* Begin PBXFileReference section */
 		0A0000110000000000000001 /* GeorgiaTransitApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GeorgiaTransitApp.swift; sourceTree = "<group>"; };
+		0A0000110000000000000020 /* AmplitudeProductAnalytics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AmplitudeProductAnalytics.swift; sourceTree = "<group>"; };
 		0A0000110000000000000002 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		0A0000110000000000000003 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		0A0000110000000000000004 /* MapLibreMapViewBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MapLibreMapViewBridge.swift; sourceTree = "<group>"; };
@@ -52,6 +55,7 @@
 				0A0000010000000000000005 /* MapLibre in Frameworks */,
 				0A0000010000000000000014 /* FirebaseCrashlytics in Frameworks */,
 				0A0000010000000000000015 /* FirebaseAnalyticsCore in Frameworks */,
+				0A0000010000000000000016 /* AmplitudeSwift in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -71,6 +75,7 @@
 			isa = PBXGroup;
 			children = (
 				0A0000110000000000000001 /* GeorgiaTransitApp.swift */,
+				0A0000110000000000000020 /* AmplitudeProductAnalytics.swift */,
 				0A0000110000000000000002 /* ContentView.swift */,
 				0A0000110000000000000004 /* MapLibreMapViewBridge.swift */,
 				0A000011000000000000AB02 /* MapLibreJourneyLayers.swift */,
@@ -123,6 +128,7 @@
 				0A0000910000000000000001 /* MapLibre */,
 				0A0000910000000000000002 /* FirebaseCrashlytics */,
 				0A0000910000000000000003 /* FirebaseAnalyticsCore */,
+				0A0000910000000000000004 /* AmplitudeSwift */,
 			);
 			productName = iosApp;
 			productReference = 0A0000120000000000000001 /* iosApp.app */;
@@ -163,6 +169,7 @@
 			packageReferences = (
 				0A0000810000000000000001 /* XCRemoteSwiftPackageReference "maplibre-gl-native-distribution" */,
 				0A0000810000000000000002 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */,
+				0A0000810000000000000003 /* XCRemoteSwiftPackageReference "Amplitude-Swift" */,
 			);
 			productRefGroup = 0A0000210000000000000003 /* Products */;
 			projectDirPath = "";
@@ -231,6 +238,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				0A0000010000000000000001 /* GeorgiaTransitApp.swift in Sources */,
+				0A0000010000000000000017 /* AmplitudeProductAnalytics.swift in Sources */,
 				0A0000010000000000000002 /* ContentView.swift in Sources */,
 				0A0000010000000000000003 /* MapLibreMapViewBridge.swift in Sources */,
 				0A000001000000000000AB01 /* MapLibreJourneyLayers.swift in Sources */,
@@ -395,6 +403,14 @@
 			};
 			traits = ();
 		};
+		0A0000810000000000000003 /* XCRemoteSwiftPackageReference "Amplitude-Swift" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/amplitude/Amplitude-Swift.git";
+			requirement = {
+				kind = exactVersion;
+				version = 1.20.1;
+			};
+		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -412,6 +428,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 0A0000810000000000000002 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
 			productName = FirebaseAnalyticsCore;
+		};
+		0A0000910000000000000004 /* AmplitudeSwift */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 0A0000810000000000000003 /* XCRemoteSwiftPackageReference "Amplitude-Swift" */;
+			productName = AmplitudeSwift;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

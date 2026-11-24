@@ -78,26 +78,40 @@ internal fun MapCameraControls(
 }
 
 @Composable
-internal fun MapPlannerLauncher(available: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
+internal fun MapPlannerLauncher(
+    available: Boolean,
+    expanded: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
     val colors = MaterialTheme.colorScheme
     val mutedColor = colors.onSurface.copy(alpha = 0.38f)
+    val label = stringResource(Res.string.map_plan_trip_action)
     MapControlButton(
         automationId = AutomationId.MapPlannerOpen,
         onClick = onClick,
         modifier = modifier,
+        label = label.takeUnless { expanded },
         statusDescription = if (available) null else stringResource(Res.string.map_planner_unavailable),
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = TransitSpacing.Medium, vertical = TransitSpacing.Small),
+            modifier = if (expanded) {
+                Modifier.padding(horizontal = TransitSpacing.Medium, vertical = TransitSpacing.Small)
+            } else {
+                Modifier
+            },
             horizontalArrangement = Arrangement.spacedBy(TransitSpacing.Small),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Icon(imageVector = JourneyPathIcon, contentDescription = null, tint = if (available) colors.primary else mutedColor)
-            Text(
-                stringResource(Res.string.map_plan_trip_action),
-                style = MaterialTheme.typography.labelLarge,
-                color = if (available) colors.onSurface else mutedColor,
-            )
+            if (expanded) {
+                Text(
+                    text = label,
+                    modifier = Modifier.testTag(AutomationId.MapPlannerOpenLabel),
+                    style = MaterialTheme.typography.labelLarge,
+                    color = if (available) colors.onSurface else mutedColor,
+                )
+            }
         }
     }
 }
@@ -165,7 +179,7 @@ private val GlyphStroke = 2.dp
 @Preview
 @Composable
 private fun MapPlannerLauncherPreview() {
-    GeorgiaTransitTheme { MapPlannerLauncher(available = false, onClick = {}) }
+    GeorgiaTransitTheme { MapPlannerLauncher(available = false, expanded = true, onClick = {}) }
 }
 
 @Preview
