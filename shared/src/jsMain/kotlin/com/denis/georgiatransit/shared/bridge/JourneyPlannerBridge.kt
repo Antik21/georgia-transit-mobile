@@ -18,6 +18,9 @@ import com.denis.georgiatransit.shared.presentation.map.JourneyPlannerStatus
 import com.denis.georgiatransit.shared.presentation.map.JourneyPlannerUi
 import com.denis.georgiatransit.shared.presentation.map.MapPlatformEvent
 import com.denis.georgiatransit.shared.presentation.map.MapViewModel
+import com.denis.georgiatransit.shared.presentation.map.boardingBadgeRevision
+import com.denis.georgiatransit.shared.presentation.map.boardingSourceRevision
+import com.denis.georgiatransit.shared.presentation.map.boardingVehicleMarker
 import com.denis.georgiatransit.shared.presentation.map.journeyDefaultExpandedSideFor
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
@@ -56,19 +59,6 @@ class PlannerLeg(
 /** A highlight label: [key] picks the localized text, the colours come from the shared palette. */
 @JsExport
 class PlannerLabel(val key: String, val color: String, val textColor: String)
-
-/** One of the soonest buses to the selected option's first boarding stop. */
-@JsExport
-class PlannerBus(
-    val id: String,
-    val latitude: Double,
-    val longitude: Double,
-    val bearing: Double?,
-    val etaMinutes: Int,
-    val label: String,
-    val color: String,
-    val textColor: String,
-)
 
 @JsExport
 class PlannerOption(
@@ -115,8 +105,9 @@ class PlannerState(
     val walkMinutes: Int?,
     val options: Array<PlannerOption>,
     val route: PlannerRoute,
-    val buses: Array<PlannerBus> = emptyArray(),
-    /** Frame the route only when this changes; periodic refreshes keep it. */
+    val boardingVehicles: VehicleLayer,
+    val boardingFitPosition: PlannerPoint? = null,
+    /** Frame the route and boarding bus only when this changes. */
     val cameraFitRevision: String = "0",
     val mapPick: String? = null,
     val defaultExpandedSide: String? = null,
@@ -201,6 +192,7 @@ class JourneyPlannerBridge internal constructor(
 
 private fun JourneyPlannerUi.toJs(route: PlannerRoute): PlannerState {
     val status = status
+    val boardingVehicle = boardingVehicleMarker()
     return PlannerState(
         open = isOpen,
         showingResults = showingResults,
@@ -241,13 +233,12 @@ private fun JourneyPlannerUi.toJs(route: PlannerRoute): PlannerState {
         cameraFitRevision = cameraFitRevision.toString(),
         mapPick = mapPick?.toJs(),
         defaultExpandedSide = journeyDefaultExpandedSideFor(origin, destination)?.toJs(),
-        buses = buses?.vehicles.orEmpty().map { bus ->
-            PlannerBus(
-                id = bus.id.value, latitude = bus.position.latitude, longitude = bus.position.longitude,
-                bearing = bus.bearingDegrees, etaMinutes = bus.etaMinutes, label = bus.route.label,
-                color = bus.route.backgroundArgb.toCssColor(), textColor = bus.route.textArgb.toCssColor(),
-            )
-        }.toTypedArray(),
+        boardingVehicles = VehicleLayer(
+            revision = boardingVehicle.boardingSourceRevision().toString(),
+            badgeRevision = boardingVehicle.boardingBadgeRevision().toString(),
+            vehicles = boardingVehicle?.let { arrayOf(it.toJs()) } ?: emptyArray(),
+        ),
+        boardingFitPosition = boardingFitPosition.takeIf { boardingVehicle != null }?.toPlannerPoint(),
     )
 }
 

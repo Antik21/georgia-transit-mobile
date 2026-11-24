@@ -9,6 +9,7 @@ import com.denis.georgiatransit.shared.domain.model.RouteId
 import com.denis.georgiatransit.shared.domain.model.StopId
 import com.denis.georgiatransit.shared.domain.model.TransitMode
 import com.denis.georgiatransit.shared.domain.model.VehicleId
+import com.denis.georgiatransit.shared.domain.model.VehiclePositionKind
 import kotlinx.collections.immutable.PersistentList
 import kotlinx.collections.immutable.persistentListOf
 import kotlin.time.Instant
@@ -39,12 +40,13 @@ data class JourneyPlannerUi(
     internal val hasOpenedResults: Boolean = false,
     val status: JourneyPlannerStatus = JourneyPlannerStatus.Idle,
     val render: JourneyPlanRenderUi = JourneyPlanRenderUi(),
-    /** The soonest buses for the selected option's first boarding; kept apart from [render] so they never re-frame the map. */
+    /** Countdown and live positions for the selected option's first boarding. */
     val buses: JourneyBusesUi? = null,
-    /** Bumped only by user intent (a new plan or another option); refreshes must not re-frame the camera. */
+    /** A new plan, an explicit option change, or the first known position of its boarding bus. */
     val cameraFitRevision: Long = 0,
     /** The side being placed under the centred map marker; the panel stays hidden until it is chosen or cancelled. */
     val mapPick: JourneyPlanSide? = null,
+    internal val boardingFitPosition: GeoPoint? = null,
 )
 
 @Immutable
@@ -114,6 +116,7 @@ data class JourneyBusUi(
     val bearingDegrees: Double?,
     val etaMinutes: Int,
     val route: JourneyRouteBadgeUi,
+    val positionKind: VehiclePositionKind = VehiclePositionKind.Unknown,
 )
 
 enum class JourneyTimingUi { Live, Mixed, Estimated }

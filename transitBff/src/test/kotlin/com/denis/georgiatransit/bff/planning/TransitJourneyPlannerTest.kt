@@ -13,20 +13,17 @@ import kotlin.test.assertTrue
 class TransitJourneyPlannerTest {
     private val now = Instant.parse("2030-01-01T00:00:00Z")
     private val stops = List(6) { TransitStop("test:p:stop:s$it", GeoPoint(41.64, 41.60 + it * 0.004)) }
-    private val graph = TransitNetworkGraph(
-        stops = stops,
-        patterns = listOf(
-            TransitPattern(
-                routeId = "test:p:route:r1",
-                directionId = "test:p:direction:d1",
-                stops = IntArray(6) { it },
-                segmentGeometry = List(5) { listOf(stops[it].position, stops[it + 1].position) },
-                segmentApproximate = BooleanArray(5),
-                segmentMeters = DoubleArray(5) { 333.0 },
-            ),
-        ),
-    )
+    private val graph = TransitNetworkGraph(stops, listOf(pattern(1)))
     private val offsets = DoubleArray(6) { it * 100.0 }
+
+    private fun pattern(number: Int) = TransitPattern(
+        routeId = "test:p:route:r$number",
+        directionId = "test:p:direction:d$number",
+        stops = IntArray(6) { it },
+        segmentGeometry = List(5) { listOf(stops[it].position, stops[it + 1].position) },
+        segmentApproximate = BooleanArray(5),
+        segmentMeters = DoubleArray(5) { 333.0 },
+    )
 
     private fun timetable(boardOffsetSeconds: Long, horizonSeconds: Long = 2_700) = NetworkTimetable(
         observedAt = now,
@@ -59,6 +56,20 @@ class TransitJourneyPlannerTest {
         assertEquals(JourneyWaitBasis.LIVE_VEHICLE, ride.waitBasis)
         assertEquals(now.plusSeconds(600).toString(), ride.departureAt)
         assertEquals(now.plusSeconds(1_100).toString(), ride.arrivalAt)
+    }
+
+    @Test
+    fun `a live bus leaving in twenty seconds can win over a later route at the first stop`() {
+        val sharedStops = TransitNetworkGraph(stops, listOf(pattern(1), pattern(2)))
+        val services = listOf(20L, 180L).map { timetable(it).services.single() }
+        val live = NetworkTimetable(now, now.epochSecond + 2_700, stale = false, services)
+
+        val result = TransitJourneyPlanner(sharedStops, live, "test", "p").plan(query(), PlanningBudget.unbounded())
+
+        val ride = result.items.minBy { checkNotNull(it.durationSeconds) }.transitSegments().single()
+        assertEquals("test:p:route:r1", ride.routeId)
+        assertEquals(JourneyWaitBasis.LIVE_VEHICLE, ride.waitBasis)
+        assertEquals(20L, ride.waitSeconds)
     }
 
     @Test

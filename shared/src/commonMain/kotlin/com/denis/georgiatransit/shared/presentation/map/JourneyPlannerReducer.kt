@@ -197,7 +197,7 @@ internal object JourneyPlannerReducer {
     private val JourneyPlannerUi.hasBothEndpoints: Boolean get() = origin != null && destination != null
 
     private fun edit(candidate: JourneyPlannerUi, context: JourneyPlannerContext): JourneyPlannerStep {
-        val state = candidate.copy(isOpen = true, showingResults = false, buses = null, mapPick = null)
+        val state = candidate.copy(isOpen = true, showingResults = false, buses = null, mapPick = null, boardingFitPosition = null)
         val status = when {
             !context.available -> Status.Unavailable
             state.origin == null && state.destination == null -> Status.EndpointsIncomplete
@@ -234,7 +234,8 @@ internal object JourneyPlannerReducer {
         }
         return when (val resolution = resolve(state, point, context)) {
             is JourneyResolution.Ready -> finish(
-                state.copy(status = Status.Loading), context, resolution.query, point.takeIf { state.usesCurrentLocation },
+                state.copy(status = Status.Loading, boardingFitPosition = null),
+                context, resolution.query, point.takeIf { state.usesCurrentLocation },
             )
             is JourneyResolution.AlreadyThere ->
                 finish(state.copy(status = Status.AlreadyThere(resolution.walkMeters, resolution.walkMinutes),
@@ -271,7 +272,11 @@ internal object JourneyPlannerReducer {
         val status = state.status as? Status.Results ?: return finish(state, context)
         if (status.options.none { it.id == action.id } || status.selectedId == action.id) return finish(state, context)
         return finish(
-            state.copy(status = status.copy(selectedId = action.id), cameraFitRevision = state.cameraFitRevision + 1), context,
+            state.copy(
+                status = status.copy(selectedId = action.id),
+                cameraFitRevision = state.cameraFitRevision + 1,
+                boardingFitPosition = null,
+            ), context,
         )
     }
 
@@ -284,9 +289,17 @@ internal object JourneyPlannerReducer {
 
     /** Null when [update] no longer matches the selected option, e.g. after a late poll. */
     fun buses(state: JourneyPlannerUi, update: JourneyBusesUpdate, context: JourneyPlannerContext): JourneyPlannerStep? {
+        if (!context.visible || !state.isOpen || !state.showingResults || state.mapPick != null) return null
         val selected = state.selectedOption()?.takeIf { it.id == update.key.optionId && it.boarding == update.key.boarding }
             ?: return null
-        return finish(state.copy(buses = JourneyBusesProjector.project(selected, update)), context)
+        val updated = state.copy(buses = JourneyBusesProjector.project(selected, update))
+        val firstPosition = updated.boardingBus()?.position?.takeIf { state.boardingFitPosition == null }
+        return finish(
+            if (firstPosition == null) updated else updated.copy(
+                boardingFitPosition = firstPosition,
+                cameraFitRevision = state.cameraFitRevision + 1,
+            ), context,
+        )
     }
 
     private fun finish(
@@ -294,7 +307,10 @@ internal object JourneyPlannerReducer {
         currentPoint: GeoPoint? = null, location: JourneyLocationRequest? = null,
     ): JourneyPlannerStep {
         val selected = state.selectedOption()
-        val buses = state.buses?.takeIf { it.optionId == selected?.id && it.boarding == selected.boarding }
+        val buses = state.buses?.takeIf {
+            context.visible && state.showingResults && state.mapPick == null &&
+                it.optionId == selected?.id && it.boarding == selected.boarding
+        }
         return JourneyPlannerStep(state.copy(render = render(state, context), buses = buses), query, currentPoint, location)
     }
 

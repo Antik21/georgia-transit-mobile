@@ -96,7 +96,7 @@ internal class JourneyMapLayers(private val metrics: DisplayMetrics) {
 
     fun render(style: Style, overlay: MapJourneyOverlay?) {
         if (overlay?.lines.isNullOrEmpty()) cancelPendingFit()
-        val content = overlay?.copy(fitRevision = 0L, fitSuspended = false)
+        val content = overlay?.copy(fitRevision = 0L, fitSuspended = false, boardingFitPosition = null)
         if (hasRendered && content == renderedOverlay) return
         style.getSourceAs<GeoJsonSource>(LINES_SOURCE_ID)?.setGeoJson(lineFeatures(content))
         style.getSourceAs<GeoJsonSource>(POINTS_SOURCE_ID)?.setGeoJson(pointFeatures(content))
@@ -104,7 +104,7 @@ internal class JourneyMapLayers(private val metrics: DisplayMetrics) {
         hasRendered = true
     }
 
-    /** Frames the plan once per user intent; a re-created view frames the visible plan again. */
+    /** Includes the boarding bus on its first update; subsequent positions leave the camera alone. */
     fun fitIfNeeded(map: MapLibreMap, overlay: MapJourneyOverlay?, view: View, insets: MapViewportInsets) {
         viewportInsets = insets
         if (overlay?.fitSuspended == true) return cancelPendingFit()
@@ -130,7 +130,8 @@ internal class JourneyMapLayers(private val metrics: DisplayMetrics) {
     }
 
     private fun fit(map: MapLibreMap, overlay: MapJourneyOverlay, mapHeight: Int) {
-        val points = (overlay.lines.flatMap { it.points } + listOfNotNull(overlay.origin, overlay.destination))
+        val endpoints = listOfNotNull(overlay.origin, overlay.destination, overlay.boardingFitPosition)
+        val points = (overlay.lines.flatMap { it.points } + endpoints)
             .filter(GeoPoint::isMapCoordinate)
             .map { LatLng(it.latitude, it.longitude) }
             .distinct()

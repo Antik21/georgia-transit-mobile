@@ -52,8 +52,6 @@
     <string name="map_route_geometry_chip_description">Linie %1$s. %2$s</string>
     <string name="map_route_geometry_focus_action">Linie %1$s hervorheben</string>
     <string name="map_route_geometry_focused">Auf der Karte hervorgehoben</string>
-    <string name="map_route_geometry_status_loading">Wird geladen…</string>
-    <string name="map_route_geometry_status_partial">Teilweise sichtbar</string>
     <string name="map_route_geometry_status_unavailable">Linie nicht verfügbar</string>
     <string name="map_route_geometry_loading">Linienverlauf wird geladen… %1$d von %2$d Richtungen angezeigt</string>
     <string name="map_route_geometry_ready">%1$d von %2$d Richtungen angezeigt</string>

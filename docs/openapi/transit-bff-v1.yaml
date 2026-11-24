@@ -787,7 +787,12 @@ components:
         to: {$ref: '#/components/schemas/GeoPoint'}
         departureAt: {$ref: '#/components/schemas/UtcTimestamp', description: Absent means now. Must be within five minutes in the past and two hours ahead.}
         maxTransfers: {type: integer, minimum: 0, maximum: 2, default: 2}
-        transferBufferSeconds: {type: integer, minimum: 0, maximum: 600, default: 60}
+        transferBufferSeconds:
+          type: integer
+          minimum: 0
+          maximum: 600
+          default: 60
+          description: Extra time after reaching the next boarding stop when transferring from another ride.
         locale: {type: string, enum: [ka, en, ru, uk, de, fr, ar, hi, zh]}
     Journey:
       type: object

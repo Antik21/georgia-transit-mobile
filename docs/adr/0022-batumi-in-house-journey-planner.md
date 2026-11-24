@@ -87,11 +87,12 @@ Use a time-dependent round-based search (RAPTOR) with at most two transfers.
 Departure at a boarding stop is chosen as follows:
 
 1. **Live.** Use the first projected vehicle on that pattern whose ADR 0012 ETA is at least the
-   passenger's arrival plus buffer. The ride time is that same vehicle's ETA difference between the
-   boarding and alighting stops. The wait is labelled `LIVE_VEHICLE`.
+   passenger's arrival at the stop. After a previous ride, add the transfer buffer to this threshold.
+   The ride time is that same vehicle's ETA difference between the boarding and alighting stops.
+   The wait is labelled `LIVE_VEHICLE`.
 2. **Headway estimate.** If no live candidate exists inside the 45-minute ETA horizon, use
    cycle length ÷ (moving speed × active vehicles on the pattern). The conservative expected wait
-   equals one headway, and it is labelled `HEADWAY_ESTIMATE`.
+   equals one headway, floored by the buffer for a transfer, and it is labelled `HEADWAY_ESTIMATE`.
 3. **Unavailable.** A pattern with no active vehicle is not offered.
 
 Every stop inside the access radius is evaluated by its resulting arrival time, not only the

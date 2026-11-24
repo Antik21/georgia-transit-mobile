@@ -77,7 +77,7 @@ const telegram = connectTelegram(() => {
   else if (activeMap?.planner?.showingResults) activeMap.bridge.planner.editPoints();
   else if (activeMap?.planner?.open) activeMap.bridge.planner.close();
   else activeMap?.bridge.dismissArrivals();
-});
+}, refreshLocationPermission);
 
 function updateBackButton(entry: ActiveMap) {
   telegram.setBackVisible(Boolean(entry.state?.arrivals || entry.planner?.open || entry.planner?.pin));
@@ -99,6 +99,10 @@ function closeEntries() {
 
 function mapVisible() {
   return !activeRoutes && document.visibilityState === "visible";
+}
+
+function refreshLocationPermission() {
+  if (mapVisible()) activeMap?.location.resume(true);
 }
 
 function updateVisibility() {
@@ -175,7 +179,7 @@ function showMap(session: TransitRuntime) {
     activeMap.renderer?.resize();
   } else {
     const bridge = session.openMap();
-    const entry: ActiveMap = { bridge, location: createLocationAdapter(bridge, telegram.locationManager) };
+    const entry: ActiveMap = { bridge, location: createLocationAdapter(bridge, telegram.location) };
     activeMap = entry;
     renderMap(entry);
     entry.bridge.subscribe((state) => {
@@ -255,7 +259,7 @@ document.addEventListener("visibilitychange", () => {
   updateVisibility();
   retryMap();
   // Native adapters re-read the permission on resume; a user may have changed it in settings.
-  if (document.visibilityState === "visible" && !activeRoutes) activeMap?.location.resume(true);
+  refreshLocationPermission();
 });
 window.addEventListener("online", retryMap);
 window.addEventListener("pageshow", updateVisibility);
