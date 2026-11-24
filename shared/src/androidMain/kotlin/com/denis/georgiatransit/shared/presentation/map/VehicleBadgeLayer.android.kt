@@ -81,6 +81,7 @@ internal class VehicleBadgeLayer(private val resources: Resources) {
                     feature.addStringProperty(FEATURE_KIND_PROPERTY, FEATURE_KIND_VEHICLE)
                     feature.addStringProperty(SOURCE_REVISION_PROPERTY, sourceRevision.toString())
                     feature.addStringProperty(VEHICLE_BADGE_IMAGE_PROPERTY, badgeImageIds[marker.badgeStyle()] ?: OVERFLOW_BADGE_IMAGE_ID)
+                    feature.addBooleanProperty(HAS_BEARING_PROPERTY, marker.bearingDegrees != null)
                     feature.addNumberProperty(VEHICLE_OPACITY_PROPERTY, if (marker.isStale) STALE_VEHICLE_OPACITY else 1.0)
                     feature.addStringProperty(POSITION_KIND_PROPERTY, marker.positionKind.name)
                     feature.addNumberProperty(
@@ -100,6 +101,7 @@ internal class VehicleBadgeLayer(private val resources: Resources) {
             val imageId = checkNotNull(badgeImageIds.remove(badgeStyle))
             style.removeImage(imageId)
             style.removeImage(imageId + FLIPPED_VEHICLE_LABEL_SUFFIX)
+            style.removeImage(imageId + NEUTRAL_SUFFIX)
         }
         styles.forEach { badgeStyle ->
             if (badgeStyle !in badgeImageIds) {
@@ -117,6 +119,7 @@ internal class VehicleBadgeLayer(private val resources: Resources) {
 
     private fun addVehicleBadgeImages(style: Style, imageId: String, badge: VehicleBadgeStyle) {
         val metrics = resources.displayMetrics
+        style.addImage(imageId + NEUTRAL_SUFFIX, badge.toBitmap(metrics, flipLabel = false, directional = false))
         style.addImage(imageId, badge.toBitmap(metrics, flipLabel = false))
         style.addImage(imageId + FLIPPED_VEHICLE_LABEL_SUFFIX, badge.toBitmap(metrics, flipLabel = true))
     }
@@ -168,12 +171,16 @@ private fun vehicleBadgeImage(cameraBearing: Double): Expression {
         Expression.literal(360.0),
     )
     return Expression.switchCase(
+        Expression.eq(Expression.get(HAS_BEARING_PROPERTY), Expression.literal(false)),
+        Expression.concat(image, Expression.literal(NEUTRAL_SUFFIX)),
         Expression.all(Expression.gt(screenRotation, 90), Expression.lt(screenRotation, 270)),
         Expression.concat(image, Expression.literal(FLIPPED_VEHICLE_LABEL_SUFFIX)),
         image,
     )
 }
 
+private const val HAS_BEARING_PROPERTY = "hasBearing"
+private const val NEUTRAL_SUFFIX = "-neutral"
 private const val BEARING_PROPERTY = "bearing"
 private const val POSITION_KIND_PROPERTY = "positionKind"
 private const val VEHICLE_BADGE_IMAGE_PROPERTY = "vehicleBadgeImage"

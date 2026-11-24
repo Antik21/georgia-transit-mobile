@@ -76,7 +76,9 @@ internal class PreparedVehicleRoutePath private constructor(
 
     fun alongSeparation(first: Double, second: Double): Double {
         val direct = abs(first - second)
-        return if (isLoop) minOf(direct, lengthMeters - direct) else direct
+        if (!isLoop) return direct
+        val wrapped = direct.positiveModulo(lengthMeters)
+        return minOf(wrapped, lengthMeters - wrapped)
     }
 
     companion object {
@@ -117,7 +119,7 @@ internal data class VehicleRouteMotion(
     val startAlongMeters: Double,
     val deltaMeters: Double,
     val score: Double,
-    val travelForward: Boolean = deltaMeters >= 0.0,
+    val travelForward: Boolean? = if (abs(deltaMeters) >= MIN_JOURNEY_HEADING_MOVEMENT_METERS) deltaMeters > 0.0 else null,
     val oppositeEvidenceMeters: Double = 0.0,
     val oppositeEvidenceCount: Int = 0,
 ) {
@@ -127,10 +129,12 @@ internal data class VehicleRouteMotion(
     fun positionAt(fraction: Double): GeoPoint =
         path.positionAt(startAlongMeters + deltaMeters * fraction.coerceIn(0.0, 1.0))
 
-    fun bearingAt(fraction: Double): Double? = path.bearingAt(
-        alongMeters = startAlongMeters + deltaMeters * fraction.coerceIn(0.0, 1.0),
-        forward = travelForward,
-    )
+    fun bearingAt(fraction: Double): Double? = travelForward?.let { forward ->
+        path.bearingAt(
+            alongMeters = startAlongMeters + deltaMeters * fraction.coerceIn(0.0, 1.0),
+            forward = forward,
+        )
+    }
 }
 
 internal fun VehicleTrack.interpolationFraction(nowMillis: Long): Double {
@@ -160,9 +164,14 @@ internal object VehicleRoutePathInterpolator {
         ) {
             return null
         }
-        val previous = previousMotion?.takeIf { it.path === best.path }
-        if (previous != null) return best.withStableDirection(previous)
-        if (initialBearing == null || abs(best.deltaMeters) >= MIN_MEANINGFUL_MOVEMENT_METERS) return best
+        // A single polyline can contain both directions of the same street. The sign
+        // of travel is transferable only between nearby offsets on that polyline.
+        val previous = previousMotion?.takeIf {
+            it.path === best.path &&
+                best.path.alongSeparation(it.endAlongMeters, best.startAlongMeters) <= PROJECTION_EQUIVALENT_ALONG_METERS
+        }
+        if (previous?.travelForward != null) return best.withStableDirection(previous)
+        if (initialBearing == null || best.travelForward != null) return best
         // A single position has no travel direction. Use the last heading to orient the route tangent.
         val forwardBearing = best.path.bearingAt(best.endAlongMeters, forward = true) ?: return best
         val difference = (forwardBearing - initialBearing + 180.0).positiveModulo(360.0) - 180.0
@@ -170,8 +179,7 @@ internal object VehicleRoutePathInterpolator {
     }
 
     /** A single GPS setback must not turn a vehicle around on an otherwise stable route. */
-    private fun VehicleRouteMotion.withStableDirection(previous: VehicleRouteMotion?): VehicleRouteMotion {
-        if (previous == null) return this
+    private fun VehicleRouteMotion.withStableDirection(previous: VehicleRouteMotion): VehicleRouteMotion {
         if (abs(deltaMeters) < MIN_MEANINGFUL_MOVEMENT_METERS) {
             return copy(
                 travelForward = previous.travelForward,

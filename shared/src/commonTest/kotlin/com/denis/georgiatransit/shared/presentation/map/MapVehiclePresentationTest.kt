@@ -17,6 +17,7 @@ import com.denis.georgiatransit.shared.presentation.ui.RouteSelectionProjector
 import kotlinx.collections.immutable.persistentListOf
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertNull
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 import kotlin.time.Duration.Companion.milliseconds
@@ -51,7 +52,18 @@ class MapVehiclePresentationTest {
 
         map.acceptPosition(longitude = 0.0012, elapsedMillis = 31_000)
 
-        map.assertBearing(270.0)
+        assertNull(map.presentation.vehicleMarkers.single().bearingDegrees)
+    }
+
+    @Test
+    fun firstMovementEstablishesHeadingEvenAgainstPolylineOrder() {
+        val map = VehicleMap()
+        map.acceptPosition(longitude = 0.0004)
+        assertNull(map.presentation.vehicleMarkers.single().bearingDegrees)
+        map.acceptPosition(longitude = 0.00041)
+        assertNull(map.presentation.vehicleMarkers.single().bearingDegrees)
+        map.acceptPosition(longitude = 0.0008)
+        map.assertBearing(90.0)
     }
 
     @Test
