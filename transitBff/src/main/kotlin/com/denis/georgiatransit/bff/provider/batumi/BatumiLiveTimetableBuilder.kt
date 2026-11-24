@@ -6,6 +6,7 @@ import com.denis.georgiatransit.bff.planning.NotServed
 import com.denis.georgiatransit.bff.planning.PatternService
 import com.denis.georgiatransit.bff.planning.PlanningBudget
 import com.denis.georgiatransit.bff.provider.BatumiLiveVehicle
+import com.denis.georgiatransit.bff.provider.BatumiVehicleProjection
 import com.denis.georgiatransit.bff.provider.EtaMaximumSeconds
 import com.denis.georgiatransit.bff.provider.EtaPassedStopToleranceMeters
 import com.denis.georgiatransit.bff.provider.RouteCycle
@@ -15,8 +16,6 @@ import com.denis.georgiatransit.bff.provider.stopChainSeconds
 import java.time.Instant
 import kotlin.math.ceil
 import kotlin.math.roundToLong
-
-private class ProjectedVehicle(val vehicleId: String, val alongMeters: Double)
 
 /** Turns one city-wide live snapshot into per-pattern departures with the ADR 0012 ETA model. */
 internal object BatumiLiveTimetableBuilder {
@@ -32,17 +31,20 @@ internal object BatumiLiveTimetableBuilder {
             budget.checkpoint()
             val cycle = catalog.cycle(routeId)
             vehiclesByRoute[routeId].orEmpty().mapNotNull { live ->
-                projectVehicle(catalog, routeId, cycle, live)?.let { ProjectedVehicle(live.vehicle.id, it.alongMeters) }
+                projectVehicle(catalog, routeId, cycle, live)
             }
         }
         val services = network.patterns.map { meta ->
+            val cycle = catalog.cycle(meta.routeId)
+            val patternStatus = cycle.chain[meta.chainIndices.first()].status
             val projected = projectedByRoute[meta.routeId].orEmpty()
             if (projected.isEmpty()) return@map null
-            val cycle = catalog.cycle(meta.routeId)
             val metersPerSecond = catalog.movingMetersPerSecond(meta.routeId)
             val along = alongMeters(meta, cycle)
             PatternService(
-                liveTrips = if (stale) emptyList() else projected.flatMap { liveTrips(meta, cycle, along, metersPerSecond, it, observedAt) },
+                liveTrips = if (stale) emptyList() else projected
+                    .filter { meta.circle || it.status == patternStatus }
+                    .flatMap { liveTrips(meta, cycle, along, metersPerSecond, it, observedAt) },
                 headwaySeconds = ceil(cycle.totalMeters / (metersPerSecond * projected.size)).toLong().coerceAtLeast(1L),
                 rideOffsetSeconds = DoubleArray(along.size) { stopChainSeconds(along[it] - along[0], metersPerSecond, it) },
             )
@@ -70,7 +72,7 @@ internal object BatumiLiveTimetableBuilder {
         cycle: RouteCycle,
         along: DoubleArray,
         metersPerSecond: Double,
-        vehicle: ProjectedVehicle,
+        vehicle: BatumiVehicleProjection,
         observedAt: Instant,
     ): List<LiveTrip> {
         val current = LongArray(along.size) { NotServed }
