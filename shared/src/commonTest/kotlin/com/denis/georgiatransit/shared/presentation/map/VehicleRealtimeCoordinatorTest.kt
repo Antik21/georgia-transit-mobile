@@ -127,8 +127,8 @@ class VehicleRealtimeCoordinatorTest {
         )
 
         assertEquals(90.0, moved.tracks.single().bearingDegrees)
-        assertEquals(270.0, moved.tracks.single().directTravelBearing)
-        assertEquals(270.0, setback.tracks.single().directTravelBearing)
+        assertEquals(270.0, moved.tracks.single().lastTravelBearing)
+        assertEquals(270.0, setback.tracks.single().lastTravelBearing)
     }
 
     @Test

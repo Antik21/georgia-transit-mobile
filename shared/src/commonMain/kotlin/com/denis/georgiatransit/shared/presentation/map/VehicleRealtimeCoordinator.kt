@@ -84,7 +84,7 @@ internal data class VehicleTrack(
     val freshness: TransitFreshness,
     val isStale: Boolean,
     val interpolationStartedAtMonotonicMillis: Long?,
-    val directTravelBearing: Double? = null,
+    val lastTravelBearing: Double? = null,
 )
 
 @Immutable
@@ -365,7 +365,7 @@ internal object VehicleRealtimeReducer {
             freshness = freshness,
             isStale = false,
             interpolationStartedAtMonotonicMillis = monotonicNowMillis,
-            directTravelBearing = directVehicleTravelBearing(start, vehicle.position) ?: directTravelBearing,
+            lastTravelBearing = directVehicleTravelBearing(start, vehicle.position) ?: lastTravelBearing,
         )
     }
 
