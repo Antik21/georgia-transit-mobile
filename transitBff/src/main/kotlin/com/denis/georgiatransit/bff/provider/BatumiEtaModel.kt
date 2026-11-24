@@ -39,25 +39,22 @@ internal val BatumiMovingKmhByRawRoute = mapOf(
     "6724af35cabac5486baeb625" to 33.7,
 )
 internal const val BatumiFallbackMovingKmh = 25.1
-internal fun projectOntoPolyline(points: List<GeoPoint>, target: GeoPoint): PolylineProjection? {
-    if (points.size < 2) return null
+private fun isNearRouteGeometry(points: List<GeoPoint>, target: GeoPoint): Boolean {
     val latScale = 111_320.0
-    val lonScale = 111_320.0 * cos(target.latitude * PI / 180.0)
-    var total = 0.0
-    var best: PolylineProjection? = null
-    points.zipWithNext().forEach { (a, b) ->
-        val ax = (a.longitude - target.longitude) * lonScale; val ay = (a.latitude - target.latitude) * latScale
-        val bx = (b.longitude - target.longitude) * lonScale; val by = (b.latitude - target.latitude) * latScale
-        val dx = bx - ax; val dy = by - ay; val segment = hypot(dx, dy)
-        if (segment > 0.01) {
-            val t = ((-ax * dx - ay * dy) / (segment * segment)).coerceIn(0.0, 1.0)
-            val distance = hypot(ax + t * dx, ay + t * dy)
-            val candidate = PolylineProjection(total + t * segment, distance)
-            if (best?.distanceMeters == null || candidate.distanceMeters < best.distanceMeters) best = candidate
-            total += segment
-        }
+    val lonScale = latScale * cos(target.latitude * PI / 180.0)
+    for (index in 0 until points.lastIndex) {
+        val a = points[index]
+        val b = points[index + 1]
+        val ax = (a.longitude - target.longitude) * lonScale
+        val ay = (a.latitude - target.latitude) * latScale
+        val dx = (b.longitude - target.longitude) * lonScale - ax
+        val dy = (b.latitude - target.latitude) * latScale - ay
+        val segment = hypot(dx, dy)
+        if (segment <= 0.01) continue
+        val t = ((-ax * dx - ay * dy) / (segment * segment)).coerceIn(0.0, 1.0)
+        if (hypot(ax + t * dx, ay + t * dy) <= EtaMaxProjectionMeters) return true
     }
-    return best
+    return false
 }
 
 internal fun chainMeters(a: GeoPoint, b: GeoPoint): Double {
@@ -75,7 +72,7 @@ internal fun projectVehicle(
     cycle: RouteCycle,
     live: BatumiLiveVehicle,
 ): BatumiVehicleProjection? {
-    if (projectOntoPolyline(catalog.geometry(routeId), live.vehicle.position)?.distanceMeters?.let { it > EtaMaxProjectionMeters } != false) {
+    if (!isNearRouteGeometry(catalog.geometry(routeId), live.vehicle.position)) {
         return null
     }
     val status = live.status ?: cycle.statuses.singleOrNull() ?: return null

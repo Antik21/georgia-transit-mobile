@@ -10,6 +10,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -31,6 +33,8 @@ class BoundedKeyedTtlCache<K, V>(
     private val mutex = Mutex()
     private val entries = mutableMapOf<K, Entry<V>>()
 
+    private var nextExpiry = Instant.MAX
+
     init {
         require(maximumEntries > 0) { "maximumEntries must be positive" }
     }
@@ -43,6 +47,7 @@ class BoundedKeyedTtlCache<K, V>(
      */
     suspend fun getOrLoad(key: K, observer: (CacheLookupOutcome) -> Unit, loader: suspend () -> V): V {
         val lookup = mutex.withLock {
+            scope.ensureActive()
             pruneExpiredLocked(clock.instant())
             when (val entry = entries[key]) {
                 is Ready -> Lookup.Value(entry.value, CacheLookupOutcome.HIT)
@@ -62,7 +67,10 @@ class BoundedKeyedTtlCache<K, V>(
      * A stale generation cannot repopulate a cleared key because it no longer owns an entry.
      */
     suspend fun clear() {
-        mutex.withLock { entries.clear() }
+        mutex.withLock {
+            entries.clear()
+            nextExpiry = Instant.MAX
+        }
     }
 
     override fun close() {
@@ -73,7 +81,7 @@ class BoundedKeyedTtlCache<K, V>(
         if (entries.size >= maximumEntries) {
             throw UpstreamUnavailable("The directory cache is at capacity", retryAfterSeconds = 1)
         }
-        val result = CompletableDeferred<V>()
+        val result = CompletableDeferred<V>(scope.coroutineContext.job)
         entries[key] = Loading(result)
         scope.launch {
             try {
@@ -81,7 +89,9 @@ class BoundedKeyedTtlCache<K, V>(
                 mutex.withLock {
                     val current = entries[key]
                     if (current is Loading && current.result === result) {
-                        entries[key] = Ready(value, clock.instant().plus(ttl.toJavaDuration()))
+                        val expiresAt = clock.instant().plus(ttl.toJavaDuration())
+                        entries[key] = Ready(value, expiresAt)
+                        nextExpiry = minOf(nextExpiry, expiresAt)
                     }
                 }
                 result.complete(value)
@@ -99,7 +109,15 @@ class BoundedKeyedTtlCache<K, V>(
     }
 
     private fun pruneExpiredLocked(now: Instant) {
-        entries.entries.removeIf { (_, entry) -> entry is Ready && !now.isBefore(entry.expiresAt) }
+        if (now < nextExpiry) return
+        nextExpiry = Instant.MAX
+        val iterator = entries.values.iterator()
+        while (iterator.hasNext()) {
+            val entry = iterator.next()
+            if (entry !is Ready) continue
+            if (entry.expiresAt <= now) iterator.remove()
+            else nextExpiry = minOf(nextExpiry, entry.expiresAt)
+        }
     }
 
     private sealed interface Entry<V>

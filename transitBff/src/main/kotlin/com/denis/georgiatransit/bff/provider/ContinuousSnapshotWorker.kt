@@ -9,7 +9,9 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
@@ -39,9 +41,8 @@ internal class ContinuousSnapshotWorker<V>(
                 val value = loader()
                 latest.set(Result.success(value))
                 onSuccess(value, System.nanoTime() - startedAt)
-            } catch (failure: CancellationException) {
-                throw failure
             } catch (failure: Throwable) {
+                currentCoroutineContext().ensureActive()
                 // A failed refresh never replaces a previously validated snapshot.
                 if (latest.get()?.isSuccess != true) latest.set(Result.failure(failure))
                 onFailure(failure, System.nanoTime() - startedAt)

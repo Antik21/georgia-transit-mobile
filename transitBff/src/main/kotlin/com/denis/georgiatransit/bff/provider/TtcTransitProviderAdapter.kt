@@ -42,7 +42,7 @@ import io.ktor.client.network.sockets.SocketTimeoutException
 import io.ktor.client.plugins.HttpRequestTimeoutException
 import io.ktor.client.plugins.HttpTimeout
 import io.ktor.client.plugins.timeout
-import io.ktor.client.request.get
+import io.ktor.client.request.prepareGet
 import io.ktor.client.request.header
 import io.ktor.client.request.url
 import io.ktor.client.statement.HttpResponse
@@ -1019,7 +1019,7 @@ internal class TtcClient(
         while (true) {
             try {
                 val attempt = budget.execute(labels, observability) {
-                    val response = httpClient.get {
+                    httpClient.prepareGet {
                         url(requireNotNull(activation.baseUrl).toString())
                         url {
                             appendPathSegments(*path.toTypedArray(), encodeSlash = true)
@@ -1032,8 +1032,7 @@ internal class TtcClient(
                             requestTimeoutMillis = activation.requestTimeoutMillis
                             socketTimeoutMillis = activation.socketTimeoutMillis
                         }
-                    }
-                    response.toTtcAttempt(missing)
+                    }.execute { response -> response.toTtcAttempt(missing) }
                 }
                 when (attempt) {
                     is TtcAttempt.Complete -> return attempt.value
@@ -1086,14 +1085,17 @@ internal class TtcClient(
     }
 
     private suspend fun HttpResponse.decodeOrThrow(missing: ProviderFailure): JsonElement = when {
-        status == HttpStatusCode.OK -> try {
-            TtcJson.parseToJsonElement(readBodyWithinLimit())
-        } catch (failure: CancellationException) {
-            throw failure
-        } catch (failure: ProviderFailure) {
-            throw failure
-        } catch (_: Exception) {
-            throw ProviderJsonDecodeFailure("The transit provider returned an invalid response")
+        status == HttpStatusCode.OK -> {
+            val body = readBodyWithinLimit()
+            try {
+                TtcJson.parseToJsonElement(body)
+            } catch (failure: CancellationException) {
+                throw failure
+            } catch (failure: ProviderFailure) {
+                throw failure
+            } catch (_: Exception) {
+                throw ProviderJsonDecodeFailure("The transit provider returned an invalid response")
+            }
         }
         status == HttpStatusCode.NotFound -> discardAndThrow(missing)
         status == HttpStatusCode.RequestTimeout -> discardAndThrow(ProviderTimeout("The transit provider did not respond in time"))
