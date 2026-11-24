@@ -18,10 +18,9 @@ import com.denis.georgiatransit.shared.presentation.map.JourneyPlannerStatus
 import com.denis.georgiatransit.shared.presentation.map.JourneyPlannerUi
 import com.denis.georgiatransit.shared.presentation.map.MapPlatformEvent
 import com.denis.georgiatransit.shared.presentation.map.MapViewModel
-import com.denis.georgiatransit.shared.presentation.map.boardingBadgeRevision
-import com.denis.georgiatransit.shared.presentation.map.boardingSourceRevision
-import com.denis.georgiatransit.shared.presentation.map.boardingVehicleMarker
+import com.denis.georgiatransit.shared.presentation.map.boardingBus
 import com.denis.georgiatransit.shared.presentation.map.journeyDefaultExpandedSideFor
+import com.denis.georgiatransit.shared.presentation.map.withoutBoardingFrames
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Job
@@ -105,7 +104,6 @@ class PlannerState(
     val walkMinutes: Int?,
     val options: Array<PlannerOption>,
     val route: PlannerRoute,
-    val boardingVehicles: VehicleLayer,
     val boardingFitPosition: PlannerPoint? = null,
     /** Frame the route and boarding bus only when this changes. */
     val cameraFitRevision: String = "0",
@@ -130,7 +128,12 @@ class JourneyPlannerBridge internal constructor(
         val newSubscription = scope.launch(start = CoroutineStart.LAZY) {
             var render: JourneyPlanRenderUi? = null
             var projected: PlannerRoute? = null
-            viewModel.container.stateFlow.map { it.journeyPlanner }.distinctUntilChanged().collect { planner ->
+            viewModel.container.stateFlow.map { state ->
+                val planner = state.journeyPlanner
+                planner.withoutBoardingFrames().copy(
+                    boardingFitPosition = planner.boardingFitPosition.takeIf { planner.boardingBus() != null },
+                )
+            }.distinctUntilChanged().collect { planner ->
                 // The renderer redraws lines only when this route object changes identity.
                 val route = projected?.takeIf { render == planner.render } ?: planner.render.toJs(++routeRevision)
                 render = planner.render
@@ -192,7 +195,6 @@ class JourneyPlannerBridge internal constructor(
 
 private fun JourneyPlannerUi.toJs(route: PlannerRoute): PlannerState {
     val status = status
-    val boardingVehicle = boardingVehicleMarker()
     return PlannerState(
         open = isOpen,
         showingResults = showingResults,
@@ -233,12 +235,7 @@ private fun JourneyPlannerUi.toJs(route: PlannerRoute): PlannerState {
         cameraFitRevision = cameraFitRevision.toString(),
         mapPick = mapPick?.toJs(),
         defaultExpandedSide = journeyDefaultExpandedSideFor(origin, destination)?.toJs(),
-        boardingVehicles = VehicleLayer(
-            revision = boardingVehicle.boardingSourceRevision().toString(),
-            badgeRevision = boardingVehicle.boardingBadgeRevision().toString(),
-            vehicles = boardingVehicle?.let { arrayOf(it.toJs()) } ?: emptyArray(),
-        ),
-        boardingFitPosition = boardingFitPosition.takeIf { boardingVehicle != null }?.toPlannerPoint(),
+        boardingFitPosition = boardingFitPosition?.toPlannerPoint(),
     )
 }
 

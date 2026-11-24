@@ -226,8 +226,7 @@ internal class MapVehiclePresentation(
             return if (interpolate) VehicleRealtimeReducer.frame(track, monotonicNowMillis) else track.to
         }
         if (!interpolate) return motion.endPoint
-        val startedAt = track.interpolationStartedAtMonotonicMillis ?: return motion.endPoint
-        return motion.positionAt(interpolationFraction(startedAt, monotonicNowMillis))
+        return motion.positionAt(track.interpolationFraction(monotonicNowMillis))
     }
 
     /** Rotation is deliberately separate so it can never gate or replace the position frame. */
@@ -238,8 +237,7 @@ internal class MapVehiclePresentation(
     ): Double? {
         val fallback = track.directTravelBearing ?: track.bearingDegrees
         val motion = vehicleRouteMotion(track) ?: return fallback
-        val startedAt = track.interpolationStartedAtMonotonicMillis
-        val fraction = if (interpolate && startedAt != null) interpolationFraction(startedAt, monotonicNowMillis) else 1.0
+        val fraction = if (interpolate) track.interpolationFraction(monotonicNowMillis) else 1.0
         return motion.bearingAt(fraction) ?: fallback
     }
 
@@ -262,9 +260,6 @@ internal class MapVehiclePresentation(
         }
         return motion
     }
-
-    private fun interpolationFraction(startedAt: Long, monotonicNowMillis: Long): Double =
-        (monotonicNowMillis - startedAt).coerceAtLeast(0L).toDouble() / VEHICLE_INTERPOLATION_DURATION_MILLIS
 
     private fun refreshVehicleRoutePaths() {
         val revision = routeGeometrySnapshot.polylineSourceRevision

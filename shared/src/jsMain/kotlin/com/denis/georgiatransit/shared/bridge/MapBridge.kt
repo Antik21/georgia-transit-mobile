@@ -37,6 +37,9 @@ import com.denis.georgiatransit.shared.presentation.map.SideEffect
 import com.denis.georgiatransit.shared.presentation.map.StopArrivalsSheetUi
 import com.denis.georgiatransit.shared.presentation.map.VehicleLayerState
 import com.denis.georgiatransit.shared.presentation.map.VehicleRouteAccessibilityUi
+import com.denis.georgiatransit.shared.presentation.map.boardingBadgeRevision
+import com.denis.georgiatransit.shared.presentation.map.boardingSourceRevision
+import com.denis.georgiatransit.shared.presentation.map.boardingVehicleMarker
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
@@ -278,8 +281,14 @@ class MapBridge internal constructor(
         val newSubscription = scope.launch(start = CoroutineStart.LAZY) {
             viewModel.container.stateFlow
                 .map { state ->
-                    val render = state.renderState
-                    VehicleSlice(render?.vehicleSourceRevision ?: 0L, render?.vehicleBadgeRevision ?: 0L, render?.vehicles.orEmpty())
+                    val planner = state.journeyPlanner
+                    if (planner.isOpen) {
+                        val bus = planner.boardingVehicleMarker()
+                        VehicleSlice(bus.boardingSourceRevision(), bus.boardingBadgeRevision(), listOfNotNull(bus))
+                    } else {
+                        val render = state.renderState
+                        VehicleSlice(render?.vehicleSourceRevision ?: 0L, render?.vehicleBadgeRevision ?: 0L, render?.vehicles.orEmpty())
+                    }
                 }
                 .distinctUntilChanged()
                 .collect { slice ->

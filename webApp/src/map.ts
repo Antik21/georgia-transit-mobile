@@ -248,7 +248,6 @@ export function createTransitMap(
   let renderedRouteRevision: string | undefined;
   let renderedUserLocation: string | undefined;
   let vehicles: VehicleLayer | undefined;
-  let boardingVehicles: VehicleLayer | undefined;
   let plannerOpen = false;
   let renderedVehicleRevision: string | undefined;
   let renderedBadgeRevision: string | undefined;
@@ -410,7 +409,7 @@ export function createTransitMap(
   }
 
   function renderVehicles() {
-    const visibleVehicles = plannerOpen ? boardingVehicles : vehicles ?? boardingVehicles;
+    const visibleVehicles = vehicles;
     if (!styleReady || !visibleVehicles || renderedVehicleRevision === visibleVehicles.revision) return;
     if (renderedBadgeRevision !== visibleVehicles.badgeRevision) {
       syncBadgeImages(visibleVehicles);
@@ -719,10 +718,8 @@ export function createTransitMap(
   function updatePlanner(state: PlannerState) {
     const modeChanged = plannerOpen !== state.open;
     plannerOpen = state.open;
-    boardingVehicles = state.boardingVehicles;
     planner.update(state);
     if (modeChanged) renderRouteLines();
-    renderVehicles();
   }
 
   return { update, updateVehicles, updatePlanner, pointAt, retry, resize, setVisible, dispose };

@@ -67,7 +67,7 @@ class MapViewModel(
     private val vehiclePresentation get() = vehicleFeature.presentation
     private val renderProjector by lazy { MapRenderProjector(cameraController, stopSelection, vehiclePresentation) }
     private val journeyPlanner = JourneyPlannerWorkflow(
-        journeyPlanRepository, repository, journeyPlanClock, realtimeTickerPolicy.pollIntervalMillis, analytics = analytics)
+        journeyPlanRepository, repository, journeyPlanClock, realtimeTickerPolicy, analytics = analytics, vehicleClock = realtimeClock)
 
     override val container: Container<ViewState, SideEffect> = viewModelScope.container(
         initialState = ViewState(

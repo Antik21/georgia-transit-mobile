@@ -37,6 +37,10 @@ internal fun JourneyPlannerUi.boardingBus(): JourneyBusUi? {
     return arrivals.vehicles.firstOrNull { it.id == plannedId }
 }
 
+/** The itinerary consumes countdowns while the map consumes animated positions. */
+internal fun JourneyPlannerUi.withoutBoardingFrames(): JourneyPlannerUi =
+    if (buses?.vehicles.isNullOrEmpty()) this else copy(buses = buses?.copy(vehicles = emptyList()))
+
 internal fun JourneyPlannerUi.boardingVehicleMarker(): MapVehicleMarker? {
     val bus = boardingBus() ?: return null
     return MapVehicleMarker(
