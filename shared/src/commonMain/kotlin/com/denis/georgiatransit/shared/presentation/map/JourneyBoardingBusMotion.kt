@@ -4,6 +4,7 @@ import com.denis.georgiatransit.shared.domain.model.TransitVehicle
 import com.denis.georgiatransit.shared.domain.model.VehiclePage
 import com.denis.georgiatransit.shared.domain.repository.TransitFreshness
 import com.denis.georgiatransit.shared.domain.repository.TransitLoadResult
+import kotlinx.collections.immutable.persistentListOf
 import kotlin.math.abs
 
 /** Animates only the exact vehicle assigned to the first ride. */
@@ -32,8 +33,13 @@ internal class JourneyBoardingBusMotion(
         val wallNow = clock.wallNow()
         state = VehicleRealtimeReducer.expire(state, wallNow)
         val previous = state.tracks.singleOrNull()
+        val observedAt = incoming.observedAt ?: page.observedAt
+        val startsNewTrack = previous != null &&
+            (observedAt - previous.observedAt).inWholeMilliseconds > MAX_OBSERVATION_GAP_MILLIS
+        // A long gap breaks animation continuity. Keep the route's page watermark for the shared validation.
+        val baseline = if (startsNewTrack) state.copy(tracks = persistentListOf()) else state
         val reduction = VehicleRealtimeReducer.acceptPage(
-            state, boarding.routeId, page.copy(items = listOf(incoming)), data.freshness, wallNow, now,
+            baseline, boarding.routeId, page.copy(items = listOf(incoming)), data.freshness, wallNow, now,
         )
         state = when (reduction) {
             is VehiclePageReduction.Applied -> reduction.state
@@ -41,10 +47,8 @@ internal class JourneyBoardingBusMotion(
             is VehiclePageReduction.Rejected -> reduction.state
         }
         val track = state.tracks.singleOrNull()?.takeUnless { it.isStale }
-        if (track == null) {
-            clearFrame()
-            return
-        }
+        if (track == null || previous == null || startsNewTrack) clearFrame()
+        if (track == null) return
         if (track == previous && animationTrack != null) return
         vehicle = incoming.copy(bearing = headings.update(listOf(incoming))[incoming.id])
         val currentAnimation = animationTrack
