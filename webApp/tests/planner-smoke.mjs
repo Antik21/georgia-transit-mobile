@@ -259,7 +259,12 @@ export function plannerSmoke({ send, evaluate, waitFor, tap, visible, testId, ma
           && document.querySelector('${testId('planner-nearest')}')?.closest('.planner-leg-ride') !== null
           && document.querySelector('${testId('planner-nearest')}')?.parentElement?.firstElementChild?.dataset.testid === 'planner-nearest'
           && getComputedStyle(document.querySelector('${testId('planner-nearest')}')).fontWeight === '500'
-          && !${optionText(0)}.includes('wait ≈ 2 min')`) && await highlightedBuses() === 1);
+          && !${optionText(0)}.includes('In about 2 min')`) && await highlightedBuses() === 1);
+      const arrivalTypography = (selector) => evaluate(`(() => {
+        const style = getComputedStyle(document.querySelector(${JSON.stringify(selector)}));
+        return [style.fontFamily, style.fontSize, style.fontWeight];
+      })()`);
+      const liveTypography = await arrivalTypography(testId('planner-nearest'));
       assert.equal(planRequests.length, 1);
       assertPrivateRequest(planRequests[0]);
       assert.equal(bffRequests.filter((path) => path === planPath).length, 1);
@@ -269,8 +274,9 @@ export function plannerSmoke({ send, evaluate, waitFor, tap, visible, testId, ma
       await tap(card('transfer'));
       await waitFor('Selecting another option redraws its lines without buses',
         async () => await evaluate(`${pressed(card('transfer'))} && !document.querySelector('${testId('planner-nearest')}')
-          && ${optionText(2)}.includes('Walk to the transfer') && ${optionText(2)}.includes('wait ≈ 4 min')`)
+          && ${optionText(2)}.includes('Walk to the transfer') && ${optionText(2)}.includes('In about 4 min')`)
           && await mapContainsColor(plannerRouteColors.yellow, 75) && await highlightedBuses() === 0);
+      assert.deepEqual(await arrivalTypography(`${card('transfer')} .planner-arrival-time`), liveTypography);
       await tap(card('walk'));
       await waitFor('A walk-only option shows no buses',
         async () => await evaluate(`${pressed(card('walk'))} && !document.querySelector('${testId('planner-nearest')}')`)

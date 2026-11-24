@@ -250,8 +250,9 @@ function legRow(leg: PlannerLeg, copy: Copy, nearestEtas: readonly number[]) {
       leg.minutes != null ? format(copy.plannerMinutes, leg.minutes) : null];
     const detail = element("span", "planner-leg-detail");
     const rideDetails = element("span", "", parts.filter(Boolean).join(" · "));
+    const arrivalTimeClass = "planner-leg-wait planner-arrival-time";
     if (nearestEtas.length) {
-      const arrival = element("small", "planner-leg-wait planner-arrival-time", copy.plannerArrivingIn.replace("%1$s", nearestEtas.join(", ")));
+      const arrival = element("small", arrivalTimeClass, copy.plannerArrivingIn.replace("%1$s", nearestEtas.join(", ")));
       arrival.dataset.testid = "planner-nearest";
       detail.append(arrival);
     }
@@ -261,8 +262,9 @@ function legRow(leg: PlannerLeg, copy: Copy, nearestEtas: readonly number[]) {
     }
     if (parts.some(Boolean)) detail.append(rideDetails);
     if (!nearestEtas.length) {
-      detail.append(element("small", "planner-leg-wait", leg.waitMinutes == null
-        ? copy.plannerWaitUnknown : format(copy.plannerWaitEstimate, leg.waitMinutes)));
+      detail.append(leg.waitMinutes == null
+        ? element("small", "planner-leg-wait", copy.plannerWaitUnknown)
+        : element("small", arrivalTimeClass, format(copy.plannerWaitEstimate, leg.waitMinutes)));
     }
     row.append(badge, detail);
   } else {

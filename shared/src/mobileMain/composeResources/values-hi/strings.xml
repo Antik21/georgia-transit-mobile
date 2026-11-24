@@ -195,7 +195,7 @@
     <string name="map_planner_meters">%1$d मी</string>
     <string name="map_planner_minutes">%1$d मि॰</string>
     <string name="map_planner_stops">स्टॉप: %1$d</string>
-    <string name="map_planner_wait_estimate">लगभग %1$d मि॰ इंतज़ार</string>
+    <string name="map_planner_wait_estimate">लगभग %1$d मि॰ में</string>
     <string name="map_planner_wait_unknown">प्रतीक्षा का समय अज्ञात है</string>
     <string name="map_planner_timing_live">बसों की लाइव जानकारी</string>
     <string name="map_planner_timing_mixed">कुछ लाइव जानकारी</string>
