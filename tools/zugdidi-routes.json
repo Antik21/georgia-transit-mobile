@@ -1,0 +1,158 @@
+[
+  {
+    "id": "zugdidi:static:route:1",
+    "number": "1",
+    "name": {
+      "en": "University → Merab Baramia Street",
+      "ru": "Университет → Улица Мераба Барамия",
+      "ka": "უნივერსიტეტი → მერაბ ბარამიას ქუჩა",
+      "de": "Universität → Merab-Baramia-Straße",
+      "fr": "Université → Rue Merab-Baramia",
+      "zh": "大学 → 梅拉布·巴拉米亚街"
+    }
+  },
+  {
+    "id": "zugdidi:static:route:2",
+    "number": "2",
+    "name": {
+      "en": "Porcelain Factory ↻ via Merab Baramia Street",
+      "ru": "Фарфоровый завод ↻ через улицу Мераба Барамия",
+      "ka": "ფაიფურის ქარხანა ↻ მერაბ ბარამიას ქუჩის გავლით",
+      "de": "Porzellanfabrik ↻ über die Merab-Baramia-Straße",
+      "fr": "Manufacture de porcelaine ↻ via la rue Merab-Baramia",
+      "zh": "瓷器厂 ↻ 经梅拉布·巴拉米亚街"
+    }
+  },
+  {
+    "id": "zugdidi:static:route:3",
+    "number": "3",
+    "name": {
+      "en": "University → Porcelain Factory",
+      "ru": "Университет → Фарфоровый завод",
+      "ka": "უნივერსიტეტი → ფაიფურის ქარხანა",
+      "de": "Universität → Porzellanfabrik",
+      "fr": "Université → Manufacture de porcelaine",
+      "zh": "大学 → 瓷器厂"
+    }
+  },
+  {
+    "id": "zugdidi:static:route:6",
+    "number": "6",
+    "name": {
+      "en": "Natsuluku → Khubulava Street",
+      "ru": "Нацулуку → Улица Хубулава",
+      "ka": "ნაცულუკუ → ხუბულავას ქუჩა",
+      "de": "Natsuluku → Chubulawa-Straße",
+      "fr": "Natsouloukou → Rue Khouboulava",
+      "zh": "纳楚卢库 → 胡布拉瓦街"
+    }
+  },
+  {
+    "id": "zugdidi:static:route:10",
+    "number": "10",
+    "name": {
+      "en": "Merab Baramia Street → Akhali Abastumani",
+      "ru": "Улица Мераба Барамия → Ахали-Абастумани",
+      "ka": "მერაბ ბარამიას ქუჩა → ახალი აბასთუმანი",
+      "de": "Merab-Baramia-Straße → Achali Abastumani",
+      "fr": "Rue Merab-Baramia → Akhali Abastoumani",
+      "zh": "梅拉布·巴拉米亚街 → 阿哈利阿巴斯图马尼"
+    }
+  },
+  {
+    "id": "zugdidi:static:route:12",
+    "number": "12",
+    "name": {
+      "en": "Ergeta → Zugdidi Bus Station",
+      "ru": "Ергета → Автостанция Зугдиди",
+      "ka": "ერგეტა → ზუგდიდის ავტოსადგური",
+      "de": "Ergeta → Busbahnhof Sugdidi",
+      "fr": "Erguéta → Gare routière de Zougdidi",
+      "zh": "埃尔盖塔 → 祖格迪迪汽车站"
+    }
+  },
+  {
+    "id": "zugdidi:static:route:15",
+    "number": "15",
+    "name": {
+      "en": "Orulu → Alliance",
+      "ru": "Орулу → Альянс",
+      "ka": "ორულუ → ალიანსი",
+      "de": "Orulu → Alliance",
+      "fr": "Oroulou → Alliance",
+      "zh": "奥鲁卢 → 阿利安斯"
+    }
+  },
+  {
+    "id": "zugdidi:static:route:18",
+    "number": "18",
+    "name": {
+      "en": "Rike → Alliance",
+      "ru": "Рике → Альянс",
+      "ka": "რიყე → ალიანსი",
+      "de": "Rike → Alliance",
+      "fr": "Riké → Alliance",
+      "zh": "里克 → 阿利安斯"
+    }
+  },
+  {
+    "id": "zugdidi:static:route:20",
+    "number": "20",
+    "name": {
+      "en": "Tkaia → Alliance",
+      "ru": "Ткая → Альянс",
+      "ka": "ტყაია → ალიანსი",
+      "de": "Tkaia → Alliance",
+      "fr": "Tkaïa → Alliance",
+      "zh": "特卡亚 → 阿利安斯"
+    }
+  },
+  {
+    "id": "zugdidi:static:route:21",
+    "number": "21",
+    "name": {
+      "en": "Abastumani → Alliance",
+      "ru": "Абастумани → Альянс",
+      "ka": "აბასთუმანი → ალიანსი",
+      "de": "Abastumani → Alliance",
+      "fr": "Abastoumani → Alliance",
+      "zh": "阿巴斯图马尼 → 阿利安斯"
+    }
+  },
+  {
+    "id": "zugdidi:static:route:23",
+    "number": "23",
+    "name": {
+      "en": "Railway Station → Tsatskhvi",
+      "ru": "Железнодорожный вокзал → Цацхви",
+      "ka": "რკინიგზის სადგური → ცაცხვი",
+      "de": "Bahnhof → Zazchwi",
+      "fr": "Gare ferroviaire → Tsatskhvi",
+      "zh": "火车站 → 察茨赫维"
+    }
+  },
+  {
+    "id": "zugdidi:static:route:24",
+    "number": "24",
+    "name": {
+      "en": "Anaklia → Zugdidi Bus Station",
+      "ru": "Анаклия → Автостанция Зугдиди",
+      "ka": "ანაკლია → ზუგდიდის ავტოსადგური",
+      "de": "Anaklia → Busbahnhof Sugdidi",
+      "fr": "Anaklia → Gare routière de Zougdidi",
+      "zh": "阿纳克利亚 → 祖格迪迪汽车站"
+    }
+  },
+  {
+    "id": "zugdidi:static:route:26",
+    "number": "26",
+    "name": {
+      "en": "Chkaduashi → Alliance",
+      "ru": "Чкадуаши → Альянс",
+      "ka": "ჭკადუაში → ალიანსი",
+      "de": "Tschkaduaschi → Alliance",
+      "fr": "Tchkadouachi → Alliance",
+      "zh": "奇卡杜阿希 → 阿利安斯"
+    }
+  }
+]

@@ -310,6 +310,21 @@ class BootstrapTransitSessionTest {
         }
     }
 
+    @Test
+    fun directRouteLinkUsesTheRequestedCityAndValidatesItsRoute() = runTest {
+        val requested = city("zugdidi")
+        val routeId = RouteId("zugdidi:route:24")
+        val store = FakeSelectedCityStore(snapshot = CachedCitySnapshot(city = city("batumi")))
+        val session = RuntimeTransitSession(store)
+        val repository = FakeRepository(cities = listOf(requested)).apply {
+            refreshResult = { TransitLoadResult.Data(listOf(catalogRoute(requested.id, routeId)), TransitFreshness.Network) }
+        }
+        val result = bootstrap(store, session, repository).bootstrap(requested.id, routeId)
+        assertEquals(BootstrapTransitSession.Result.OpenMap, result)
+        assertEquals(requested, session.selectedCity.value)
+        assertEquals(setOf(routeId), session.selectedRouteIds.value)
+    }
+
     private fun bootstrap(
         store: FakeSelectedCityStore = FakeSelectedCityStore(),
         session: RuntimeTransitSession = RuntimeTransitSession(store),

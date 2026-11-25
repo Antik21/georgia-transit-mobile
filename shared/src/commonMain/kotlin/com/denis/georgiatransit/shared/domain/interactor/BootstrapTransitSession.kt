@@ -5,6 +5,8 @@ import com.denis.georgiatransit.shared.core.telemetry.NoOpAppTelemetry
 import com.denis.georgiatransit.shared.core.telemetry.NonFatalIssue
 import com.denis.georgiatransit.shared.domain.config.RuntimeBootstrapConfiguration
 import com.denis.georgiatransit.shared.domain.config.RuntimeBootstrapConfigurationSource
+import com.denis.georgiatransit.shared.domain.model.CityId
+import com.denis.georgiatransit.shared.domain.model.RouteId
 import com.denis.georgiatransit.shared.domain.model.TransitCity
 import com.denis.georgiatransit.shared.domain.repository.CachedCitySnapshot
 import com.denis.georgiatransit.shared.domain.repository.RouteListRequest
@@ -26,7 +28,7 @@ class BootstrapTransitSession(
     private val runtimeConfigurationSource: RuntimeBootstrapConfigurationSource,
     private val telemetry: AppTelemetry = NoOpAppTelemetry,
 ) {
-    suspend fun bootstrap(): Result {
+    suspend fun bootstrap(requestedCity: CityId? = null, requestedRoute: RouteId? = null): Result {
         val runtimeConfiguration = when (val result = loadRuntimeConfiguration()) {
             is RuntimeConfigurationResult.Ready -> result.configuration
             is RuntimeConfigurationResult.Error -> {
@@ -38,25 +40,27 @@ class BootstrapTransitSession(
 
         // A first selection owns its catalog request so it can represent loading, empty, and
         // retryable failures in the City Selection UI instead of collapsing them into Splash.
-        // Bootstrap only validates a durable selection when one is available to restore.
-        if (cachedSelection == null) {
+        // A direct city link also needs the catalog before it can open the map.
+        if (cachedSelection == null && requestedCity == null) {
             session.clearSelectedCity()
             return Result.OpenCitySelection
         }
 
+        val targetCity = requestedCity ?: cachedSelection?.city?.id
+        val targetRoutes = if (requestedCity == null) cachedSelection?.selectedRouteIds.orEmpty() else setOfNotNull(requestedRoute)
         return try {
             val bootstrapStartedAt = TimeSource.Monotonic.markNow()
             val currentCities = withTimeout(runtimeConfiguration.bootstrapTimeoutMillis) {
                 repository.loadCityCapabilitySnapshot()
             }
-            val currentCity = currentCities.firstOrNull { it.id == cachedSelection.city.id && it.isMapEligible() }
+            val currentCity = currentCities.firstOrNull { it.id == targetCity && it.isMapEligible() }
 
             if (currentCity != null) {
                 session.restoreCitySelection(
                     city = currentCity,
-                    routeIds = reconcilePersistedRouteSelection(
+                    routeIds = validateRouteSelection(
                         city = currentCity,
-                        cachedSelection = cachedSelection,
+                        routeIds = targetRoutes,
                         timeoutMillis = (
                             runtimeConfiguration.bootstrapTimeoutMillis -
                                 bootstrapStartedAt.elapsedNow().inWholeMilliseconds
@@ -65,20 +69,21 @@ class BootstrapTransitSession(
                 )
                 Result.OpenMap
             } else {
-                clearInvalidSelection()
+                if (requestedCity == null) clearInvalidSelection()
                 Result.OpenCitySelection
             }
         } catch (_: TimeoutCancellationException) {
-            restoreOfflineOrError(cachedSelection, Failure.TimedOut)
+            restoreOfflineOrError(cachedSelection, requestedCity, Failure.TimedOut)
         } catch (failure: CancellationException) {
             throw failure
         } catch (failure: Throwable) {
             if (failure !is TransitRepositoryException) telemetry.recordNonFatal(NonFatalIssue.Startup)
-            restoreOfflineOrError(cachedSelection, Failure.Unavailable)
+            restoreOfflineOrError(cachedSelection, requestedCity, Failure.Unavailable)
         }
     }
 
-    private fun restoreOfflineOrError(cachedSelection: CachedCitySnapshot?, failure: Failure): Result {
+    private fun restoreOfflineOrError(cachedSelection: CachedCitySnapshot?, requestedCity: CityId?, failure: Failure): Result {
+        if (requestedCity != null && cachedSelection?.city?.id != requestedCity) return Result.Error(failure)
         val cachedCity = cachedSelection?.city
         if (cachedCity != null) {
             // The city snapshot is eligible for offline restoration, but route IDs are not: their
@@ -169,13 +174,12 @@ class BootstrapTransitSession(
      * indefinitely. A missing, stale, malformed, or failed route response restores the valid
      * city with an empty selection rather than exposing IDs that Map cannot resolve.
      */
-    private suspend fun reconcilePersistedRouteSelection(
+    private suspend fun validateRouteSelection(
         city: TransitCity,
-        cachedSelection: CachedCitySnapshot,
+        routeIds: Set<RouteId>,
         timeoutMillis: Long,
-    ): Set<com.denis.georgiatransit.shared.domain.model.RouteId> {
-        val persistedIds = cachedSelection.selectedRouteIds
-        if (!city.capabilities.routes || persistedIds.isEmpty() || timeoutMillis <= 0L) return emptySet()
+    ): Set<RouteId> {
+        if (!city.capabilities.routes || routeIds.isEmpty() || timeoutMillis <= 0L) return emptySet()
 
         return try {
             when (
@@ -190,7 +194,7 @@ class BootstrapTransitSession(
                     -> result.value
                         .takeIf { routes -> routes.all { it.cityId == city.id } }
                         ?.mapTo(mutableSetOf()) { it.id }
-                        ?.let(persistedIds::intersect)
+                        ?.let(routeIds::intersect)
                         .orEmpty()
 
                     TransitFreshness.StaleOffline -> emptySet()

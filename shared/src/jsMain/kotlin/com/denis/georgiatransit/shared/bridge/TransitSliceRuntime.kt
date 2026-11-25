@@ -19,6 +19,7 @@ import com.denis.georgiatransit.shared.domain.analytics.ProductAnalytics
 import com.denis.georgiatransit.shared.domain.analytics.loadAnalyticsDeviceId
 import com.denis.georgiatransit.shared.domain.interactor.BootstrapTransitSession
 import com.denis.georgiatransit.shared.domain.model.CityId
+import com.denis.georgiatransit.shared.domain.model.RouteId
 import com.denis.georgiatransit.shared.domain.model.TransitAttribution
 import com.denis.georgiatransit.shared.domain.model.TransitLocale
 import com.denis.georgiatransit.shared.domain.repository.TransitSession
@@ -60,7 +61,13 @@ class CityState(val status: String, val cities: Array<CityItem>, val selectedId:
 
 /** Owns browser bootstrap and navigation entry lifetimes. */
 @JsExport
-class TransitSliceRuntime(bffBaseUrl: String, languageTag: String? = null, telegramMiniApp: Boolean = false) {
+class TransitSliceRuntime(
+    bffBaseUrl: String,
+    languageTag: String? = null,
+    telegramMiniApp: Boolean = false,
+    private val initialCity: String? = null,
+    private val initialRoute: String? = null,
+) {
     private val language = languageTag?.substringBefore('-')?.lowercase().orEmpty()
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private val cityStore = ViewModelStore()
@@ -107,7 +114,7 @@ class TransitSliceRuntime(bffBaseUrl: String, languageTag: String? = null, teleg
         check(!closed && host == null)
         host = RuntimeHost(onDestination, onCityState)
         scope.launch {
-            when (koin.get<BootstrapTransitSession>().bootstrap()) {
+            when (koin.get<BootstrapTransitSession>().bootstrap(initialCity?.let(::CityId), initialRoute?.let(::RouteId))) {
                 BootstrapTransitSession.Result.OpenCitySelection -> navigate(NavigationEvent.ChangeCity)
                 is BootstrapTransitSession.Result.Error -> publishDestination("bootstrapError")
                 BootstrapTransitSession.Result.OpenMap -> navigate(NavigationEvent.CityConfirmed)

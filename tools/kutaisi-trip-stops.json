@@ -1,0 +1,265 @@
+{
+  "3": {
+    "id": "kutaisi:azry:route:MTpSMTMxOA",
+    "legs": [
+      [
+        {
+          "code": "244",
+          "en": "Z. Paliashvili Street N13",
+          "ka": "ზ. ფალიაშვილის ქუჩა N13"
+        },
+        {
+          "code": "28",
+          "en": "A. Tsereteli Street N2 \"karvasla\"",
+          "ka": "ა.წერეთლის ქუჩა N2 \"ქარვასლა\""
+        },
+        {
+          "code": "29",
+          "en": "A.Tsereteli Street N30",
+          "ka": "ა.წერეთლის ქუჩა N30"
+        },
+        {
+          "code": "404",
+          "en": "A.Tsereteli Street N66",
+          "ka": "ა.წერეთლის ქუჩა N66"
+        },
+        {
+          "code": "84",
+          "en": "A.Tsereteli Street N98",
+          "ka": "ა.წერეთლის ქუჩა N98"
+        },
+        {
+          "code": "269",
+          "en": "A. Tsereteli Street N162",
+          "ka": "ა. წერეთლის ქუჩა N162"
+        },
+        {
+          "code": "381",
+          "en": "A. Tsereteli Street N159",
+          "ka": "ა. წერეთლის ქუჩა N159"
+        },
+        {
+          "code": "270",
+          "en": "A. Tsereteli Street N186",
+          "ka": "ა. წერეთელის ქუჩა N186"
+        },
+        {
+          "code": "268",
+          "en": "A. Tsereteli Street N192",
+          "ka": "ა. წერეთლის ქუჩა N192"
+        },
+        {
+          "code": "218",
+          "en": "Akhalgazrdobis Avenue N44",
+          "ka": "ახალგაზრდობის გამზირი N44"
+        },
+        {
+          "code": "219",
+          "en": "Akhalgazrdobis Avenue N60",
+          "ka": "ახალგაზრდობის გამზირი N60"
+        },
+        {
+          "code": "221",
+          "en": "Akhalgazrdobis Avenue N86 A",
+          "ka": "ახალგაზრდობის გამზირი N86 \"ა\""
+        },
+        {
+          "code": "223",
+          "en": "Akhalgazrdobis Avenue N98",
+          "ka": "ახალგაზრდობის გამზირი N98"
+        },
+        {
+          "code": "225",
+          "en": "Akhalgazrdobis Avenue N102",
+          "ka": "ახალგაზრდობის გამზირი N102"
+        },
+        {
+          "code": "226",
+          "en": "\"Kutaisi International University\"",
+          "ka": "\"ქუთაისის საერთაშორისო უნივერსიტეტი\""
+        },
+        {
+          "code": "230",
+          "en": "Akhalgazrdobis Avenue 5th Lane, N15",
+          "ka": "ახალგაზრდობის გამზირი მე-5 შესახვევი N15"
+        },
+        {
+          "code": "232",
+          "en": "Akhalgazrdobis Avenue 5th Lane, N15 \"B\"",
+          "ka": "ახალგაზრდობის გამზ.მე-5 შესახვევი N15 \"ბ\""
+        },
+        {
+          "code": "231",
+          "en": "Akhalgazrdobis Avenue, 5th Lane,",
+          "ka": "ახალგაზრდობის გამზირი მე-5 შესახვევი"
+        },
+        {
+          "code": "229",
+          "en": "Akhalgazrdobis Avenue, 5th Lane",
+          "ka": "ახალგაზრდობის გამზირი მე-5 შესახვევი"
+        },
+        {
+          "code": "233",
+          "en": "V. Mayakovsky Alley N2",
+          "ka": "ვ. მაიაკოვსკის ხეივანი N2"
+        },
+        {
+          "code": "235",
+          "en": "V. Mayakovsky Alley N112",
+          "ka": "ვ. მაიაკოვსკის ხეივანი N112"
+        },
+        {
+          "code": "52",
+          "en": "Railway station \"Rioni\"",
+          "ka": "რკინიგზის სადგური \"რიონი\""
+        }
+      ],
+      [
+        {
+          "code": "52",
+          "en": "Railway station \"Rioni\"",
+          "ka": "რკინიგზის სადგური \"რიონი\""
+        },
+        {
+          "code": "236",
+          "en": "Akhalgazrdobis Avenue, 8th Lane, N1",
+          "ka": "ახალგაზრდობის გამზირი მე-8შესახვევი N1"
+        },
+        {
+          "code": "234",
+          "en": "V. Mayakovsky Alley N2",
+          "ka": "ვ. მაიკოვსკის ხეივანი N2"
+        },
+        {
+          "code": "245",
+          "en": "Akhalgazrdobis Me-5 Shesakhvevi",
+          "ka": "ახალგაზრდობის მე-5 შესახვევი"
+        },
+        {
+          "code": "227",
+          "en": "\"Kutaisi International University\"",
+          "ka": "\"ქუთაისი საერთაშორისო უნივერსიტეტი\""
+        },
+        {
+          "code": "48",
+          "en": "Akhalgazrdoba Avenue N21",
+          "ka": "ახალგაზრდობის გამზირი N21"
+        },
+        {
+          "code": "224",
+          "en": "Akhalgazrdobis Avenue N19",
+          "ka": "ახალგაზრდობის გამზირი N19"
+        },
+        {
+          "code": "222",
+          "en": "Akhalgazrdobis Avenue N21",
+          "ka": "ახალგაზრდობის გამზირი N21"
+        },
+        {
+          "code": "220",
+          "en": "Akhalgazrdobis Avenue N23",
+          "ka": "ახალგაზრდობის გამზირი N23"
+        },
+        {
+          "code": "364",
+          "en": "Akhalgazrdobis Avenue N12",
+          "ka": "ახალგაზრდობის გამზირი N12"
+        },
+        {
+          "code": "267",
+          "en": "A. Tsereteli Street N192",
+          "ka": "ა. წერეთლის ქუჩა N192"
+        },
+        {
+          "code": "271",
+          "en": "A. Tsereteli Street N163",
+          "ka": "ა. წერეთელის ქუჩა N163"
+        },
+        {
+          "code": "21",
+          "en": "12 public schools",
+          "ka": "12 საჯარო სკოლა"
+        },
+        {
+          "code": "22",
+          "en": "Station Square",
+          "ka": "სადგურის მოედანი"
+        },
+        {
+          "code": "23",
+          "en": "Tamar mepe Street N95",
+          "ka": "თამარ მეფის ქუჩა N95"
+        },
+        {
+          "code": "24",
+          "en": "Akaki Tsereteli State University",
+          "ka": "ა.წ სახელმწიფო უნივერსიტეტი"
+        },
+        {
+          "code": "25",
+          "en": "Tamar mepe Street N23",
+          "ka": "თამარ მეფის ქუჩა N23"
+        },
+        {
+          "code": "120",
+          "en": "Davit aghmasheneblis square",
+          "ka": "დავით აღმაშენებლის მოედანი"
+        },
+        {
+          "code": "244",
+          "en": "Z. Paliashvili Street N13",
+          "ka": "ზ. ფალიაშვილის ქუჩა N13"
+        }
+      ]
+    ]
+  },
+  "7": {
+    "id": "kutaisi:azry:route:MTpSMTQzNzU",
+    "legs": [
+      [
+        {
+          "code": "286",
+          "en": "Red bridge",
+          "ka": "წითელი ხიდი"
+        },
+        {
+          "code": "87",
+          "en": "Ice Rink",
+          "ka": "ყინულის მოედანი"
+        },
+        {
+          "code": "405",
+          "en": "Satapliis Mghvime",
+          "ka": "სათაფლიის მღვიმე"
+        }
+      ],
+      [
+        {
+          "code": "405",
+          "en": "Satapliis Mghvime",
+          "ka": "სათაფლიის მღვიმე"
+        },
+        {
+          "code": "57",
+          "en": "Ice Rink",
+          "ka": "\" ყინულის მოედანი\""
+        },
+        {
+          "code": "27",
+          "en": "Pirveli Skola",
+          "ka": "პირველი სკოლა"
+        },
+        {
+          "code": "120",
+          "en": "Davit aghmasheneblis square",
+          "ka": "დავით აღმაშენებლის მოედანი"
+        },
+        {
+          "code": "286",
+          "en": "Red bridge",
+          "ka": "წითელი ხიდი"
+        }
+      ]
+    ]
+  }
+}
