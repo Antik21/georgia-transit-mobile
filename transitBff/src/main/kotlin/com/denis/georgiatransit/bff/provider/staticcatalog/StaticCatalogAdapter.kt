@@ -35,7 +35,7 @@ internal enum class StaticCatalog(
     val center: GeoPoint,
     val area: MapArea,
     val provider: TelemetryProvider,
-    val sourceUrl: String,
+    val sourceUrl: String? = null,
 ) {
     Zugdidi(
         KnownCityIds.Zugdidi, GeoPoint(42.5088, 41.8662), MapArea.Zugdidi, TelemetryProvider.ZUGDIDI_STATIC,
@@ -43,7 +43,6 @@ internal enum class StaticCatalog(
     ),
     Borjomi(
         KnownCityIds.Borjomi, GeoPoint(41.8404, 43.3820), MapArea.Borjomi, TelemetryProvider.BORJOMI_STATIC,
-        "https://yandex.com/maps/155447/borjomi/transport/",
     ),
 }
 
@@ -75,9 +74,7 @@ internal class StaticCatalogAdapter(
             CityAvailability(CityReadiness.DEVELOPMENT_FIXTURE, CitySource.FIXTURE)
         },
         mapBounds = catalog.area.bounds,
-        attribution = listOf(
-            AttributionLink("yandex-maps", names.attribution, catalog.sourceUrl),
-        ),
+        attribution = listOfNotNull(catalog.sourceUrl?.let { AttributionLink("yandex-maps", names.attribution, it) }),
     )
 
     private val input = readCatalogDirections(csv).also { directions ->

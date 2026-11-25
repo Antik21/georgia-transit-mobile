@@ -9,14 +9,14 @@ for (const line of lines.slice(1)) {
   // The BFF catalog stores one stop per line. Quoted names may include commas.
   const fields = [...line.matchAll(/(?:^|,)(?:"((?:[^"]|"")*)"|([^",]*))(?=,|$)/g)]
     .map(match => (match[1] ?? match[2]).replaceAll('""', '"'));
-  const [route, direction, , , sequence, , name, , , url] = fields;
+  const [route, direction, , , sequence, , name] = fields;
   const key = route + "-" + direction;
   if (!directions.has(key)) directions.set(key, []);
   const stops = directions.get(key);
   if (fields.length !== 10 || !names[name] || Number(sequence) !== stops.length + 1) {
     throw new Error(`Invalid Borjomi stop in ${key}: ${line}`);
   }
-  stops.push({ name, url });
+  stops.push({ name });
 }
 
 export const borjomiTrips = [...new Set([...directions.keys()].map(key => key.split("-")[0]))];
@@ -63,7 +63,7 @@ export function borjomiCityPage(lang, esc) {
     <div class="city-hero__copy"><h1>${esc(title)}</h1><p>${esc(description)}</p>
       <div class="city-hero__actions"><a class="button city-guide__cta" data-analytics-platform="web" href="${map}">${button}</a>
       <a data-analytics-platform="telegram_mini_app" href="https://t.me/geo_transit_bot?startapp">${esc(linkTelegram)}</a></div></div>
-    <figure class="borjomi-diagram"><div class="diagram-lines"><img src="/assets/screens/borjomi-routes.webp" width="960" height="690" alt="${alt}">${markers}</div><figcaption>© Yandex Maps</figcaption></figure></div></section>
+    <figure class="borjomi-diagram"><div class="diagram-lines"><img src="/assets/screens/borjomi-routes.webp" width="960" height="690" alt="${alt}">${markers}</div></figure></div></section>
     <section class="wrap batumi-trips" id="routes"><h2>${routes}</h2><p>${caption}</p><div class="trip-grid">${cards}</div></section>
     <section class="wrap route-fare"><h2>${fare}</h2><p>${price}</p><a href="https://www.matsne.gov.ge/ka/document/download/6137986/0/ge/pdf">${decision}</a></section>`;
   return { title: title + " | Georgia Transit", description, main };
@@ -74,9 +74,9 @@ export function borjomiTripPage(route, lang, esc) {
   const city = translations[lang].borjomi;
   const sections = legs.map(stops => `<section><h2>${esc(stops[0].name)} → ${esc(stops.at(-1).name)}</h2>
     <details open><summary>${copy[lang][2]} (${stops.length})</summary><ol>${stops.map(stop =>
-      `<li><a href="${esc(stop.url)}">${esc(stop.name)}</a></li>`).join("")}</ol></details></section>`).join("\n");
+      `<li>${esc(stop.name)}</li>`).join("")}</ol></details></section>`).join("\n");
   const main = `<div class="wrap route-detail"><a href="${cityPagePath("borjomi", lang)}#routes">← ${esc(city)}</a>
     <h1>${esc(title)}</h1><p>${esc(counts)}</p><a class="button city-guide__cta" data-analytics-platform="web" href="${map}&amp;route=${encodeURIComponent("borjomi:static:route:" + route)}">${copy[lang][1]}</a>
-    <div class="trip-directions">${sections}</div><p>© Yandex Maps</p></div>`;
+    <div class="trip-directions">${sections}</div></div>`;
   return { title: `${title} | ${city} | Georgia Transit`, description: `${city} · ${title}. ${counts}.`, main };
 }
