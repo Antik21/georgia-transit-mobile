@@ -102,7 +102,7 @@ internal class BatumiThetaTransitProviderAdapter(
     override val telemetryProvider: TelemetryProvider = TelemetryProvider.BATUMI_THETA
     override val city = City(
         id = BatumiCityId,
-        name = LocalizedText(ru = "Батуми", en = "Batumi", ka = "ბათუმი"),
+        name = LocalizedText(ru = "Батуми", en = "Batumi", ka = "ბათუმი", th = "บาตูมี"),
         center = GeoPoint(41.6461, 41.6405),
         defaultZoom = 13.0,
         capabilities = CityCapabilities(

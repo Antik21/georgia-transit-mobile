@@ -3,7 +3,7 @@ package com.denis.georgiatransit.bff.api
 import io.ktor.server.application.ApplicationCall
 import java.time.Instant
 
-private val supportedLocales = setOf("ka", "en", "ru", "uk", "de", "fr", "ar", "hi", "zh")
+private val supportedLocales = setOf("ka", "en", "ru", "uk", "de", "fr", "ar", "hi", "zh", "th")
 
 fun ApplicationCall.pathCityId(): String =
     parameters["cityId"]?.takeIf(::isValidCityId)

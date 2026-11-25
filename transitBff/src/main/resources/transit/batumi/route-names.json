@@ -10,7 +10,8 @@
       "fr": "Boucle depuis la rue David le Bâtisseur (via la rue Roustavéli)",
       "ar": "خط دائري من شارع داويت البنّاء (عبر شارع روستافيلي)",
       "hi": "दावित अघमाशेनेबेली मार्ग से परिक्रमा (रुस्तावेली मार्ग से होकर)",
-      "zh": "大卫建造者街环线（经鲁斯塔韦利街）"
+      "zh": "大卫建造者街环线（经鲁斯塔韦利街）",
+      "th": "สายวงแหวนถนนดาวิต อักมาเชเนเบลี (ผ่านถนนรุสตาเวลี)"
     }
   },
   "batumi:theta:route:NjQ4OTk0ODc5MzI3YzcyODIwMGIzZjUy": {
@@ -24,7 +25,8 @@
       "fr": "Boucle depuis la rue David le Bâtisseur (via la rue Lermontov)",
       "ar": "خط دائري من شارع داويت البنّاء (عبر شارع ليرمونتوف)",
       "hi": "दावित अघमाशेनेबेली मार्ग से परिक्रमा (लेर्मोंतोव मार्ग से होकर)",
-      "zh": "大卫建造者街环线（经莱蒙托夫街）"
+      "zh": "大卫建造者街环线（经莱蒙托夫街）",
+      "th": "สายวงแหวนถนนดาวิต อักมาเชเนเบลี (ผ่านถนนเลร์มอนตอฟ)"
     }
   },
   "batumi:theta:route:NWVkMmJkNGY2NTc3ODRiNWE5OGE4Yzdl": {
@@ -38,7 +40,8 @@
       "fr": "Rue Adlia — Akhalchéni",
       "ar": "شارع أدليا — أخالشيني",
       "hi": "अदलिया मार्ग — अखालशेनी",
-      "zh": "阿德利亚街 — 阿哈尔舍尼"
+      "zh": "阿德利亚街 — 阿哈尔舍尼",
+      "th": "ถนนอัดเลีย — อาคัลเชนี"
     }
   },
   "batumi:theta:route:NWVkNjA3N2MzNDBmNjA4NzNmZjllMWJl": {
@@ -52,7 +55,8 @@
       "fr": "Rue Adlia — Akhalchéni (via le Nouveau boulevard)",
       "ar": "شارع أدليا — أخالشيني (عبر الجادة الجديدة)",
       "hi": "अदलिया मार्ग — अखालशेनी (नए बुलेवार्ड से होकर)",
-      "zh": "阿德利亚街 — 阿哈尔舍尼（经新大道）"
+      "zh": "阿德利亚街 — 阿哈尔舍尼（经新大道）",
+      "th": "ถนนอัดเลีย — อาคัลเชนี (ผ่านนิวบูเลอวาร์ด)"
     }
   },
   "batumi:theta:route:NWVkNjA4NjUzNDBmNjA4NzNmZjllMWJm": {
@@ -66,7 +70,8 @@
       "fr": "Rue d’Abkhazie — Nouveau boulevard",
       "ar": "شارع أبخازيا — الجادة الجديدة",
       "hi": "अब्खाज़ेती मार्ग — नया बुलेवार्ड",
-      "zh": "阿布哈兹街 — 新大道"
+      "zh": "阿布哈兹街 — 新大道",
+      "th": "ถนนอับคาเซตี — นิวบูเลอวาร์ด"
     }
   },
   "batumi:theta:route:NjdhZTM2MDdlMzdmMGVjZjgwMzIwNjhm": {
@@ -80,7 +85,8 @@
       "fr": "Rue David le Bâtisseur — Rue Svichevski",
       "ar": "شارع داويت البنّاء — شارع سفيشيفسكي",
       "hi": "दावित अघमाशेनेबेली मार्ग — स्विशेव्स्की मार्ग",
-      "zh": "大卫建造者街 — 斯维舍夫斯基街"
+      "zh": "大卫建造者街 — 斯维舍夫斯基街",
+      "th": "ถนนดาวิต อักมาเชเนเบลี — ถนนสวิเชฟสกี"
     }
   },
   "batumi:theta:route:NWY5ZjA3MDRlYjcxNDMwM2VmY2U1NjMx": {
@@ -94,7 +100,8 @@
       "fr": "Rue Lado Assatiani — Bouknari",
       "ar": "شارع لادو أساتياني — بوكناري",
       "hi": "लादो असातियानी मार्ग — बुकनारी",
-      "zh": "拉多·阿萨蒂阿尼街 — 布克纳里"
+      "zh": "拉多·阿萨蒂阿尼街 — 布克纳里",
+      "th": "ถนนลาโด อาซาเตียนี — บุคนารี"
     }
   },
   "batumi:theta:route:Njc0MDM0N2RkMDRkM2EwNGMzNWQ4NGU0": {
@@ -108,7 +115,8 @@
       "fr": "Boucle depuis la rue David le Bâtisseur (via le stade du Dinamo)",
       "ar": "خط دائري من شارع داويت البنّاء (عبر ملعب دينامو)",
       "hi": "दावित अघमाशेनेबेली मार्ग से परिक्रमा (दिनामो स्टेडियम से होकर)",
-      "zh": "大卫建造者街环线（经迪纳摩体育场）"
+      "zh": "大卫建造者街环线（经迪纳摩体育场）",
+      "th": "สายวงแหวนถนนดาวิต อักมาเชเนเบลี (ผ่านสนามกีฬาดินาโม)"
     }
   },
   "batumi:theta:route:Njc0MDJlMDFkMDRkM2EwNGMzNWQ4NGMy": {
@@ -122,7 +130,8 @@
       "fr": "Boucle depuis la rue David le Bâtisseur (via la rue Khakhouli)",
       "ar": "خط دائري من شارع داويت البنّاء (عبر شارع خاخولي)",
       "hi": "दावित अघमाशेनेबेली मार्ग से परिक्रमा (खाखुली मार्ग से होकर)",
-      "zh": "大卫建造者街环线（经哈胡利街）"
+      "zh": "大卫建造者街环线（经哈胡利街）",
+      "th": "สายวงแหวนถนนดาวิต อักมาเชเนเบลี (ผ่านถนนคาคูลี)"
     }
   },
   "batumi:theta:route:NWVkNjBhYTUzNDBmNjA4NzNmZjllMWM0": {
@@ -136,7 +145,8 @@
       "fr": "Rue David le Bâtisseur — Makhindjaouri",
       "ar": "شارع داويت البنّاء — ماخينجاوري",
       "hi": "दावित अघमाशेनेबेली मार्ग — माखिनजाउरी",
-      "zh": "大卫建造者街 — 马欣贾乌里"
+      "zh": "大卫建造者街 — 马欣贾乌里",
+      "th": "ถนนดาวิต อักมาเชเนเบลี — มาคินจาอูรี"
     }
   },
   "batumi:theta:route:NmFjNjk4NDJhMzFmNTk2MGI5OWIyYmZl": {
@@ -150,7 +160,8 @@
       "fr": "Rue Djémal Katamadzé — Rue Ivané Meskhi",
       "ar": "شارع جمال كاتامادزه — شارع إيفاني ميسخي",
       "hi": "जेमाल कातामाद्ज़े मार्ग — इवाने मेस्खी मार्ग",
-      "zh": "杰马尔·卡塔马泽街 — 伊瓦内·梅斯希街"
+      "zh": "杰马尔·卡塔马泽街 — 伊瓦内·梅斯希街",
+      "th": "ถนนเจมัล คาตามัดเซ — ถนนอิวาเน เมสคี"
     }
   },
   "batumi:theta:route:NjQ5MDFjOTZlMjViNDBjNmUyMTUwYjM0": {
@@ -164,7 +175,8 @@
       "fr": "Aéroport — Jardin botanique",
       "ar": "المطار — الحديقة النباتية",
       "hi": "हवाई अड्डा — बोटैनिकल गार्डन",
-      "zh": "机场 — 植物园"
+      "zh": "机场 — 植物园",
+      "th": "สนามบิน — สวนพฤกษศาสตร์"
     }
   },
   "batumi:theta:route:NWVkNjBiZTMzNDBmNjA4NzNmZjllMWM2": {
@@ -178,7 +190,8 @@
       "fr": "Aéroport — Sakhalvacho",
       "ar": "المطار — ساخالفاشو",
       "hi": "हवाई अड्डा — साखालवाशो",
-      "zh": "机场 — 萨哈尔瓦绍"
+      "zh": "机场 — 萨哈尔瓦绍",
+      "th": "สนามบิน — ซาคัลวาโช"
     }
   },
   "batumi:theta:route:Njk0MWMxMDBmMTQxYjE4NjFjMzk1OGEw": {
@@ -192,7 +205,8 @@
       "fr": "Rue David le Bâtisseur — Rue de Péria",
       "ar": "شارع داويت البنّاء — شارع بيريا",
       "hi": "दावित अघमाशेनेबेली मार्ग — पेरिया मार्ग",
-      "zh": "大卫建造者街 — 佩里亚街"
+      "zh": "大卫建造者街 — 佩里亚街",
+      "th": "ถนนดาวิต อักมาเชเนเบลี — ถนนเปเรีย"
     }
   },
   "batumi:theta:route:NWVkNjBkNzAzNDBmNjA4NzNmZjllMWM4": {
@@ -206,7 +220,8 @@
       "fr": "Gare routière de Batoumi — Pont de Makho",
       "ar": "محطة حافلات باتومي — جسر ماخو",
       "hi": "बाटुमी बस अड्डा — माखो पुल",
-      "zh": "巴统汽车站 — 马霍桥"
+      "zh": "巴统汽车站 — 马霍桥",
+      "th": "สถานีขนส่งบาตูมี — สะพานมาโค"
     }
   },
   "batumi:theta:route:NjQ4OTk2YzY5MzI3YzcyODIwMGIzZjYz": {
@@ -220,7 +235,8 @@
       "fr": "Rue Mikhaïl Lermontov — Téléphérique",
       "ar": "شارع ميخائيل ليرمونتوف — التلفريك",
       "hi": "मिखाइल लेर्मोंतोव मार्ग — केबल कार",
-      "zh": "米哈伊尔·莱蒙托夫街 — 缆车"
+      "zh": "米哈伊尔·莱蒙托夫街 — 缆车",
+      "th": "ถนนมิคาอิล เลร์มอนตอฟ — สถานีกระเช้าลอยฟ้า"
     }
   },
   "batumi:theta:route:NjE1MTgyZTk1ZGMxODZjYWQ4NmUwZmQy": {
@@ -234,7 +250,8 @@
       "fr": "École publique n° 20 — Nouveau boulevard",
       "ar": "المدرسة الحكومية رقم 20 — الجادة الجديدة",
       "hi": "सरकारी विद्यालय संख्या 20 — नया बुलेवार्ड",
-      "zh": "第二十公立学校 — 新大道"
+      "zh": "第二十公立学校 — 新大道",
+      "th": "โรงเรียนรัฐหมายเลข 20 — นิวบูเลอวาร์ด"
     }
   },
   "batumi:theta:route:NWVkNjBlOTczNDBmNjA4NzNmZjllMWNi": {
@@ -248,7 +265,8 @@
       "fr": "Zédaghéli — Bartskhana",
       "ar": "زيداغيلي — بارتسخانا",
       "hi": "ज़ेदाघेली — बार्त्सख़ाना",
-      "zh": "泽达盖利 — 巴尔茨哈纳"
+      "zh": "泽达盖利 — 巴尔茨哈纳",
+      "th": "เซดาเกลี — บาร์ตสคานา"
     }
   },
   "batumi:theta:route:NWVkNjBmMzIzNDBmNjA4NzNmZjllMWNj": {
@@ -262,7 +280,8 @@
       "fr": "Gare routière de Batoumi — Sarpi",
       "ar": "محطة حافلات باتومي — ساربي",
       "hi": "बाटुमी बस अड्डा — सारपी",
-      "zh": "巴统汽车站 — 萨尔皮"
+      "zh": "巴统汽车站 — 萨尔皮",
+      "th": "สถานีขนส่งบาตูมี — ซาร์ปี"
     }
   },
   "batumi:theta:route:Njc1YmY1Yjk2MGIwMGY4ZGIxOTY1YTUy": {
@@ -276,7 +295,8 @@
       "fr": "Rue David le Bâtisseur — Quartier Tamar",
       "ar": "شارع داويت البنّاء — حي تمار",
       "hi": "दावित अघमाशेनेबेली मार्ग — तामार बस्ती",
-      "zh": "大卫建造者街 — 塔玛尔居民区"
+      "zh": "大卫建造者街 — 塔玛尔居民区",
+      "th": "ถนนดาวิต อักมาเชเนเบลี — ชุมชนทามาร์"
     }
   },
   "batumi:theta:route:NjZkZTkxZDk4MGRmMTEzMjRmMTU1NzUx": {
@@ -290,7 +310,8 @@
       "fr": "Place de Tbilissi — Kvariati",
       "ar": "ساحة تبليسي — كفارياتي",
       "hi": "त्बिलिसी चौक — क्वारियाती",
-      "zh": "第比利斯广场 — 克瓦里亚蒂"
+      "zh": "第比利斯广场 — 克瓦里亚蒂",
+      "th": "จัตุรัสทบิลิซี — ควาเรียตี"
     }
   },
   "batumi:theta:route:Njk0MjkzMDFmMTQxYjE4NjFjMzk1YmVj": {
@@ -304,7 +325,8 @@
       "fr": "Indjalo — Montée Chervachidzé",
       "ar": "إنجالو — طلعة شيرفاشيدزه",
       "hi": "इंजालो — शेरवाशिद्ज़े चढ़ाई",
-      "zh": "因贾洛 — 舍尔瓦希泽坡道"
+      "zh": "因贾洛 — 舍尔瓦希泽坡道",
+      "th": "อินจาโล — ทางขึ้นเชร์วาชิดเซ"
     }
   },
   "batumi:theta:route:NjdkOTJhYzcxOWJhOTNiOTc3YjgzZGY0": {
@@ -318,7 +340,8 @@
       "fr": "Gare routière de Batoumi — Makhvilaouri",
       "ar": "محطة حافلات باتومي — ماخفيلاوري",
       "hi": "बाटुमी बस अड्डा — माखविलाउरी",
-      "zh": "巴统汽车站 — 马赫维劳里"
+      "zh": "巴统汽车站 — 马赫维劳里",
+      "th": "สถานีขนส่งบาตูมี — มาควิลาอูรี"
     }
   },
   "batumi:theta:route:NjdkOTUyMjExOWJhOTNiOTc3YjgzZTZm": {
@@ -332,7 +355,8 @@
       "fr": "Gare routière de Batoumi — Todogaouri",
       "ar": "محطة حافلات باتومي — تودوغاوري",
       "hi": "बाटुमी बस अड्डा — तोदोगाउरी",
-      "zh": "巴统汽车站 — 托多高里"
+      "zh": "巴统汽车站 — 托多高里",
+      "th": "สถานีขนส่งบาตูมี — โตโดกาอูรี"
     }
   },
   "batumi:theta:route:NjcyNGFmMzVjYWJhYzU0ODZiYWViNjI1": {
@@ -346,7 +370,8 @@
       "fr": "Rue David le Bâtisseur — Bouknari",
       "ar": "شارع داويت البنّاء — بوكناري",
       "hi": "दावित अघमाशेनेबेली मार्ग — बुकनारी",
-      "zh": "大卫建造者街 — 布克纳里"
+      "zh": "大卫建造者街 — 布克纳里",
+      "th": "ถนนดาวิต อักมาเชเนเบลี — บุคนารี"
     }
   },
   "batumi:theta:route:NjdkYTYxNzdmMGVjN2UxZjE4YjAwMjUy": {
@@ -360,7 +385,8 @@
       "fr": "Gare routière de Batoumi — Kvariati (Rue des Lazes)",
       "ar": "محطة حافلات باتومي — كفارياتي (شارع لازي)",
       "hi": "बाटुमी बस अड्डा — क्वारियाती (लाज़ी मार्ग)",
-      "zh": "巴统汽车站 — 克瓦里亚蒂（拉兹街）"
+      "zh": "巴统汽车站 — 克瓦里亚蒂（拉兹街）",
+      "th": "สถานีขนส่งบาตูมี — ควาเรียตี (ถนนลาซี)"
     }
   },
   "batumi:theta:route:NjkzNjc5YzhmMTQxYjE4NjFjMzkzMTE1": {
@@ -374,7 +400,8 @@
       "fr": "Rue du Prêtre-Tevdoré — Gare routière de Batoumi",
       "ar": "شارع الكاهن تيفدوري — محطة حافلات باتومي",
       "hi": "पादरी तेवदोरे मार्ग — बाटुमी बस अड्डा",
-      "zh": "特夫多雷神父街 — 巴统汽车站"
+      "zh": "特夫多雷神父街 — 巴统汽车站",
+      "th": "ถนนเทฟโดเรนักบวช — สถานีขนส่งบาตูมี"
     }
   },
   "batumi:theta:route:NjllNzViMTA4NTc4OTU1NGNmYWIwN2Q0": {
@@ -388,7 +415,8 @@
       "fr": "Place de Tbilissi — Bains de soufre",
       "ar": "ساحة تبليسي — الحمامات الكبريتية",
       "hi": "त्बिलिसी चौक — गंधक के स्नानघर",
-      "zh": "第比利斯广场 — 硫磺浴场"
+      "zh": "第比利斯广场 — 硫磺浴场",
+      "th": "จัตุรัสทบิลิซี — บ่อน้ำร้อนกำมะถัน"
     }
   }
 }

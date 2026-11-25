@@ -37,7 +37,7 @@ internal fun azryDirectionId(route: String, pattern: String): String =
 
 internal fun azryLocale(locale: String): String = if (locale == "ka") "ka" else "en"
 
-internal fun azryText(value: String): LocalizedText = LocalizedText(ru = value, en = value, ka = value)
+internal fun azryText(value: String): LocalizedText = LocalizedText(ru = value, en = value, ka = value, th = KutaisiRouteNames.thaiLabel(value))
 
 internal fun invalidAzry(): Nothing = throw ProviderNormalizedSchemaFailure("AZRY returned invalid transit data")
 
@@ -113,17 +113,23 @@ private fun AzryRoute.normalized(summary: AzryRoute): Route {
     val directions = patterns.sortedBy { it.patternSuffix != defaultPatternSuffix }.map { pattern ->
         val terminal = pattern.lastStop.name.ifBlank { summary.shortName }
         val origin = pattern.firstStop.name.ifBlank { summary.shortName }
+        val thaiOrigin = KutaisiRouteNames.thaiLabel(origin)
+        val thaiTerminal = KutaisiRouteNames.thaiLabel(terminal)
         Direction(
             id = azryDirectionId(id, pattern.patternSuffix),
-            name = azryText("$origin → $terminal"),
+            name = azryText("$origin → $terminal").copy(
+                th = if (thaiOrigin != null && thaiTerminal != null) "$thaiOrigin → $thaiTerminal" else null,
+            ),
             headsign = azryText(pattern.headsign.orEmpty().ifBlank { terminal }),
         )
     }
+    val publicId = azryPublicId(PublicEntityType.Route, id)
+    val providerName = azryText(summary.longName.orEmpty().ifBlank { summary.shortName })
     return Route(
-        id = azryPublicId(PublicEntityType.Route, id),
+        id = publicId,
         providerId = azrySuffix(id),
         shortName = summary.shortName,
-        longName = azryText(summary.longName.orEmpty().ifBlank { summary.shortName }),
+        longName = providerName.copy(th = KutaisiRouteNames.name(publicId, summary.shortName)?.th),
         color = color?.takeIf(AzryColor::matches)?.let { "#$it" } ?: "#11518A",
         textColor = "#FFFFFF",
         mode = TransitModeValues.Bus,

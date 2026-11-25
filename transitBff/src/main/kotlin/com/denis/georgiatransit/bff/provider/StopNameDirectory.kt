@@ -47,7 +47,7 @@ internal class StopNameDirectory(
     ) {
         init {
             require(code.isNotBlank() && source.startsWith("https://"))
-            val names = listOf(name.ru, name.en, name.ka, name.uk, name.de, name.fr, name.ar, name.hi, name.zh)
+            val names = listOf(name.ru, name.en, name.ka, name.uk, name.de, name.fr, name.ar, name.hi, name.zh, name.th)
             require(names.all { !it.isNullOrBlank() && it == it.trim() })
         }
     }

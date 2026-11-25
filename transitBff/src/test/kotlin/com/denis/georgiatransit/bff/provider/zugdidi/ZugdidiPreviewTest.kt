@@ -43,7 +43,7 @@ class ZugdidiPreviewTest {
             )
             testApplication {
                 application { transitBffModule(BffConfig.fromEnvironment(mapOf("BFF_ZUGDIDI_PREVIEW_CSV" to csv.toString()))) }
-                val locales = listOf("ru", "en", "ka", "uk", "de", "fr", "ar", "hi", "zh")
+                val locales = listOf("ru", "en", "ka", "uk", "de", "fr", "ar", "hi", "zh", "th")
                 val base = "/v1/cities/zugdidi/routes"
                 for (locale in locales) {
                     val response = client.get("$base?locale=$locale")

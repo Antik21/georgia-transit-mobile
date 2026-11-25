@@ -28,7 +28,7 @@ internal class KutaisiOsmTransitProviderAdapter : CityTransitProviderAdapter {
 
     override val city = City(
         id = KnownCityIds.Kutaisi,
-        name = LocalizedText(ru = "Кутаиси", en = "Kutaisi", ka = "ქუთაისი"),
+        name = LocalizedText(ru = "Кутаиси", en = "Kutaisi", ka = "ქუთაისი", th = "คูไตซี"),
         center = GeoPoint(latitude = 42.271608, longitude = 42.705448),
         defaultZoom = 15.25,
         capabilities = CityCapabilities(

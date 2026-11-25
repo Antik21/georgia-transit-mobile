@@ -98,9 +98,9 @@ paths:
                   description: Language changes supply previousLanguage. Platform clicks supply targetPlatform.
                   properties:
                     action: {type: string, enum: [page_viewed, language_changed, platform_clicked]}
-                    language: {type: string, enum: [en, ka, ru, zh-Hans, fr, de]}
+                    language: {type: string, enum: [en, ka, ru, zh-Hans, fr, de, th]}
                     eventId: {type: string, format: uuid}
-                    previousLanguage: {type: string, enum: [en, ka, ru, zh-Hans, fr, de]}
+                    previousLanguage: {type: string, enum: [en, ka, ru, zh-Hans, fr, de, th]}
                     targetPlatform: {type: string, enum: [web, telegram_mini_app, android, ios]}
       responses:
         '204':
@@ -142,7 +142,7 @@ paths:
         Georgian is used when lang is omitted. All tile and glyph URLs point to the
         BFF. Tiles are restricted to active city coverage.
       parameters:
-        - {name: lang, in: query, schema: {type: string, enum: [ka, ru, en], default: ka}}
+        - {name: lang, in: query, schema: {type: string, enum: [ka, ru, en, th], default: ka}}
       responses:
         '200':
           description: MapLibre style JSON.
@@ -504,7 +504,7 @@ components:
     StopId: {name: stopId, in: path, required: true, schema: {$ref: '#/components/schemas/StopId'}}
     RouteIdQuery: {name: routeId, in: query, required: true, schema: {$ref: '#/components/schemas/RouteId'}}
     DirectionIdQuery: {name: directionId, in: query, required: false, schema: {$ref: '#/components/schemas/DirectionId'}}
-    Locale: {name: locale, in: query, required: false, schema: {type: string, enum: [ka, en, ru, uk, de, fr, ar, hi, zh], default: en}}
+    Locale: {name: locale, in: query, required: false, schema: {type: string, enum: [ka, en, ru, uk, de, fr, ar, hi, zh, th], default: en}}
     Mode: {name: mode, in: query, required: false, schema: {type: string, enum: [bus, metro, tram, ferry]}}
     IfNoneMatch: {name: If-None-Match, in: header, required: false, schema: {type: string}}
     Latitude: {name: lat, in: query, required: true, schema: {type: number, minimum: -90, maximum: 90}}
@@ -567,6 +567,7 @@ components:
         ar: {type: string}
         hi: {type: string}
         zh: {type: string}
+        th: {type: string}
     GeoPoint:
       type: object
       description: WGS84 coordinate.
@@ -793,7 +794,7 @@ components:
           maximum: 600
           default: 60
           description: Extra time after reaching the next boarding stop when transferring from another ride.
-        locale: {type: string, enum: [ka, en, ru, uk, de, fr, ar, hi, zh]}
+        locale: {type: string, enum: [ka, en, ru, uk, de, fr, ar, hi, zh, th]}
     Journey:
       type: object
       description: >-
@@ -867,7 +868,7 @@ components:
       properties:
         from: {$ref: '#/components/schemas/GeoPoint'}
         to: {$ref: '#/components/schemas/GeoPoint'}
-        locale: {type: string, enum: [ka, en, ru, uk, de, fr, ar, hi, zh]}
+        locale: {type: string, enum: [ka, en, ru, uk, de, fr, ar, hi, zh, th]}
     WalkingEstimate:
       type: object
       description: Normalized direct walking result. It intentionally omits coordinates, geometry, and provider details.

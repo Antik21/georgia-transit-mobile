@@ -24,7 +24,7 @@ internal fun Route.mapRoutes(mapProxy: MapProxy, kutaisiMapEnabled: () -> Boolea
     get("/v1/map/style.json") {
         call.markHttpOperation(HttpOperation.MAP_STYLE)
         val language = call.request.queryParameters["lang"]?.let {
-            MapLabelLanguage.fromCode(it) ?: throw InvalidArgument("map language must be ka, ru, or en")
+            MapLabelLanguage.fromCode(it) ?: throw InvalidArgument("map language must be ka, ru, en, or th")
         } ?: MapLabelLanguage.Georgian
         call.response.header(HttpHeaders.CacheControl, "public, max-age=300")
         call.respondText(mapProxy.styleJson(language, kutaisiMapEnabled()), ContentType.Application.Json)

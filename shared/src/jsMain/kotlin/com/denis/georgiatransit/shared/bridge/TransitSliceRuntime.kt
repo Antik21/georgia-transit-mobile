@@ -206,6 +206,7 @@ class TransitSliceRuntime(
         val locale = when (language) {
             "ka" -> TransitLocale.Georgian
             "ru" -> TransitLocale.Russian
+            "th" -> TransitLocale.Thai
             else -> TransitLocale.English
         }
         if (locale != TransitLocale.English) vm.dispatchAction(MapAction.LocaleChanged(locale))

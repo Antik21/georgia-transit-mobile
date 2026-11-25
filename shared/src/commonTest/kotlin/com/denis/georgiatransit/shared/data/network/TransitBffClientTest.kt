@@ -48,13 +48,14 @@ class TransitBffClientTest {
         val client = TransitBffClient(mockHttpClient { request ->
             assertEquals("ar", request.url.parameters["locale"])
             jsonResponse(
-                """[{"id":"batumi:theta:stop:one","providerId":"one","code":"1047","name":{"ru":"Цирк","en":"Circus","ka":"ცირკი","ar":"السيرك"},"position":{"latitude":41.65,"longitude":41.64},"routeIds":[],"mode":"bus"}]""",
+                """[{"id":"batumi:theta:stop:one","providerId":"one","code":"1047","name":{"ru":"Цирк","en":"Circus","ka":"ცირკი","ar":"السيرك","th":"คณะละครสัตว์"},"position":{"latitude":41.65,"longitude":41.64},"routeIds":[],"mode":"bus"}]""",
             )
         }, endpoint())
         val locale = TransitLocale.fromLanguageTag("ar-EG")
         val result = client.nearbyStops(CityId("batumi"), GeoPoint(41.65, 41.64), 100, 2, locale)
         val name = assertIs<TransitLoadResult.Data<List<TransitStop>>>(result).value.single().name
         assertEquals("السيرك", name.forLocale(locale))
+        assertEquals("คณะละครสัตว์", name.forLocale(TransitLocale.fromLanguageTag("th-TH")))
         assertEquals("Circus", name.forLocale(TransitLocale.fromLanguageTag("zh-Hans")))
         assertEquals("ცირკი", name.forLocale(TransitLocale.fromLanguageTag("ka-GE")))
     }

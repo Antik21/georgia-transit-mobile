@@ -2,10 +2,12 @@ import { readFileSync } from "node:fs";
 
 // Canonical route IDs and direction names from the production Transit BFF, 2026-11-25.
 const routeCatalogs = Object.fromEntries(["batumi", "kutaisi", "zugdidi"].map(city => [
-  city, JSON.parse(readFileSync(new URL(`./${city}-routes.json`, import.meta.url), "utf8")),
+  city, JSON.parse(readFileSync(new URL(city === "kutaisi"
+    ? "../transitBff/src/main/resources/transit/kutaisi/route-names.json" : `./${city}-routes.json`, import.meta.url), "utf8")),
 ]));
 
 const labels = {
+  th: ["เปิดแผนที่รถบัสบาตูมี", "เส้นทางรถบัสบาตูมี", "เส้นทางเพิ่มเติม", "ค่าโดยสารและการชำระเงิน", "0.70 ลารี", "ค่าโดยสารมาตรฐานพร้อมบัตรเดินทางแบบโหลดซ้ำได้ ซึ่งออกให้ฟรี คุณยังสามารถแตะบัตรธนาคารแบบไร้สัมผัสหรือโทรศัพท์ด้วยบัตรใน Apple Pay หรือ Google Pay ได้อีกด้วย Bank of Georgia ยืนยันสิ่งนี้สำหรับบัตร Visa และ Mastercard", "การตัดสินใจค่าโดยสารเมือง", "บัตรเดินทาง", "ตรวจสอบเมื่อ 25 พฤศจิกายน 2569"],
   en: ["Open the Batumi bus map", "Batumi bus routes", "More routes", "Fare and payment", "0.70 GEL", "Standard fare with a reloadable travel card, issued free of charge. You can also tap a contactless bank card or a phone with the card in Apple Pay or Google Pay. Bank of Georgia confirms this for its Visa and Mastercard cards.", "City fare decision", "Travel card", "Checked 25 November 2026"],
   ru: ["Открыть карту автобусов Батуми", "Маршруты автобусов Батуми", "Ещё маршруты", "Проезд и оплата", "0,70 ₾", "Стандартный тариф по пополняемой транспортной карте. Саму карту выдают бесплатно. Можно также приложить к валидатору бесконтактную банковскую карту или телефон с картой в Apple Pay или Google Pay. Bank of Georgia подтверждает оба способа для своих Visa и Mastercard.", "Постановление о тарифе", "Как получить карту", "Проверено 25 ноября 2026"],
   ka: ["ბათუმის ავტობუსების რუკის გახსნა", "ბათუმის ავტობუსების მარშრუტები", "სხვა მარშრუტები", "მგზავრობის საფასური და გადახდა", "0,70 ₾", "სტანდარტული ტარიფი შევსებადი სატრანსპორტო ბარათით მგზავრობისას. ბარათი უფასოდ გაიცემა. ვალიდატორზე ასევე შეგიძლიათ მიადოთ უკონტაქტო საბანკო ბარათი ან ტელეფონი, თუ ბარათი Apple Pay-ში ან Google Pay-ში გაქვთ დამატებული. საქართველოს ბანკი ორივე მეთოდს თავისი Visa და Mastercard ბარათებისთვის ადასტურებს.", "დადგენილება ტარიფის შესახებ", "სატრანსპორტო ბარათი", "გადამოწმებულია 2026 წლის 25 ნოემბერს"],
@@ -15,6 +17,7 @@ const labels = {
 };
 
 const kutaisiCopy = {
+  th: ["เปิดแผนที่รถบัส คูไตซี", "เส้นทางรถเมล์คูไตซี", "0.60 ลารี", "อัตราค่าโดยสารมาตรฐานเทศบาล แตะ Bank of Georgia Visa หรือ Mastercard ที่เครื่องอ่าน หรือใช้บัตรใบเดียวกันใน Apple Pay หรือ Google Pay"],
   en: ["Open the Kutaisi bus map", "Kutaisi bus routes", "0.60 GEL", "Standard municipal bus fare. Tap a Bank of Georgia Visa or Mastercard at the reader, or use the same card in Apple Pay or Google Pay."],
   ru: ["Открыть карту автобусов Кутаиси", "Маршруты автобусов Кутаиси", "0,60 ₾", "Обычный тариф на городских автобусах. Приложите к валидатору Visa или Mastercard от Bank of Georgia либо телефон с этой картой в Apple Pay или Google Pay."],
   ka: ["ქუთაისის ავტობუსების რუკის გახსნა", "ქუთაისის ავტობუსების მარშრუტები", "0,60 ₾", "მუნიციპალური ავტობუსით მგზავრობის სტანდარტული ტარიფი. ვალიდატორს მიადეთ საქართველოს ბანკის Visa ან Mastercard ბარათი ან ტელეფონი, თუ ეს ბარათი Apple Pay-ში ან Google Pay-ში გაქვთ დამატებული."],
@@ -24,6 +27,7 @@ const kutaisiCopy = {
 };
 
 const zugdidiCopy = {
+  th: ["เปิดแผนที่รถบัส ซุกดิดี", "เส้นทางรถเมล์ ซุกดิดี", "0.80 ลารี", "ค่านั่งรถบัสในเมืองราคา 0.80 GEL เส้นทางไปยังหมู่บ้านราคา 1 หรือ 1.50 GEL ขึ้นอยู่กับเส้นทาง คุณสามารถชำระเงินด้วย Bank of Georgia Visa หรือ Mastercard รวมถึงผ่าน Apple Pay หรือ Google Pay"],
   en: ["Open the Zugdidi bus map", "Zugdidi bus routes", "0.80 GEL", "A city bus ride costs 0.80 GEL. Routes to villages cost 1 or 1.50 GEL depending on the route. You can pay with a Bank of Georgia Visa or Mastercard, including through Apple Pay or Google Pay."],
   ru: ["Открыть карту автобусов Зугдиди", "Маршруты автобусов Зугдиди", "0,80 ₾", "Столько стоит поездка по городу. На рейсах в сёла тариф зависит от маршрута — 1 или 1,50 ₾. Можно платить картой Visa или Mastercard от Bank of Georgia либо телефоном с этой картой в Apple Pay или Google Pay."],
   ka: ["ზუგდიდის ავტობუსების რუკის გახსნა", "ზუგდიდის ავტობუსების მარშრუტები", "0,80 ₾", "ქალაქში მგზავრობა 80 თეთრი ღირს. სოფლების მიმართულებით მგზავრობის საფასური მარშრუტის მიხედვით 1 ან 1,50 ლარია. გადახდა შეგიძლიათ საქართველოს ბანკის Visa ან Mastercard ბარათით, მათ შორის Apple Pay-სა და Google Pay-ში დამატებული ბარათით."],

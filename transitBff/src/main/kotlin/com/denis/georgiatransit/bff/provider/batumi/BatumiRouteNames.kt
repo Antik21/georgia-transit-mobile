@@ -20,7 +20,7 @@ internal object BatumiRouteNames {
     @Serializable
     private data class RouteName(val shortName: String, val name: LocalizedText) {
         init {
-            val translations = listOf(name.ru, name.en, name.ka, name.uk, name.de, name.fr, name.ar, name.hi, name.zh)
+            val translations = listOf(name.ru, name.en, name.ka, name.uk, name.de, name.fr, name.ar, name.hi, name.zh, name.th)
             require(translations.all { !it.isNullOrBlank() && it == it.trim() && !it.equals(shortName, ignoreCase = true) })
         }
     }

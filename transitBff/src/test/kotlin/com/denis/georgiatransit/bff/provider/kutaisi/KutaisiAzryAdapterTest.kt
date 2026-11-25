@@ -19,6 +19,15 @@ import kotlinx.serialization.json.JsonPrimitive
 
 class KutaisiAzryAdapterTest {
     @Test
+    fun `Thai route names match the published route and its termini`() {
+        val route = azryPublicId(PublicEntityType.Route, "1:R1318")
+        assertEquals("สะพานแดง", azryText("Red bridge").th)
+        assertEquals("ถนนซาคาเรีย ปาเลียชวิลี เลขที่ 13 → สถานีรถไฟริโอนี", KutaisiRouteNames.name(route, "3")?.th)
+        assertNull(KutaisiRouteNames.name(route, "99"))
+        assertNull(azryText("New unlisted terminus").th)
+    }
+
+    @Test
     fun `direction belongs to its route and both directions share one positions snapshot`() = runTest {
         val feed = FakeAzryFeed()
         KutaisiAzryTransitProviderAdapter(feed, clock).use { adapter ->
@@ -102,7 +111,7 @@ class KutaisiAzryAdapterTest {
         assertEquals(451, directory.size)
         directory.forEach { (id, entry) ->
             val label = KutaisiStopNames.find(id, entry.code, entry.position)!!
-            assertTrue(listOf(label.ru, label.en, label.ka, label.uk, label.de, label.fr, label.ar, label.hi, label.zh)
+            assertTrue(listOf(label.ru, label.en, label.ka, label.uk, label.de, label.fr, label.ar, label.hi, label.zh, label.th)
                 .all { !it.isNullOrBlank() }, id)
         }
         val changedCode = university.copy(code = "999")

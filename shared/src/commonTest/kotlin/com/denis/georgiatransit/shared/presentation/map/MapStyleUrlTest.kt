@@ -9,7 +9,7 @@ class MapStyleUrlTest {
     @Test
     fun localeSelectsLabelsForTheBffStyle() {
         val endpoint = "https://bff.example/v1/map/style.json"
-        for (locale in listOf(TransitLocale.Georgian, TransitLocale.Russian, TransitLocale.English)) {
+        for (locale in listOf(TransitLocale.Georgian, TransitLocale.Russian, TransitLocale.English, TransitLocale.Thai)) {
             assertEquals("$endpoint?lang=" + locale.languageTag, localizedMapStyleUrl(endpoint, locale))
         }
         assertEquals("$endpoint?lang=ka", localizedMapStyleUrl(endpoint, TransitLocale.French))

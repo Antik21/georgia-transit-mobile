@@ -187,7 +187,7 @@ private final class LocalMapLibreView: UIView, MLNMapViewDelegate {
     private func isBffStyleURL(_ url: URL) -> Bool {
         guard url.user == nil, url.password == nil, url.fragment == nil,
               url.path == "/v1/map/style.json",
-              url.query.map({ ["lang=ka", "lang=ru", "lang=en"].contains($0) }) ?? true else { return false }
+              url.query.map({ ["lang=ka", "lang=ru", "lang=en", "lang=th"].contains($0) }) ?? true else { return false }
         if url.scheme == "https" { return url.host != nil }
 #if SANDBOX
         return url.scheme == "http" && url.host.map(isPrivateSandboxHost) == true

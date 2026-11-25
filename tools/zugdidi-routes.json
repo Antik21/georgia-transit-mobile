@@ -8,7 +8,8 @@
       "ka": "უნივერსიტეტი → მერაბ ბარამიას ქუჩა",
       "de": "Universität → Merab-Baramia-Straße",
       "fr": "Université → Rue Merab-Baramia",
-      "zh": "大学 → 梅拉布·巴拉米亚街"
+      "zh": "大学 → 梅拉布·巴拉米亚街",
+      "th": "มหาวิทยาลัย → ถนนเมรับบาราเมีย"
     }
   },
   {
@@ -20,7 +21,8 @@
       "ka": "ფაიფურის ქარხანა ↻ მერაბ ბარამიას ქუჩის გავლით",
       "de": "Porzellanfabrik ↻ über die Merab-Baramia-Straße",
       "fr": "Manufacture de porcelaine ↻ via la rue Merab-Baramia",
-      "zh": "瓷器厂 ↻ 经梅拉布·巴拉米亚街"
+      "zh": "瓷器厂 ↻ 经梅拉布·巴拉米亚街",
+      "th": "โรงงานเครื่องเคลือบดินเผา ↻ ผ่านถนนเมรับบาราเมีย"
     }
   },
   {
@@ -32,7 +34,8 @@
       "ka": "უნივერსიტეტი → ფაიფურის ქარხანა",
       "de": "Universität → Porzellanfabrik",
       "fr": "Université → Manufacture de porcelaine",
-      "zh": "大学 → 瓷器厂"
+      "zh": "大学 → 瓷器厂",
+      "th": "มหาวิทยาลัย → โรงงานเครื่องเคลือบดินเผา"
     }
   },
   {
@@ -44,7 +47,8 @@
       "ka": "ნაცულუკუ → ხუბულავას ქუჩა",
       "de": "Natsuluku → Chubulawa-Straße",
       "fr": "Natsouloukou → Rue Khouboulava",
-      "zh": "纳楚卢库 → 胡布拉瓦街"
+      "zh": "纳楚卢库 → 胡布拉瓦街",
+      "th": "นัตสึลุกุ → ถนนคูบูลาวา"
     }
   },
   {
@@ -56,7 +60,8 @@
       "ka": "მერაბ ბარამიას ქუჩა → ახალი აბასთუმანი",
       "de": "Merab-Baramia-Straße → Achali Abastumani",
       "fr": "Rue Merab-Baramia → Akhali Abastoumani",
-      "zh": "梅拉布·巴拉米亚街 → 阿哈利阿巴斯图马尼"
+      "zh": "梅拉布·巴拉米亚街 → 阿哈利阿巴斯图马尼",
+      "th": "ถนนเมรับบาราเมีย → อคาลี อบาสตูมานี"
     }
   },
   {
@@ -68,7 +73,8 @@
       "ka": "ერგეტა → ზუგდიდის ავტოსადგური",
       "de": "Ergeta → Busbahnhof Sugdidi",
       "fr": "Erguéta → Gare routière de Zougdidi",
-      "zh": "埃尔盖塔 → 祖格迪迪汽车站"
+      "zh": "埃尔盖塔 → 祖格迪迪汽车站",
+      "th": "เอร์เกต้า → สถานีขนส่งซุกดิดี"
     }
   },
   {
@@ -80,7 +86,8 @@
       "ka": "ორულუ → ალიანსი",
       "de": "Orulu → Alliance",
       "fr": "Oroulou → Alliance",
-      "zh": "奥鲁卢 → 阿利安斯"
+      "zh": "奥鲁卢 → 阿利安斯",
+      "th": "โอรูลู → อัลไลแอนซ์"
     }
   },
   {
@@ -92,7 +99,8 @@
       "ka": "რიყე → ალიანსი",
       "de": "Rike → Alliance",
       "fr": "Riké → Alliance",
-      "zh": "里克 → 阿利安斯"
+      "zh": "里克 → 阿利安斯",
+      "th": "ริเค → อัลไลแอนซ์"
     }
   },
   {
@@ -104,7 +112,8 @@
       "ka": "ტყაია → ალიანსი",
       "de": "Tkaia → Alliance",
       "fr": "Tkaïa → Alliance",
-      "zh": "特卡亚 → 阿利安斯"
+      "zh": "特卡亚 → 阿利安斯",
+      "th": "ตกายา → อัลไลแอนซ์"
     }
   },
   {
@@ -116,7 +125,8 @@
       "ka": "აბასთუმანი → ალიანსი",
       "de": "Abastumani → Alliance",
       "fr": "Abastoumani → Alliance",
-      "zh": "阿巴斯图马尼 → 阿利安斯"
+      "zh": "阿巴斯图马尼 → 阿利安斯",
+      "th": "อบาสตูมานี → อัลไลแอนซ์"
     }
   },
   {
@@ -128,7 +138,8 @@
       "ka": "რკინიგზის სადგური → ცაცხვი",
       "de": "Bahnhof → Zazchwi",
       "fr": "Gare ferroviaire → Tsatskhvi",
-      "zh": "火车站 → 察茨赫维"
+      "zh": "火车站 → 察茨赫维",
+      "th": "สถานีรถไฟ → ทสัตสวี"
     }
   },
   {
@@ -140,7 +151,8 @@
       "ka": "ანაკლია → ზუგდიდის ავტოსადგური",
       "de": "Anaklia → Busbahnhof Sugdidi",
       "fr": "Anaklia → Gare routière de Zougdidi",
-      "zh": "阿纳克利亚 → 祖格迪迪汽车站"
+      "zh": "阿纳克利亚 → 祖格迪迪汽车站",
+      "th": "อนาเคลีย → สถานีขนส่งซุกดิดี"
     }
   },
   {
@@ -152,7 +164,8 @@
       "ka": "ჭკადუაში → ალიანსი",
       "de": "Tschkaduaschi → Alliance",
       "fr": "Tchkadouachi → Alliance",
-      "zh": "奇卡杜阿希 → 阿利安斯"
+      "zh": "奇卡杜阿希 → 阿利安斯",
+      "th": "ชกาดัวชี → อัลไลแอนซ์"
     }
   }
 ]

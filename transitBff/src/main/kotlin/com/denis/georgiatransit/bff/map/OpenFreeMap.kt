@@ -22,7 +22,7 @@ private val GlyphLifetime = Duration.ofSeconds(GlyphCacheSeconds.toLong())
 internal const val MapFont = "Noto Sans Regular"
 
 internal enum class MapLabelLanguage(val code: String) {
-    Georgian("ka"), Russian("ru"), English("en");
+    Georgian("ka"), Russian("ru"), English("en"), Thai("th");
 
     companion object {
         fun fromCode(value: String) = entries.firstOrNull { it.code == value }

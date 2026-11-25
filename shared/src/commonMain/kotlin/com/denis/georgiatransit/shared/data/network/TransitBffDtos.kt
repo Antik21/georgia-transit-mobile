@@ -37,6 +37,7 @@ internal data class LocalizedTextDto(
     val ar: String? = null,
     val hi: String? = null,
     val zh: String? = null,
+    val th: String? = null,
 )
 @Serializable internal data class GeoPointDto(val latitude: Double, val longitude: Double)
 
