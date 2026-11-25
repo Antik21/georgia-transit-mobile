@@ -2,7 +2,7 @@
 
 Geo Transit’s static landing page covers Batumi, Kutaisi, Zugdidi and Borjomi. New visitors see English by
 default. The selector saves the chosen language and opens its shareable page. Existing `?lang=`
-links are supported. Light and dark themes follow the system until changed with the header button.
+links are supported. Available languages are English, Georgian, Russian, Simplified Chinese, French, German and Thai. Light and dark themes follow the system until changed with the header button.
 
 ## Run locally
 
@@ -32,7 +32,7 @@ For local browser tests, intercept this endpoint when using a static preview ser
 
 ## Search indexing
 
-The localized landing and city pages, `robots.txt`, and `sitemap.xml` are generated alongside the
+The localized landing, city, route and privacy pages, `robots.txt`, and `sitemap.xml` are generated alongside the
 English landing page so Render can serve them as static files. City copy lives in
 [`tools/landing-city-copy.mjs`](../tools/landing-city-copy.mjs). After editing page copy or the
 landing HTML, run `node tools/build-landing-seo.mjs` from the repository root with Node.js 22 or

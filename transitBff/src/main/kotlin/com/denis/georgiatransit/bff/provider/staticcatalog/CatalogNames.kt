@@ -25,10 +25,11 @@ internal class CatalogNames(private val cityId: String) {
         ar = "${origin.ar} ← ${destination.ar}",
         hi = "${origin.hi} → ${destination.hi}",
         zh = "${origin.zh} → ${destination.zh}",
+        th = "${origin.th} → ${destination.th}",
     )
 
     private fun requireComplete(key: String, label: LocalizedText) {
-        val values = listOf(label.ru, label.en, label.ka, label.uk, label.de, label.fr, label.ar, label.hi, label.zh)
+        val values = listOf(label.ru, label.en, label.ka, label.uk, label.de, label.fr, label.ar, label.hi, label.zh, label.th)
         require(values.none { it.isNullOrBlank() }) { "Incomplete $cityId translation for '$key'" }
     }
 }

@@ -176,7 +176,7 @@ private val JourneyPlanningSources = setOf(Catalog.MapButton, Catalog.LongPress)
 private val AnalyticsCities = setOf(
     KnownCityIds.Batumi, KnownCityIds.Borjomi, KnownCityIds.Demo, KnownCityIds.Kutaisi, KnownCityIds.Tbilisi, KnownCityIds.Zugdidi,
 )
-private val LandingLanguages = setOf("en", "ka", "ru", "zh-Hans", "fr", "de")
+private val LandingLanguages = setOf("en", "ka", "ru", "zh-Hans", "fr", "de", "th")
 private val LandingPlatforms = setOf(Catalog.Web, Catalog.TelegramMiniApp, Catalog.Android, Catalog.Ios)
 private const val MaximumSelectedRoutes = 10
 private val UuidPattern = Regex("[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}")

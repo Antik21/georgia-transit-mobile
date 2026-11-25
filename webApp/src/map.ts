@@ -79,7 +79,7 @@ const mapStylePath = "/v1/map/style.json";
 
 function mapAssetRequest(rawUrl: string) {
   const url = new URL(rawUrl, window.location.origin);
-  const isStyle = url.pathname === mapStylePath && /^(|\?lang=(ka|ru|en))$/.test(url.search);
+  const isStyle = url.pathname === mapStylePath && /^(|\?lang=(ka|ru|en|th))$/.test(url.search);
   const isAsset = !url.search && (
     /^\/v1\/map\/vector\/\d+\/\d+\/\d+\.pbf$/.test(url.pathname) ||
     /^\/v1\/map\/fonts\/Noto%20Sans%20Regular\/\d+-\d+\.pbf$/.test(url.pathname)

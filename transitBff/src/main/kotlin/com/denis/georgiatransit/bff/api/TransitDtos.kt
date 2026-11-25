@@ -15,6 +15,7 @@ data class LocalizedText(
     val ar: String? = null,
     val hi: String? = null,
     val zh: String? = null,
+    val th: String? = null,
 )
 
 @Serializable

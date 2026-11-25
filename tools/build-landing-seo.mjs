@@ -1,5 +1,6 @@
 import { readFileSync, writeFileSync } from "node:fs";
 
+import { policyTranslations } from "../landing/privacy-locales.js";
 import { cityPagePath, translations } from "../landing/locales.js";
 import { borjomiCityPage, borjomiTripPage, borjomiTripPath, borjomiTrips } from "./borjomi-trips.mjs";
 import { renderZugdidiTrips, zugdidiTripPage, zugdidiTripPath, zugdidiTrips } from "./zugdidi-trips.mjs";
@@ -75,7 +76,7 @@ function renderPage(language) {
     .replace(`<option value="${language}" lang="${language}"`, `<option value="${language}" lang="${language}" selected`)
     .replace(/href="[^"]*" data-city-link="(\w+)"/g,
       (_, city) => `href="${cityPagePath(city, language)}" data-city-link="${city}"`)
-    .replace('href="privacy.html?lang=en"', `href="privacy.html?lang=${language}"`);
+    .replace('href="/privacy.html"', `href="${cityPagePath("privacy", language)}"`);
 }
 
 function phone(platform, asset, alt) {
@@ -183,7 +184,7 @@ function guideShell(city, language, paths, { title, description, main }) {
       </nav>
       <div class="city-guide__footer-links">
         <a href="${pages[language]}?lang=${language}#platforms">Android, iOS</a>
-        <a href="/privacy.html?lang=${language}">${esc(copy.privacy)}</a>
+        <a href="${cityPagePath("privacy", language)}">${esc(copy.privacy)}</a>
         <button type="button" class="analytics-settings" id="analytics-settings" aria-controls="analytics-choice" aria-expanded="false" hidden>${esc(copy.analyticsSettings)}</button>
       </div>
       <p class="footer__small">${esc(copy.footerNote)}</p>
@@ -210,7 +211,22 @@ for (const language of languages) {
   output(file, renderPage(language));
 }
 
-const sitemapPaths = [...Object.values(pages), "/privacy.html"];
+const privacySource = readFileSync(new URL("privacy.html", landing), "utf8");
+const privacyPaths = Object.fromEntries(languages.map(lang => [lang, cityPagePath("privacy", lang)]));
+for (const [lang, path] of Object.entries(privacyPaths)) {
+  const seo = searchTags(path, privacyPaths).join("\n  ");
+  let policy = privacySource.replace(/<!-- seo -->[\s\S]*?<!-- \/seo -->/, `<!-- seo -->\n  ${seo}\n  <!-- /seo -->`);
+  if (lang !== "en") {
+    const copy = policyTranslations[lang];
+    policy = policy.replace('<html lang="en">', `<html lang="${lang}">`)
+      .replace(/<title>.*?<\/title>/, `<title>${escapeHtml(copy.title)} | Georgia Transit</title>`)
+      .replace(/(<meta name="description" content=")[^"]*"/, `$1${escapeHtml(copy.intro)}"`)
+      .replace(/(data-policy-text="(\w+)"[^>]*>)[^<]*/g, (_, tag, key) => tag + escapeHtml(copy[key]))
+      .replaceAll("./?lang=en", pages[lang]);
+  }
+  output(path.slice(1), policy);
+}
+const sitemapPaths = [...Object.values(pages), ...Object.values(privacyPaths)];
 for (const city of cities) {
   const paths = Object.fromEntries(languages.map(language => [language, cityPagePath(city, language)]));
   for (const [language, path] of Object.entries(paths)) {

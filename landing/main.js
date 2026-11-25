@@ -58,7 +58,7 @@ function applyLanguage(language) {
   for (const element of document.querySelectorAll("[data-i18n-aria]")) element.setAttribute("aria-label", copy[element.dataset.i18nAria]);
   for (const element of document.querySelectorAll("[data-i18n-content]")) element.content = copy[element.dataset.i18nContent];
   languageSelect.value = language;
-  privacyLink.href = `privacy.html?lang=${language}`;
+  privacyLink.href = cityPagePath("privacy", language);
   for (const link of document.querySelectorAll("[data-city-link]")) {
     link.href = cityPagePath(link.dataset.cityLink, language);
   }

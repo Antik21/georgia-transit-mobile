@@ -5,7 +5,7 @@ import com.denis.georgiatransit.shared.domain.model.TransitLocale
 internal fun localizedMapStyleUrl(styleUrl: String?, locale: TransitLocale): String? {
     if (styleUrl == null) return null
     val language = when (locale) {
-        TransitLocale.English, TransitLocale.Russian -> locale.languageTag
+        TransitLocale.English, TransitLocale.Russian, TransitLocale.Thai -> locale.languageTag
         else -> TransitLocale.Georgian.languageTag
     }
     return "$styleUrl?lang=$language"

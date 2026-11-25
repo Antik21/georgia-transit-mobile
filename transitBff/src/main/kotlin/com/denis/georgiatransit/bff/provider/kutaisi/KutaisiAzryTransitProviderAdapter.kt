@@ -42,7 +42,7 @@ internal class KutaisiAzryTransitProviderAdapter(
     override val telemetryProvider = TelemetryProvider.KUTAISI_AZRY
     override val city = City(
         id = KnownCityIds.Kutaisi,
-        name = LocalizedText(ru = "Кутаиси", en = "Kutaisi", ka = "ქუთაისი"),
+        name = LocalizedText(ru = "Кутаиси", en = "Kutaisi", ka = "ქუთაისი", th = "คูไตซี"),
         center = GeoPoint(42.271608, 42.705448),
         defaultZoom = 15.25,
         capabilities = CityCapabilities(

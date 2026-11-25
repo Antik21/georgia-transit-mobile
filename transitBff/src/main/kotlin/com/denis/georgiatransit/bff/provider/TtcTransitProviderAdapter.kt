@@ -130,7 +130,7 @@ internal class TtcTransitProviderAdapter(
 
     override val city: City = City(
         id = TtcCityId,
-        name = LocalizedText(ru = "Тбилиси", en = "Tbilisi", ka = "თბილისი"),
+        name = LocalizedText(ru = "Тбилиси", en = "Tbilisi", ka = "თბილისი", th = "ทบิลิซี"),
         center = GeoPoint(latitude = 41.715_137, longitude = 44.827_096),
         defaultZoom = 12.5,
         capabilities = CityCapabilities(

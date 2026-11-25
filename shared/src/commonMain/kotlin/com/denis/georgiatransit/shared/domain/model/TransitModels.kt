@@ -29,6 +29,7 @@ data class LocalizedText(
     val ar: String? = null,
     val hi: String? = null,
     val zh: String? = null,
+    val th: String? = null,
 ) {
     fun forLocale(locale: TransitLocale): String = when (locale) {
         TransitLocale.Russian -> ru
@@ -40,6 +41,7 @@ data class LocalizedText(
         TransitLocale.Arabic -> ar?.takeIf { it.isNotBlank() } ?: en
         TransitLocale.Hindi -> hi?.takeIf { it.isNotBlank() } ?: en
         TransitLocale.Chinese -> zh?.takeIf { it.isNotBlank() } ?: en
+        TransitLocale.Thai -> th?.takeIf { it.isNotBlank() } ?: en
     }
 
     companion object { fun fromLegacy(value: String) = LocalizedText(value, value, value) }
@@ -55,7 +57,8 @@ enum class TransitLocale(val languageTag: String) {
     French("fr"),
     Arabic("ar"),
     Hindi("hi"),
-    Chinese("zh");
+    Chinese("zh"),
+    Thai("th");
 
     companion object {
         fun fromLanguageTag(value: String): TransitLocale {

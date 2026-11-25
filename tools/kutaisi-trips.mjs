@@ -16,6 +16,15 @@ const copy = {
     sataplia: "№ 7 · До пещеры Сатаплия", rioni: "№ 3 · До железнодорожной станции Риони",
     ends: [["Красный мост", "Пещера Сатаплия"], ["ул. З. Палиашвили, 13", "Железнодорожная станция Риони"]],
   },
+  th: {
+    heading: "วิธีเดินทาง", stops: "ป้ายทั้งหมด", map: "เปิดเส้นทางบนแผนที่", schedule: "ตารางเวลารถรับ-ส่ง", fare: "ค่าโดยสารและการชำระเงิน",
+    airport: "ใจกลางเมือง คูไตซี ไปยังสนามบิน", shuttle: "รถรับส่งสนามบิน",
+    outbound: "สำหรับสนามบิน ให้ขึ้นเครื่องที่ศูนย์การท่องเที่ยว คูไตซี ตรวจสอบตารางเวลาสนามบินสำหรับการเดินทางออกจากเมืองก่อนออกเดินทาง",
+    inbound: "สำหรับใจกลางเมือง ให้ขึ้นเครื่องด้านนอกอาคารผู้โดยสารขาเข้า การเดินทางไปยังศูนย์การท่องเที่ยวตามกำหนดเวลาใช้เวลาประมาณ 40 นาที",
+    price: "คูไตซี Travel กำหนดค่าโดยสารเที่ยวเดียวจำนวน GEL 5 ซึ่งชำระด้วยบัตรเครดิตธนาคาร",
+    sataplia: "รถโดยสารประจำทาง 7 · ถ้ำ Sataplia", rioni: "รถประจำทางสาย 3 · สถานีรถไฟริโอนี",
+    ends: [["สะพานแดง", "ถ้ำซาตาเปลีย"], ["13 Z. ถนน Paliashvili", "สถานีรถไฟริโอนี"]],
+  },
   en: {
     heading: "How to get there", stops: "All stops", map: "Open route on the map", schedule: "Shuttle timetable", fare: "Fare and payment",
     airport: "Kutaisi city centre to the airport", shuttle: "Airport shuttle",
@@ -87,10 +96,11 @@ export function kutaisiTripPage(slug, language, esc) {
   const back = translations[language].kutaisi;
   const { title, description, ends, route } = tripInfo(slug, c);
   const sourceLang = language === "ka" ? "ka" : "en";
+  const stopLang = language === "th" ? "th" : sourceLang;
   const details = route
     ? `<a class="button city-guide__cta" data-analytics-platform="web" href="https://app.geotransit.com.ge/?city=kutaisi&amp;route=${encodeURIComponent(route.id)}">${c.map}</a>
        <div class="trip-directions">${route.legs.map((leg, i) => `<section><h2>${ends[i]} → ${ends[1-i]}</h2>
-         <details><summary>${c.stops} (${leg.length})</summary><ol>${leg.map(stop => `<li><span lang="${sourceLang}">${esc(stop[sourceLang])}</span> <small>· ${esc(stop.code)}</small></li>`).join("")}</ol></details></section>`).join("\n")}</div>`
+         <details><summary>${c.stops} (${leg.length})</summary><ol>${leg.map(stop => `<li><span lang="${stopLang}">${esc(stop[stopLang])}</span> <small>· ${esc(stop.code)}</small></li>`).join("")}</ol></details></section>`).join("\n")}</div>`
     : `<p>${c.inbound}</p><p>${c.price} <a href="${airportFare}">${c.fare} · Kutaisi Travel</a></p>
        <a class="button city-guide__cta" href="https://kutaisi.aero/${sourceLang}/transport/shuttle-bus">${c.schedule}</a>`;
   return { title: `${title} | Georgia Transit`, description, main: `<div class="wrap route-detail">
