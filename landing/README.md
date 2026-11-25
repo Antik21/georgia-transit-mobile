@@ -52,6 +52,7 @@ The city guides also show the Kutaisi timetable on Android and the Zugdidi route
 ## Hosting
 
 Published by the `antik21-georgia-transit-landing` static site in [render.yaml](../render.yaml):
-the `landing/` folder is served as is from `main` (no build step) after the required checks pass,
-and changes under `landing/` or to `render.yaml` trigger a deploy. The default address is
+Render publishes the entire `landing/` folder after CI passes on `main`, including when
+the latest merge only changes other directories. This picks up landing changes from earlier
+merges whose CI runs were cancelled. The default address is
 `https://antik21-georgia-transit-landing.onrender.com`.
