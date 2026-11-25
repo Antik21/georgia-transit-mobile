@@ -6,7 +6,7 @@ export const cityCopy = {
       description: "Track city buses in Batumi, find bus stops and check estimated arrivals. Plan a trip with Geo Transit in your browser or app.",
       intro: "See where Batumi’s city buses are, find the stop you need and work out when to leave.",
       sections: [
-        ["Live bus map and routes", "Open the map and choose Batumi. Search routes by number or direction to highlight the lines and vehicles you want to see."],
+        ["Live bus map and routes", "Choose a route above to see it on the map. Search routes by number or direction to highlight the lines and vehicles you want to see."],
         ["How to check Batumi bus times", "Tap a bus stop to see which routes serve it and when the next buses are expected. Arrival times are estimates based on vehicle movements and can change while you wait."],
         ["Plan a bus trip in Batumi", "Choose a start and destination on the map. Compare bus options by walking distance, transfers and estimated travel time."],
       ],
@@ -44,7 +44,7 @@ export const cityCopy = {
       description: "ნახეთ ბათუმის ავტობუსები რეალურ დროში, იპოვეთ გაჩერება, შეამოწმეთ მოსვლის სავარაუდო დრო და დაგეგმეთ მგზავრობა Geo Transit-ით.",
       intro: "ნახეთ, სად მოძრაობენ ბათუმის ავტობუსები, იპოვეთ საჭირო გაჩერება და გადაწყვიტეთ, როდის გახვიდეთ.",
       sections: [
-        ["ავტობუსების რუკა და მარშრუტები", "გახსენით რუკა და აირჩიეთ ბათუმი. მოძებნეთ მარშრუტი ნომრით ან მიმართულებით, რომ რუკაზე საჭირო ხაზები და ავტობუსები გამოჩნდეს."],
+        ["ავტობუსების რუკა და მარშრუტები", "აირჩიეთ მარშრუტი ზემოთ მოცემულ სიაში, რომ რუკაზე იხილოთ. მოძებნეთ მარშრუტი ნომრით ან მიმართულებით, რომ რუკაზე საჭირო ხაზები და ავტობუსები გამოჩნდეს."],
         ["როდის მოვა ავტობუსი ბათუმში", "შეეხეთ გაჩერებას გასავლელი მარშრუტებისა და მომდევნო ავტობუსების სანახავად. მოსვლის დრო ავტობუსების მოძრაობით გამოითვლება და შესაძლოა შეიცვალოს."],
         ["მგზავრობის დაგეგმვა ბათუმში", "მონიშნეთ რუკაზე საწყისი და დანიშნულების წერტილები. შეადარეთ ფეხით გასავლელი მანძილი, გადაჯდომები და გზის სავარაუდო დრო."],
       ],
@@ -82,7 +82,7 @@ export const cityCopy = {
       description: "Карта автобусов Батуми в реальном времени. Найдите остановку, проверьте прогноз прибытия и спланируйте поездку в веб-версии или приложении Geo Transit.",
       intro: "Посмотрите, где едут городские автобусы Батуми, найдите свою остановку и решите, когда выходить.",
       sections: [
-        ["Карта автобусов и маршрутов Батуми", "Откройте карту и выберите Батуми. Поиск по номеру или направлению выделит нужные маршруты и автобусы."],
+        ["Карта автобусов и маршрутов Батуми", "Выберите маршрут в списке выше, чтобы увидеть его на карте. Поиск по номеру или направлению выделит нужные маршруты и автобусы."],
         ["Когда приедет автобус в Батуми", "Нажмите на автобусную остановку, чтобы увидеть маршруты и ближайшие прибытия. Прогноз рассчитывается по движению автобусов и может меняться во время ожидания."],
         ["Как добраться на автобусе", "Отметьте на карте начало и конец поездки. Сравните варианты по времени в пути, расстоянию пешком и количеству пересадок."],
       ],
@@ -120,7 +120,7 @@ export const cityCopy = {
       description: "在地图上追踪巴统公交车辆、查找公交站和预计到站时间，并通过 Geo Transit 网页版或应用规划行程。",
       intro: "在地图上查看巴统公交的位置，找到乘车站点，并决定何时出门。",
       sections: [
-        ["巴统公交地图和线路", "打开地图并选择巴统。按线路编号或方向搜索，在地图上突出显示所选线路及车辆。"],
+        ["巴统公交地图和线路", "从上方列表选择线路即可在地图上查看。按线路编号或方向搜索，在地图上突出显示所选线路及车辆。"],
         ["查询巴统公交到站时间", "点按公交站，查看途经线路及下一班车的预计到站时间。预测依据车辆运行情况，候车期间可能变化。"],
         ["规划巴统公交行程", "在地图上选择起点和目的地，比较各方案的预计耗时、步行距离和换乘次数。"],
       ],
@@ -158,7 +158,7 @@ export const cityCopy = {
       description: "Suivez les bus de Batoumi en temps réel, trouvez votre arrêt et consultez les prochains passages. Préparez votre trajet avec Geo Transit.",
       intro: "Repérez les bus en circulation à Batoumi, trouvez votre arrêt et voyez quand partir.",
       sections: [
-        ["Carte des bus et des lignes de Batoumi", "Ouvrez la carte et choisissez Batoumi. Recherchez une ligne par numéro ou par direction pour mettre en évidence son tracé et ses bus."],
+        ["Carte des bus et des lignes de Batoumi", "Choisissez une ligne dans la liste ci-dessus pour voir son tracé sur la carte. Recherchez une ligne par numéro ou par direction pour mettre en évidence son tracé et ses bus."],
         ["Quand passe le prochain bus à Batoumi ?", "Touchez un arrêt pour voir les lignes qui le desservent et les prochains passages. Les temps affichés sont estimés à partir du déplacement des bus et peuvent évoluer."],
         ["Préparer un trajet en bus", "Choisissez le départ et la destination sur la carte. Comparez les itinéraires selon le temps de trajet estimé, la marche et les correspondances."],
       ],
@@ -196,7 +196,7 @@ export const cityCopy = {
       description: "Verfolge Busse in Batumi auf der Live-Karte, finde Haltestellen, prüfe die nächsten Ankünfte und plane deine Fahrt mit Geo Transit.",
       intro: "Sieh, wo die Busse in Batumi gerade fahren, finde deine Haltestelle und entscheide, wann du losgehst.",
       sections: [
-        ["Live-Karte und Buslinien in Batumi", "Öffne die Karte und wähle Batumi. Suche nach Liniennummer oder Richtung, um die passenden Linien und Busse zu sehen."],
+        ["Live-Karte und Buslinien in Batumi", "Wähle oben eine Linie, um sie auf der Karte zu sehen. Suche nach Liniennummer oder Richtung, um die passenden Linien und Busse zu sehen."],
         ["Wann kommt der nächste Bus in Batumi?", "Tippe auf eine Haltestelle, um die dort verkehrenden Linien und die nächsten Busse zu sehen. Ankunftszeiten werden aus den Fahrzeugbewegungen geschätzt und können sich ändern."],
         ["Eine Busfahrt in Batumi planen", "Wähle Start und Ziel auf der Karte. Vergleiche die Verbindungen nach geschätzter Fahrtzeit, Fußweg und Umstiegen."],
       ],

@@ -1,0 +1,266 @@
+[
+  {
+    "id": "kutaisi:azry:route:MTpSMTQ2MQ",
+    "number": "1L",
+    "name": {
+      "ru": "Центральный автовокзал → ул. З. Палиашвили, 13",
+      "fr": "Gare routière centrale → 13 rue Z. Paliachvili",
+      "de": "Zentraler Busbahnhof → Z. Paliaschwili-Straße 13",
+      "zh": "中央汽车站 → 帕利亚什维利街13号",
+      "en": "\"Central Bus Station\" → Z. Paliashvili Street N13",
+      "ka": "\"ცენტრალური ავტოსადგური\" → ზ. ფალიაშვილის ქუჩა N13"
+    }
+  },
+  {
+    "id": "kutaisi:azry:route:MTpSMTI2OQ",
+    "number": "1R",
+    "name": {
+      "ru": "Центральный автовокзал → ул. А. Церетели, 2 (Карвасла)",
+      "fr": "Gare routière centrale → 2 rue A. Tsereteli (Karvasla)",
+      "de": "Zentraler Busbahnhof → A. Zereteli-Straße 2 (Karvasla)",
+      "zh": "中央汽车站 → 采列捷利街2号（Karvasla）",
+      "en": "Central bus station → A. Tsereteli Street N2 \"karvasla\"",
+      "ka": "ცენტრალური ავტოსადგური → ა.წერეთლის ქუჩა N2 \"ქარვასლა\""
+    }
+  },
+  {
+    "id": "kutaisi:azry:route:MTpSMTMxOA",
+    "number": "3",
+    "name": {
+      "ru": "ул. З. Палиашвили, 13 → Станция Риони",
+      "fr": "13 rue Z. Paliachvili → Gare de Rioni",
+      "de": "Z. Paliaschwili-Straße 13 → Bahnhof Rioni",
+      "zh": "帕利亚什维利街13号 → 里奥尼火车站",
+      "en": "Z. Paliashvili Street N13 → Railway station \"Rioni\"",
+      "ka": "ზ. ფალიაშვილის ქუჩა N13 → რკინიგზის სადგური \"რიონი\""
+    }
+  },
+  {
+    "id": "kutaisi:azry:route:MTpSMTMzMw",
+    "number": "4",
+    "name": {
+      "ru": "ул. Автомшенебели, 51 → ул. З. Палиашвили, 13",
+      "fr": "51 rue Avtomshenebeli → 13 rue Z. Paliachvili",
+      "de": "Avtomshenebeli-Straße 51 → Z. Paliaschwili-Straße 13",
+      "zh": "阿夫托姆谢内贝利街51号 → 帕利亚什维利街13号",
+      "en": "Avtomsheneblis Street N51 → Z. Paliashvili Street N13",
+      "ka": "ავტომშენებლის ქუჩა N51 → ზ. ფალიაშვილის ქუჩა N13"
+    }
+  },
+  {
+    "id": "kutaisi:azry:route:MTpSMTMwMA",
+    "number": "5",
+    "name": {
+      "ru": "ул. Р. Табукашвили, 205 → Красный мост",
+      "fr": "205 rue R. Taboukachvili → Pont Rouge",
+      "de": "R. Tabukaschwili-Straße 205 → Rote Brücke",
+      "zh": "塔布卡什维利街205号 → 红桥",
+      "en": "R.Tabukashvili Street N205 → Red bridge",
+      "ka": "რ.თაბუკაშვილის ქუჩა N205 → წითელი ხიდი"
+    }
+  },
+  {
+    "id": "kutaisi:azry:route:MTpSMzQ5Mg",
+    "number": "6",
+    "name": {
+      "ru": "Школа № 28 → Центральный автовокзал",
+      "fr": "École nº 28 → Gare routière centrale",
+      "de": "Schule Nr. 28 → Zentraler Busbahnhof",
+      "zh": "第28学校 → 中央汽车站",
+      "en": "28 public school → \"Central Bus Station\"",
+      "ka": "28 საჯარო სკოლა → \"ცენტრალური ავტოსადგური\""
+    }
+  },
+  {
+    "id": "kutaisi:azry:route:MTpSMTQzNzU",
+    "number": "7",
+    "name": {
+      "ru": "Красный мост → Пещера Сатаплия",
+      "fr": "Pont Rouge → Grotte de Sataplia",
+      "de": "Rote Brücke → Sataplia-Höhle",
+      "zh": "红桥 → 萨塔普利亚洞穴",
+      "en": "Red bridge → Satapliis Mghvime",
+      "ka": "წითელი ხიდი → სათაფლიის მღვიმე"
+    }
+  },
+  {
+    "id": "kutaisi:azry:route:MTpSMTQ4Mg",
+    "number": "10",
+    "name": {
+      "ru": "пр. Сулхан-Саба, 71 → Красный мост",
+      "fr": "71 avenue Soulkhan-Saba → Pont Rouge",
+      "de": "Sulchan-Saba-Allee 71 → Rote Brücke",
+      "zh": "苏尔汉萨巴大道71号 → 红桥",
+      "en": "Sulkhan Saba Avenue N71 → Red bridge",
+      "ka": "სულხან საბას გამზირი N71 → წითელი ხიდი"
+    }
+  },
+  {
+    "id": "kutaisi:azry:route:MTpSMTM1Mw",
+    "number": "19",
+    "name": {
+      "ru": "ул. Никеа, 72 → 1-я улица, 2",
+      "fr": "72 rue Nikea → 2, 1re rue",
+      "de": "Nikea-Straße 72 → 1. Straße 2",
+      "zh": "尼凯亚街72号 → 第一街2号",
+      "en": "Nikea Street N72 → 1-li Kucha N2",
+      "ka": "ნიკეას ქუჩა N72 → 1-ლი ქუჩა N2"
+    }
+  },
+  {
+    "id": "kutaisi:azry:route:MTpSMTM0Mw",
+    "number": "20",
+    "name": {
+      "ru": "ул. Р. Табукашвили, 205 → Красный мост",
+      "fr": "205 rue R. Taboukachvili → Pont Rouge",
+      "de": "R. Tabukaschwili-Straße 205 → Rote Brücke",
+      "zh": "塔布卡什维利街205号 → 红桥",
+      "en": "R.Tabukashvili Street N205 → Red bridge",
+      "ka": "რ.თაბუკაშვილის ქუჩა N205 → წითელი ხიდი"
+    }
+  },
+  {
+    "id": "kutaisi:azry:route:MTpSMTM3NQ",
+    "number": "25",
+    "name": {
+      "ru": "ул. Автомшенебели, 51 → 5-й пер. пр. Ахалгазрдоба, 15Б",
+      "fr": "51 rue Avtomshenebeli → 15B, 5e voie de l’avenue Akhalgazrdoba",
+      "de": "Avtomshenebeli-Straße 51 → 5. Gasse der Akhalgazrdoba-Allee 15B",
+      "zh": "阿夫托姆谢内贝利街51号 → 青年大道第5巷15B号",
+      "en": "Avtomsheneblis Street N51 → Akhalgazrdobis Avenue 5th Lane, N15 \"B\"",
+      "ka": "ავტომშენებლის ქუჩა N51 → ახალგაზრდობის გამზ.მე-5 შესახვევი N15 \"ბ\""
+    }
+  },
+  {
+    "id": "kutaisi:azry:route:MTpSMTY0OQ",
+    "number": "31",
+    "name": {
+      "ru": "ул. Никеа, 25 → ул. И. Джавахишвили, 85",
+      "fr": "25 rue Nikea → 85 rue I. Djavakhichvili",
+      "de": "Nikea-Straße 25 → I. Dschawachischwili-Straße 85",
+      "zh": "尼凯亚街25号 → 贾瓦希什维利街85号",
+      "en": "Nikea Street  N25 → I.javakhishvilis Kucha N85",
+      "ka": "ნიკეას ქუჩა N25 → ი.ჯავახიშვილის ქუჩა N85"
+    }
+  },
+  {
+    "id": "kutaisi:azry:route:MTpSMzQ4Nw",
+    "number": "41",
+    "name": {
+      "ru": "Центральный автовокзал → ул. З. Палиашвили, 13",
+      "fr": "Gare routière centrale → 13 rue Z. Paliachvili",
+      "de": "Zentraler Busbahnhof → Z. Paliaschwili-Straße 13",
+      "zh": "中央汽车站 → 帕利亚什维利街13号",
+      "en": "\"Central Bus Station\" → Z. Paliashvili Street N13",
+      "ka": "\"ცენტრალური ავტოსადგური\" → ზ. ფალიაშვილის ქუჩა N13"
+    }
+  },
+  {
+    "id": "kutaisi:azry:route:MTpSMzE4OQ",
+    "number": "110",
+    "name": {
+      "ru": "Красный мост → ул. А. Когуашвили, 5",
+      "fr": "Pont Rouge → 5 rue A. Kogouachvili",
+      "de": "Rote Brücke → A. Koguaschwili-Straße 5",
+      "zh": "红桥 → 科古阿什维利街5号",
+      "en": "Red bridge → A. Koguashvili Street N5",
+      "ka": "წითელი ხიდი → ა. კოღუაშვილის ქუჩა N5"
+    }
+  },
+  {
+    "id": "kutaisi:azry:route:MTpSMzMxMg",
+    "number": "111",
+    "name": {
+      "ru": "ул. П. Чанчибадзе, 74 → Красный мост",
+      "fr": "74 rue P. Tchantchibadze → Pont Rouge",
+      "de": "P. Tschantschibadse-Straße 74 → Rote Brücke",
+      "zh": "钱奇巴泽街74号 → 红桥",
+      "en": "P. Chanchibadzis Kucha N74 → Red bridge",
+      "ka": "პ. ჩანჩიბაძის ქუჩა N74 → წითელი ხიდი"
+    }
+  },
+  {
+    "id": "kutaisi:azry:route:MTpSMzMyNg",
+    "number": "112",
+    "name": {
+      "ru": "Красный мост → ул. М. Горького, 83",
+      "fr": "Pont Rouge → 83 rue M. Gorki",
+      "de": "Rote Brücke → M.-Gorki-Straße 83",
+      "zh": "红桥 → 高尔基街83号",
+      "en": "Red bridge → M. Gorky Street N83",
+      "ka": "წითელი ხიდი → მ. გორკის ქუჩა N83"
+    }
+  },
+  {
+    "id": "kutaisi:azry:route:MTpSMzM0OQ",
+    "number": "114",
+    "name": {
+      "ru": "ул. Ф. Варламишвили, 1 → ул. Руа, 53",
+      "fr": "1 rue F. Varlamichvili → 53 rue Roua",
+      "de": "F. Warlamischwili-Straße 1 → Rua-Straße 53",
+      "zh": "瓦尔拉米什维利街1号 → 鲁阿街53号",
+      "en": "F. Varlamishvili Street N1 → Ruas Kucha N53",
+      "ka": "ფ. ვარლამიშვილის ქუჩა N1 → რუას ქუჩა N53"
+    }
+  },
+  {
+    "id": "kutaisi:azry:route:MTpSMzIzMQ",
+    "number": "118",
+    "name": {
+      "ru": "ул. К. Гамсахурдия, 209 → Красный мост",
+      "fr": "209 rue K. Gamsakhourdia → Pont Rouge",
+      "de": "K. Gamsachurdia-Straße 209 → Rote Brücke",
+      "zh": "加姆萨胡尔季阿街209号 → 红桥",
+      "en": "K. Gamsakhurdia Street N209 → Red bridge",
+      "ka": "კ. გამსახურდიას ქუჩა N209 → წითელი ხიდი"
+    }
+  },
+  {
+    "id": "kutaisi:azry:route:MTpSMzI3Mg",
+    "number": "126",
+    "name": {
+      "ru": "ул. Святого Луки, 64 → Красный мост",
+      "fr": "64 rue Saint-Luc → Pont Rouge",
+      "de": "Sankt-Lukas-Straße 64 → Rote Brücke",
+      "zh": "圣卢卡街64号 → 红桥",
+      "en": "St. Luke Street N64 → Red bridge",
+      "ka": "წმინდა ლუკას ქუჩის N64 → წითელი ხიდი"
+    }
+  },
+  {
+    "id": "kutaisi:azry:route:MTpSNjE3NA",
+    "number": "133",
+    "name": {
+      "ru": "ул. Ф. Варламишвили, 1 → Кутаисская телебашня",
+      "fr": "1 rue F. Varlamichvili → Tour de télévision de Koutaïssi",
+      "de": "F. Warlamischwili-Straße 1 → Fernsehturm Kutaissi",
+      "zh": "瓦尔拉米什维利街1号 → 库塔伊西电视塔",
+      "en": "F. Varlamishvili Street N1 → Kutaisis\" Satelevizio Andza\"",
+      "ka": "ფ. ვარლამიშვილის ქუჩა N1 → ქუთაისის\" სატელევიზიო ანძა\""
+    }
+  },
+  {
+    "id": "kutaisi:azry:route:MTpSMTk3NzY",
+    "number": "137",
+    "name": {
+      "ru": "ул. Ф. Варламишвили, 1 → ул. Мцванеквавила, 168",
+      "fr": "1 rue F. Varlamichvili → 168 rue Mtsvanekvavila",
+      "de": "F. Warlamischwili-Straße 1 → Mtswanekwawila-Straße 168",
+      "zh": "瓦尔拉米什维利街1号 → 姆茨瓦内克瓦维拉街168号",
+      "en": "F. Varlamishvili Street N1 → Mtsvaneqvavilas Kucha N168",
+      "ka": "ფ. ვარლამიშვილის ქუჩა N1 → მწვანეყვავილას ქუჩა N168"
+    }
+  },
+  {
+    "id": "kutaisi:azry:route:MTpSMzI0MQ",
+    "number": "141",
+    "name": {
+      "ru": "ул. Ф. Варламишвили, 1 → ул. Д. Клдиашвили, 195",
+      "fr": "1 rue F. Varlamichvili → 195 rue D. Kldiachvili",
+      "de": "F. Warlamischwili-Straße 1 → D. Kldiaschwili-Straße 195",
+      "zh": "瓦尔拉米什维利街1号 → 克尔迪亚什维利街195号",
+      "en": "F. Varlamishvili Street N1 → D. Kldiashvili Street N195",
+      "ka": "ფ. ვარლამიშვილის ქუჩა N1 → დ. კლდიაშვილის ქუჩა N195"
+    }
+  }
+]

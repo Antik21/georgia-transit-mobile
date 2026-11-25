@@ -1,6 +1,10 @@
 import { readFileSync, writeFileSync } from "node:fs";
 
 import { cityPagePath, translations } from "../landing/locales.js";
+import { renderZugdidiTrips, zugdidiTripPage, zugdidiTripPath, zugdidiTrips } from "./zugdidi-trips.mjs";
+import { kutaisiTripPage, kutaisiTripPath, kutaisiTrips, renderKutaisiTrips } from "./kutaisi-trips.mjs";
+import { renderTrips, routePage, tripNumbers, tripPath } from "./batumi-trips.mjs";
+import { routeGuide } from "./landing-route-guide.mjs";
 import { cityCopy } from "./landing-city-copy.mjs";
 
 const site = "https://www.geotransit.com.ge";
@@ -86,6 +90,7 @@ function renderCity(city, language, paths) {
   const copy = translations[language];
   const esc = escapeHtml;
   const screens = cityScreens[city];
+  const guide = routeGuide(city, language, esc);
   const illustrations = screens.map(({ platform, asset, altKey }) =>
     phone(platform, asset, altKey ? copy[altKey] : imageAlt),
   ).join("\n          ");
@@ -94,13 +99,38 @@ function renderCity(city, language, paths) {
         <p>${esc(body)}</p>${index === 0 && serviceLink
           ? `\n        <a href="https://kutaisi-bus.msplus.ge/">${esc(serviceLink)}</a>` : ""}
       </section>`).join("\n      ");
+  const trips = { batumi: renderTrips, kutaisi: renderKutaisiTrips, zugdidi: renderZugdidiTrips }[city]?.(language, esc);
+  const main = `<section class="city-hero" data-city="${city}" aria-labelledby="city-title">
+      <div class="wrap city-hero__grid">
+        <div class="city-hero__copy">
+          <h1 id="city-title">${esc(heading)}</h1>
+          <p>${esc(intro)}</p>
+          <div class="city-hero__actions">
+            <a class="button city-guide__cta" href="${guide?.map ?? "https://app.geotransit.com.ge/"}" data-analytics-platform="web">${esc(guide?.button ?? copy.ctaWeb)}</a>
+            <a href="https://t.me/geo_transit_bot?startapp" data-analytics-platform="telegram_mini_app">${esc(copy.linkTelegram)}</a>
+          </div>
+        </div>
+        <div class="city-hero__screens">
+          ${illustrations}
+        </div>
+      </div>
+    </section>
+    ${trips ? trips + "\n    " : ""}${guide ? guide.html + "\n    " : ""}<div class="wrap city-guide__sections">
+      ${guideSections}
+    </div>`;
+  return guideShell(city, language, paths, { title, description, main });
+}
+
+function guideShell(city, language, paths, { title, description, main }) {
+  const copy = translations[language];
+  const esc = escapeHtml;
   const localeLinks = languages.map(tag => {
     const current = tag === language ? ' aria-current="page"' : "";
     return `<a href="${paths[tag]}" lang="${tag}" hreflang="${tag}" data-analytics-language="${tag}"${current}>${esc(languageLabels[tag])}</a>`;
   }).join("\n        ");
   const related = cities.filter(id => id !== city)
     .map(id => `<a href="${cityPagePath(id, language)}">${esc(copy[id])}</a>`).join("\n        ");
-  const shareImage = screens[0].asset;
+  const shareImage = cityScreens[city][0].asset;
 
   return `<!doctype html>
 <html lang="${language}">
@@ -138,24 +168,7 @@ function renderCity(city, language, paths) {
     </div>
   </header>
   <main id="main">
-    <section class="city-hero" data-city="${city}" aria-labelledby="city-title">
-      <div class="wrap city-hero__grid">
-        <div class="city-hero__copy">
-          <h1 id="city-title">${esc(heading)}</h1>
-          <p>${esc(intro)}</p>
-          <div class="city-hero__actions">
-            <a class="button city-guide__cta" href="https://app.geotransit.com.ge/" data-analytics-platform="web">${esc(copy.ctaWeb)}</a>
-            <a href="https://t.me/geo_transit_bot?startapp" data-analytics-platform="telegram_mini_app">${esc(copy.linkTelegram)}</a>
-          </div>
-        </div>
-        <div class="city-hero__screens">
-          ${illustrations}
-        </div>
-      </div>
-    </section>
-    <div class="wrap city-guide__sections">
-      ${guideSections}
-    </div>
+    ${main}
   </main>
   <footer class="footer">
     <div class="wrap city-guide__footer">
@@ -200,6 +213,19 @@ for (const city of cities) {
   for (const [language, path] of Object.entries(paths)) {
     output(path.slice(1), renderCity(city, language, paths));
     sitemapPaths.push(path);
+  }
+}
+for (const [city, trips, pathFor, pageFor] of [
+  ["batumi", tripNumbers, tripPath, routePage],
+  ["zugdidi", zugdidiTrips, zugdidiTripPath, zugdidiTripPage],
+  ["kutaisi", kutaisiTrips, kutaisiTripPath, kutaisiTripPage],
+]) {
+  for (const trip of trips) {
+    const paths = Object.fromEntries(languages.map(language => [language, pathFor(trip, language)]));
+    for (const [language, path] of Object.entries(paths)) {
+      output(path.slice(1), guideShell(city, language, paths, pageFor(trip, language, escapeHtml)));
+      sitemapPaths.push(path);
+    }
   }
 }
 output("sitemap.xml", [
