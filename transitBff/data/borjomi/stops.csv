@@ -1,0 +1,112 @@
+route,direction,origin,destination,sequence,yandex_stop_id,stop_name,latitude,longitude,source_url
+1,1,Market,Likani,1,4876650706,Market,41.840357385,43.378744038,https://yandex.com/maps/155447/borjomi/stops/4876650706/
+1,1,Market,Likani,2,4904741326,По требованию,41.837867982,43.378394391,https://yandex.com/maps/155447/borjomi/stops/4904741326/
+1,1,Market,Likani,3,4881992256,По требованию,41.835825864,43.370175029,https://yandex.com/maps/155447/borjomi/stops/4881992256/
+1,1,Market,Likani,4,4881994346,По требованию,41.832771856,43.367591727,https://yandex.com/maps/155447/borjomi/stops/4881994346/
+1,1,Market,Likani,5,5349494856,Turn to Likani,41.828392715,43.352873603,https://yandex.com/maps/155447/borjomi/stops/5349494856/
+1,1,Market,Likani,6,5347577576,Likani,41.832068249,43.345290023,https://yandex.com/maps/122061/samtskhe-javakheti/stops/5347577576/
+1,2,Likani,Market,1,5347577576,Likani,41.832068249,43.345290023,https://yandex.com/maps/122061/samtskhe-javakheti/stops/5347577576/
+1,2,Likani,Market,2,4656251613,Turn to Likani,41.828248363,43.352905452,https://yandex.com/maps/155447/borjomi/stops/4656251613/
+1,2,Likani,Market,3,4881995056,По требованию,41.829424796,43.36256795,https://yandex.com/maps/155447/borjomi/stops/4881995056/
+1,2,Likani,Market,4,4881993866,По требованию,41.833746908,43.368927798,https://yandex.com/maps/155447/borjomi/stops/4881993866/
+1,2,Likani,Market,5,5349539726,По требованию,41.836594585,43.371395231,https://yandex.com/maps/155447/borjomi/stops/5349539726/
+1,2,Likani,Market,6,4881989946,По требованию,41.836937652,43.373818036,https://yandex.com/maps/155447/borjomi/stops/4881989946/
+1,2,Likani,Market,7,4876650706,Market,41.840357385,43.378744038,https://yandex.com/maps/155447/borjomi/stops/4876650706/
+2,1,Market,Ardagani,1,4876650526,Market,41.839868849,43.378846342,https://yandex.com/maps/155447/borjomi/stops/4876650526/
+2,1,Market,Ardagani,2,4876651046,По требованию,41.840560544,43.379329139,https://yandex.com/maps/155447/borjomi/stops/4876651046/
+2,1,Market,Ardagani,3,4801762823,Bridge,41.842681238,43.38210144,https://yandex.com/maps/155447/borjomi/stops/4801762823/
+2,1,Market,Ardagani,4,4801762753,Gas Station,41.842339551,43.387529729,https://yandex.com/maps/155447/borjomi/stops/4801762753/
+2,1,Market,Ardagani,5,4876653976,St. George's Church,41.843220548,43.391940642,https://yandex.com/maps/155447/borjomi/stops/4876653976/
+2,1,Market,Ardagani,6,4876654836,"Shota Rustaveli Street, 73",41.8445947,43.395523502,https://yandex.com/maps/155447/borjomi/stops/4876654836/
+2,1,Market,Ardagani,7,4801762383,По требованию,41.845481512,43.397703169,https://yandex.com/maps/155447/borjomi/stops/4801762383/
+2,1,Market,Ardagani,8,4876656166,По требованию,41.847411535,43.403789153,https://yandex.com/maps/155447/borjomi/stops/4876656166/
+2,1,Market,Ardagani,9,5347603496,"Tori Street, 1",41.846856063,43.405772224,https://yandex.com/maps/155447/borjomi/stops/5347603496/
+2,1,Market,Ardagani,10,5347598676,Borjomi Mineral Water Bottling Factory № 1,41.842221274,43.408405503,https://yandex.com/maps/155447/borjomi/stops/5347598676/
+2,1,Market,Ardagani,11,5347596006,"Tori Street, 39",41.840454474,43.405643981,https://yandex.com/maps/155447/borjomi/stops/5347596006/
+2,1,Market,Ardagani,12,5347591486,"Tori Street, 47",41.837930777,43.399941879,https://yandex.com/maps/155447/borjomi/stops/5347591486/
+2,1,Market,Ardagani,13,5347590266,Ardagani,41.826712388,43.405496957,https://yandex.com/maps/155447/borjomi/stops/5347590266/
+2,2,Ardagani,Market,1,5347590266,Ardagani,41.826712388,43.405496957,https://yandex.com/maps/155447/borjomi/stops/5347590266/
+2,2,Ardagani,Market,2,5347591406,"Tori Street, 86",41.83761787,43.399480539,https://yandex.com/maps/155447/borjomi/stops/5347591406/
+2,2,Ardagani,Market,3,5347596116,"Tori Street, 58",41.840379258,43.405890744,https://yandex.com/maps/155447/borjomi/stops/5347596116/
+2,2,Ardagani,Market,4,5347598656,Borjomi Mineral Water Bottling Factory № 1,41.84229749,43.40854766,https://yandex.com/maps/155447/borjomi/stops/5347598656/
+2,2,Ardagani,Market,5,5347601946,"Tori Street, 33",41.845222361,43.408706838,https://yandex.com/maps/155447/borjomi/stops/5347601946/
+2,2,Ardagani,Market,6,5347603476,"Tori Street, 1",41.846928262,43.406045809,https://yandex.com/maps/155447/borjomi/stops/5347603476/
+2,2,Ardagani,Market,7,4876656366,По требованию,41.847716373,43.404229035,https://yandex.com/maps/155447/borjomi/stops/4876656366/
+2,2,Ardagani,Market,8,4801762483,По требованию,41.845725304,43.397780024,https://yandex.com/maps/155447/borjomi/stops/4801762483/
+2,2,Ardagani,Market,9,4876654896,"Shota Rustaveli, 73",41.844722675,43.39543278,https://yandex.com/maps/155447/borjomi/stops/4876654896/
+2,2,Ardagani,Market,10,4876654046,St. George's Church,41.843366701,43.391874385,https://yandex.com/maps/155447/borjomi/stops/4876654046/
+2,2,Ardagani,Market,11,4876652356,Gas Station,41.842466428,43.387303241,https://yandex.com/maps/155447/borjomi/stops/4876652356/
+2,2,Ardagani,Market,12,4801762953,Bridge,41.842860744,43.382216775,https://yandex.com/maps/155447/borjomi/stops/4801762953/
+2,2,Ardagani,Market,13,4876650706,Market,41.840357385,43.378744038,https://yandex.com/maps/155447/borjomi/stops/4876650706/
+3,1,Market,Kvibisi,1,4876650526,Market,41.839868849,43.378846342,https://yandex.com/maps/155447/borjomi/stops/4876650526/
+3,1,Market,Kvibisi,2,4876651046,По требованию,41.840560544,43.379329139,https://yandex.com/maps/155447/borjomi/stops/4876651046/
+3,1,Market,Kvibisi,3,4801762823,Bridge,41.842681238,43.38210144,https://yandex.com/maps/155447/borjomi/stops/4801762823/
+3,1,Market,Kvibisi,4,4801762753,Gas Station,41.842339551,43.387529729,https://yandex.com/maps/155447/borjomi/stops/4801762753/
+3,1,Market,Kvibisi,5,4876653976,St. George's Church,41.843220548,43.391940642,https://yandex.com/maps/155447/borjomi/stops/4876653976/
+3,1,Market,Kvibisi,6,4876654836,"Shota Rustaveli Street, 73",41.8445947,43.395523502,https://yandex.com/maps/155447/borjomi/stops/4876654836/
+3,1,Market,Kvibisi,7,4801762383,По требованию,41.845481512,43.397703169,https://yandex.com/maps/155447/borjomi/stops/4801762383/
+3,1,Market,Kvibisi,8,4876656166,По требованию,41.847411535,43.403789153,https://yandex.com/maps/155447/borjomi/stops/4876656166/
+3,1,Market,Kvibisi,9,4876656506,По требованию,41.847797866,43.405480717,https://yandex.com/maps/155447/borjomi/stops/4876656506/
+3,1,Market,Kvibisi,10,4876657786,"David Agmashenebeli Street, 31",41.853647074,43.413289706,https://yandex.com/maps/155447/borjomi/stops/4876657786/
+3,1,Market,Kvibisi,11,4876658816,По требованию,41.859197778,43.415374301,https://yandex.com/maps/155447/borjomi/stops/4876658816/
+3,1,Market,Kvibisi,12,4876659596,Kvibisi,41.861100119,43.4136566,https://yandex.com/maps/155447/borjomi/stops/4876659596/
+3,1,Market,Kvibisi,13,5347580136,Kvibisi Railway Station,41.859921443,43.416700175,https://yandex.com/maps/122061/samtskhe-javakheti/stops/5347580136/
+3,1,Market,Kvibisi,14,5347579196,Kvibisi,41.860906046,43.421502496,https://yandex.com/maps/122061/samtskhe-javakheti/stops/5347579196/
+3,2,Kvibisi,Market,1,5347579196,Kvibisi,41.860906046,43.421502496,https://yandex.com/maps/122061/samtskhe-javakheti/stops/5347579196/
+3,2,Kvibisi,Market,2,5347580086,Kvibisi Railway Station,41.859859284,43.416831603,https://yandex.com/maps/122061/samtskhe-javakheti/stops/5347580086/
+3,2,Kvibisi,Market,3,4876659556,Kvibisi,41.861067035,43.413507738,https://yandex.com/maps/155447/borjomi/stops/4876659556/
+3,2,Kvibisi,Market,4,4876658846,По требованию,41.858800759,43.415303222,https://yandex.com/maps/155447/borjomi/stops/4876658846/
+3,2,Kvibisi,Market,5,4876657756,"David Agmashenebeli Street, 31",41.853526755,43.413107316,https://yandex.com/maps/155447/borjomi/stops/4876657756/
+3,2,Kvibisi,Market,6,4876656366,По требованию,41.847716373,43.404229035,https://yandex.com/maps/155447/borjomi/stops/4876656366/
+3,2,Kvibisi,Market,7,4801762483,По требованию,41.845725304,43.397780024,https://yandex.com/maps/155447/borjomi/stops/4801762483/
+3,2,Kvibisi,Market,8,4876654896,"Shota Rustaveli, 73",41.844722675,43.39543278,https://yandex.com/maps/155447/borjomi/stops/4876654896/
+3,2,Kvibisi,Market,9,4876654046,St. George's Church,41.843366701,43.391874385,https://yandex.com/maps/155447/borjomi/stops/4876654046/
+3,2,Kvibisi,Market,10,4876652356,Gas Station,41.842466428,43.387303241,https://yandex.com/maps/155447/borjomi/stops/4876652356/
+3,2,Kvibisi,Market,11,4801762953,Bridge,41.842860744,43.382216775,https://yandex.com/maps/155447/borjomi/stops/4801762953/
+3,2,Kvibisi,Market,12,4876650706,Market,41.840357385,43.378744038,https://yandex.com/maps/155447/borjomi/stops/4876650706/
+4,1,Market,Kortaneti,1,4876650526,Market,41.839868849,43.378846342,https://yandex.com/maps/155447/borjomi/stops/4876650526/
+4,1,Market,Kortaneti,2,4876651046,По требованию,41.840560544,43.379329139,https://yandex.com/maps/155447/borjomi/stops/4876651046/
+4,1,Market,Kortaneti,3,4801762823,Bridge,41.842681238,43.38210144,https://yandex.com/maps/155447/borjomi/stops/4801762823/
+4,1,Market,Kortaneti,4,4801762753,Gas Station,41.842339551,43.387529729,https://yandex.com/maps/155447/borjomi/stops/4801762753/
+4,1,Market,Kortaneti,5,4876653976,St. George's Church,41.843220548,43.391940642,https://yandex.com/maps/155447/borjomi/stops/4876653976/
+4,1,Market,Kortaneti,6,4876654836,"Shota Rustaveli Street, 73",41.8445947,43.395523502,https://yandex.com/maps/155447/borjomi/stops/4876654836/
+4,1,Market,Kortaneti,7,4801762383,По требованию,41.845481512,43.397703169,https://yandex.com/maps/155447/borjomi/stops/4801762383/
+4,1,Market,Kortaneti,8,4876656166,По требованию,41.847411535,43.403789153,https://yandex.com/maps/155447/borjomi/stops/4876656166/
+4,1,Market,Kortaneti,9,4876656506,По требованию,41.847797866,43.405480717,https://yandex.com/maps/155447/borjomi/stops/4876656506/
+4,1,Market,Kortaneti,10,4876657786,"David Agmashenebeli Street, 31",41.853647074,43.413289706,https://yandex.com/maps/155447/borjomi/stops/4876657786/
+4,1,Market,Kortaneti,11,4876658816,По требованию,41.859197778,43.415374301,https://yandex.com/maps/155447/borjomi/stops/4876658816/
+4,1,Market,Kortaneti,12,4876659596,Kvibisi,41.861100119,43.4136566,https://yandex.com/maps/155447/borjomi/stops/4876659596/
+4,1,Market,Kortaneti,13,4876662066,По требованию,41.876013564,43.418651484,https://yandex.com/maps/122061/samtskhe-javakheti/stops/4876662066/
+4,1,Market,Kortaneti,14,4656262413,Vardgineti,41.878057789,43.424785078,https://yandex.com/maps/122061/samtskhe-javakheti/stops/4656262413/
+4,1,Market,Kortaneti,15,4876663516,Zanavi,41.890074435,43.435706144,https://yandex.com/maps/122061/samtskhe-javakheti/stops/4876663516/
+4,1,Market,Kortaneti,16,4876663796,По требованию,41.891546479,43.436752205,https://yandex.com/maps/122061/samtskhe-javakheti/stops/4876663796/
+4,1,Market,Kortaneti,17,4876664356,По требованию,41.894131787,43.438089931,https://yandex.com/maps/122061/samtskhe-javakheti/stops/4876664356/
+4,1,Market,Kortaneti,18,4656269173,Kortaneti,41.894786286,43.445515234,https://yandex.com/maps/122061/samtskhe-javakheti/stops/4656269173/
+4,1,Market,Kortaneti,19,5362468176,Kortaneti,41.894016447,43.443777191,https://yandex.com/maps/122061/samtskhe-javakheti/stops/5362468176/
+4,2,Kortaneti,Market,1,5362468176,Kortaneti,41.894016447,43.443777191,https://yandex.com/maps/122061/samtskhe-javakheti/stops/5362468176/
+4,2,Kortaneti,Market,2,4876664956,Kortaneti,41.894855885,43.446029639,https://yandex.com/maps/122061/samtskhe-javakheti/stops/4876664956/
+4,2,Kortaneti,Market,3,4876664386,По требованию,41.894184894,43.437945092,https://yandex.com/maps/122061/samtskhe-javakheti/stops/4876664386/
+4,2,Kortaneti,Market,4,4876663836,По требованию,41.891596582,43.436548358,https://yandex.com/maps/122061/samtskhe-javakheti/stops/4876663836/
+4,2,Kortaneti,Market,5,1543197131,Zanavi,41.890064414,43.435513025,https://yandex.com/maps/122061/samtskhe-javakheti/stops/1543197131/
+4,2,Kortaneti,Market,6,4876662896,Vardgineti,41.878172176,43.424886789,https://yandex.com/maps/122061/samtskhe-javakheti/stops/4876662896/
+4,2,Kortaneti,Market,7,4876662126,По требованию,41.876032608,43.418479823,https://yandex.com/maps/122061/samtskhe-javakheti/stops/4876662126/
+4,2,Kortaneti,Market,8,4876660896,Rveli,41.871320185,43.420602684,https://yandex.com/maps/122061/samtskhe-javakheti/stops/4876660896/
+4,2,Kortaneti,Market,9,4876659556,Kvibisi,41.861067035,43.413507738,https://yandex.com/maps/155447/borjomi/stops/4876659556/
+4,2,Kortaneti,Market,10,4876658846,По требованию,41.858800759,43.415303222,https://yandex.com/maps/155447/borjomi/stops/4876658846/
+4,2,Kortaneti,Market,11,4876657756,"David Agmashenebeli Street, 31",41.853526755,43.413107316,https://yandex.com/maps/155447/borjomi/stops/4876657756/
+4,2,Kortaneti,Market,12,4876656366,По требованию,41.847716373,43.404229035,https://yandex.com/maps/155447/borjomi/stops/4876656366/
+4,2,Kortaneti,Market,13,4801762483,По требованию,41.845725304,43.397780024,https://yandex.com/maps/155447/borjomi/stops/4801762483/
+4,2,Kortaneti,Market,14,4876654896,"Shota Rustaveli, 73",41.844722675,43.39543278,https://yandex.com/maps/155447/borjomi/stops/4876654896/
+4,2,Kortaneti,Market,15,4876654046,St. George's Church,41.843366701,43.391874385,https://yandex.com/maps/155447/borjomi/stops/4876654046/
+4,2,Kortaneti,Market,16,4876652356,Gas Station,41.842466428,43.387303241,https://yandex.com/maps/155447/borjomi/stops/4876652356/
+4,2,Kortaneti,Market,17,4801762953,Bridge,41.842860744,43.382216775,https://yandex.com/maps/155447/borjomi/stops/4801762953/
+4,2,Kortaneti,Market,18,4876650706,Market,41.840357385,43.378744038,https://yandex.com/maps/155447/borjomi/stops/4876650706/
+5,1,Market,New District,1,4876650526,Market,41.839868849,43.378846342,https://yandex.com/maps/155447/borjomi/stops/4876650526/
+5,1,Market,New District,2,4876651046,По требованию,41.840560544,43.379329139,https://yandex.com/maps/155447/borjomi/stops/4876651046/
+5,1,Market,New District,3,5362485266,По требованию,41.834037449,43.380152769,https://yandex.com/maps/155447/borjomi/stops/5362485266/
+5,1,Market,New District,4,5362484926,Grigol Robakidze Street,41.834547767,43.374199649,https://yandex.com/maps/155447/borjomi/stops/5362484926/
+5,1,Market,New District,5,4905036386,New District,41.832172497,43.379840781,https://yandex.com/maps/155447/borjomi/stops/4905036386/
+5,2,New District,Market,1,4905036386,New District,41.832172497,43.379840781,https://yandex.com/maps/155447/borjomi/stops/4905036386/
+5,2,New District,Market,2,4905021466,Grigol Robakidze Street,41.834517244,43.374403484,https://yandex.com/maps/155447/borjomi/stops/4905021466/
+5,2,New District,Market,3,5362485236,По требованию,41.833949188,43.380201049,https://yandex.com/maps/155447/borjomi/stops/5362485236/
+5,2,New District,Market,4,4876650706,Market,41.840357385,43.378744038,https://yandex.com/maps/155447/borjomi/stops/4876650706/

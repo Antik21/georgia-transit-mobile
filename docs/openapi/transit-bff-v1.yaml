@@ -71,7 +71,7 @@ paths:
                   additionalProperties: false
                   required: [cityId, routeCount, eventId]
                   properties:
-                    cityId: {type: string, enum: [batumi, demo, kutaisi, tbilisi, zugdidi]}
+                    cityId: {type: string, enum: [batumi, borjomi, demo, kutaisi, tbilisi, zugdidi]}
                     routeCount: {type: integer, minimum: 0, maximum: 10}
                     eventId: {type: string, format: uuid}
                 recentRoutesUsed: {type: boolean, default: false}
@@ -88,7 +88,7 @@ paths:
                   additionalProperties: false
                   required: [cityId, eventId]
                   properties:
-                    cityId: {type: string, enum: [batumi, demo, kutaisi, tbilisi, zugdidi]}
+                    cityId: {type: string, enum: [batumi, borjomi, demo, kutaisi, tbilisi, zugdidi]}
                     eventId: {type: string, format: uuid}
                 vehicleTapId: {type: string, format: uuid, description: Unique event ID for the vehicle marker tap.}
                 landing:

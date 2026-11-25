@@ -1,6 +1,6 @@
 # Geo Transit landing page
 
-Geo Transit’s static landing page covers Batumi, Kutaisi and Zugdidi. New visitors see English by
+Geo Transit’s static landing page covers Batumi, Kutaisi, Zugdidi and Borjomi. New visitors see English by
 default. The selector saves the chosen language and opens its shareable page. Existing `?lang=`
 links are supported. Light and dark themes follow the system until changed with the header button.
 
@@ -37,6 +37,8 @@ English landing page so Render can serve them as static files. City copy lives i
 [`tools/landing-city-copy.mjs`](../tools/landing-city-copy.mjs). After editing page copy or the
 landing HTML, run `node tools/build-landing-seo.mjs` from the repository root with Node.js 22 or
 later. Run it with `--check` to verify the checked-in output.
+
+The Borjomi guide and five route pages use the BFF ordered-stop CSV and localized names. Its route diagram connects stop coordinates in travel order.
 
 ## Screenshots
 

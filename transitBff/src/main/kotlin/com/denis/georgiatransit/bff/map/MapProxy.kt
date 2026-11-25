@@ -13,6 +13,7 @@ import kotlin.math.tan
 internal const val MinimumMapZoom = 8
 internal enum class MapArea(val west: Double, val south: Double, val east: Double, val north: Double) {
     Batumi(41.35, 41.30, 42.20, 41.95),
+    Borjomi(43.32, 41.80, 43.49, 41.96),
     Zugdidi(41.48, 42.32, 42.07, 42.68),
     Kutaisi(42.57, 42.17, 42.77, 42.35);
 

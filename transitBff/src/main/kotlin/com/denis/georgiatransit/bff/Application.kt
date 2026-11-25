@@ -47,7 +47,8 @@ import com.denis.georgiatransit.bff.provider.TtcTransitProviderAdapter
 import com.denis.georgiatransit.bff.provider.BatumiThetaTransitProviderAdapter
 import com.denis.georgiatransit.bff.provider.BatumiThetaClient
 import com.denis.georgiatransit.bff.provider.BatumiBatBusAllBusesClient
-import com.denis.georgiatransit.bff.provider.zugdidi.ZugdidiStaticAdapter
+import com.denis.georgiatransit.bff.provider.staticcatalog.StaticCatalog
+import com.denis.georgiatransit.bff.provider.staticcatalog.StaticCatalogAdapter
 import com.denis.georgiatransit.bff.service.JourneyPlanService
 import com.denis.georgiatransit.bff.service.TransitService
 import com.denis.georgiatransit.bff.map.MapArea
@@ -145,7 +146,10 @@ fun main() {
 
 fun Application.transitBffModule(config: BffConfig = BffConfig.fromEnvironment()) {
     val zugdidi = (config.zugdidiStaticCsv ?: config.zugdidiPreviewCsv)?.let { csv ->
-        ZugdidiStaticAdapter(csv, production = config.zugdidiStaticCsv != null)
+        StaticCatalogAdapter(csv, production = config.zugdidiStaticCsv != null, catalog = StaticCatalog.Zugdidi)
+    }
+    val borjomi = config.borjomiStaticCsv?.let { csv ->
+        StaticCatalogAdapter(csv, production = config.mode == RuntimeMode.PRODUCTION, catalog = StaticCatalog.Borjomi)
     }
     val observability = BffObservability(
         config = config,
@@ -153,6 +157,7 @@ fun Application.transitBffModule(config: BffConfig = BffConfig.fromEnvironment()
             if (config.mode == RuntimeMode.DEVELOPMENT && config.fixturesEnabled) {
                 add(KnownCityIds.Demo to TelemetryProvider.FIXTURE)
             }
+            borjomi?.let { add(KnownCityIds.Borjomi to it.telemetryProvider) }
             zugdidi?.let { add(KnownCityIds.Zugdidi to it.telemetryProvider) }
             if (config.transitous.isActivated) add(KnownCityIds.Tbilisi to TelemetryProvider.TRANSITOUS)
             if (config.ttc.isActivated) add(KnownCityIds.Tbilisi to TelemetryProvider.TTC)
@@ -165,6 +170,7 @@ fun Application.transitBffModule(config: BffConfig = BffConfig.fromEnvironment()
         if (config.mode == RuntimeMode.DEVELOPMENT && config.fixturesEnabled) {
             add(DemoFixtureTransitProviderAdapter())
         }
+        borjomi?.let(::add)
         zugdidi?.let(::add)
         // Construction is the final activation gate: no Transitous HTTP client exists before the
         // explicit policy/contact prerequisites pass. It performs no startup probe.
@@ -244,6 +250,7 @@ fun Application.transitBffModule(config: BffConfig = BffConfig.fromEnvironment()
     val mapProxy = config.map.takeIf { it.isActivated }?.let {
         val areas = buildSet {
             if (config.zugdidiPreviewCsv == null) add(MapArea.Batumi)
+            if (borjomi != null) add(MapArea.Borjomi)
             if (zugdidi != null) add(MapArea.Zugdidi)
         }
         MapProxy(it, areas = areas)

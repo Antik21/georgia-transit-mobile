@@ -51,6 +51,7 @@ data class BffConfig(
     val schemaDriftThreshold: Int = DefaultSchemaDriftThreshold,
     val schemaDriftWindowSeconds: Long = DefaultSchemaDriftWindowSeconds,
     val zugdidiPreviewCsv: Path? = null,
+    val borjomiStaticCsv: Path? = null,
     val zugdidiStaticCsv: Path? = null,
     val kutaisiOsmEnabled: Boolean = false,
     val kutaisiAzry: KutaisiAzryConfig = KutaisiAzryConfig.Disabled,
@@ -61,6 +62,10 @@ data class BffConfig(
         require(zugdidiPreviewCsv == null || mode == RuntimeMode.DEVELOPMENT && host in setOf("127.0.0.1", "::1")) {
             "BFF_ZUGDIDI_PREVIEW_CSV requires development mode and a loopback BFF_HOST"
         }
+        require(borjomiStaticCsv == null || when (mode) {
+            RuntimeMode.DEVELOPMENT -> fixturesEnabled && host in setOf("127.0.0.1", "::1")
+            RuntimeMode.PRODUCTION -> capabilityControlPath != null
+        }) { "BFF_BORJOMI_STATIC_CSV requires loopback fixtures or production capability control" }
         require(zugdidiStaticCsv == null || mode == RuntimeMode.PRODUCTION && capabilityControlPath != null) {
             "BFF_ZUGDIDI_STATIC_CSV requires production mode and an operator capability document"
         }
@@ -155,6 +160,7 @@ data class BffConfig(
                     ),
                     fixturesEnabled = parseBoolean(environment, "BFF_FIXTURES_ENABLED", false),
                     zugdidiPreviewCsv = parseOptionalPath(environment, "BFF_ZUGDIDI_PREVIEW_CSV"),
+                    borjomiStaticCsv = parseOptionalPath(environment, "BFF_BORJOMI_STATIC_CSV"),
                     zugdidiStaticCsv = parseOptionalPath(environment, "BFF_ZUGDIDI_STATIC_CSV"),
                     kutaisiOsmEnabled = parseBoolean(environment, "BFF_KUTAISI_OSM_ENABLED", false),
                     kutaisiAzry = KutaisiAzryConfig.fromEnvironment(environment),

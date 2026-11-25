@@ -174,7 +174,7 @@ private val WebEntrySources = mapOf(Catalog.Web to Catalog.Browser, Catalog.Tele
 private val ZoomTypes = setOf(Catalog.FingerDoubleTap, Catalog.FingerPinch, Catalog.Button)
 private val JourneyPlanningSources = setOf(Catalog.MapButton, Catalog.LongPress)
 private val AnalyticsCities = setOf(
-    KnownCityIds.Batumi, KnownCityIds.Demo, KnownCityIds.Kutaisi, KnownCityIds.Tbilisi, KnownCityIds.Zugdidi,
+    KnownCityIds.Batumi, KnownCityIds.Borjomi, KnownCityIds.Demo, KnownCityIds.Kutaisi, KnownCityIds.Tbilisi, KnownCityIds.Zugdidi,
 )
 private val LandingLanguages = setOf("en", "ka", "ru", "zh-Hans", "fr", "de")
 private val LandingPlatforms = setOf(Catalog.Web, Catalog.TelegramMiniApp, Catalog.Android, Catalog.Ios)
