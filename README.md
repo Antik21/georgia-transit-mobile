@@ -1,6 +1,18 @@
 # Georgia Transit Mobile
 
-Kotlin Multiplatform shell for a Georgia public-transit app. Shared Compose UI currently demonstrates three connected screens: city selection, a local MapLibre renderer prototype, and multi-route selection. Android and iOS hosts render the same common UI.
+Explore public transit in Georgia on the live map, check stop arrivals, and plan a bus journey. Geo Transit runs on Android, iOS, the web, and Telegram.
+
+[Geo Transit website](https://www.geotransit.com.ge/) · [Open the web app](https://app.geotransit.com.ge/) · [Open in Telegram](https://t.me/geo_transit_bot?startapp)
+
+## Screenshots
+
+### Web app
+
+![Live map of bus route 2 in Batumi in the web app](docs/screenshots/web.webp)
+
+| Telegram Mini App | Android | iOS |
+| --- | --- | --- |
+| <img src="docs/screenshots/telegram.webp" width="245" alt="Batumi bus route list in the Telegram Mini App"> | <img src="landing/assets/screens/mobile-arrivals.webp" width="245" alt="Upcoming bus arrivals at a stop in Batumi on Android"> | <img src="landing/assets/screens/mobile-planner.webp" width="245" alt="Planning a bus journey in Batumi on iOS"> |
 
 ## Stack
 
