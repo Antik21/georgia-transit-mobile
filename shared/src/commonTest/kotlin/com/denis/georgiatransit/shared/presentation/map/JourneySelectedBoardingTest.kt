@@ -63,6 +63,22 @@ class JourneySelectedBoardingTest {
         assertEquals(listOf(other.id), assertIs<Status.Results>(JourneyPlannerReducer.outcome(passed.state, page, near).state.status).options.map { it.id })
     }
 
+    @Test
+    fun updatingAccessAtTheStopPreservesTheEgressWhenTheRideHasNoGeometry() {
+        val end = GeoPoint(B.latitude + 0.001, B.longitude)
+        val ride = TransitJourneySegment(NOW, NOW, JourneySegmentMode.Transit, routeId = RouteId("route"),
+            fromStopId = StopId("boarding"), toStopId = StopId("exit"), fromPosition = A,
+            vehicleId = VehicleId("bus"), waitBasis = JourneyWaitBasis.LiveVehicle)
+        val egress = TransitJourneySegment(NOW, NOW, JourneySegmentMode.Walk, fromPosition = B, toPosition = end)
+        val journey = TransitJourney(JourneyId("chosen"), NOW, NOW, 0, emptyList(), listOf(ride, egress))
+        val option = JourneyPlanUiMapper.options(JourneyPage(listOf(journey), NOW), emptyList()).single()
+        assertEquals(listOf(B, end), option.lines.single().points)
+        val approaching = option.withCurrentAccessWalk(end)
+        assertEquals(listOf(true, false), approaching.lines.map { it.isAccessWalk })
+        val atStop = approaching.withCurrentAccessWalk(A).withCurrentAccessWalk(A)
+        assertEquals(option.lines, atStop.lines)
+    }
+
     private val NOW = Instant.fromEpochMilliseconds(1_900_000_000_000L)
     private val A = GeoPoint(41.64, 41.63)
     private val B = GeoPoint(41.65, 41.64)

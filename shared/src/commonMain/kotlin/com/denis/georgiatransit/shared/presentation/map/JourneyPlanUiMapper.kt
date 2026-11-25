@@ -65,7 +65,9 @@ internal object JourneyPlanUiMapper {
                     walk(segment, walkRole(index, transitIndexes))
                 }
             },
-            lines = segments.mapNotNull { line(it, routes) }.toPersistentList(),
+            lines = segments.mapIndexedNotNull { index, segment ->
+                line(segment, routes, isAccessWalk = walkRole(index, transitIndexes) == JourneyWalkRole.Access)
+            }.toPersistentList(),
             labels = JourneyLabelUi.of(journey.labels),
             boarding = segments.firstOrNull { it.mode == JourneySegmentMode.Transit }?.let { ride ->
                 JourneyBoarding(
@@ -123,7 +125,7 @@ internal object JourneyPlanUiMapper {
         return points.drop(1).firstNotNullOfOrNull { directVehicleTravelBearing(start, it) }
     }
 
-    private fun line(segment: TransitJourneySegment, routes: List<TransitRoute>): JourneyPlanLineUi? {
+    private fun line(segment: TransitJourneySegment, routes: List<TransitRoute>, isAccessWalk: Boolean): JourneyPlanLineUi? {
         val decoded = segment.geometry?.let { decodeEncodedPolyline(it, POLYLINE_PRECISION) }
         val points = (decoded as? EncodedPolylineDecodeResult.Success)?.points
             ?: listOfNotNull(segment.fromPosition, segment.toPosition).takeIf { it.size == 2 && it[0] != it[1] }
@@ -132,6 +134,7 @@ internal object JourneyPlanUiMapper {
         return JourneyPlanLineUi(
             kind = if (transit) JourneyPlanLineKind.Transit else JourneyPlanLineKind.Walk,
             points = points.toPersistentList(),
+            isAccessWalk = isAccessWalk,
             colorArgb = if (transit) badge(segment, routes).backgroundArgb else JourneyWalkLineArgb,
         )
     }

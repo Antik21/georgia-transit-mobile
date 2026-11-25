@@ -11,8 +11,8 @@ internal fun JourneyOptionUi.withCurrentAccessWalk(origin: GeoPoint): JourneyOpt
     val meters = WalkingEstimate.meters(origin.distanceMetersTo(stop) * WALK_DETOUR_FACTOR)
     val previous = (legs.firstOrNull() as? JourneyLegUi.Walk)?.takeIf { it.role == JourneyWalkRole.Access }
     val walk = JourneyLegUi.Walk(JourneyWalkRole.Access, meters, WalkingEstimate.minutes(meters), isApproximate = true)
-    val line = JourneyPlanLineUi(JourneyPlanLineKind.Walk, persistentListOf(origin, stop), JourneyWalkLineArgb)
-    val remainingLines = if (lines.firstOrNull()?.kind == JourneyPlanLineKind.Walk) lines.removeAt(0) else lines
+    val line = JourneyPlanLineUi(JourneyPlanLineKind.Walk, persistentListOf(origin, stop), JourneyWalkLineArgb, isAccessWalk = true)
+    val remainingLines = lines.removeAll { it.isAccessWalk }
     return copy(
         legs = listOf(walk) + if (previous == null) legs else legs.drop(1),
         walkingMeters = walkingMeters?.let { (it - (previous?.meters ?: 0)).coerceAtLeast(0) + meters },

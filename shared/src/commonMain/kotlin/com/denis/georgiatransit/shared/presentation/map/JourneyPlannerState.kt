@@ -169,6 +169,7 @@ data class JourneyPlanLineUi(
     val kind: JourneyPlanLineKind,
     val points: PersistentList<GeoPoint>,
     val colorArgb: Long,
+    val isAccessWalk: Boolean = false,
 )
 
 /** Selected option geometry and endpoint markers; empty while nothing is chosen. */
