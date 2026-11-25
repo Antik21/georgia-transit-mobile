@@ -47,6 +47,15 @@ import kotlin.test.assertTrue
 
 class TransitServiceTest {
     @Test
+    fun `city catalog places Borjomi immediately after Kutaisi`() = runTest {
+        val template = FakeAdapter().city
+        val adapters = listOf("zugdidi", "borjomi", "batumi", "kutaisi").map { FakeAdapter(city = template.copy(id = it)) }
+        TransitService(ProviderRegistry(adapters), 3600, 3600, 1).use { transit ->
+            assertEquals(listOf("batumi", "kutaisi", "borjomi", "zugdidi"), transit.cities().map { it.id })
+        }
+    }
+
+    @Test
     fun `capability false returns 501 semantics through a configured adapter`() = runTest {
         val adapter = FakeAdapter(city = FakeAdapter().city.copy(capabilities = capabilities(routes = false)))
         service(adapter).use { transit ->
