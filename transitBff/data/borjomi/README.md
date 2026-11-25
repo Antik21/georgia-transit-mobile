@@ -12,4 +12,4 @@ Checked on 2026-11-25 against the public Yandex Maps route cards. Each direction
 
 The named service has internal catalog key 5. Its public label follows the route card. Route numbers follow the passenger map. The municipality also lists these corridors in [the March 2024 annex](https://www.matsne.gov.ge/ka/document/download/6137986/0/ge/pdf).
 
-Source attribution is included in the city response. The standard production capability document controls visibility. Public access to the cards supplies no evidence of a separate redistribution licence. Review reuse for the intended deployment under the [Yandex Maps terms](https://yandex.com/legal/maps_termsofuse/).
+The project owner confirmed permission to publish on 2026-11-25. Source references are retained in the catalog for maintenance. The production capability document controls visibility.
