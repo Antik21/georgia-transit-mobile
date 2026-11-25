@@ -90,6 +90,14 @@ regional vector coverage alongside Batumi and draws direct segments between the 
 coordinates. To roll back a catalog update, redeploy the previous image. Before reverting to an
 image without the Zugdidi adapter, disable Zugdidi in a new control revision.
 
+## Borjomi static catalog
+
+The image includes the [five-route Borjomi catalog](../../transitBff/data/borjomi/README.md).
+After source rights review, enable city ID `borjomi` through the same persistent capability
+document and static-only flags described for Zugdidi above. For a local preview set
+`BFF_HOST=127.0.0.1`, `BFF_FIXTURES_ENABLED=true`, and `BFF_BORJOMI_STATIC_CSV` to the
+absolute path to `transitBff/data/borjomi/stops.csv`.
+
 ## Telegram web client
 
 The same Blueprint declares the free static site `antik21-georgia-transit-web` ([ADR 0021](../adr/0021-telegram-web-hosting.md)). Render does not build it: after every check on `main` passes, the `Publish web client` CI job force-pushes the smoke-tested `webApp/dist` to the generated branch `web-dist`, and the site deploys from that branch.

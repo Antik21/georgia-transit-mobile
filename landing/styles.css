@@ -177,7 +177,7 @@ a { color: var(--link); }
 .note { margin-top: 14px; color: var(--muted); font-size: 15px; }
 
 .cities { padding-block: clamp(48px, 6vw, 80px); background: var(--surface); border-bottom: 1px solid var(--edge); }
-.city-list { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 28px; margin: 30px 0 0; padding: 0; list-style: none; }
+.city-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 210px), 1fr)); gap: 28px; margin: 30px 0 0; padding: 0; list-style: none; }
 .city-list li { padding: 0 12px 0 16px; border-inline-start: 3px solid var(--link); }
 .city-list h3 { font-size: 22px; }
 .city-list h3 a { color: inherit; text-decoration-color: var(--link); text-decoration-thickness: 2px; text-underline-offset: 5px; }
@@ -186,6 +186,13 @@ a { color: var(--link); }
 
 .city-guide__home { margin-inline-start: auto; font-weight: 600; text-underline-offset: 4px; }
 .city-hero { overflow: hidden; }
+.city-hero[data-city="borjomi"] { background: var(--land); }
+.borjomi-diagram { margin: 0; }
+.diagram-lines { position: relative; }
+.diagram-stop { position: absolute; transform: translate(-50%, -100%); padding: 2px 8px; border-radius: 6px; background: #233828; color: white; font-weight: 700; font-size: 14px; text-decoration: none; }
+.diagram-stop:hover { text-decoration: underline; }
+.borjomi-diagram img { display: block; width: 100%; height: auto; border-radius: 18px; }
+.borjomi-diagram figcaption { font-size: 13px; color: var(--muted); }
 .city-hero[data-city="batumi"] { background: color-mix(in srgb, var(--paper) 86%, #77acbc); }
 .city-hero[data-city="kutaisi"] { background: var(--land); }
 .city-hero[data-city="zugdidi"] { background: linear-gradient(125deg, var(--burgundy-deep), #8e1b2d); color: var(--hero-ink); }

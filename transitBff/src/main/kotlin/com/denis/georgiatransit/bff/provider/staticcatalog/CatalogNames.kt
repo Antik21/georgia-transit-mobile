@@ -1,10 +1,10 @@
-package com.denis.georgiatransit.bff.provider.zugdidi
+package com.denis.georgiatransit.bff.provider.staticcatalog
 
 import com.denis.georgiatransit.bff.api.LocalizedText
 import kotlinx.serialization.json.Json
 
-internal object ZugdidiNames {
-    private val labels = requireNotNull(javaClass.getResourceAsStream("/transit/zugdidi/names.json"))
+internal class CatalogNames(private val cityId: String) {
+    private val labels = requireNotNull(javaClass.getResourceAsStream("/transit/$cityId/names.json"))
         .bufferedReader().use { Json.decodeFromString<Map<String, LocalizedText>>(it.readText()) }
         .onEach { (key, label) -> requireComplete(key, label) }
 
@@ -13,7 +13,7 @@ internal object ZugdidiNames {
     val loop get() = label("@route-2")
 
     fun label(source: String): LocalizedText =
-        requireNotNull(labels[source]) { "Zugdidi translation missing for '$source'" }
+        requireNotNull(labels[source]) { "$cityId translation missing for '$source'" }
 
     fun direction(origin: LocalizedText, destination: LocalizedText): LocalizedText = LocalizedText(
         ru = "${origin.ru} → ${destination.ru}",
@@ -29,6 +29,6 @@ internal object ZugdidiNames {
 
     private fun requireComplete(key: String, label: LocalizedText) {
         val values = listOf(label.ru, label.en, label.ka, label.uk, label.de, label.fr, label.ar, label.hi, label.zh)
-        require(values.none { it.isNullOrBlank() }) { "Incomplete Zugdidi translation for '$key'" }
+        require(values.none { it.isNullOrBlank() }) { "Incomplete $cityId translation for '$key'" }
     }
 }

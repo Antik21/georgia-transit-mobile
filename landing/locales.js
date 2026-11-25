@@ -1,6 +1,6 @@
 const ru = {
-  pageTitle: "Автобусы Батуми, Кутаиси и Зугдиди | Georgia Transit",
-  description: "Автобусы и остановки Батуми, Кутаиси и Зугдиди на карте. Проверьте прибытия, расписание автобусов Кутаиси и маршруты в Georgia Transit.",
+  pageTitle: "Автобусы Батуми, Кутаиси, Зугдиди и Боржоми | Georgia Transit",
+  description: "Автобусы и остановки Батуми, Кутаиси, Зугдиди и Боржоми на карте. Проверьте прибытия, расписание автобусов Кутаиси и маршруты в Georgia Transit.",
   skip: "Перейти к содержимому",
   navLabel: "Навигация",
   navCities: "Города",
@@ -10,7 +10,7 @@ const ru = {
   langLabel: "Язык",
   themeLabel: "Сменить тему",
   heroCity: "Общественный транспорт Грузии",
-  heroTitle: "Автобусы Батуми, Кутаиси и Зугдиди",
+  heroTitle: "Автобусы Батуми, Кутаиси, Зугдиди и Боржоми",
   heroLead: "Найдите нужный автобус, остановку или маршрут на карте. Проверьте ближайшие прибытия и спланируйте поездку там, где доступен планировщик.",
   ctaWeb: "Открыть веб-версию",
   ctaPlatforms: "Android, iOS и Telegram",
@@ -23,6 +23,8 @@ const ru = {
   kutaisiBody: "Расписание автобусов по маршруту, направлению и дате, остановки, ближайшие прибытия и автобусы на карте.",
   zugdidi: "Автобусы Зугдиди",
   zugdidiBody: "Найдите маршрут по номеру и посмотрите примерное расположение автобусных остановок на карте.",
+  borjomi: "Автобусы Боржоми",
+  borjomiBody: "Пять маршрутов от Рынка с остановками в обоих направлениях.",
   featuresTitle: "Перед выходом и в пути",
   f1Title: "Автобусы на карте",
   f1Body: "Следите за движением автобусов в Батуми и Кутаиси. Нажмите кнопку геолокации, чтобы найти себя на карте и увидеть остановки рядом.",
@@ -71,8 +73,8 @@ const ru = {
 };
 
 const en = {
-  pageTitle: "Buses in Batumi, Kutaisi and Zugdidi | Georgia Transit",
-  description: "See bus routes and stops in Batumi, Kutaisi and Zugdidi. Check bus arrivals and Kutaisi timetables in the Georgia Transit web or mobile app.",
+  pageTitle: "Buses in Batumi, Kutaisi, Zugdidi and Borjomi | Georgia Transit",
+  description: "See bus routes and stops in Batumi, Kutaisi, Zugdidi and Borjomi. Check bus arrivals and Kutaisi timetables in the Georgia Transit web or mobile app.",
   skip: "Skip to content",
   navLabel: "Navigation",
   navCities: "Cities",
@@ -82,7 +84,7 @@ const en = {
   langLabel: "Language",
   themeLabel: "Switch theme",
   heroCity: "Public transport in Georgia",
-  heroTitle: "Buses in Batumi, Kutaisi and Zugdidi",
+  heroTitle: "Buses in Batumi, Kutaisi, Zugdidi and Borjomi",
   heroLead: "Find your bus, stop or route on the map. Check upcoming arrivals and plan a trip where the journey planner is available.",
   ctaWeb: "Open the web app",
   ctaPlatforms: "Android, iOS and Telegram",
@@ -95,6 +97,8 @@ const en = {
   kutaisiBody: "Bus timetables by route, direction and date, live bus positions, stops and upcoming arrivals.",
   zugdidi: "Buses in Zugdidi",
   zugdidiBody: "Find bus routes by number and see approximate stop locations on the map.",
+  borjomi: "Buses in Borjomi",
+  borjomiBody: "Five routes from Market, with stops listed in both directions.",
   featuresTitle: "Before you leave and on the way",
   f1Title: "Buses on the map",
   f1Body: "Track moving buses in Batumi and Kutaisi. Use the location button to find yourself on the map and see nearby stops.",
@@ -143,8 +147,8 @@ const en = {
 };
 
 const ka = {
-  pageTitle: "ბათუმის, ქუთაისისა და ზუგდიდის ავტობუსები | Georgia Transit",
-  description: "ბათუმის, ქუთაისისა და ზუგდიდის ავტობუსები და გაჩერებები რუკაზე. ნახეთ მოსვლის დროები და ქუთაისის ავტობუსების განრიგი Georgia Transit-ში.",
+  pageTitle: "ბათუმის, ქუთაისის, ზუგდიდისა და ბორჯომის ავტობუსები | Georgia Transit",
+  description: "ბათუმის, ქუთაისის, ზუგდიდისა და ბორჯომის ავტობუსები და გაჩერებები რუკაზე. ნახეთ მოსვლის დროები და ქუთაისის ავტობუსების განრიგი Georgia Transit-ში.",
   skip: "შინაარსზე გადასვლა",
   navLabel: "ნავიგაცია",
   navCities: "ქალაქები",
@@ -154,7 +158,7 @@ const ka = {
   langLabel: "ენა",
   themeLabel: "თემის შეცვლა",
   heroCity: "საზოგადოებრივი ტრანსპორტი საქართველოში",
-  heroTitle: "ბათუმის, ქუთაისისა და ზუგდიდის ავტობუსები",
+  heroTitle: "ბათუმის, ქუთაისის, ზუგდიდისა და ბორჯომის ავტობუსები",
   heroLead: "იპოვეთ რუკაზე თქვენთვის საჭირო ავტობუსი, გაჩერება ან მარშრუტი. შეამოწმეთ მოსვლის დრო და დაგეგმეთ მგზავრობა იქ, სადაც ეს ფუნქცია ხელმისაწვდომია.",
   ctaWeb: "ვებვერსიის გახსნა",
   ctaPlatforms: "Android, iOS და Telegram",
@@ -167,6 +171,8 @@ const ka = {
   kutaisiBody: "ავტობუსების განრიგი მარშრუტის, მიმართულებისა და თარიღის მიხედვით. იხილეთ გაჩერებები, მოსვლის დროები და ავტობუსები რუკაზე.",
   zugdidi: "ზუგდიდის ავტობუსები",
   zugdidiBody: "მოძებნეთ მარშრუტები ნომრით და ნახეთ ავტობუსის გაჩერებების სავარაუდო მდებარეობა რუკაზე.",
+  borjomi: "ბორჯომის ავტობუსები",
+  borjomiBody: "ბაზრიდან გამავალი ხუთი მარშრუტი და გაჩერებები ორივე მიმართულებით.",
   featuresTitle: "გასვლამდე და გზაში",
   f1Title: "ავტობუსები რუკაზე",
   f1Body: "თვალი ადევნეთ მოძრავ ავტობუსებს ბათუმსა და ქუთაისში. მდებარეობის ღილაკით იპოვეთ საკუთარი თავი რუკაზე და ნახეთ ახლომდებარე გაჩერებები.",
@@ -215,8 +221,8 @@ const ka = {
 };
 
 const zhHans = {
-  pageTitle: "巴统、库塔伊西和祖格迪迪公交 | Georgia Transit",
-  description: "查看巴统、库塔伊西和祖格迪迪的公交线路和站点，在 Georgia Transit 查询到站时间与库塔伊西公交时刻表。",
+  pageTitle: "巴统、库塔伊西、祖格迪迪和博尔若米公交 | Georgia Transit",
+  description: "查看巴统、库塔伊西、祖格迪迪和博尔若米的公交线路和站点，在 Georgia Transit 查询到站时间与库塔伊西公交时刻表。",
   skip: "跳转到主要内容",
   navLabel: "导航",
   navCities: "覆盖城市",
@@ -226,7 +232,7 @@ const zhHans = {
   langLabel: "语言",
   themeLabel: "切换主题",
   heroCity: "格鲁吉亚公共交通",
-  heroTitle: "巴统、库塔伊西和祖格迪迪的公交",
+  heroTitle: "巴统、库塔伊西、祖格迪迪和博尔若米的公交",
   heroLead: "在地图上查找公交车辆、站点和线路。查看即将到站的车辆，并在支持的城市规划行程。",
   ctaWeb: "打开网页版",
   ctaPlatforms: "Android、iOS 和 Telegram",
@@ -239,6 +245,8 @@ const zhHans = {
   kutaisiBody: "按线路、方向和日期查询公交时刻表，也可查看实时车辆、站点和到站时间。",
   zugdidi: "祖格迪迪公交",
   zugdidiBody: "按编号查找公交线路，并在地图上查看站点的大致位置。",
+  borjomi: "博尔若米公交",
+  borjomiBody: "查看从市场出发的五条公交线路及各线路的往返站点。",
   featuresTitle: "出发前和途中都能查",
   f1Title: "地图上的公交车辆",
   f1Body: "实时查看巴统和库塔伊西的公交车辆。点按定位按钮，在地图上找到自己的位置和附近站点。",
@@ -287,8 +295,8 @@ const zhHans = {
 };
 
 const fr = {
-  pageTitle: "Bus à Batoumi, Koutaïssi et Zougdidi | Georgia Transit",
-  description: "Retrouvez les lignes et arrêts de bus à Batoumi, Koutaïssi et Zougdidi. Consultez les prochains passages et les horaires à Koutaïssi.",
+  pageTitle: "Bus à Batoumi, Koutaïssi, Zougdidi et Bordjomi | Georgia Transit",
+  description: "Retrouvez les lignes et arrêts de bus à Batoumi, Koutaïssi, Zougdidi et Bordjomi. Consultez les prochains passages et les horaires à Koutaïssi.",
   skip: "Aller au contenu",
   navLabel: "Navigation",
   navCities: "Villes",
@@ -298,7 +306,7 @@ const fr = {
   langLabel: "Langue",
   themeLabel: "Changer de thème",
   heroCity: "Transports publics en Géorgie",
-  heroTitle: "Les bus de Batoumi, Koutaïssi et Zougdidi",
+  heroTitle: "Les bus de Batoumi, Koutaïssi, Zougdidi et Bordjomi",
   heroLead: "Retrouvez votre bus, votre arrêt ou votre ligne sur la carte. Consultez les prochains passages et préparez votre trajet dans les villes où cette fonction est disponible.",
   ctaWeb: "Ouvrir la version web",
   ctaPlatforms: "Android, iOS et Telegram",
@@ -311,6 +319,8 @@ const fr = {
   kutaisiBody: "Horaires de bus par ligne, direction et date, arrêts, prochains passages et bus en temps réel.",
   zugdidi: "Les bus de Zougdidi",
   zugdidiBody: "Trouvez les lignes par numéro et repérez l’emplacement approximatif des arrêts de bus sur la carte.",
+  borjomi: "Les bus de Bordjomi",
+  borjomiBody: "Cinq lignes au départ du marché, avec les arrêts dans les deux sens.",
   featuresTitle: "Avant de partir et en chemin",
   f1Title: "Les bus sur la carte",
   f1Body: "Suivez les bus en circulation à Batoumi et à Koutaïssi. Utilisez le bouton de localisation pour vous situer sur la carte et repérer les arrêts à proximité.",
@@ -359,8 +369,8 @@ const fr = {
 };
 
 const de = {
-  pageTitle: "Busse in Batumi, Kutaissi und Sugdidi | Georgia Transit",
-  description: "Buslinien und Haltestellen in Batumi, Kutaissi und Sugdidi auf der Karte. Prüfe die nächsten Busankünfte und die Fahrpläne für Kutaissi.",
+  pageTitle: "Busse in Batumi, Kutaissi, Sugdidi und Bordschomi | Georgia Transit",
+  description: "Buslinien und Haltestellen in Batumi, Kutaissi, Sugdidi und Bordschomi auf der Karte. Prüfe die nächsten Busankünfte und die Fahrpläne für Kutaissi.",
   skip: "Zum Inhalt",
   navLabel: "Navigation",
   navCities: "Städte",
@@ -370,7 +380,7 @@ const de = {
   langLabel: "Sprache",
   themeLabel: "Farbschema wechseln",
   heroCity: "Öffentlicher Nahverkehr in Georgien",
-  heroTitle: "Busse in Batumi, Kutaissi und Sugdidi",
+  heroTitle: "Busse in Batumi, Kutaissi, Sugdidi und Bordschomi",
   heroLead: "Finde deinen Bus, deine Haltestelle oder Linie auf der Karte. Prüfe die nächsten Ankünfte und plane deine Fahrt, wo der Routenplaner verfügbar ist.",
   ctaWeb: "Web-App öffnen",
   ctaPlatforms: "Android, iOS und Telegram",
@@ -383,6 +393,8 @@ const de = {
   kutaisiBody: "Busfahrpläne nach Linie, Richtung und Datum, dazu Haltestellen, nächste Ankünfte und Busse auf der Karte.",
   zugdidi: "Busse in Sugdidi",
   zugdidiBody: "Finde Buslinien anhand der Liniennummer und sieh die ungefähre Lage der Haltestellen auf der Karte.",
+  borjomi: "Busse in Bordschomi",
+  borjomiBody: "Fünf Linien ab dem Markt mit allen Haltestellen für Hin- und Rückfahrt.",
   featuresTitle: "Vor der Abfahrt und unterwegs",
   f1Title: "Busse auf der Karte",
   f1Body: "Verfolge die Busse in Batumi und Kutaissi. Tippe auf die Standorttaste, um dich auf der Karte zu finden und Haltestellen in der Nähe zu sehen.",

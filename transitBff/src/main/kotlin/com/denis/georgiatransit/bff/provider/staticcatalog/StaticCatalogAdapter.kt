@@ -1,4 +1,4 @@
-package com.denis.georgiatransit.bff.provider.zugdidi
+package com.denis.georgiatransit.bff.provider.staticcatalog
 
 import com.denis.georgiatransit.bff.api.AttributionLink
 import com.denis.georgiatransit.bff.api.City
@@ -30,14 +30,36 @@ import java.nio.file.Path
 
 private val routeColors = listOf("#2853A0", "#AC3C26", "#147666", "#764595", "#AA2961", "#374B76", "#9A4C20")
 
+internal enum class StaticCatalog(
+    val id: String,
+    val center: GeoPoint,
+    val area: MapArea,
+    val provider: TelemetryProvider,
+    val sourceUrl: String,
+) {
+    Zugdidi(
+        KnownCityIds.Zugdidi, GeoPoint(42.5088, 41.8662), MapArea.Zugdidi, TelemetryProvider.ZUGDIDI_STATIC,
+        "https://yandex.com/maps/122069/zugdidi/transport/",
+    ),
+    Borjomi(
+        KnownCityIds.Borjomi, GeoPoint(41.8404, 43.3820), MapArea.Borjomi, TelemetryProvider.BORJOMI_STATIC,
+        "https://yandex.com/maps/155447/borjomi/transport/",
+    ),
+}
+
 /** Static catalog loaded once from an operator-provisioned ordered-stop file. */
-internal class ZugdidiStaticAdapter(csv: Path, production: Boolean) : CityTransitProviderAdapter {
+internal class StaticCatalogAdapter(
+    csv: Path,
+    production: Boolean,
+    private val catalog: StaticCatalog,
+) : CityTransitProviderAdapter {
+    private val names = CatalogNames(catalog.id)
     private val namespace = if (production) "static" else "fixture"
-    override val telemetryProvider = if (production) TelemetryProvider.ZUGDIDI_STATIC else TelemetryProvider.FIXTURE
+    override val telemetryProvider = if (production) catalog.provider else TelemetryProvider.FIXTURE
     override val city = City(
-        id = KnownCityIds.Zugdidi,
-        name = ZugdidiNames.city,
-        center = GeoPoint(42.5088, 41.8662),
+        id = catalog.id,
+        name = names.city,
+        center = catalog.center,
         defaultZoom = 13.5,
         capabilities = CityCapabilities(
             routes = true,
@@ -52,31 +74,31 @@ internal class ZugdidiStaticAdapter(csv: Path, production: Boolean) : CityTransi
         } else {
             CityAvailability(CityReadiness.DEVELOPMENT_FIXTURE, CitySource.FIXTURE)
         },
-        mapBounds = MapArea.Zugdidi.bounds,
+        mapBounds = catalog.area.bounds,
         attribution = listOf(
-            AttributionLink("yandex-maps", ZugdidiNames.attribution, "https://yandex.com/maps/122069/zugdidi/transport/"),
+            AttributionLink("yandex-maps", names.attribution, catalog.sourceUrl),
         ),
     )
 
-    private val input = readZugdidiDirections(csv).also { directions ->
-        val bounds = MapArea.Zugdidi.bounds
+    private val input = readCatalogDirections(csv).also { directions ->
+        val bounds = catalog.area.bounds
         require(directions.all { direction ->
             direction.stops.all { stop ->
                 stop.position.latitude in bounds.south..bounds.north &&
                     stop.position.longitude in bounds.west..bounds.east
             }
-        }) { "Zugdidi stop is outside the configured basemap area" }
+        }) { "${catalog.id} stop is outside the configured basemap area" }
     }
     private val updatedAt = Files.getLastModifiedTime(csv).toInstant().toString()
     private val stopsById = input
         .flatMap { direction -> direction.stops.distinctBy { it.id }.map { it to direction.routeId } }
-        .groupBy(Pair<ZugdidiStop, String>::first, Pair<ZugdidiStop, String>::second)
+        .groupBy(Pair<CatalogStop, String>::first, Pair<CatalogStop, String>::second)
         .map { (stop, routes) ->
             stop.id to Stop(
                 id = publicId(PublicEntityType.Stop, stop.id),
                 providerId = stop.id,
                 code = stop.id,
-                name = ZugdidiNames.label(stop.sourceName),
+                name = names.label(stop.sourceName),
                 position = stop.position,
                 routeIds = routes.distinct(),
                 mode = TransitModeValues.Bus,
@@ -89,17 +111,17 @@ internal class ZugdidiStaticAdapter(csv: Path, production: Boolean) : CityTransi
         val localizedDirections = directions.map { direction ->
             val origin = stopsById.getValue(direction.stops.first().id).name
             val destination = stopsById.getValue(direction.stops.last().id).name
-            val label = if (number == 2 && direction.isLoop) {
-                ZugdidiNames.loop
+            val label = if (catalog == StaticCatalog.Zugdidi && number == 2 && direction.isLoop) {
+                names.loop
             } else {
-                ZugdidiNames.direction(origin, destination)
+                names.direction(origin, destination)
             }
             Direction(id = direction.id, name = label, headsign = destination)
         }
         Route(
             id = id,
             providerId = number.toString(),
-            shortName = number.toString(),
+            shortName = if (catalog == StaticCatalog.Borjomi && number == 5) localizedDirections.first().name.ka else number.toString(),
             longName = localizedDirections.first().name,
             color = routeColors[(number - 1) % routeColors.size],
             textColor = "#FFFFFF",
@@ -123,28 +145,28 @@ internal class ZugdidiStaticAdapter(csv: Path, production: Boolean) : CityTransi
 
     override suspend fun shape(routeId: String, directionId: String): Shape = Shape(
         precision = 5,
-        value = encodePolyline(direction(routeId, directionId).stops.map(ZugdidiStop::position)),
+        value = encodePolyline(direction(routeId, directionId).stops.map(CatalogStop::position)),
         updatedAt = updatedAt,
     )
 
     override suspend fun stopDirectory(locale: String): List<Stop> = stopsById.values.toList()
 
     override suspend fun vehicles(routeId: String, directionId: String?): RealtimeVehicles =
-        throw ProviderCapabilityUnavailable("Vehicle positions are unavailable for Zugdidi")
+        throw ProviderCapabilityUnavailable("Vehicle positions are unavailable for ${catalog.id}")
 
     override suspend fun arrivals(stopId: String, limit: Int, locale: String): RealtimeArrivals =
-        throw ProviderCapabilityUnavailable("Arrivals are unavailable for Zugdidi")
+        throw ProviderCapabilityUnavailable("Arrivals are unavailable for ${catalog.id}")
 
     override suspend fun journeys(query: JourneyQuery): List<Journey> =
-        throw ProviderCapabilityUnavailable("Journey planning is unavailable for Zugdidi")
+        throw ProviderCapabilityUnavailable("Journey planning is unavailable for ${catalog.id}")
 
-    private fun direction(routeId: String, directionId: String): ZugdidiDirection =
+    private fun direction(routeId: String, directionId: String): CatalogDirection =
         directionsById[directionId]?.takeIf { it.routeId == routeId }
             ?: throw ProviderRouteNotFound("Direction was not found for this route")
 
-    private val ZugdidiDirection.routeId get() = publicId(PublicEntityType.Route, route.toString())
-    private val ZugdidiDirection.id get() = publicId(PublicEntityType.Direction, "$route-$direction")
+    private val CatalogDirection.routeId get() = publicId(PublicEntityType.Route, route.toString())
+    private val CatalogDirection.id get() = publicId(PublicEntityType.Direction, "$route-$direction")
 
     private fun publicId(type: PublicEntityType, suffix: String): String =
-        formatPublicId(KnownCityIds.Zugdidi, namespace, type, suffix)
+        formatPublicId(catalog.id, namespace, type, suffix)
 }

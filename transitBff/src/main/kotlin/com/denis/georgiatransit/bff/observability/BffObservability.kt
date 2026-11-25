@@ -19,6 +19,7 @@ enum class TelemetryProvider(val wireValue: String) {
     TRANSITOUS("transitous"),
     TTC("ttc"),
     BATUMI_THETA("batumi_theta"),
+    BORJOMI_STATIC("borjomi_static"),
     ZUGDIDI_STATIC("zugdidi_static"),
     KUTAISI_OSM("kutaisi_osm"),
     KUTAISI_AZRY("kutaisi_azry"),

@@ -66,5 +66,6 @@ else
 fi
 
 export BFF_ZUGDIDI_STATIC_CSV=/app/config/zugdidi-stops.csv
+export BFF_BORJOMI_STATIC_CSV=/app/config/borjomi-stops.csv
 
 exec gosu "$runtime_user:$runtime_group" /app/bin/transitBff

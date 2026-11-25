@@ -1,6 +1,7 @@
 import { readFileSync, writeFileSync } from "node:fs";
 
 import { cityPagePath, translations } from "../landing/locales.js";
+import { borjomiCityPage, borjomiTripPage, borjomiTripPath, borjomiTrips } from "./borjomi-trips.mjs";
 import { renderZugdidiTrips, zugdidiTripPage, zugdidiTripPath, zugdidiTrips } from "./zugdidi-trips.mjs";
 import { kutaisiTripPage, kutaisiTripPath, kutaisiTrips, renderKutaisiTrips } from "./kutaisi-trips.mjs";
 import { renderTrips, routePage, tripNumbers, tripPath } from "./batumi-trips.mjs";
@@ -16,8 +17,9 @@ const languageLabels = Object.fromEntries(
     .map(([, language, label]) => [language, label]),
 );
 const languages = Object.keys(languageLabels);
-const cities = ["batumi", "kutaisi", "zugdidi"];
+const cities = ["batumi", "kutaisi", "zugdidi", "borjomi"];
 const cityScreens = {
+  borjomi: [{ asset: "borjomi-routes" }],
   batumi: [
     { platform: "android", asset: "mobile-live-map", altKey: "altLiveMap" },
     { platform: "ios", asset: "mobile-planner", altKey: "altPlanner" },
@@ -86,6 +88,7 @@ function phone(platform, asset, alt) {
 }
 
 function renderCity(city, language, paths) {
+  if (city === "borjomi") return guideShell(city, language, paths, borjomiCityPage(language, escapeHtml));
   const { heading, title, description, intro, sections, imageAlt, serviceLink } = cityCopy[language][city];
   const copy = translations[language];
   const esc = escapeHtml;
@@ -216,6 +219,7 @@ for (const city of cities) {
   }
 }
 for (const [city, trips, pathFor, pageFor] of [
+  ["borjomi", borjomiTrips, borjomiTripPath, borjomiTripPage],
   ["batumi", tripNumbers, tripPath, routePage],
   ["zugdidi", zugdidiTrips, zugdidiTripPath, zugdidiTripPage],
   ["kutaisi", kutaisiTrips, kutaisiTripPath, kutaisiTripPage],
