@@ -18,7 +18,7 @@ const languageLabels = Object.fromEntries(
     .map(([, language, label]) => [language, label]),
 );
 const languages = Object.keys(languageLabels);
-const cities = ["batumi", "kutaisi", "zugdidi", "borjomi"];
+const cities = ["batumi", "kutaisi", "borjomi", "zugdidi"];
 const cityScreens = {
   borjomi: [{ asset: "borjomi-routes" }],
   batumi: [

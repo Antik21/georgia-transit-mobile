@@ -4,6 +4,7 @@ import com.denis.georgiatransit.bff.api.ArrivalPage
 import com.denis.georgiatransit.bff.api.CapabilityNotAvailable
 import com.denis.georgiatransit.bff.api.City
 import com.denis.georgiatransit.bff.api.GeoPoint
+import com.denis.georgiatransit.bff.api.KnownCityIds
 import com.denis.georgiatransit.bff.api.JourneyPage
 import com.denis.georgiatransit.bff.api.Route
 import com.denis.georgiatransit.bff.api.RouteSchedule
@@ -53,6 +54,12 @@ private val routeListJson = Json {
     prettyPrint = false
 }
 
+// Keep the alphabetical catalog order, grouping Borjomi immediately after Kutaisi.
+private val cityDisplayOrder = compareBy<City>(
+    { if (it.id == KnownCityIds.Borjomi) KnownCityIds.Kutaisi else it.id },
+    { it.id == KnownCityIds.Borjomi },
+)
+
 class TransitService(
     private val capabilitySnapshots: CapabilitySnapshotSource,
     directoryCacheTtlSeconds: Long,
@@ -95,7 +102,7 @@ class TransitService(
         } else {
             effective.city
         }
-    }
+    }.sortedWith(cityDisplayOrder)
 
     suspend fun routes(cityId: String, locale: String, mode: String?): List<Route> {
         val snapshot = snapshot()
