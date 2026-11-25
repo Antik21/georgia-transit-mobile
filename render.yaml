@@ -96,11 +96,8 @@ services:
     staticPublishPath: landing
     domains:
       - www.geotransit.com.ge
+    # A later merge can cancel CI for a landing change. Deploy its full snapshot once CI passes.
     autoDeployTrigger: checksPass
-    buildFilter:
-      paths:
-        - landing/**
-        - render.yaml
     routes:
       - type: rewrite
         source: /v1/analytics
