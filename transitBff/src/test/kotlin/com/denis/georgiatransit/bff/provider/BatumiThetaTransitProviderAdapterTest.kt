@@ -158,7 +158,13 @@ class BatumiThetaTransitProviderAdapterTest {
     }
 
     @Test
-    fun `route 10 next stop is immediate stopped bus is retained and dwell is one minute`() = runBlocking {
+    fun `ETA adds forty seconds per intermediate stop before rounding`() {
+        assertEquals(300.0, stopChainSeconds(distance = 1500.0, metersPerSecond = 5.0, dwellStops = 0))
+        assertEquals(420.0, stopChainSeconds(distance = 1500.0, metersPerSecond = 5.0, dwellStops = 3))
+    }
+
+    @Test
+    fun `route 10 next stop is immediate stopped bus is retained and intermediate dwell is included`() = runBlocking {
         val clock = MutableClock(Instant.parse("2026-09-10T00:00:00Z"))
         val client = FakeCatalogClient(route10Fixture())
         BatumiThetaTransitProviderAdapter(activation(), client, clock).use { adapter ->

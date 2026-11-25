@@ -7,7 +7,7 @@ import kotlin.math.hypot
 
 internal const val EtaMaxProjectionMeters = 150.0
 internal const val EtaPassedStopToleranceMeters = 150.0
-internal const val EtaDwellSeconds = 60.0
+internal const val EtaDwellSeconds = 40.0
 /** Passenger-board horizon: farther candidates are deliberately omitted rather than guessed. */
 internal const val EtaMaximumSeconds = 45 * 60L
 internal data class PolylineProjection(val alongMeters: Double, val distanceMeters: Double)

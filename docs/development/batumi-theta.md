@@ -45,7 +45,7 @@ worker and its last-known-good snapshot are process-local and are cancelled duri
 The BFF builds a cyclic stop chain ordered by `Status + Order`, preserves the live bus `Status`, and
 projects GPS only onto segments for that route part. The published route shape independently bounds
 GPS to a 150 m corridor. GPS supplies position, not speed: the estimator uses a stable per-route
-moving-speed profile with a 25.1 km/h fallback. Intermediate stops add 60 seconds each; the target
+moving-speed profile with a 25.1 km/h fallback. Intermediate stops add 40 seconds each; the target
 stop is excluded. A bus up to 150 m beyond a stop is treated as arriving, while a target farther
 behind wraps to the next cycle. Estimates over 45 minutes, an invalid status/projection, or stale
 data are omitted. Every qualifying vehicle is returned, so duplicate route labels are expected. A

@@ -40,8 +40,8 @@ class BatumiJourneyPlanningTest {
         assertTrue(decodePolyline(assertNotNull(ride.geometry)).size >= 2)
 
         val chain = fixture.catalog.cycle(fixture.routeId("1")).chain
-        val boardAt = PlanNow.epochSecond + (chain[2].cumulativeMeters / FallbackMetersPerSecond + 60).roundToLong()
-        val alightAt = PlanNow.epochSecond + (chain[8].cumulativeMeters / FallbackMetersPerSecond + 7 * 60).roundToLong()
+        val boardAt = PlanNow.epochSecond + (chain[2].cumulativeMeters / FallbackMetersPerSecond + 40).roundToLong()
+        val alightAt = PlanNow.epochSecond + (chain[8].cumulativeMeters / FallbackMetersPerSecond + 7 * 40).roundToLong()
         assertEquals(boardAt, ride.departureEpoch())
         assertEquals(alightAt, ride.arrivalEpoch())
         assertEquals(journey.segments[0].arrivalEpoch(), ride.departureEpoch() - assertNotNull(ride.waitSeconds))
@@ -112,7 +112,7 @@ class BatumiJourneyPlanningTest {
     @Test
     fun `a farther stop with an earlier live bus beats the nearest stop`() {
         val lineA20 = eastLine("A", latitude = 41.640, count = 20)
-        val lineE = eastLine("E", latitude = 41.6445, count = 20)
+        val lineE = eastLine("E", latitude = 41.6438, count = 20)
         val fixture = PlanningFixture(listOf(FixtureRoute("1", lineA20), FixtureRoute("5", lineE)))
         fixture.vehicle("1", "v1", lineA20[0])
         fixture.vehicle("5", "e1", lineE[19])
@@ -138,10 +138,10 @@ class BatumiJourneyPlanningTest {
         fixture.vehicle("7", "l1", longLine[0])
 
         // The destination is far enough that walking all the way cannot beat the bus.
-        val page = fixture.plan(near(longLine[26], eastMeters = -120.0), near(longLine[44]))
+        val page = fixture.plan(near(longLine[32], eastMeters = -120.0), near(longLine[44]))
 
         val transit = page.items.single { it.transitSegments.isNotEmpty() }.transitSegments.single()
-        assertEquals(fixture.stopId("L25"), transit.fromStopId)
+        assertEquals(fixture.stopId("L31"), transit.fromStopId)
         assertEquals(JourneyWaitBasis.LIVE_VEHICLE, transit.waitBasis)
         assertTrue(page.realtime)
     }

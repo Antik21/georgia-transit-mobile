@@ -81,7 +81,7 @@ Use a time-dependent round-based search (RAPTOR) with at most two transfers.
 | transfer walk | ≤ 600 m |
 | walking distance (phase 1) | Haversine × 1.3 |
 | walking speed | 1.3 m/s |
-| dwell | 60 s per intermediate stop, the target stop excluded (ADR 0012) |
+| dwell | 40 s per intermediate stop, the target stop excluded (ADR 0012) |
 | default transfer buffer | 60 s; 300 s when the user asks for a larger buffer |
 
 Departure at a boarding stop is chosen as follows:

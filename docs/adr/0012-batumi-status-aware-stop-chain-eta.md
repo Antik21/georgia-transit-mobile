@@ -14,7 +14,7 @@ movement thresholds could reject every nearby bus. A stopped bus disappeared fro
 a bus within 15 metres of a stop on a loop was treated as one complete circuit away. The provider's
 `Status` direction/route-part field was validated but discarded.
 
-The product also requires explicit passenger dwell: every intermediate stop contributes one minute.
+The product also requires explicit passenger dwell: every intermediate stop contributes 40 seconds.
 An effective speed that already includes dwell cannot be combined with that rule without counting
 stops twice.
 
@@ -26,7 +26,7 @@ segments whose endpoints have that status. The published route shape remains an 
 150-metre GPS corridor check.
 
 GPS determines position only. ETA uses the route's stable moving-speed profile, with a 25.1 km/h
-fallback for unknown routes, plus 60 seconds for every intermediate stop. The target stop is not a
+fallback for unknown routes, plus 40 seconds for every intermediate stop. The target stop is not a
 dwell stop. A bus up to 150 metres beyond the target is treated as arriving now; only a target more
 than 150 metres behind wraps to the next circuit. Passenger ETA is rounded to a whole minute with a
 minimum of one minute.
@@ -48,7 +48,7 @@ one-generation candidate continuity rule before atomically publishing the route 
 
 - **Keep instantaneous GPS speed:** rejected because dwell, polling jitter, and GPS noise remove the
   nearest bus from the board.
-- **Use effective speed plus one minute per stop:** rejected because the effective profile already
+- **Use effective speed plus explicit dwell per stop:** rejected because the effective profile already
   includes stop delays and would double-count dwell.
 - **Ignore `Status` and infer direction geometrically:** rejected because crossing and parallel route
   branches are ambiguous.
@@ -56,7 +56,7 @@ one-generation candidate continuity rule before atomically publishing the route 
 ## Verification
 
 Regression tests cover status ordering and preservation, a route-10-like 350-metre next stop,
-one-minute intermediate dwell, a stopped bus, the 150-metre passed-stop tolerance, and global-feed
+40-second intermediate dwell, a stopped bus, the 150-metre passed-stop tolerance, and global-feed
 candidate continuity. Run:
 
 ```text
