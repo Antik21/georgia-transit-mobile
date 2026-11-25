@@ -1,0 +1,1 @@
+import{t as e}from"./runtime-h5x_6OfJ.js";var t=e(((e,t)=>{t.exports=function(){throw Error(`ws does not work in the browser. Browser clients must use the native WebSocket object`)}}));export default t();
