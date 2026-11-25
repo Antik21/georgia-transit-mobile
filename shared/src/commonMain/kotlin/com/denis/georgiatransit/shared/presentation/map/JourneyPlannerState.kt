@@ -42,6 +42,7 @@ data class JourneyPlannerUi(
     val render: JourneyPlanRenderUi = JourneyPlanRenderUi(),
     /** Countdown and live positions for the selected option's first boarding. */
     val buses: JourneyBusesUi? = null,
+    val lastPassage: JourneyPassageUi? = null,
     /** A new plan, an explicit option change, or the first known position of its boarding bus. */
     val cameraFitRevision: Long = 0,
     /** The side being placed under the centred map marker; the panel stays hidden until it is chosen or cancelled. */
@@ -61,6 +62,8 @@ sealed interface JourneyPlannerStatus {
         val selectedId: JourneyId,
         val isRefreshing: Boolean = false,
         val isStale: Boolean = false,
+        /** Only this expanded option was absent from the latest plan. */
+        val retainedSelection: Boolean = false,
     ) : JourneyPlannerStatus
     @Immutable data class AlreadyThere(val walkMeters: Int, val walkMinutes: Int) : JourneyPlannerStatus
     @Immutable data object Empty : JourneyPlannerStatus
@@ -100,6 +103,9 @@ data class JourneyBoarding(
     /** A vehicle explicitly selected for this leg; the arrivals feed does not identify direction. */
     val plannedVehicleId: VehicleId? = null,
 )
+
+@Immutable
+data class JourneyPassageUi(val boarding: JourneyBoarding, val observedAt: Instant)
 
 @Immutable
 data class JourneyBusesUi(
@@ -143,6 +149,7 @@ sealed interface JourneyLegUi {
         val toStopId: StopId? = null,
         val fromStopName: String? = null,
         val toStopName: String? = null,
+        val directionId: DirectionId? = null,
     ) : JourneyLegUi
 }
 
@@ -162,6 +169,7 @@ data class JourneyPlanLineUi(
     val kind: JourneyPlanLineKind,
     val points: PersistentList<GeoPoint>,
     val colorArgb: Long,
+    val isAccessWalk: Boolean = false,
 )
 
 /** Selected option geometry and endpoint markers; empty while nothing is chosen. */

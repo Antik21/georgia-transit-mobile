@@ -112,17 +112,19 @@ internal class JourneyPlannerWorkflow(
         buses.sync(scope, busKey(step.state, context)) { onEvent(JourneyPlannerEvent.Buses(it)) }
     }
 
-    /** Buses are looked up only for a visible, selected option that boards transit, under the arrivals capability. */
+    /** Track arrivals and passage only while the visible selection identifies a particular bus. */
     private fun busKey(state: JourneyPlannerUi, context: JourneyPlannerContext): JourneyBusKey? {
-        val city = context.city?.takeIf { context.visible && context.available && it.capabilities.arrivals } ?: return null
+        val city = context.city?.takeIf { context.visible && context.available } ?: return null
         if (!state.isOpen || !state.showingResults || state.mapPick != null) return null
         val option = state.selectedOption() ?: return null
         val boarding = option.boarding ?: return null
         if (boarding.plannedVehicleId == null) return null
+        if (!city.capabilities.arrivals && !(city.capabilities.vehicles && city.capabilities.routeShapes &&
+            boarding.stopPosition != null && boarding.directionId != null)) return null
         return JourneyBusKey(
             city.id, option.id, boarding, context.locale,
             positions = city.capabilities.vehicles,
-            shapes = city.capabilities.routeShapes,
+            shapes = city.capabilities.routeShapes, arrivals = city.capabilities.arrivals,
         )
     }
 
