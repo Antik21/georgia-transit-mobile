@@ -53,7 +53,7 @@ function renderPage(language) {
   };
   const seoTags = searchTags(pages[language], pages);
   if (language === "en") {
-    const website = { "@context": "https://schema.org", "@type": "WebSite", name: "Geo Transit", url: site + "/" };
+    const website = { "@context": "https://schema.org", "@type": "WebSite", name: "Georgia Transit", url: site + "/" };
     seoTags.push(`<script type="application/ld+json">${JSON.stringify(website)}</script>`);
   }
 
@@ -143,7 +143,7 @@ function guideShell(city, language, paths, { title, description, main }) {
   <meta property="og:title" content="${esc(title)}">
   <meta property="og:description" content="${esc(description)}">
   <meta property="og:type" content="website">
-  <meta property="og:site_name" content="Geo Transit">
+  <meta property="og:site_name" content="Georgia Transit">
   <meta property="og:image" content="${site}/assets/screens/${shareImage}.webp">
   ${searchTags(paths[language], paths).join("\n  ")}
   <link rel="icon" type="image/png" sizes="192x192" href="/assets/brand/icon-192.png">
@@ -160,9 +160,9 @@ function guideShell(city, language, paths, { title, description, main }) {
   <a class="skip" href="#main">${esc(copy.skip)}</a>
   <header class="topbar">
     <div class="wrap topbar__row">
-      <a class="brand" href="${pages[language]}?lang=${language}" aria-label="Geo Transit">
+      <a class="brand" href="${pages[language]}?lang=${language}" aria-label="Georgia Transit">
         <img src="/assets/brand/icon-192.png" width="40" height="40" alt="">
-        <span>Geo Transit</span>
+        <span>Georgia Transit</span>
       </a>
       <a class="city-guide__home" href="${pages[language]}?lang=${language}#cities">${esc(copy.navCities)}</a>
     </div>

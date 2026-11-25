@@ -54,5 +54,5 @@ export function zugdidiTripPage(number, language, escape) {
   const main = `<div class="wrap route-detail"><a href="${cityPagePath("zugdidi", language)}#how-to-get">← ${escape(translations[language].zugdidi)}</a>
     <h1>${title}</h1><p>${description}</p><a class="button city-guide__cta" data-analytics-platform="web" href="https://app.geotransit.com.ge/?city=zugdidi&amp;route=${encodeURIComponent(route.id)}">${map}</a>
     <div class="trip-directions">${directions}</div></div>`;
-  return { title: `${title} | Geo Transit`, description, main };
+  return { title: `${title} | Georgia Transit`, description, main };
 }

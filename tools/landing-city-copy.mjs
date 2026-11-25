@@ -2,8 +2,8 @@ export const cityCopy = {
   en: {
     batumi: {
       heading: "Batumi buses on the map",
-      title: "Batumi buses live, stops and routes | Geo Transit",
-      description: "Track city buses in Batumi, find bus stops and check estimated arrivals. Plan a trip with Geo Transit in your browser or app.",
+      title: "Batumi buses live, stops and routes | Georgia Transit",
+      description: "Track city buses in Batumi, find bus stops and check estimated arrivals. Plan a trip with Georgia Transit in your browser or app.",
       intro: "See where Batumi’s city buses are, find the stop you need and work out when to leave.",
       sections: [
         ["Live bus map and routes", "Choose a route above to see it on the map. Search routes by number or direction to highlight the lines and vehicles you want to see."],
@@ -13,26 +13,26 @@ export const cityCopy = {
     },
     kutaisi: {
       heading: "Kutaisi bus schedules and routes",
-      title: "Kutaisi bus schedules, stops and live map | Geo Transit",
-      description: "Find Kutaisi bus routes and stops, track live buses and check arrivals. Browse schedules by route, direction and date in the Geo Transit app.",
+      title: "Kutaisi bus schedules, stops and live map | Georgia Transit",
+      description: "Find Kutaisi bus routes and stops, track live buses and check arrivals. Browse schedules by route, direction and date in the Georgia Transit app.",
       intro: "Check the timetable before you leave, then see buses and upcoming arrivals on the Kutaisi map.",
       sections: [
-        ["Find a Kutaisi bus timetable", "In the Geo Transit mobile app, open the schedule and select a route number, direction and date. Look up your boarding stop to see the scheduled times."],
+        ["Find a Kutaisi bus timetable", "In the Georgia Transit mobile app, open the schedule and select a route number, direction and date. Look up your boarding stop to see the scheduled times."],
         ["See buses and stops on the map", "Choose Kutaisi in the web app. Search by route number or tap a bus stop to see the vehicles and services relevant to your trip."],
         ["Check the next arrival", "Open a stop on the map to check upcoming arrivals. Use the timetable to plan ahead and live arrivals when you’re about to leave."],
       ],
-      imageAlt: "Kutaisi bus schedule by stop in the Geo Transit Android app",
+      imageAlt: "Kutaisi bus schedule by stop in the Georgia Transit Android app",
       serviceLink: "Kutaisi municipal transport website",
     },
     zugdidi: {
       heading: "Zugdidi bus routes and stops",
-      title: "Zugdidi bus routes and stop map | Geo Transit",
-      description: "Find city bus routes by number and see approximate stop locations in Zugdidi. Open the Geo Transit bus map in your browser or Telegram.",
+      title: "Zugdidi bus routes and stop map | Georgia Transit",
+      description: "Find city bus routes by number and see approximate stop locations in Zugdidi. Open the Georgia Transit bus map in your browser or Telegram.",
       intro: "Find which city bus route runs near you and where to look for a stop in Zugdidi.",
       sections: [
         ["Find a bus by route number", "Choose Zugdidi and open the route list. Search by number and select the routes you want to compare on the map."],
         ["Locate a bus stop", "Zoom in on your neighbourhood to find nearby stops. The map shows approximate locations and helps you decide which stop to look for."],
-        ["Check the route before you leave", "Follow the line between stops to see which areas the bus serves. Geo Transit’s coverage in Zugdidi is a map of routes and stops."],
+        ["Check the route before you leave", "Follow the line between stops to see which areas the bus serves. Georgia Transit’s coverage in Zugdidi is a map of routes and stops."],
       ],
       imageAlt: "Selected bus routes and stops on the Zugdidi map in the iPhone app",
     },
@@ -40,8 +40,8 @@ export const cityCopy = {
   ka: {
     batumi: {
       heading: "ბათუმის ავტობუსები რუკაზე",
-      title: "ბათუმის ავტობუსები, გაჩერებები და მარშრუტები | Geo Transit",
-      description: "ნახეთ ბათუმის ავტობუსები რეალურ დროში, იპოვეთ გაჩერება, შეამოწმეთ მოსვლის სავარაუდო დრო და დაგეგმეთ მგზავრობა Geo Transit-ით.",
+      title: "ბათუმის ავტობუსები, გაჩერებები და მარშრუტები | Georgia Transit",
+      description: "ნახეთ ბათუმის ავტობუსები რეალურ დროში, იპოვეთ გაჩერება, შეამოწმეთ მოსვლის სავარაუდო დრო და დაგეგმეთ მგზავრობა Georgia Transit-ით.",
       intro: "ნახეთ, სად მოძრაობენ ბათუმის ავტობუსები, იპოვეთ საჭირო გაჩერება და გადაწყვიტეთ, როდის გახვიდეთ.",
       sections: [
         ["ავტობუსების რუკა და მარშრუტები", "აირჩიეთ მარშრუტი ზემოთ მოცემულ სიაში, რომ რუკაზე იხილოთ. მოძებნეთ მარშრუტი ნომრით ან მიმართულებით, რომ რუკაზე საჭირო ხაზები და ავტობუსები გამოჩნდეს."],
@@ -51,21 +51,21 @@ export const cityCopy = {
     },
     kutaisi: {
       heading: "ქუთაისის ავტობუსების განრიგი და მარშრუტები",
-      title: "ქუთაისის ავტობუსების განრიგი და გაჩერებები | Geo Transit",
+      title: "ქუთაისის ავტობუსების განრიგი და გაჩერებები | Georgia Transit",
       description: "მოძებნეთ ქუთაისის ავტობუსები და გაჩერებები. ნახეთ მოსვლის დრო და განრიგი მარშრუტის, მიმართულებისა და თარიღის მიხედვით.",
       intro: "გასვლამდე შეამოწმეთ განრიგი, შემდეგ კი რუკაზე ნახეთ ქუთაისის ავტობუსები და მათი მოსვლის დრო.",
       sections: [
-        ["ქუთაისის ავტობუსების განრიგი", "Geo Transit-ის მობილურ აპში გახსენით განრიგი და აირჩიეთ მარშრუტის ნომერი, მიმართულება და თარიღი. მოძებნეთ თქვენი გაჩერება, რომ დაგეგმილი დროები ნახოთ."],
+        ["ქუთაისის ავტობუსების განრიგი", "Georgia Transit-ის მობილურ აპში გახსენით განრიგი და აირჩიეთ მარშრუტის ნომერი, მიმართულება და თარიღი. მოძებნეთ თქვენი გაჩერება, რომ დაგეგმილი დროები ნახოთ."],
         ["ავტობუსები და გაჩერებები რუკაზე", "ვებაპში აირჩიეთ ქუთაისი. მოძებნეთ მარშრუტი ნომრით ან შეეხეთ გაჩერებას, რომ ნახოთ თქვენს მგზავრობასთან დაკავშირებული ავტობუსები და მარშრუტები."],
         ["მომდევნო ავტობუსის მოსვლის დრო", "რუკაზე გახსენით გაჩერება და ნახეთ მომდევნო ავტობუსები. განრიგი წინასწარ დაგეგმვაში გამოგადგებათ, რეალური მოსვლის დრო კი გასვლის წინ."],
       ],
-      imageAlt: "ქუთაისის ავტობუსების განრიგი გაჩერებების მიხედვით Geo Transit-ის Android აპში",
+      imageAlt: "ქუთაისის ავტობუსების განრიგი გაჩერებების მიხედვით Georgia Transit-ის Android აპში",
       serviceLink: "ქუთაისის მუნიციპალური ტრანსპორტის ვებგვერდი",
     },
     zugdidi: {
       heading: "ზუგდიდის ავტობუსების მარშრუტები და გაჩერებები",
-      title: "ზუგდიდის ავტობუსების მარშრუტები და გაჩერებები | Geo Transit",
-      description: "მოძებნეთ ზუგდიდის ავტობუსის მარშრუტი ნომრით და ნახეთ გაჩერებების სავარაუდო მდებარეობა Geo Transit-ის ვებაპში ან Telegram-ში.",
+      title: "ზუგდიდის ავტობუსების მარშრუტები და გაჩერებები | Georgia Transit",
+      description: "მოძებნეთ ზუგდიდის ავტობუსის მარშრუტი ნომრით და ნახეთ გაჩერებების სავარაუდო მდებარეობა Georgia Transit-ის ვებაპში ან Telegram-ში.",
       intro: "იპოვეთ ზუგდიდის ავტობუსის მარშრუტი თქვენს უბანში და ნახეთ, სად უნდა ეძებოთ გაჩერება.",
       sections: [
         ["მარშრუტის მოძებნა ნომრით", "აირჩიეთ ზუგდიდი და გახსენით მარშრუტების სია. მოძებნეთ ნომრით და მონიშნეთ ხაზები, რომელთა შედარებაც გსურთ."],
@@ -78,8 +78,8 @@ export const cityCopy = {
   ru: {
     batumi: {
       heading: "Автобусы Батуми на карте",
-      title: "Автобусы Батуми онлайн, остановки и маршруты | Geo Transit",
-      description: "Карта автобусов Батуми в реальном времени. Найдите остановку, проверьте прогноз прибытия и спланируйте поездку в веб-версии или приложении Geo Transit.",
+      title: "Автобусы Батуми онлайн, остановки и маршруты | Georgia Transit",
+      description: "Карта автобусов Батуми в реальном времени. Найдите остановку, проверьте прогноз прибытия и спланируйте поездку в веб-версии или приложении Georgia Transit.",
       intro: "Посмотрите, где едут городские автобусы Батуми, найдите свою остановку и решите, когда выходить.",
       sections: [
         ["Карта автобусов и маршрутов Батуми", "Выберите маршрут в списке выше, чтобы увидеть его на карте. Поиск по номеру или направлению выделит нужные маршруты и автобусы."],
@@ -89,26 +89,26 @@ export const cityCopy = {
     },
     kutaisi: {
       heading: "Расписание автобусов Кутаиси",
-      title: "Расписание автобусов Кутаиси, маршруты и остановки | Geo Transit",
+      title: "Расписание автобусов Кутаиси, маршруты и остановки | Georgia Transit",
       description: "Расписание автобусов Кутаиси по маршруту, направлению и дате. Найдите автобусную остановку, посмотрите автобусы на карте и проверьте ближайшие прибытия.",
       intro: "Проверьте расписание перед выходом, а на карте Кутаиси посмотрите движение автобусов и ближайшие прибытия.",
       sections: [
-        ["Как найти расписание автобуса Кутаиси", "В мобильном приложении Geo Transit откройте расписание и выберите номер маршрута, направление и дату. В таблице найдите свою остановку и время по расписанию."],
+        ["Как найти расписание автобуса Кутаиси", "В мобильном приложении Georgia Transit откройте расписание и выберите номер маршрута, направление и дату. В таблице найдите свою остановку и время по расписанию."],
         ["Автобусы и остановки на карте Кутаиси", "Выберите Кутаиси в веб-версии. Найдите маршрут по номеру или нажмите на автобусную остановку, чтобы посмотреть, что через неё проходит."],
         ["Когда подойдёт следующий автобус", "Откройте остановку на карте, чтобы проверить ближайшие прибытия. Расписание пригодится для планирования, а время прибытия — перед выходом."],
       ],
-      imageAlt: "Расписание автобусов Кутаиси по остановкам в приложении Geo Transit для Android",
+      imageAlt: "Расписание автобусов Кутаиси по остановкам в приложении Georgia Transit для Android",
       serviceLink: "Сайт городского транспорта Кутаиси",
     },
     zugdidi: {
       heading: "Автобусы Зугдиди, маршруты и остановки",
-      title: "Автобусы Зугдиди, маршруты и остановки на карте | Geo Transit",
-      description: "Найдите маршрут автобуса Зугдиди по номеру и посмотрите примерное расположение остановок на карте Geo Transit в браузере или Telegram.",
+      title: "Автобусы Зугдиди, маршруты и остановки на карте | Georgia Transit",
+      description: "Найдите маршрут автобуса Зугдиди по номеру и посмотрите примерное расположение остановок на карте Georgia Transit в браузере или Telegram.",
       intro: "Найдите подходящий автобусный маршрут в Зугдиди и посмотрите, где примерно находится остановка.",
       sections: [
         ["Поиск маршрута автобуса Зугдиди", "Выберите Зугдиди и откройте список маршрутов. Найдите нужный номер и отметьте линии, которые хотите сравнить на карте."],
         ["Автобусные остановки Зугдиди", "Приблизьте нужный район, чтобы увидеть ближайшие остановки. Их расположение на карте примерное и помогает сориентироваться на местности."],
-        ["Что проверить перед выходом", "Проследите линию между остановками, чтобы понять, через какие районы проходит автобус. Для Зугдиди в Geo Transit доступны маршруты и карта остановок."],
+        ["Что проверить перед выходом", "Проследите линию между остановками, чтобы понять, через какие районы проходит автобус. Для Зугдиди в Georgia Transit доступны маршруты и карта остановок."],
       ],
       imageAlt: "Выбранные автобусные маршруты и остановки на карте Зугдиди в приложении для iPhone",
     },
@@ -116,8 +116,8 @@ export const cityCopy = {
   "zh-Hans": {
     batumi: {
       heading: "巴统实时公交地图",
-      title: "巴统实时公交、公交站与线路地图 | Geo Transit",
-      description: "在地图上追踪巴统公交车辆、查找公交站和预计到站时间，并通过 Geo Transit 网页版或应用规划行程。",
+      title: "巴统实时公交、公交站与线路地图 | Georgia Transit",
+      description: "在地图上追踪巴统公交车辆、查找公交站和预计到站时间，并通过 Georgia Transit 网页版或应用规划行程。",
       intro: "在地图上查看巴统公交的位置，找到乘车站点，并决定何时出门。",
       sections: [
         ["巴统公交地图和线路", "从上方列表选择线路即可在地图上查看。按线路编号或方向搜索，在地图上突出显示所选线路及车辆。"],
@@ -127,35 +127,35 @@ export const cityCopy = {
     },
     kutaisi: {
       heading: "库塔伊西公交时刻表和线路",
-      title: "库塔伊西公交时刻表、站点与实时地图 | Geo Transit",
-      description: "查询库塔伊西公交线路、站点和实时到站时间。Geo Transit 应用支持按线路、方向和日期查阅时刻表。",
+      title: "库塔伊西公交时刻表、站点与实时地图 | Georgia Transit",
+      description: "查询库塔伊西公交线路、站点和实时到站时间。Georgia Transit 应用支持按线路、方向和日期查阅时刻表。",
       intro: "出门前查询时刻表，再在地图上查看库塔伊西公交的位置和下一班车的到站时间。",
       sections: [
-        ["查询库塔伊西公交时刻表", "在 Geo Transit 手机应用中打开时刻表，选择线路编号、方向和日期，再找到上车站点查看计划到站时间。"],
+        ["查询库塔伊西公交时刻表", "在 Georgia Transit 手机应用中打开时刻表，选择线路编号、方向和日期，再找到上车站点查看计划到站时间。"],
         ["在地图上找车和站点", "在网页版中选择库塔伊西。按线路编号搜索，或点按公交站查看途经线路。"],
         ["查看下一班公交", "打开地图上的站点即可查看即将到站的车辆。提前出行可参考时刻表，出门前可再查看实时到站信息。"],
       ],
-      imageAlt: "Geo Transit 安卓应用中的库塔伊西公交站点时刻表",
+      imageAlt: "Georgia Transit 安卓应用中的库塔伊西公交站点时刻表",
       serviceLink: "库塔伊西市政公交网站",
     },
     zugdidi: {
       heading: "祖格迪迪公交线路和站点",
-      title: "祖格迪迪公交线路与站点地图 | Geo Transit",
-      description: "按编号查找祖格迪迪公交线路，查看站点的大致位置。可在浏览器或 Telegram 打开 Geo Transit 公交地图。",
+      title: "祖格迪迪公交线路与站点地图 | Georgia Transit",
+      description: "按编号查找祖格迪迪公交线路，查看站点的大致位置。可在浏览器或 Telegram 打开 Georgia Transit 公交地图。",
       intro: "查找经过祖格迪迪附近街区的公交线路，看看可以去哪里乘车。",
       sections: [
         ["按编号查找公交线路", "选择祖格迪迪，打开线路列表并按编号搜索。可以同时选择多条线路，在地图上比较。"],
         ["查看附近公交站", "放大地图查看所在街区的公交站点。站点标记显示大致位置，方便您在现场寻找。"],
         ["出门前看看公交经过哪里", "沿着地图上站点之间的线路查看公交途经区域。祖格迪迪提供公交线路图和站点地图。"],
       ],
-      imageAlt: "Geo Transit iPhone 应用中的祖格迪迪地图，显示所选公交线路和站点",
+      imageAlt: "Georgia Transit iPhone 应用中的祖格迪迪地图，显示所选公交线路和站点",
     },
   },
   fr: {
     batumi: {
       heading: "Les bus de Batoumi sur la carte",
-      title: "Bus de Batoumi en direct, lignes et arrêts | Geo Transit",
-      description: "Suivez les bus de Batoumi en temps réel, trouvez votre arrêt et consultez les prochains passages. Préparez votre trajet avec Geo Transit.",
+      title: "Bus de Batoumi en direct, lignes et arrêts | Georgia Transit",
+      description: "Suivez les bus de Batoumi en temps réel, trouvez votre arrêt et consultez les prochains passages. Préparez votre trajet avec Georgia Transit.",
       intro: "Repérez les bus en circulation à Batoumi, trouvez votre arrêt et voyez quand partir.",
       sections: [
         ["Carte des bus et des lignes de Batoumi", "Choisissez une ligne dans la liste ci-dessus pour voir son tracé sur la carte. Recherchez une ligne par numéro ou par direction pour mettre en évidence son tracé et ses bus."],
@@ -165,26 +165,26 @@ export const cityCopy = {
     },
     kutaisi: {
       heading: "Horaires et lignes de bus à Koutaïssi",
-      title: "Horaires, lignes et arrêts de bus à Koutaïssi | Geo Transit",
+      title: "Horaires, lignes et arrêts de bus à Koutaïssi | Georgia Transit",
       description: "Consultez les horaires des bus de Koutaïssi par ligne, direction et date. Retrouvez les arrêts, les bus sur la carte et les prochains passages.",
       intro: "Consultez les horaires avant de partir, puis suivez les bus et les prochains passages sur la carte de Koutaïssi.",
       sections: [
-        ["Trouver les horaires des bus de Koutaïssi", "Dans l’application mobile Geo Transit, ouvrez les horaires et sélectionnez le numéro de ligne, la direction et la date. Repérez votre arrêt pour consulter les heures de passage prévues."],
+        ["Trouver les horaires des bus de Koutaïssi", "Dans l’application mobile Georgia Transit, ouvrez les horaires et sélectionnez le numéro de ligne, la direction et la date. Repérez votre arrêt pour consulter les heures de passage prévues."],
         ["Voir les bus et les arrêts sur la carte", "Choisissez Koutaïssi dans la version web. Recherchez une ligne par numéro ou touchez un arrêt pour voir les lignes qui le desservent."],
         ["Vérifier le prochain passage", "Ouvrez un arrêt sur la carte pour voir les prochains bus. Utilisez les horaires pour préparer le trajet et les prochains passages juste avant de partir."],
       ],
-      imageAlt: "Horaires de bus par arrêt à Koutaïssi dans l’application Android Geo Transit",
+      imageAlt: "Horaires de bus par arrêt à Koutaïssi dans l’application Android Georgia Transit",
       serviceLink: "Site du réseau de transport municipal de Koutaïssi",
     },
     zugdidi: {
       heading: "Lignes et arrêts de bus à Zougdidi",
-      title: "Lignes et arrêts de bus à Zougdidi sur la carte | Geo Transit",
-      description: "Retrouvez une ligne de bus à Zougdidi par son numéro et repérez l’emplacement approximatif des arrêts sur la carte web de Geo Transit.",
+      title: "Lignes et arrêts de bus à Zougdidi sur la carte | Georgia Transit",
+      description: "Retrouvez une ligne de bus à Zougdidi par son numéro et repérez l’emplacement approximatif des arrêts sur la carte web de Georgia Transit.",
       intro: "Repérez les lignes de bus qui desservent votre quartier de Zougdidi et les arrêts où vous pouvez les prendre.",
       sections: [
         ["Rechercher une ligne par numéro", "Choisissez Zougdidi puis ouvrez la liste des lignes. Recherchez par numéro et sélectionnez les lignes que vous souhaitez comparer sur la carte."],
         ["Repérer un arrêt de bus", "Zoomez sur votre quartier pour trouver les arrêts proches. La position sur la carte est approximative et vous aide à vous orienter."],
-        ["Vérifier le tracé avant de partir", "Suivez la ligne entre les arrêts pour voir les quartiers desservis. À Zougdidi, Geo Transit propose la carte des lignes de bus et des arrêts."],
+        ["Vérifier le tracé avant de partir", "Suivez la ligne entre les arrêts pour voir les quartiers desservis. À Zougdidi, Georgia Transit propose la carte des lignes de bus et des arrêts."],
       ],
       imageAlt: "Lignes de bus sélectionnées et arrêts sur la carte de Zougdidi dans l’application iPhone",
     },
@@ -192,8 +192,8 @@ export const cityCopy = {
   de: {
     batumi: {
       heading: "Busse in Batumi auf der Karte",
-      title: "Busse in Batumi live, Linien und Haltestellen | Geo Transit",
-      description: "Verfolge Busse in Batumi auf der Live-Karte, finde Haltestellen, prüfe die nächsten Ankünfte und plane deine Fahrt mit Geo Transit.",
+      title: "Busse in Batumi live, Linien und Haltestellen | Georgia Transit",
+      description: "Verfolge Busse in Batumi auf der Live-Karte, finde Haltestellen, prüfe die nächsten Ankünfte und plane deine Fahrt mit Georgia Transit.",
       intro: "Sieh, wo die Busse in Batumi gerade fahren, finde deine Haltestelle und entscheide, wann du losgehst.",
       sections: [
         ["Live-Karte und Buslinien in Batumi", "Wähle oben eine Linie, um sie auf der Karte zu sehen. Suche nach Liniennummer oder Richtung, um die passenden Linien und Busse zu sehen."],
@@ -203,7 +203,7 @@ export const cityCopy = {
     },
     kutaisi: {
       heading: "Busfahrpläne und Linien in Kutaissi",
-      title: "Busfahrpläne, Linien und Haltestellen in Kutaissi | Geo Transit",
+      title: "Busfahrpläne, Linien und Haltestellen in Kutaissi | Georgia Transit",
       description: "Busfahrpläne für Kutaissi nach Linie, Richtung und Datum. Finde Haltestellen, verfolge Busse auf der Karte und sieh die nächsten Ankünfte.",
       intro: "Prüfe vor der Abfahrt den Fahrplan und sieh auf der Karte, wo die Busse in Kutaissi fahren und wann sie ankommen.",
       sections: [
@@ -216,13 +216,13 @@ export const cityCopy = {
     },
     zugdidi: {
       heading: "Buslinien und Haltestellen in Sugdidi",
-      title: "Buslinien und Haltestellen in Sugdidi auf der Karte | Geo Transit",
+      title: "Buslinien und Haltestellen in Sugdidi auf der Karte | Georgia Transit",
       description: "Finde Buslinien in Sugdidi anhand der Liniennummer und sieh die ungefähre Lage der Haltestellen in der Web-App oder in Telegram.",
       intro: "Finde heraus, welche Buslinie in deiner Nähe verkehrt und wo du in Sugdidi einsteigen kannst.",
       sections: [
         ["Buslinien nach Nummer suchen", "Wähle Sugdidi und öffne die Linienliste. Suche nach der Liniennummer und wähle mehrere Linien aus, um sie auf der Karte zu vergleichen."],
         ["Eine Bushaltestelle finden", "Zoome in den gewünschten Stadtteil, um nahe Haltestellen zu sehen. Die Markierungen zeigen die ungefähre Lage und helfen bei der Orientierung."],
-        ["Vor der Abfahrt den Linienverlauf prüfen", "Folge der Linie zwischen den Haltestellen, um zu sehen, durch welche Stadtteile der Bus fährt. Geo Transit zeigt in Sugdidi die Linien und Haltestellen auf der Karte."],
+        ["Vor der Abfahrt den Linienverlauf prüfen", "Folge der Linie zwischen den Haltestellen, um zu sehen, durch welche Stadtteile der Bus fährt. Georgia Transit zeigt in Sugdidi die Linien und Haltestellen auf der Karte."],
       ],
       imageAlt: "Ausgewählte Buslinien und Haltestellen auf der Karte von Sugdidi in der iPhone-App",
     },

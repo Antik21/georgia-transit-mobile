@@ -1,6 +1,6 @@
 const english = {
-  startup: "Loading Geo Transit…",
-  startupError: "Geo Transit couldn't start.",
+  startup: "Loading Georgia Transit…",
+  startupError: "Georgia Transit couldn't start.",
   selectCity: "Choose a city",
   changeCity: "Change city",
   cityLoading: "Loading cities…",
@@ -161,8 +161,8 @@ type Language = "en" | "ru" | "ka";
 const translations: Record<Language, Copy> = {
   en: english,
   ru: {
-    startup: "Загружаем Geo Transit…",
-    startupError: "Не удалось запустить Geo Transit.",
+    startup: "Загружаем Georgia Transit…",
+    startupError: "Не удалось запустить Georgia Transit.",
     selectCity: "Выберите город",
     changeCity: "Сменить город",
     cityLoading: "Загружаем города…",
@@ -317,8 +317,8 @@ const translations: Record<Language, Copy> = {
     plannerSummaryFerry: "паром %1$s",
   },
   ka: {
-    startup: "Geo Transit იტვირთება…",
-    startupError: "Geo Transit ვერ გაიხსნა.",
+    startup: "Georgia Transit იტვირთება…",
+    startupError: "Georgia Transit ვერ გაიხსნა.",
     selectCity: "აირჩიეთ ქალაქი",
     changeCity: "ქალაქის შეცვლა",
     cityLoading: "ქალაქები იტვირთება…",

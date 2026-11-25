@@ -93,7 +93,7 @@ export function kutaisiTripPage(slug, language, esc) {
          <details><summary>${c.stops} (${leg.length})</summary><ol>${leg.map(stop => `<li><span lang="${sourceLang}">${esc(stop[sourceLang])}</span> <small>· ${esc(stop.code)}</small></li>`).join("")}</ol></details></section>`).join("\n")}</div>`
     : `<p>${c.inbound}</p><p>${c.price} <a href="${airportFare}">${c.fare} · Kutaisi Travel</a></p>
        <a class="button city-guide__cta" href="https://kutaisi.aero/${sourceLang}/transport/shuttle-bus">${c.schedule}</a>`;
-  return { title: `${title} | Geo Transit`, description, main: `<div class="wrap route-detail">
+  return { title: `${title} | Georgia Transit`, description, main: `<div class="wrap route-detail">
       <a href="${cityPagePath("kutaisi", language)}#how-to-get">← ${esc(back)}</a>
       <h1>${title}</h1><p>${description}</p>${details}</div>` };
 }
