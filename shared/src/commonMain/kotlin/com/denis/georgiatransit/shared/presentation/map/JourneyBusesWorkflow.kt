@@ -14,6 +14,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlin.time.Instant
 
 /** What the soonest buses are looked up for; any change restarts the lookup. */
 internal data class JourneyBusKey(
@@ -23,6 +24,7 @@ internal data class JourneyBusKey(
     val locale: TransitLocale,
     val positions: Boolean,
     val shapes: Boolean = false,
+    val arrivals: Boolean = true,
 )
 
 internal data class JourneyBusesUpdate(
@@ -31,6 +33,7 @@ internal data class JourneyBusesUpdate(
     val soonest: List<Pair<VehicleId, Int>>,
     val positions: Map<VehicleId, TransitVehicle>,
     val headings: Map<VehicleId, Double> = emptyMap(),
+    val passedAt: Instant? = null,
 )
 
 internal object JourneyBusesProjector {
@@ -102,15 +105,16 @@ internal class JourneyBusesWorkflow(
         scope.launch {
             var soonest = emptyList<Pair<VehicleId, Int>>()
             var displayedVehicle: TransitVehicle? = null
+            var passedAt: Instant? = null
             fun publish() {
                 if (generation == this@JourneyBusesWorkflow.generation) {
                     val bus = displayedVehicle
                     val positions = bus?.let { mapOf(it.id to it) }.orEmpty()
                     val headings = bus?.bearing?.let { mapOf(bus.id to it) }.orEmpty()
-                    onUpdate(JourneyBusesUpdate(key, generation, soonest, positions, headings))
+                    onUpdate(JourneyBusesUpdate(key, generation, soonest, positions, headings, passedAt))
                 }
             }
-            launch {
+            if (key.arrivals) launch {
                 while (true) {
                     val page = guarded { repository.arrivals(key.cityId, key.boarding.stopId, ARRIVALS_LIMIT, key.locale) }
                     // A stale or failed response cannot support a current countdown.
@@ -122,7 +126,9 @@ internal class JourneyBusesWorkflow(
                 }
             }
             if (key.positions) launch {
-                val motion = JourneyBoardingBusMotion(key.boarding, routePath(key), clock)
+                var path = routePath(key)
+                val motion = JourneyBoardingBusMotion(key.boarding, path, clock)
+                val passage = JourneyBoardingPassage(key.boarding)
                 var animation: Job? = null
                 fun renderFrame() {
                     val frame = motion.frame()
@@ -132,6 +138,13 @@ internal class JourneyBusesWorkflow(
                 }
                 while (true) {
                     val page = guarded { repository.vehicles(key.cityId, key.boarding.routeId) }
+                    if (path == null && key.shapes) path = routePath(key)
+                    if (page is TransitLoadResult.Data && page.freshness != TransitFreshness.StaleOffline &&
+                        path?.let { passage.observe(page.value, it, clock.wallNow().toEpochMilliseconds()) } == true) {
+                        passedAt = page.value.items.first { it.id == key.boarding.plannedVehicleId }.observedAt
+                        publish()
+                        break
+                    }
                     animation?.cancel()
                     motion.accept(page)
                     renderFrame()
@@ -147,7 +160,7 @@ internal class JourneyBusesWorkflow(
         }
 
     private suspend fun routePath(key: JourneyBusKey): PreparedVehicleRoutePath? {
-        val directionId = key.boarding.directionId?.takeIf { key.positions && key.shapes } ?: return null
+        val directionId = key.boarding.directionId?.takeIf { key.shapes } ?: return null
         cachedPath?.takeIf { (boarding) -> boarding.routeId == key.boarding.routeId && boarding.directionId == directionId }
             ?.let { return it.second }
         val shape = guarded { repository.directionShape(key.cityId, key.boarding.routeId, directionId) }

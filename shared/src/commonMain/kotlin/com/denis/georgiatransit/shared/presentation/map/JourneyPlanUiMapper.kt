@@ -100,6 +100,7 @@ internal object JourneyPlanUiMapper {
         toStopId = segment.toStopId,
         fromStopName = segment.fromStopName?.forLocale(locale),
         toStopName = segment.toStopName?.forLocale(locale),
+        directionId = segment.directionId,
     )
 
     private fun badge(segment: TransitJourneySegment, routes: List<TransitRoute>): JourneyRouteBadgeUi {

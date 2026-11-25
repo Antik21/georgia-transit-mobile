@@ -108,5 +108,5 @@ const val MAX_TRANSFERS = 2
 const val MAX_TRANSFER_BUFFER_SECONDS = 600L
 val DEFAULT_TRANSFER_BUFFER: Duration = 60.seconds
 // ADR 0022 phase-1 walking model: straight line × 1.3 at 1.3 m/s.
-private const val WALK_DETOUR_FACTOR = 1.3
+internal const val WALK_DETOUR_FACTOR = 1.3
 private const val EARTH_RADIUS_METERS = 6_371_008.8

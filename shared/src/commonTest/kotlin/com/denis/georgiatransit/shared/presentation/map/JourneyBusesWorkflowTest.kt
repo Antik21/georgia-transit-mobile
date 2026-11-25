@@ -192,6 +192,23 @@ class JourneyBusesWorkflowTest {
         assertEquals(1, repository.shapeCalls, "A re-plan with new option IDs reuses the same route shape")
     }
 
+    @Test
+    fun passagePollingContinuesWhenTheSelectedVehicleIsMissingFromArrivals() = runTest {
+        val repository = BusRepository(arrivals = emptyList(), clock = testClock())
+        val workflow = JourneyBusesWorkflow(repository, vehicleIntervalMillis = 8_000, clock = testClock())
+        val updates = mutableListOf<JourneyBusesUpdate>()
+        val boarding = BOARDING.copy(directionId = DIRECTION, stopPosition = GeoPoint(41.645, 41.63), departureBearing = 0.0)
+        val key = JourneyBusKey(CITY.id, OPTION_A, boarding, TransitLocale.English, positions = true, shapes = true)
+        repository.position = GeoPoint(41.644, 41.63)
+        workflow.sync(backgroundScope, key) { updates += it }
+        runCurrent()
+        assertTrue(updates.all { it.passedAt == null })
+        repository.position = GeoPoint(41.646, 41.63)
+        advanceTimeBy(8_001)
+        assertEquals(Instant.fromEpochMilliseconds(1_900_000_008_000L), updates.last().passedAt)
+        assertTrue(updates.all { it.soonest.isEmpty() })
+    }
+
     private fun TestScope.execute(workflow: JourneyPlannerWorkflow, state: JourneyPlannerUi, context: JourneyPlannerContext) {
         workflow.execute(backgroundScope, JourneyPlannerStep(state), context) {}
         runCurrent()
@@ -245,7 +262,7 @@ class JourneyBusesWorkflowTest {
 
         override suspend fun vehicles(cityId: CityId, routeId: RouteId, directionId: DirectionId?): TransitLoadResult<VehiclePage> {
             vehicleCalls++
-            val items = listOf(V1, V2, V3).map { TransitVehicle(it, routeId, null, position, null, null, null, 0, VehiclePositionKind.Gps) }
+            val items = listOf(V1, V2, V3).map { TransitVehicle(it, routeId, null, position, null, null, clock.wallNow(), 0, VehiclePositionKind.Gps) }
             return TransitLoadResult.Data(VehiclePage(items, clock.wallNow(), 30, stalePositions), TransitFreshness.Network)
         }
     }
