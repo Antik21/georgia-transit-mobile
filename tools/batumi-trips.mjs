@@ -102,5 +102,5 @@ export function routePage(number, language, esc) {
           <ol>${codes.map(code => `<li>${stopLabel(code, lang, esc)}</li>`).join("")}</ol>
         </details></section>`).join("\n")}</div>
     </div>`;
-  return { title, description, main };
+  return { title: `${title} | Georgia Transit`, description, main };
 }
