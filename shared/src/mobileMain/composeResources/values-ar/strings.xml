@@ -17,6 +17,8 @@
     <string name="city_unavailable">يتوفر لاحقًا</string>
     <string name="city_attribution_title">مصادر البيانات وحقوقها</string>
     <string name="city_open_map">فتح الخريطة</string>
+    <string name="city_privacy_notice">بالنقر على «%1$s»، فإنك توافق على %2$s.</string>
+    <string name="city_privacy_link">سياسة الخصوصية</string>
     <string name="location_title">استخدم موقعك</string>
     <string name="location_body">اعرض موقعك في وسط الخريطة وشاهد المحطات القريبة. يمكنك اختيار المدينة دون مشاركة موقعك.</string>
     <string name="location_status_not_determined">لم يُطلب إذن الوصول إلى موقعك بعد.</string>

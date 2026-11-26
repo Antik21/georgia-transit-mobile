@@ -150,6 +150,8 @@ body { background: var(--background); color: var(--ink); }
 
 .city-content { display: grid; justify-items: start; gap: 12px; }
 .city-footer .primary-button { inline-size: 100%; }
+.city-privacy-notice { margin: 8px 0 0; color: var(--muted); font-size: 0.75rem; line-height: 1.4; text-align: center; }
+.city-privacy-notice a { color: var(--primary); text-decoration: underline; text-underline-offset: 2px; }
 .city-options, .stop-list, .arrivals-list { display: grid; inline-size: 100%; margin: 0; padding: 0; list-style: none; }
 .city-options { gap: 8px; }
 

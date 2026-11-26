@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.material3.Button
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -18,7 +19,15 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.text.LinkAnnotation
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.TextLinkStyles
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.intl.Locale
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.sp
 import com.denis.georgiatransit.shared.domain.model.CityId
 import com.denis.georgiatransit.shared.domain.model.LocalizedText
 import com.denis.georgiatransit.shared.domain.model.TransitAttribution
@@ -31,6 +40,8 @@ import com.denis.georgiatransit.shared.presentation.ui.theme.GeorgiaTransitTheme
 import com.denis.georgiatransit.shared.presentation.ui.theme.TransitSpacing
 import georgiatransit.shared.generated.resources.Res
 import georgiatransit.shared.generated.resources.city_open_map
+import georgiatransit.shared.generated.resources.city_privacy_link
+import georgiatransit.shared.generated.resources.city_privacy_notice
 import georgiatransit.shared.generated.resources.city_title
 import org.jetbrains.compose.resources.stringResource
 import org.orbitmvi.orbit.compose.collectAsState
@@ -93,14 +104,41 @@ private fun Content(state: ViewState, onAction: (Action) -> Unit, onBack: (() ->
                 modifier = Modifier.weight(1f),
             )
             if (state.catalog !is CityCatalogState.RetryableError) {
+                val openMap = stringResource(Res.string.city_open_map)
                 Button(
                     onClick = { onAction(Action.ContinueClicked) },
                     enabled = state.canContinue,
                     modifier = Modifier.fillMaxWidth().testTag(AutomationId.CityContinue),
-                ) { Text(stringResource(Res.string.city_open_map)) }
+                ) { Text(openMap) }
+                PrivacyNotice(openMap, Modifier.fillMaxWidth())
             }
         }
     }
+}
+
+@Composable
+private fun PrivacyNotice(openMap: String, modifier: Modifier = Modifier) {
+    val linkLabel = stringResource(Res.string.city_privacy_link)
+    val notice = stringResource(Res.string.city_privacy_notice, openMap, linkLabel)
+    val language = Locale.current.language
+    val link = LinkAnnotation.Url(
+        url = "https://www.geotransit.com.ge/privacy.html?lang=$language",
+        styles = TextLinkStyles(
+            style = SpanStyle(color = MaterialTheme.colorScheme.primary, textDecoration = TextDecoration.Underline),
+        ),
+    )
+    Text(
+        text = buildAnnotatedString {
+            append(notice)
+            val start = notice.indexOf(linkLabel)
+            addLink(link, start, start + linkLabel.length)
+        },
+        modifier = modifier.testTag(AutomationId.CityPrivacyNotice),
+        style = MaterialTheme.typography.bodySmall,
+        fontSize = 12.sp,
+        textAlign = TextAlign.Center,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
 }
 
 @Preview

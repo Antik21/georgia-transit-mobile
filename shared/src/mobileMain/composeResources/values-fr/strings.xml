@@ -17,6 +17,8 @@
     <string name="city_unavailable">Disponible ultérieurement</string>
     <string name="city_attribution_title">Sources des données et crédits</string>
     <string name="city_open_map">Ouvrir la carte</string>
+    <string name="city_privacy_notice">En appuyant sur « %1$s », vous acceptez la %2$s.</string>
+    <string name="city_privacy_link">politique de confidentialité</string>
     <string name="location_title">Utiliser votre position</string>
     <string name="location_body">Centrez la carte sur votre position et affichez les arrêts à proximité. Vous pouvez choisir une ville sans partager votre position.</string>
     <string name="location_status_not_determined">L’accès à la position n’a pas encore été demandé.</string>

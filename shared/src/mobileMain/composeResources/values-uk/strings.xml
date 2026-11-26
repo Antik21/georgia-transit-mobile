@@ -17,6 +17,8 @@
     <string name="city_unavailable">Буде доступно згодом</string>
     <string name="city_attribution_title">Джерела даних і авторство</string>
     <string name="city_open_map">Відкрити карту</string>
+    <string name="city_privacy_notice">Натискаючи «%1$s», ви погоджуєтеся з %2$s.</string>
+    <string name="city_privacy_link">політикою конфіденційності</string>
     <string name="location_title">Використовуйте своє місцеположення</string>
     <string name="location_body">Центруйте карту й переглядайте зупинки поблизу. Місто можна вибрати й без геолокації.</string>
     <string name="location_status_not_determined">Дозвіл на доступ до місцеположення ще не запитували.</string>

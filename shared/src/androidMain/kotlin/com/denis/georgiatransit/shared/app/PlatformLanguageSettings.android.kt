@@ -28,7 +28,8 @@ private class AndroidLanguagePicker(
     private val supportedLocales: List<Locale>,
 ) : AppLanguageSettings.Picker {
     override val languages = supportedLocales.map { locale ->
-        LanguageOption(locale.toLanguageTag(), locale.getDisplayName(locale))
+        val displayName = locale.getDisplayName(locale).replaceFirstChar { it.titlecase(locale) }
+        LanguageOption(locale.toLanguageTag(), displayName)
     }
 
     override fun currentLanguageTag(): String? {

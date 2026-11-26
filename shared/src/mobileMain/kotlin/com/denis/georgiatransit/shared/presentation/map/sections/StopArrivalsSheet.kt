@@ -1,5 +1,6 @@
 package com.denis.georgiatransit.shared.presentation.map.sections
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
@@ -11,6 +12,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
@@ -286,7 +288,7 @@ private fun StopArrivalsDetails(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
-        if (sheet.isRefreshing) {
+        if (sheet.isRefreshing && sheet.rows.isEmpty()) {
             Text(
                 stringResource(Res.string.map_stop_arrivals_refreshing),
                 modifier = Modifier.testTag(AutomationId.MapStopArrivalsRefreshing),
@@ -405,12 +407,18 @@ private fun StopArrivalRow(row: StopArrivalRowUi, showSource: Boolean, isStale: 
             contentAlignment = Alignment.CenterStart,
         ) {
             row.routeBadge?.let { badge ->
-                Surface(shape = TransitShapes.Small, color = Color(badge.backgroundArgb)) {
+                Box(
+                    modifier = Modifier
+                        .sizeIn(minWidth = 32.dp, minHeight = 32.dp)
+                        .background(Color(badge.backgroundArgb), TransitShapes.Full)
+                        .padding(horizontal = TransitSpacing.ExtraSmall, vertical = 2.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
                     Text(
                         badge.routeLabel,
-                        modifier = Modifier.padding(horizontal = TransitSpacing.ExtraSmall),
                         color = Color(badge.textArgb),
-                        style = MaterialTheme.typography.titleMedium,
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.Bold,
                     )
                 }
             }

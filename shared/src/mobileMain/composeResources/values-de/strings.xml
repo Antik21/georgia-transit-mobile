@@ -17,6 +17,8 @@
     <string name="city_unavailable">Später verfügbar</string>
     <string name="city_attribution_title">Datenquellen und Urheberhinweise</string>
     <string name="city_open_map">Karte öffnen</string>
+    <string name="city_privacy_notice">Wenn du auf „%1$s“ tippst, stimmst du der %2$s zu.</string>
+    <string name="city_privacy_link">Datenschutzerklärung</string>
     <string name="location_title">Standort verwenden</string>
     <string name="location_body">Zentriere die Karte auf deinem Standort und zeige Haltestellen in der Nähe an. Die Stadtauswahl funktioniert auch ohne Standort.</string>
     <string name="location_status_not_determined">Der Zugriff auf den Standort wurde noch nicht angefordert.</string>

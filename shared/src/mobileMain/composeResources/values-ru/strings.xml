@@ -17,6 +17,8 @@
     <string name="city_unavailable">Будет позже</string>
     <string name="city_attribution_title">Источники данных и атрибуция</string>
     <string name="city_open_map">Открыть карту</string>
+    <string name="city_privacy_notice">Нажимая «%1$s», вы соглашаетесь с %2$s.</string>
+    <string name="city_privacy_link">политикой конфиденциальности</string>
     <string name="location_title">Использовать геопозицию</string>
     <string name="location_body">Центрировать карту и показать остановки рядом. Город можно выбрать и без геопозиции.</string>
     <string name="location_status_not_determined">Доступ к геопозиции ещё не запрашивался.</string>

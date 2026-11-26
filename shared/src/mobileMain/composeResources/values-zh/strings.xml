@@ -17,6 +17,8 @@
     <string name="city_unavailable">即将开放</string>
     <string name="city_attribution_title">数据来源与署名</string>
     <string name="city_open_map">打开地图</string>
+    <string name="city_privacy_notice">点击“%1$s”即表示您同意%2$s。</string>
+    <string name="city_privacy_link">《隐私政策》</string>
     <string name="location_title">使用你的位置</string>
     <string name="location_body">将地图移到你的位置并显示附近的公交站点。关闭位置权限后仍可选择城市。</string>
     <string name="location_status_not_determined">尚未请求位置权限。</string>
